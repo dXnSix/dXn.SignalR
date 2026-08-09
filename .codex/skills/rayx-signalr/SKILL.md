@@ -16,10 +16,14 @@ status/remotes, and recent history before changing the fork.
 
 ## Core Rules
 
-- Keep `origin` pointed at `https://github.com/rayx-ui/RayX.SignalR.git` and push
-  only there. Treat `upstream` as read-only.
-- Use `master` as the RayX default and integration branch. Keep
-  `upstream/main` named after the source repository's own default branch.
+- Keep `origin` as the only persistent remote, pointed at
+  `https://github.com/rayx-ui/RayX.SignalR.git`, and push only there. Do not add
+  an `upstream` remote.
+- Fetch upstream commits directly from
+  `https://github.com/danielleiszen/rust_signalr_client.git`. Never push to that
+  URL.
+- Use `master` as the RayX default and integration branch. Treat the source
+  repository's `main` branch only as a discovery point for an explicit commit.
 - Keep the Cargo package named `rayx-signalr` and the Rust import crate named
   `rayx_signalr`; never restore the upstream identity during an import.
 - Preserve full upstream Git history and record the exact source commit in
@@ -63,7 +67,7 @@ status/remotes, and recent history before changing the fork.
 Use conventional commits. For upstream imports include:
 
 ```text
-Source upstream repository: https://github.com/danielleiszen/rust_signalr_client
+Source upstream repository: https://github.com/danielleiszen/rust_signalr_client.git
 Source upstream commit: <full-sha>
 Original subject: <subject>
 ```

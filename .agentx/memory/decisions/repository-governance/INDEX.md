@@ -4,7 +4,7 @@ agentx:
   scope: repository-governance-decisions
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-08-09T21:45:00+02:00"
+  updated: "2026-08-09T22:04:26+02:00"
   topics:
     - repository-governance
   supersedes: []
@@ -13,3 +13,4 @@ agentx:
 # Repository-governance decisions
 
 - [Initial repository-derived taxonomy](agent-memory/2026-08-09-repository-governance-agent-memory-initial-taxonomy.md)
+- [Use the direct source URL for upstream updates](fork-policy/2026-08-09-repository-governance-fork-policy-use-direct-source-url.md)

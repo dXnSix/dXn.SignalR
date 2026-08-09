@@ -3,7 +3,10 @@
 ## Guardrails
 
 - Start from a clean `master` or a dedicated worktree/branch.
-- Fetch only from `upstream`; push only to `origin`.
+- Keep `origin` as the only persistent remote and push only there. Do not add an
+  `upstream` remote.
+- Read and fetch directly from
+  `https://github.com/danielleiszen/rust_signalr_client.git`; never push to it.
 - Choose an explicit upstream commit SHA. Do not update to a moving branch name.
 - Preserve the RayX package/repository identity and every applicable patch below.
 - Keep the upstream import and RayX repair/replay work reviewable.
@@ -11,28 +14,45 @@
 ## Workflow
 
 1. Inspect `FORK.md`, `Cargo.toml`, `git remote -v`, `git status --short`, and
-   recent commits containing `Source upstream commit:`.
-2. Fetch `upstream` and identify the last represented source SHA plus the target
-   SHA and range.
-3. Audit all upstream changes in that range, including manifests, protocol
+   recent commits containing `Source upstream commit:`. Stop if any persistent
+   remote other than `origin` is configured.
+2. Discover the source repository's current `main` tip without creating a
+   remote:
+
+   ```text
+   git ls-remote https://github.com/danielleiszen/rust_signalr_client.git refs/heads/main
+   ```
+
+   Select and record the full target SHA; do not merge the moving branch name.
+3. Fetch only that selected commit and verify `FETCH_HEAD` before using it:
+
+   ```text
+   git fetch --no-tags https://github.com/danielleiszen/rust_signalr_client.git <full-sha>
+   git rev-parse FETCH_HEAD
+   ```
+
+   Stop unless the resolved `FETCH_HEAD` exactly matches the selected SHA.
+4. Identify the last represented source SHA and audit all upstream changes in
+   the selected range, including manifests, protocol
    framing, native/WASM communication, tests, and the .NET service.
-4. Create an update branch from current RayX `master`.
-5. Merge the explicit upstream SHA with `--no-ff --no-commit`, or import the
+5. Create an update branch from current RayX `master`.
+6. Merge the verified explicit SHA with `--no-ff --no-commit`, or import the
    selected commits individually when that produces clearer provenance.
-6. Reconcile conflicts and restore the patch surface. Never accept an upstream
+7. Reconcile conflicts and restore the patch surface. Never accept an upstream
    deletion or rename merely because it merges cleanly.
-7. Commit the import with the exact source repository, full source SHA, and
+8. Commit the import with the exact source repository, full source SHA, and
    original subject in the body.
-8. Add separate repair commits for RayX patches that require adaptation.
-9. Run the full validation matrix below.
-10. Review the complete diff from pre-import RayX `master`, then merge and push to
+9. Add separate repair commits for RayX patches that require adaptation.
+10. Run the full validation matrix below.
+11. Review the complete diff from pre-import RayX `master`, then merge and push to
     `origin` only after validation succeeds.
 
 ## RayX patch surface
 
 - Package/import identity: `rayx-signalr` / `rayx_signalr`.
 - Repository identity: `https://github.com/rayx-ui/RayX.SignalR`.
-- `origin` is RayX-owned; `upstream` is read-only.
+- `origin` is the only persistent remote; source commits are fetched directly
+  from the canonical upstream URL.
 - Windows-safe repository paths; do not restore the upstream
   `CLAUDE.md`/`claude.md` collision.
 - Exact outbound Serde field names for JSON and named-map MessagePack.

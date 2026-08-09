@@ -2,7 +2,7 @@
 
 ## Provenance
 
-- Upstream repository: <https://github.com/danielleiszen/rust_signalr_client>
+- Upstream repository: <https://github.com/danielleiszen/rust_signalr_client.git>
 - RayX repository: <https://github.com/rayx-ui/RayX.SignalR>
 - Fork baseline: `d32bd04` (`v0.3.2`)
 - Upstream package: `signalr-client`
@@ -10,10 +10,11 @@
 - Initial RayX version: `0.1.0`
 - License: MIT
 
-The full upstream Git history is preserved. `origin` is the RayX-owned hard
-fork. `upstream` tracks the source repository and must never receive pushes.
-The RayX default and integration branch is `master`; the source repository's
-independent `upstream/main` branch keeps its upstream-defined name.
+The full upstream Git history is preserved. `origin` is the only persistent
+remote and points to the RayX-owned hard fork. Future upstream imports fetch an
+explicit commit directly from the upstream repository URL without configuring
+an `upstream` remote. The RayX default and integration branch is `master`; the
+source repository's default branch remains independently named `main`.
 
 ## Hard-fork policy
 
