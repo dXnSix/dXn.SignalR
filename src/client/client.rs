@@ -606,24 +606,21 @@ impl SignalRClient {
             },
             #[cfg(feature = "messagepack")]
             HubProtocolKind::MessagePack => {
-                // Convert arguments to rmpv::Value with PascalCase keys
-                // to match .NET property naming convention.
+                // Preserve the serializer-owned wire names. ASP.NET Core can
+                // bind explicitly attributed names, while a transport-level
+                // casing rewrite corrupts compact schemas and serde renames.
                 let msgpack_args: Vec<rmpv::Value> = if let Some(ref raw_args) = invocation.msgpack_args {
                     raw_args.iter()
                         .map(|bytes| {
-                            let val = rmpv::decode::read_value(&mut std::io::Cursor::new(bytes))
-                                .unwrap_or(rmpv::Value::Nil);
-                            crate::protocol::msgpack::normalize_keys_to_pascal(&val)
+                            rmpv::decode::read_value(&mut std::io::Cursor::new(bytes))
+                                .unwrap_or(rmpv::Value::Nil)
                         })
                         .collect()
                 } else {
                     invocation.arguments
                         .as_ref()
                         .map(|args| args.iter()
-                            .map(|a| {
-                                let raw = crate::protocol::msgpack::json_value_to_msgpack(a);
-                                crate::protocol::msgpack::normalize_keys_to_pascal(&raw)
-                            })
+                            .map(crate::protocol::msgpack::json_value_to_msgpack)
                             .collect())
                         .unwrap_or_default()
                 };

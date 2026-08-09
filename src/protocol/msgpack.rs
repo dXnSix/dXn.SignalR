@@ -320,18 +320,6 @@ fn to_camel_case(s: &str) -> String {
     result
 }
 
-/// Convert camelCase or any case to PascalCase (uppercase first letter).
-#[allow(dead_code)]
-fn to_pascal_case(s: &str) -> String {
-    let mut result = String::with_capacity(s.len());
-    let mut chars = s.chars();
-    if let Some(first) = chars.next() {
-        result.push(first.to_ascii_uppercase());
-    }
-    result.extend(chars);
-    result
-}
-
 fn transform_keys(value: &rmpv::Value, transform: fn(&str) -> String) -> rmpv::Value {
     match value {
         rmpv::Value::Map(entries) => {
@@ -361,12 +349,6 @@ fn transform_keys(value: &rmpv::Value, transform: fn(&str) -> String) -> rmpv::V
 /// Normalize map keys in an rmpv::Value tree from PascalCase to camelCase (inbound from .NET).
 fn normalize_keys_to_camel(value: &rmpv::Value) -> rmpv::Value {
     transform_keys(value, to_camel_case)
-}
-
-/// Normalize map keys in an rmpv::Value tree from camelCase to PascalCase (outbound to .NET).
-#[allow(dead_code)]
-pub fn normalize_keys_to_pascal(value: &rmpv::Value) -> rmpv::Value {
-    transform_keys(value, to_pascal_case)
 }
 
 /// Deserialize an rmpv::Value into a concrete Rust type via rmp-serde.
@@ -526,32 +508,28 @@ mod tests {
         let raw1 = json_value_to_msgpack(&json1);
         let raw2 = json_value_to_msgpack(&json2);
 
-        // Step 3: Normalize keys to PascalCase
-        let norm1 = normalize_keys_to_pascal(&raw1);
-        let norm2 = normalize_keys_to_pascal(&raw2);
-
-        // Verify the normalized values have PascalCase keys and correct values
-        if let rmpv::Value::Map(entries) = &norm1 {
+        // Step 3: Preserve serializer-owned keys exactly.
+        if let rmpv::Value::Map(entries) = &raw1 {
             let keys: Vec<&str> = entries.iter()
                 .filter_map(|(k, _)| k.as_str())
                 .collect();
-            assert!(keys.contains(&"Number"), "Expected 'Number' key, got: {:?}", keys);
-            assert!(keys.contains(&"Text"), "Expected 'Text' key, got: {:?}", keys);
+            assert!(keys.contains(&"number"), "Expected 'number' key, got: {:?}", keys);
+            assert!(keys.contains(&"text"), "Expected 'text' key, got: {:?}", keys);
 
             for (k, v) in entries {
-                if k.as_str() == Some("Number") {
+                if k.as_str() == Some("number") {
                     assert_eq!(v.as_i64(), Some(200), "Number value mismatch");
                 }
-                if k.as_str() == Some("Text") {
+                if k.as_str() == Some("text") {
                     assert_eq!(v.as_str(), Some("entity1"), "Text value mismatch");
                 }
             }
         } else {
-            panic!("Expected Map, got: {:?}", norm1);
+            panic!("Expected Map, got: {:?}", raw1);
         }
 
         // Step 4: Encode as invocation
-        let args = vec![norm1.clone(), norm2.clone()];
+        let args = vec![raw1.clone(), raw2.clone()];
         let payload = encode_invocation(
             1,
             &None,
@@ -573,7 +551,7 @@ mod tests {
 
         if let rmpv::Value::Map(entries) = arg1 {
             for (k, v) in entries {
-                if k.as_str() == Some("Number") {
+                if k.as_str() == Some("number") {
                     assert_eq!(v.as_i64(), Some(200), "Arg1 Number mismatch after round-trip");
                 }
             }
@@ -583,7 +561,7 @@ mod tests {
 
         if let rmpv::Value::Map(entries) = arg2 {
             for (k, v) in entries {
-                if k.as_str() == Some("Number") {
+                if k.as_str() == Some("number") {
                     assert_eq!(v.as_i64(), Some(300), "Arg2 Number mismatch after round-trip");
                 }
             }
@@ -594,16 +572,37 @@ mod tests {
         // Step 6: Compare with direct rmp_serde serialization
         let direct_bytes1 = rmp_serde::to_vec_named(&entity1).unwrap();
         let direct_val1 = rmpv::decode::read_value(&mut Cursor::new(&direct_bytes1)).unwrap();
-        let direct_norm1 = normalize_keys_to_pascal(&direct_val1);
 
         // Compare hex representation
         let mut our_bytes = Vec::new();
-        rmpv::encode::write_value(&mut our_bytes, &norm1).unwrap();
-        let mut direct_bytes_norm = Vec::new();
-        rmpv::encode::write_value(&mut direct_bytes_norm, &direct_norm1).unwrap();
+        rmpv::encode::write_value(&mut our_bytes, &raw1).unwrap();
+        let mut direct_bytes = Vec::new();
+        rmpv::encode::write_value(&mut direct_bytes, &direct_val1).unwrap();
 
         // They should produce the same result
-        assert_eq!(our_bytes, direct_bytes_norm, "Encoding mismatch between JSON path and direct rmp_serde path");
+        assert_eq!(our_bytes, direct_bytes, "Encoding mismatch between JSON path and direct rmp_serde path");
+    }
+
+    #[test]
+    fn test_outbound_short_wire_keys_are_preserved() {
+        #[derive(serde::Serialize)]
+        struct FeedCursor {
+            #[serde(rename = "sid")]
+            sport_id: u16,
+            #[serde(rename = "seq")]
+            sequence: u64,
+        }
+
+        let bytes = rmp_serde::to_vec_named(&FeedCursor {
+            sport_id: 3,
+            sequence: 48_292,
+        })
+        .unwrap();
+        let value = rmpv::decode::read_value(&mut Cursor::new(&bytes)).unwrap();
+        let entries = value.as_map().expect("named MessagePack struct should be a map");
+        let keys: Vec<&str> = entries.iter().filter_map(|(key, _)| key.as_str()).collect();
+
+        assert_eq!(keys, vec!["sid", "seq"]);
     }
 
     #[test]
