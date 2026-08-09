@@ -1,0 +1,227 @@
+{
+  "schemaVersion": 5,
+  "generatorVersion": "5.0",
+  "epicId": "resilient-reconnect-and-production-gates",
+  "sprint": 2,
+  "status": "passed",
+  "headBeforeCommit": "af44928d0ffeda151663e27ddec90616cf3a275f",
+  "filesReviewed": [
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\dotnet\\SignalRTestService",
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci\\run-interop.ps1",
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\client\\configuration.rs",
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\communication\\stateful.rs",
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\protocol\\msgpack.rs",
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\protocol\\stateful.rs"
+  ],
+  "conformance": [
+    {
+      "requirementId": "REQ-F-002",
+      "taskIds": [
+        "sprint-2-task-1"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-F-002-1",
+        "AC-F-002-2",
+        "AC-F-002-3",
+        "AC-NF-002-1",
+        "AC-NF-003-1"
+      ],
+      "evidenceAcceptanceCriteriaIds": [
+        "AC-F-002-1",
+        "AC-F-002-2",
+        "AC-F-002-3",
+        "AC-NF-002-1",
+        "AC-NF-003-1"
+      ],
+      "missingAcceptanceCriteriaIds": [],
+      "implementationLocations": [
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\dotnet\\SignalRTestService",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci\\run-interop.ps1",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\client\\configuration.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\communication\\stateful.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\protocol\\msgpack.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\protocol\\stateful.rs"
+      ],
+      "testLocations": [],
+      "evidenceProfiles": [
+        "contract",
+        "integration",
+        "parity",
+        "unit"
+      ],
+      "missingProfiles": [],
+      "result": "pass",
+      "reason": "All mapped tasks are done with fresh profile-complete evidence."
+    },
+    {
+      "requirementId": "REQ-NF-002",
+      "taskIds": [
+        "sprint-2-task-1"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-F-002-1",
+        "AC-F-002-2",
+        "AC-F-002-3",
+        "AC-NF-002-1",
+        "AC-NF-003-1"
+      ],
+      "evidenceAcceptanceCriteriaIds": [
+        "AC-F-002-1",
+        "AC-F-002-2",
+        "AC-F-002-3",
+        "AC-NF-002-1",
+        "AC-NF-003-1"
+      ],
+      "missingAcceptanceCriteriaIds": [],
+      "implementationLocations": [
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\dotnet\\SignalRTestService",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci\\run-interop.ps1",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\client\\configuration.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\communication\\stateful.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\protocol\\msgpack.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\protocol\\stateful.rs"
+      ],
+      "testLocations": [],
+      "evidenceProfiles": [
+        "contract",
+        "integration",
+        "parity",
+        "unit"
+      ],
+      "missingProfiles": [],
+      "result": "pass",
+      "reason": "All mapped tasks are done with fresh profile-complete evidence."
+    },
+    {
+      "requirementId": "REQ-NF-003",
+      "taskIds": [
+        "sprint-2-task-1"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-F-002-1",
+        "AC-F-002-2",
+        "AC-F-002-3",
+        "AC-NF-002-1",
+        "AC-NF-003-1"
+      ],
+      "evidenceAcceptanceCriteriaIds": [
+        "AC-F-002-1",
+        "AC-F-002-2",
+        "AC-F-002-3",
+        "AC-NF-002-1",
+        "AC-NF-003-1"
+      ],
+      "missingAcceptanceCriteriaIds": [],
+      "implementationLocations": [
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\dotnet\\SignalRTestService",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci\\run-interop.ps1",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\client\\configuration.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\communication\\stateful.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\protocol\\msgpack.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\protocol\\stateful.rs"
+      ],
+      "testLocations": [],
+      "evidenceProfiles": [
+        "contract",
+        "integration",
+        "parity",
+        "unit"
+      ],
+      "missingProfiles": [],
+      "result": "pass",
+      "reason": "All mapped tasks are done with fresh profile-complete evidence."
+    }
+  ],
+  "designQuality": {
+    "declaredWritePaths": [
+      "rayx-signalr:dotnet/SignalRTestService/Program.cs",
+      "rayx-signalr:dotnet/SignalRTestService/SignalRTestService.csproj",
+      "rayx-signalr:dotnet/SignalRTestService/TestHub.cs",
+      "rayx-signalr:scripts/ci/run-interop.ps1",
+      "rayx-signalr:src/client/client.rs",
+      "rayx-signalr:src/client/configuration.rs",
+      "rayx-signalr:src/communication/common.rs",
+      "rayx-signalr:src/communication/mod.rs",
+      "rayx-signalr:src/communication/stateful.rs",
+      "rayx-signalr:src/execution/storage.rs",
+      "rayx-signalr:src/lib.rs",
+      "rayx-signalr:src/protocol/close.rs",
+      "rayx-signalr:src/protocol/messages.rs",
+      "rayx-signalr:src/protocol/mod.rs",
+      "rayx-signalr:src/protocol/msgpack.rs",
+      "rayx-signalr:src/protocol/negotiate.rs",
+      "rayx-signalr:src/protocol/stateful.rs",
+      "rayx-signalr:src/tests/mod.rs",
+      "rayx-signalr:src/tests/tests_msgpack.rs"
+    ],
+    "actualChangedPaths": [
+      "rayx-signalr:dotnet/SignalRTestService/Program.cs",
+      "rayx-signalr:dotnet/SignalRTestService/TestHub.cs",
+      "rayx-signalr:scripts/ci/run-interop.ps1",
+      "rayx-signalr:src/client/client.rs",
+      "rayx-signalr:src/client/configuration.rs",
+      "rayx-signalr:src/communication/common.rs",
+      "rayx-signalr:src/communication/mod.rs",
+      "rayx-signalr:src/communication/stateful.rs",
+      "rayx-signalr:src/execution/storage.rs",
+      "rayx-signalr:src/lib.rs",
+      "rayx-signalr:src/protocol/close.rs",
+      "rayx-signalr:src/protocol/messages.rs",
+      "rayx-signalr:src/protocol/mod.rs",
+      "rayx-signalr:src/protocol/msgpack.rs",
+      "rayx-signalr:src/protocol/negotiate.rs",
+      "rayx-signalr:src/protocol/stateful.rs",
+      "rayx-signalr:src/tests/mod.rs",
+      "rayx-signalr:src/tests/tests_msgpack.rs"
+    ],
+    "unexpectedChangedPaths": [],
+    "responsibilityIds": [
+      "RESP-002",
+      "RESP-003",
+      "RESP-004",
+      "RESP-005",
+      "RESP-008"
+    ],
+    "newAbstractions": [
+      "ConnectionRecipe",
+      "InteropHarness",
+      "ReconnectCoordinator",
+      "StatefulMessageBuffer"
+    ],
+    "newDependencies": [
+      "repository-local Playwright dev tooling"
+    ],
+    "newPublicApi": [
+      "ConnectionConfiguration::with_stateful_reconnect(StatefulReconnectConfig)",
+      "StatefulReconnectConfig with Default buffer_size_bytes=100000"
+    ],
+    "unapprovedDesignAdditions": [],
+    "result": "pass",
+    "reason": "Actual changed paths stay within declared task scopes; declared responsibilities and explicitly allowed design additions are recorded for semantic review."
+  },
+  "commands": [
+    {
+      "command": "cargo check --all-targets --all-features",
+      "effectiveCommand": "cargo check --all-targets --all-features",
+      "exitCode": 0,
+      "assertion": "Shared stateful protocol changes MUST compile across native targets and features.",
+      "stdoutHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrHash": "3fc96a97a3bd3a666478275e097d250fc7e1aba45ef27d67e2187d6c11e9a973",
+      "failureOutputTail": ""
+    },
+    {
+      "command": "cargo check --target wasm32-unknown-unknown --all-features",
+      "effectiveCommand": "cargo check --target wasm32-unknown-unknown --all-features",
+      "exitCode": 0,
+      "assertion": "The shared stateful protocol and buffer MUST compile for WASM with MessagePack.",
+      "stdoutHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrHash": "61da23325a886191f2571d69065505aec5f698d97f7efd86f9b1a98b209ec08c",
+      "failureOutputTail": ""
+    }
+  ],
+  "defects": [],
+  "repairs": [],
+  "reauditCount": 0,
+  "residualRisks": [],
+  "generatedAt": "2026-08-09T23:12:45Z"
+}
