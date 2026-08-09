@@ -5,6 +5,16 @@ use tokio::time::Instant;
 use crate::{tests::TestEntity, SignalRClient};
 
 #[test_log::test(tokio::test)]
+async fn interop_stateful_reconnect_messagepack() {
+    tokio::time::timeout(
+        std::time::Duration::from_secs(15),
+        super::tests_tokio::run_stateful_reconnect(true),
+    )
+    .await
+    .expect("native MessagePack stateful scenario timed out");
+}
+
+#[test_log::test(tokio::test)]
 async fn test_msgpack_service() {
     let mut client = SignalRClient::connect_with("localhost", "test", |c| {
         c.with_port(5220);

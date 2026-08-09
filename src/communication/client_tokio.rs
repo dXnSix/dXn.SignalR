@@ -1,6 +1,19 @@
+#[cfg(all(test, unix))]
+use std::os::fd::{AsRawFd, FromRawFd, RawFd};
+#[cfg(all(test, windows))]
+use std::os::windows::io::{AsRawSocket, FromRawSocket, RawSocket};
+#[cfg(test)]
+use std::{
+    mem::ManuallyDrop,
+    net::Shutdown,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        OnceLock,
+    },
+};
 use std::{
     str::FromStr,
-    sync::{Arc, RwLock, Weak},
+    sync::{Arc, Mutex as StdMutex, RwLock, Weak},
 };
 
 use crate::{
@@ -9,12 +22,14 @@ use crate::{
     protocol::{
         hub_protocol::{HubProtocolKind, MessagePayload},
         messages::{MessageParser, RECORD_SEPARATOR},
-        negotiate::{HandshakeRequest, Ping},
+        negotiate::{HandshakeRequest, MessageType, Ping},
+        stateful::{Ack, Sequence},
     },
 };
 
 use super::{
     reconnection::{LifecycleState, ReconnectCoordinator, ReconnectionConfig},
+    stateful::{SerializedFrame, StatefulMessageBuffer, TrackResult},
     Communication, HttpClient,
 };
 use futures::{
@@ -32,6 +47,30 @@ trait CommunicationDisconnectionHandler: Send {
 }
 
 type UserDisconnectionHandler = Arc<Box<dyn Fn(ReconnectionContext) + Send + Sync>>;
+type SharedStatefulBuffer = Arc<StdMutex<StatefulMessageBuffer>>;
+
+#[cfg(test)]
+#[derive(Clone)]
+struct TestClientHandle {
+    state: Weak<Mutex<ConnectionState>>,
+    coordinator: ReconnectCoordinator,
+}
+
+#[cfg(test)]
+static TEST_CLIENT: OnceLock<StdMutex<Option<TestClientHandle>>> = OnceLock::new();
+
+#[cfg(all(test, unix))]
+type TestSocketHandle = RawFd;
+#[cfg(all(test, windows))]
+type TestSocketHandle = RawSocket;
+
+#[cfg(test)]
+static TEST_SOCKET: OnceLock<StdMutex<Option<TestSocketHandle>>> = OnceLock::new();
+
+#[cfg(test)]
+static TEST_PAUSE_NEXT_TRACKABLE: AtomicBool = AtomicBool::new(false);
+#[cfg(test)]
+static TEST_TRACKABLE_PAUSED: OnceLock<tokio::sync::Notify> = OnceLock::new();
 
 /// Context for manual reconnection, passed to user's disconnection handler.
 /// Allows the user to manually trigger reconnection attempts.
@@ -39,12 +78,14 @@ type UserDisconnectionHandler = Arc<Box<dyn Fn(ReconnectionContext) + Send + Syn
 pub struct ReconnectionContext {
     state: Weak<Mutex<ConnectionState>>,
     endpoint: Uri,
+    transport_endpoint: Uri,
     recipe: ConnectionRecipe,
     actions: UpdatableActionStorage,
     reconnection_config: Arc<RwLock<ReconnectionConfig>>,
     user_handler: Arc<RwLock<Option<UserDisconnectionHandler>>>,
     coordinator: ReconnectCoordinator,
     protocol_kind: HubProtocolKind,
+    stateful: Option<SharedStatefulBuffer>,
 }
 
 impl ReconnectionContext {
@@ -56,12 +97,25 @@ impl ReconnectionContext {
             let mut guard = state.lock().await;
             *guard = ConnectionState::NotConnected(DisconnectionReason::Reconnecting);
         }
-        let mut actions = self.actions.clone();
-        actions.fail_pending("The connection was replaced by a fresh logical reconnect");
+        if self.stateful.is_none() {
+            let mut actions = self.actions.clone();
+            actions.fail_pending("The connection was replaced by a fresh logical reconnect");
+        }
 
         info!("Manual reconnection attempt to {}...", self.endpoint);
 
-        match CommunicationClient::connect_fresh(&self.recipe, self.protocol_kind).await {
+        let connection = if let Some(buffer) = &self.stateful {
+            CommunicationClient::resume_to_server(
+                self.transport_endpoint.clone(),
+                self.protocol_kind,
+                buffer.clone(),
+            )
+            .await
+        } else {
+            CommunicationClient::connect_fresh(&self.recipe, self.protocol_kind).await
+        };
+
+        match connection {
             Ok((write, read)) => {
                 let mut guard = state.lock().await;
 
@@ -72,17 +126,22 @@ impl ReconnectionContext {
                 let new_handler = ClientDisconnectionHandler {
                     state: self.state.clone(),
                     endpoint: self.endpoint.clone(),
+                    transport_endpoint: self.transport_endpoint.clone(),
                     recipe: self.recipe.clone(),
                     actions: self.actions.clone(),
                     reconnection_config: self.reconnection_config.clone(),
                     user_handler: self.user_handler.clone(),
                     coordinator: self.coordinator.clone(),
                     protocol_kind: self.protocol_kind,
+                    stateful: self.stateful.clone(),
                 };
 
                 let mut conn_struct = CommunicationConnection {
                     _receiver: None,
                     _sink: write,
+                    _stateful: self.stateful.clone(),
+                    #[cfg(test)]
+                    _test_disconnection_handler: None,
                 };
                 conn_struct.start_receiving(
                     read,
@@ -159,6 +218,9 @@ impl ReconnectionContext {
 struct CommunicationConnection {
     _sink: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
     _receiver: Option<JoinHandle<()>>,
+    _stateful: Option<SharedStatefulBuffer>,
+    #[cfg(test)]
+    _test_disconnection_handler: Option<ClientDisconnectionHandler>,
 }
 
 impl CommunicationConnection {
@@ -166,9 +228,14 @@ impl CommunicationConnection {
         &mut self,
         mut stream: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
         mut storage: impl Storage + Send + 'static,
-        disconnection_handler: impl CommunicationDisconnectionHandler + 'static,
+        disconnection_handler: ClientDisconnectionHandler,
         protocol_kind: HubProtocolKind,
     ) {
+        let stateful = self._stateful.clone();
+        #[cfg(test)]
+        {
+            self._test_disconnection_handler = Some(disconnection_handler.clone());
+        }
         let handle = tokio::spawn(async move {
             let mut allow_reconnect = true;
             'receive: while let Some(item) = stream.next().await {
@@ -181,6 +248,59 @@ impl CommunicationConnection {
 
                                 if ping.is_ok() {
                                     let message_type = ping.unwrap().message_type();
+                                    if let Some(buffer) = &stateful {
+                                        #[cfg(test)]
+                                        CommunicationClient::pause_test_trackable(message_type)
+                                            .await;
+                                        let control_result = match message_type {
+                                            MessageType::Ack => {
+                                                MessageParser::parse_message::<Ack>(&message)
+                                                    .and_then(|ack| ack.sequence_id())
+                                                    .and_then(|sequence_id| {
+                                                        buffer
+                                                            .lock()
+                                                            .expect("stateful buffer poisoned")
+                                                            .acknowledge(sequence_id)
+                                                            .map(|_| ())
+                                                    })
+                                            }
+                                            MessageType::Sequence => {
+                                                MessageParser::parse_message::<Sequence>(&message)
+                                                    .and_then(|sequence| sequence.sequence_id())
+                                                    .and_then(|sequence_id| {
+                                                        buffer
+                                                            .lock()
+                                                            .expect("stateful buffer poisoned")
+                                                            .reset_incoming_sequence(sequence_id)
+                                                    })
+                                            }
+                                            _ => Ok(()),
+                                        };
+                                        if let Err(error) = control_result {
+                                            error!("Stateful protocol error: {}", error);
+                                            allow_reconnect = false;
+                                            break 'receive;
+                                        }
+                                        if matches!(
+                                            message_type,
+                                            MessageType::Ack | MessageType::Sequence
+                                        ) {
+                                            continue;
+                                        }
+                                        match buffer
+                                            .lock()
+                                            .expect("stateful buffer poisoned")
+                                            .should_process(message_type)
+                                        {
+                                            Ok(true) => {}
+                                            Ok(false) => continue,
+                                            Err(error) => {
+                                                error!("Stateful protocol error: {}", error);
+                                                allow_reconnect = false;
+                                                break 'receive;
+                                            }
+                                        }
+                                    }
                                     let payload = MessagePayload::Text(message);
                                     if message_type
                                         == crate::protocol::negotiate::MessageType::Close
@@ -209,6 +329,59 @@ impl CommunicationConnection {
                             for payload in CommunicationClient::get_binary_messages(&ws_message) {
                                 match crate::protocol::msgpack::read_message_type(&payload) {
                                     Ok(msg_type) => {
+                                        if let Some(buffer) = &stateful {
+                                            #[cfg(test)]
+                                            CommunicationClient::pause_test_trackable(msg_type)
+                                                .await;
+                                            let control_result = match msg_type {
+                                                MessageType::Ack => crate::protocol::stateful::decode_messagepack_control(
+                                                    &payload,
+                                                    MessageType::Ack,
+                                                )
+                                                .and_then(|sequence_id| {
+                                                    buffer
+                                                        .lock()
+                                                        .expect("stateful buffer poisoned")
+                                                        .acknowledge(sequence_id)
+                                                        .map(|_| ())
+                                                }),
+                                                MessageType::Sequence => crate::protocol::stateful::decode_messagepack_control(
+                                                    &payload,
+                                                    MessageType::Sequence,
+                                                )
+                                                .and_then(|sequence_id| {
+                                                    buffer
+                                                        .lock()
+                                                        .expect("stateful buffer poisoned")
+                                                        .reset_incoming_sequence(sequence_id)
+                                                }),
+                                                _ => Ok(()),
+                                            };
+                                            if let Err(error) = control_result {
+                                                error!("Stateful protocol error: {}", error);
+                                                allow_reconnect = false;
+                                                break 'receive;
+                                            }
+                                            if matches!(
+                                                msg_type,
+                                                MessageType::Ack | MessageType::Sequence
+                                            ) {
+                                                continue;
+                                            }
+                                            match buffer
+                                                .lock()
+                                                .expect("stateful buffer poisoned")
+                                                .should_process(msg_type)
+                                            {
+                                                Ok(true) => {}
+                                                Ok(false) => continue,
+                                                Err(error) => {
+                                                    error!("Stateful protocol error: {}", error);
+                                                    allow_reconnect = false;
+                                                    break 'receive;
+                                                }
+                                            }
+                                        }
                                         let payload = MessagePayload::Binary(payload);
                                         if msg_type
                                             == crate::protocol::negotiate::MessageType::Close
@@ -242,7 +415,12 @@ impl CommunicationConnection {
     }
 
     async fn send<T: serde::Serialize>(&mut self, data: T) -> Result<(), String> {
-        let json = MessageParser::to_json(&data).unwrap();
+        let json = MessageParser::to_json(&data).map_err(|error| error.to_string())?;
+        let message_type =
+            MessageParser::parse_message::<Ping>(MessageParser::strip_record_separator(&json))?
+                .message_type();
+        self.track_outgoing(message_type, SerializedFrame::Text(json.clone()))
+            .await?;
 
         self._sink
             .send(Message::text(json))
@@ -251,10 +429,42 @@ impl CommunicationConnection {
     }
 
     async fn send_binary(&mut self, data: Vec<u8>) -> Result<(), String> {
+        #[cfg(feature = "messagepack")]
+        if self._stateful.is_some() {
+            let frames = crate::protocol::msgpack::split_framed_messages(&data)?;
+            let first = frames
+                .first()
+                .ok_or_else(|| "Cannot send an empty MessagePack frame".to_string())?;
+            let message_type = crate::protocol::msgpack::read_message_type(first)?;
+            self.track_outgoing(message_type, SerializedFrame::Binary(data.clone()))
+                .await?;
+        }
         self._sink
             .send(Message::binary(data))
             .await
             .map_err(|e| e.to_string())
+    }
+
+    async fn track_outgoing(
+        &self,
+        message_type: MessageType,
+        payload: SerializedFrame,
+    ) -> Result<(), String> {
+        let Some(buffer) = &self._stateful else {
+            return Ok(());
+        };
+        loop {
+            let result = buffer
+                .lock()
+                .expect("stateful buffer poisoned")
+                .track(message_type, payload.clone())?;
+            match result {
+                TrackResult::Buffered(_) | TrackResult::Bypass => return Ok(()),
+                TrackResult::Backpressured => {
+                    tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+                }
+            }
+        }
     }
 
     fn stop_receiving(&mut self) {
@@ -302,6 +512,7 @@ pub struct CommunicationClient {
     _endpoint: Uri,
     _recipe: ConnectionRecipe,
     _state: Arc<Mutex<ConnectionState>>,
+    _stateful: Option<SharedStatefulBuffer>,
     _actions: UpdatableActionStorage,
     _reconnection_config: Arc<RwLock<ReconnectionConfig>>,
     _disconnection_handler: Arc<RwLock<Option<UserDisconnectionHandler>>>,
@@ -315,6 +526,7 @@ impl Clone for CommunicationClient {
             _endpoint: self._endpoint.clone(),
             _recipe: self._recipe.clone(),
             _state: self._state.clone(),
+            _stateful: self._stateful.clone(),
             _actions: self._actions.clone(),
             _reconnection_config: self._reconnection_config.clone(),
             _disconnection_handler: self._disconnection_handler.clone(),
@@ -400,6 +612,9 @@ impl Communication for CommunicationClient {
             ConnectionState::Connected(_) => {
                 info!("The underlying connection is going to be disposed.");
                 self._coordinator.local_close();
+                if let Some(buffer) = &self._stateful {
+                    buffer.lock().expect("stateful buffer poisoned").dispose();
+                }
                 *state = ConnectionState::NotConnected(DisconnectionReason::LocalClosed);
             }
         }
@@ -418,16 +633,35 @@ impl CommunicationClient {
             configuration.get_endpoint().as_str()
         ));
 
+        let state = Arc::new(Mutex::new(ConnectionState::NotConnected(
+            DisconnectionReason::NeverOpened,
+        )));
+        let coordinator = ReconnectCoordinator::connected();
+        #[cfg(test)]
+        {
+            *TEST_CLIENT
+                .get_or_init(|| StdMutex::new(None))
+                .lock()
+                .expect("test client handle poisoned") = Some(TestClientHandle {
+                state: Arc::downgrade(&state),
+                coordinator: coordinator.clone(),
+            });
+        }
+
         CommunicationClient {
             _endpoint: endpoint,
             _recipe: recipe,
-            _state: Arc::new(Mutex::new(ConnectionState::NotConnected(
-                DisconnectionReason::NeverOpened,
-            ))),
+            _state: state,
+            _stateful: configuration.stateful_reconnect().map(|config| {
+                Arc::new(StdMutex::new(
+                    StatefulMessageBuffer::new(config.buffer_size_bytes)
+                        .expect("negotiated stateful reconnect configuration is valid"),
+                ))
+            }),
             _actions: UpdatableActionStorage::new(),
             _reconnection_config: Arc::new(RwLock::new(ReconnectionConfig::default())),
             _disconnection_handler: Arc::new(RwLock::new(None)),
-            _coordinator: ReconnectCoordinator::connected(),
+            _coordinator: coordinator,
             _protocol_kind: configuration.get_protocol_kind(),
         }
     }
@@ -452,6 +686,7 @@ impl CommunicationClient {
     async fn connect_to_server(
         endpoint: Uri,
         protocol_kind: HubProtocolKind,
+        stateful_reconnect: bool,
     ) -> Result<
         (
             SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
@@ -459,6 +694,35 @@ impl CommunicationClient {
         ),
         String,
     > {
+        let ws = Self::connect_socket(endpoint).await?;
+        let (mut write, mut read) = ws.split();
+
+        info!("Initiating handshake...");
+        // Handshake is always JSON, even for MessagePack protocol
+        let message = if stateful_reconnect {
+            MessageParser::to_json(&serde_json::json!({
+                "protocol": protocol_kind.protocol_name(),
+                "version": 2,
+            }))
+            .map_err(|error| error.to_string())?
+        } else {
+            let handshake = HandshakeRequest::new(protocol_kind.protocol_name().to_string());
+            MessageParser::to_json(&handshake).map_err(|error| error.to_string())?
+        };
+        write
+            .send(Message::text(message))
+            .await
+            .map_err(|error| error.to_string())?;
+        match read.next().await {
+            Some(Ok(_)) => Ok((write, read)),
+            Some(Err(error)) => Err(error.to_string()),
+            None => Err("Handshake error".to_string()),
+        }
+    }
+
+    async fn connect_socket(
+        endpoint: Uri,
+    ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, String> {
         let stream: Result<
             (
                 WebSocketStream<MaybeTlsStream<TcpStream>>,
@@ -466,7 +730,10 @@ impl CommunicationClient {
             ),
             tokio_websockets::Error,
         >;
-        info!("Connecting to endpoint {}", endpoint);
+        info!(
+            "Connecting to endpoint {}",
+            Self::display_endpoint(&endpoint)
+        );
 
         if Some("wss") == endpoint.scheme_str() {
             info!("Connection to secure endpoint...");
@@ -484,32 +751,86 @@ impl CommunicationClient {
             stream = ClientBuilder::from_uri(endpoint.clone()).connect().await;
         }
 
-        match stream {
-            Ok((ws, _)) => {
-                let (mut write, mut read) = ws.split();
+        let ws = stream
+            .map(|(ws, _)| ws)
+            .map_err(|error| error.to_string())?;
+        #[cfg(test)]
+        if let MaybeTlsStream::Plain(socket) = ws.get_ref() {
+            #[cfg(unix)]
+            let handle = socket.as_raw_fd();
+            #[cfg(windows)]
+            let handle = socket.as_raw_socket();
+            *TEST_SOCKET
+                .get_or_init(|| StdMutex::new(None))
+                .lock()
+                .expect("test socket handle poisoned") = Some(handle);
+        }
+        Ok(ws)
+    }
 
-                info!("Initiating handshake...");
-                // Handshake is always JSON, even for MessagePack protocol
-                let handshake = HandshakeRequest::new(protocol_kind.protocol_name().to_string());
-                let message = MessageParser::to_json(&handshake).unwrap();
-                let hsres = write.send(Message::text(message)).await;
+    async fn resume_to_server(
+        endpoint: Uri,
+        protocol_kind: HubProtocolKind,
+        buffer: SharedStatefulBuffer,
+    ) -> Result<
+        (
+            SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
+            SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
+        ),
+        String,
+    > {
+        let ws = Self::connect_socket(endpoint).await?;
+        let (mut write, read) = ws.split();
+        let (sequence_id, frames) = buffer
+            .lock()
+            .expect("stateful buffer poisoned")
+            .begin_resend()?;
 
-                if hsres.is_ok() {
-                    if let Some(hand) = read.next().await {
-                        if hand.is_ok() {
-                            Ok((write, read))
-                        } else {
-                            Err(hand.err().unwrap().to_string())
-                        }
-                    } else {
-                        Err("Handshake error".to_string())
-                    }
-                } else {
-                    Err(hsres.err().unwrap().to_string())
+        let resend_result = async {
+            match protocol_kind {
+                HubProtocolKind::Json => {
+                    let sequence = MessageParser::to_json(&Sequence::new(sequence_id))
+                        .map_err(|error| error.to_string())?;
+                    write
+                        .send(Message::text(sequence))
+                        .await
+                        .map_err(|error| error.to_string())?;
+                }
+                #[cfg(feature = "messagepack")]
+                HubProtocolKind::MessagePack => {
+                    let sequence = crate::protocol::stateful::encode_messagepack_control(
+                        MessageType::Sequence,
+                        sequence_id,
+                    )?;
+                    write
+                        .send(Message::binary(sequence))
+                        .await
+                        .map_err(|error| error.to_string())?;
                 }
             }
-            Err(error) => Err(error.to_string()),
+
+            for frame in frames {
+                match frame.payload {
+                    SerializedFrame::Text(text) => write
+                        .send(Message::text(text))
+                        .await
+                        .map_err(|error| error.to_string())?,
+                    SerializedFrame::Binary(binary) => write
+                        .send(Message::binary(binary))
+                        .await
+                        .map_err(|error| error.to_string())?,
+                }
+            }
+            Ok::<(), String>(())
         }
+        .await;
+
+        buffer
+            .lock()
+            .expect("stateful buffer poisoned")
+            .finish_resend()?;
+        resend_result?;
+        Ok((write, read))
     }
 
     async fn connect_fresh(
@@ -525,31 +846,39 @@ impl CommunicationClient {
         let configuration = HttpClient::negotiate(recipe).await?;
         let endpoint = Uri::from_str(&configuration.get_endpoint())
             .map_err(|error| format!("Negotiated WebSocket endpoint is invalid: {error}"))?;
-        Self::connect_to_server(endpoint, protocol_kind).await
+        Self::connect_to_server(endpoint, protocol_kind, false).await
     }
 
     async fn connect_internal(&mut self) -> Result<(), String> {
-        let res =
-            CommunicationClient::connect_to_server(self._endpoint.clone(), self._protocol_kind)
-                .await;
+        let res = CommunicationClient::connect_to_server(
+            self._endpoint.clone(),
+            self._protocol_kind,
+            self._stateful.is_some(),
+        )
+        .await;
 
         match res {
             Ok((write, read)) => {
                 let mut connection = CommunicationConnection {
                     _receiver: None,
                     _sink: write,
+                    _stateful: self._stateful.clone(),
+                    #[cfg(test)]
+                    _test_disconnection_handler: None,
                 };
 
                 let handler = ClientDisconnectionHandler {
                     state: Arc::downgrade(&self._state),
                     endpoint: Uri::from_str(&self._recipe.socket_url())
                         .expect("connection recipe produced an invalid URI"),
+                    transport_endpoint: self._endpoint.clone(),
                     recipe: self._recipe.clone(),
                     actions: self._actions.clone(),
                     reconnection_config: self._reconnection_config.clone(),
                     user_handler: self._disconnection_handler.clone(),
                     coordinator: self._coordinator.clone(),
                     protocol_kind: self._protocol_kind,
+                    stateful: self._stateful.clone(),
                 };
 
                 connection.start_receiving(
@@ -582,6 +911,15 @@ impl CommunicationClient {
         Vec::new()
     }
 
+    fn display_endpoint(endpoint: &Uri) -> String {
+        let scheme = endpoint.scheme_str().unwrap_or("ws");
+        let authority = endpoint
+            .authority()
+            .map(http::uri::Authority::as_str)
+            .unwrap_or("<invalid>");
+        format!("{scheme}://{authority}{}", endpoint.path())
+    }
+
     #[cfg(feature = "messagepack")]
     fn get_binary_messages(message: &Message) -> Vec<Vec<u8>> {
         if message.is_binary() {
@@ -597,11 +935,110 @@ impl CommunicationClient {
             Vec::new()
         }
     }
+
+    #[cfg(test)]
+    pub(crate) async fn force_test_transport_drop() -> Result<(), String> {
+        let handle = TEST_CLIENT
+            .get_or_init(|| StdMutex::new(None))
+            .lock()
+            .expect("test client handle poisoned")
+            .clone()
+            .ok_or_else(|| "No native test client is connected".to_string())?;
+        let state = handle
+            .state
+            .upgrade()
+            .ok_or_else(|| "Native test client has been dropped".to_string())?;
+        let connection = {
+            let guard = state.lock().await;
+            match &*guard {
+                ConnectionState::Connected(connection) => connection.clone(),
+                ConnectionState::NotConnected(reason) => {
+                    return Err(format!("Native test client is not connected: {reason:?}"));
+                }
+            }
+        };
+        let handler = {
+            let mut connection = connection.lock().await;
+            connection.stop_receiving();
+            connection
+                ._test_disconnection_handler
+                .clone()
+                .ok_or_else(|| "Native test disconnect handler is unavailable".to_string())?
+        };
+        let socket_handle = TEST_SOCKET
+            .get_or_init(|| StdMutex::new(None))
+            .lock()
+            .expect("test socket handle poisoned")
+            .ok_or_else(|| "Native test socket handle is unavailable".to_string())?;
+        #[cfg(unix)]
+        let socket = unsafe {
+            // The wrapper borrows the live Tokio socket handle and must not close it.
+            ManuallyDrop::new(std::net::TcpStream::from_raw_fd(socket_handle))
+        };
+        #[cfg(windows)]
+        let socket = unsafe {
+            // The wrapper borrows the live Tokio socket handle and must not close it.
+            ManuallyDrop::new(std::net::TcpStream::from_raw_socket(socket_handle))
+        };
+        socket
+            .shutdown(Shutdown::Both)
+            .map_err(|error| error.to_string())?;
+        handler.on_connection_dropped(true);
+
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            let mut observed_reconnect = false;
+            loop {
+                match handle.coordinator.lifecycle() {
+                    LifecycleState::Reconnecting => observed_reconnect = true,
+                    LifecycleState::Connected if observed_reconnect => return Ok(()),
+                    LifecycleState::Disconnected | LifecycleState::LocalClosed => {
+                        return Err("Native test client reconnect terminated".to_string());
+                    }
+                    _ => {}
+                }
+                tokio::task::yield_now().await;
+                tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+            }
+        })
+        .await
+        .map_err(|_| "Timed out waiting for native stateful reconnect".to_string())?
+    }
+
+    #[cfg(test)]
+    pub(crate) fn pause_next_test_trackable() {
+        TEST_PAUSE_NEXT_TRACKABLE.store(true, Ordering::Release);
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn wait_for_test_trackable_pause() -> Result<(), String> {
+        tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            TEST_TRACKABLE_PAUSED
+                .get_or_init(tokio::sync::Notify::new)
+                .notified(),
+        )
+        .await
+        .map_err(|_| "Timed out waiting for a paused native trackable frame".to_string())
+    }
+
+    #[cfg(test)]
+    async fn pause_test_trackable(message_type: MessageType) {
+        if super::stateful::is_trackable(message_type)
+            && TEST_PAUSE_NEXT_TRACKABLE.swap(false, Ordering::AcqRel)
+        {
+            TEST_TRACKABLE_PAUSED
+                .get_or_init(tokio::sync::Notify::new)
+                .notify_one();
+            std::future::pending::<()>().await;
+        }
+    }
 }
 
+#[derive(Clone)]
 struct ClientDisconnectionHandler {
     state: Weak<Mutex<ConnectionState>>,
     endpoint: Uri,
+    transport_endpoint: Uri,
     recipe: ConnectionRecipe,
     actions: UpdatableActionStorage,
     reconnection_config: Arc<RwLock<ReconnectionConfig>>,
@@ -610,18 +1047,21 @@ struct ClientDisconnectionHandler {
     user_handler: Arc<RwLock<Option<UserDisconnectionHandler>>>,
     coordinator: ReconnectCoordinator,
     protocol_kind: HubProtocolKind,
+    stateful: Option<SharedStatefulBuffer>,
 }
 
 impl CommunicationDisconnectionHandler for ClientDisconnectionHandler {
     fn on_connection_dropped(&self, allow_reconnect: bool) {
         let state = self.state.clone();
         let endpoint = self.endpoint.clone();
+        let transport_endpoint = self.transport_endpoint.clone();
         let recipe = self.recipe.clone();
         let actions = self.actions.clone();
         let config_slot = self.reconnection_config.clone();
         let user_handler_slot = self.user_handler.clone();
         let coordinator = self.coordinator.clone();
         let protocol_kind = self.protocol_kind;
+        let stateful = self.stateful.clone();
 
         tokio::spawn(async move {
             if coordinator.lifecycle() == LifecycleState::LocalClosed {
@@ -635,7 +1075,22 @@ impl CommunicationDisconnectionHandler for ClientDisconnectionHandler {
                 let mut pending_actions = actions.clone();
                 pending_actions
                     .fail_pending("Server closed the connection without allowing reconnect");
+                if let Some(buffer) = &stateful {
+                    buffer.lock().expect("stateful buffer poisoned").dispose();
+                }
                 return;
+            }
+            if let Some(buffer) = &stateful {
+                if let Err(error) = buffer
+                    .lock()
+                    .expect("stateful buffer poisoned")
+                    .disconnected()
+                {
+                    error!("Cannot enter stateful resume: {}", error);
+                    let mut pending_actions = actions.clone();
+                    pending_actions.fail_pending(&error);
+                    return;
+                }
             }
             let user_handler = user_handler_slot
                 .read()
@@ -658,12 +1113,14 @@ impl CommunicationDisconnectionHandler for ClientDisconnectionHandler {
                 let context = ReconnectionContext {
                     state: state.clone(),
                     endpoint: endpoint.clone(),
+                    transport_endpoint: transport_endpoint.clone(),
                     recipe: recipe.clone(),
                     actions: actions.clone(),
                     reconnection_config: config_slot.clone(),
                     user_handler: user_handler_slot.clone(),
                     coordinator: coordinator.clone(),
                     protocol_kind,
+                    stateful: stateful.clone(),
                 };
 
                 info!("Connection dropped. Calling user's disconnection handler (manual mode).");
@@ -682,9 +1139,11 @@ impl CommunicationDisconnectionHandler for ClientDisconnectionHandler {
                 let mut guard = shared_state.lock().await;
                 *guard = ConnectionState::NotConnected(DisconnectionReason::Reconnecting);
             }
-            let mut pending_actions = actions.clone();
-            pending_actions
-                .fail_pending("The connection was replaced by a fresh logical reconnect");
+            if stateful.is_none() {
+                let mut pending_actions = actions.clone();
+                pending_actions
+                    .fail_pending("The connection was replaced by a fresh logical reconnect");
+            }
 
             let mut retry_count = 0;
             let start_time = std::time::Instant::now();
@@ -702,7 +1161,18 @@ impl CommunicationDisconnectionHandler for ClientDisconnectionHandler {
                         retry_count + 1
                     );
 
-                    match CommunicationClient::connect_fresh(&recipe, protocol_kind).await {
+                    let connection = if let Some(buffer) = &stateful {
+                        CommunicationClient::resume_to_server(
+                            transport_endpoint.clone(),
+                            protocol_kind,
+                            buffer.clone(),
+                        )
+                        .await
+                    } else {
+                        CommunicationClient::connect_fresh(&recipe, protocol_kind).await
+                    };
+
+                    match connection {
                         Ok((write, read)) => {
                             if let Some(s) = state.upgrade() {
                                 let mut guard = s.lock().await;
@@ -713,17 +1183,22 @@ impl CommunicationDisconnectionHandler for ClientDisconnectionHandler {
                                 let new_handler = ClientDisconnectionHandler {
                                     state: state.clone(),
                                     endpoint: endpoint.clone(),
+                                    transport_endpoint: transport_endpoint.clone(),
                                     recipe: recipe.clone(),
                                     actions: actions.clone(),
                                     reconnection_config: config_slot.clone(),
                                     user_handler: user_handler_slot.clone(),
                                     coordinator: coordinator.clone(),
                                     protocol_kind,
+                                    stateful: stateful.clone(),
                                 };
 
                                 let mut conn_struct = CommunicationConnection {
                                     _receiver: None,
                                     _sink: write,
+                                    _stateful: stateful.clone(),
+                                    #[cfg(test)]
+                                    _test_disconnection_handler: None,
                                 };
                                 conn_struct.start_receiving(
                                     read,
@@ -751,6 +1226,11 @@ impl CommunicationDisconnectionHandler for ClientDisconnectionHandler {
                         let mut guard = s.lock().await;
                         *guard = ConnectionState::NotConnected(DisconnectionReason::RemoteClosed);
                     }
+                    if let Some(buffer) = &stateful {
+                        buffer.lock().expect("stateful buffer poisoned").dispose();
+                    }
+                    let mut pending_actions = actions.clone();
+                    pending_actions.fail_pending("Automatic reconnection attempts exhausted");
                     return;
                 }
             }
