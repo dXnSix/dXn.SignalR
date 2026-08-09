@@ -1,0 +1,334 @@
+{
+  "schemaVersion": 5,
+  "epicId": "resilient-reconnect-and-production-gates",
+  "currentState": {
+    "summary": "SignalRClient negotiates once and hands a reduced ConnectionData to a target-specific communication client. Native Tokio keeps shared action storage and implements retry policies, but reconnects directly to the old negotiated WebSocket endpoint and repeats the handshake. WASM polls every 100 ms, logs disconnected/error status, never applies ReconnectionConfig or DisconnectionHandler, exposes an empty ReconnectionHandler, and is not linked to a real browser test suite. MessageType models types 1 through 7 and aliases type 8 to Other; no type 9, negotiation capability, replay buffer, Ack, Sequence, duplicate suppression, or backpressure exists. The repository has no GitHub Actions workflows and measured rustfmt/Clippy/warning debt prevents strict gates.",
+    "codeAnchors": [
+      {"repositoryId": "rayx-signalr", "path": "src/client/client.rs", "symbol": "SignalRClient::connect_internal and ReconnectionHandler", "reason": "Public connection orchestration and the cfg-specific reconnect surface."},
+      {"repositoryId": "rayx-signalr", "path": "src/communication/client_tokio.rs", "symbol": "ReconnectionContext and ClientDisconnectionHandler", "reason": "Existing native reconnect state, retry policy, and receive loop."},
+      {"repositoryId": "rayx-signalr", "path": "src/communication/client_wasm.rs", "symbol": "CommunicationClient and polling_loop", "reason": "Browser transport lifecycle and current missing reconnect behavior."},
+      {"repositoryId": "rayx-signalr", "path": "src/communication/common.rs", "symbol": "ConnectionData and HttpClient::negotiate", "reason": "Negotiation currently discards the recipe needed for a fresh reconnect and logs token-bearing endpoints."},
+      {"repositoryId": "rayx-signalr", "path": "src/protocol/negotiate.rs", "symbol": "MessageType and NegotiateResponse", "reason": "Protocol type and capability gaps."},
+      {"repositoryId": "rayx-signalr", "path": "src/execution/storage.rs", "symbol": "Storage::process_message", "reason": "Application dispatch and pending action lifetime are currently mixed with protocol routing."},
+      {"repositoryId": "rayx-signalr", "path": "src/tests", "reason": "Current native tests require a manually started service and the WASM start function is not a browser test suite."},
+      {"repositoryId": "rayx-signalr", "path": "dotnet/SignalRTestService", "reason": "Checked-in interoperability fixture lacks stateful endpoints and deterministic reconnect scenarios."},
+      {"repositoryId": "rayx-signalr", "path": ".github", "reason": "No workflow directory exists at the planning baseline."}
+    ],
+    "constraints": [
+      "Native uses Send/Sync Tokio ownership while WASM uses single-threaded Rc<RefCell>; shared code cannot hold platform locks or mutable borrows across await boundaries.",
+      "WebSockets is the only supported transport and browser authentication uses an access_token query parameter.",
+      "JSON and MessagePack share logical message behavior but retain distinct framing and parsing.",
+      "SignalR stateful resume is transport continuity on the same negotiated token and is not a fresh negotiate/handshake.",
+      "Tasks must preserve hard-fork identity, exact serializer-owned wire names, and origin-only governance."
+    ]
+  },
+  "responsibilities": [
+    {
+      "id": "RESP-001",
+      "owner": "ReconnectCoordinator",
+      "owns": ["Logical lifecycle transitions", "single-flight retry ownership", "retry-policy evaluation", "fresh reconnect versus stateful resume selection", "local-close cancellation"],
+      "doesNotOwn": ["WebSocket implementation", "Hub Protocol serialization", "application-level GameX replay", "callback payload dispatch"],
+      "stateOwned": ["lifecycle state", "retry attempt and elapsed time", "terminal cancellation flag", "active resume generation"],
+      "invariants": ["Only one reconnect generation can send or transition to Connected.", "LocalClosed is terminal.", "Fresh reconnect and stateful resume are mutually exclusive for one attempt."],
+      "dependencies": ["ReconnectionPolicy", "ConnectionRecipe", "platform transport adapter", "StatefulMessageBuffer"],
+      "dependents": ["SignalRClient", "ReconnectionHandler", "native and WASM transport loops"],
+      "lifecycle": "One coordinator per logical SignalRClient shared by clones",
+      "evidence": [
+        {"repositoryId": "rayx-signalr", "path": "src/communication/client_tokio.rs", "symbol": "ConnectionState and ClientDisconnectionHandler", "reason": "Existing lifecycle responsibility to consolidate without changing public policy names."},
+        {"repositoryId": "rayx-signalr", "path": "src/communication/client_wasm.rs", "symbol": "ConnectionState", "reason": "Separate incomplete state model that requires the same lifecycle contract."}
+      ]
+    },
+    {
+      "id": "RESP-002",
+      "owner": "ConnectionRecipe and HttpClient negotiation",
+      "owns": ["Reusable endpoint/authentication/protocol/stateful configuration", "negotiate query construction", "capability validation", "redacted endpoint diagnostics"],
+      "doesNotOwn": ["retry scheduling", "WebSocket frame processing", "application authentication refresh policy"],
+      "stateOwned": ["immutable connection recipe", "latest negotiated connection data"],
+      "invariants": ["Fresh reconnect obtains a new connection token before handshake.", "Stateful resume reuses the current token and skips negotiate/handshake.", "Logs never expose access_token values."],
+      "dependencies": ["ConnectionConfiguration", "NegotiateResponse"],
+      "dependents": ["ReconnectCoordinator", "TokioTransportAdapter", "WasmTransportAdapter"],
+      "lifecycle": "Recipe persists for the logical client; negotiated data is replaced only by fresh connect",
+      "evidence": [{"repositoryId": "rayx-signalr", "path": "src/communication/common.rs", "symbol": "ConnectionData and HttpClient", "reason": "Existing negotiation and endpoint construction boundary."}]
+    },
+    {
+      "id": "RESP-003",
+      "owner": "HubProtocolCodec",
+      "owns": ["MessageType 8 and 9 identity", "Ack and Sequence JSON representation", "Ack and Sequence MessagePack representation", "Close allowReconnect parsing", "protocol validation"],
+      "doesNotOwn": ["sequence counters", "replay storage", "retry policy", "application DTO wire names"],
+      "stateOwned": [],
+      "invariants": ["JSON control messages use the record separator.", "MessagePack Ack and Sequence are framed two-item arrays.", "Unknown future message types are ignored or rejected consistently with existing codec policy and never misclassified as Ack."],
+      "dependencies": ["serde", "MessageParser", "rmp/rmpv when messagepack is enabled"],
+      "dependents": ["StatefulMessageBuffer", "native and WASM receive loops"],
+      "lifecycle": "Stateless protocol encoding and decoding",
+      "evidence": [
+        {"repositoryId": "rayx-signalr", "path": "src/protocol/negotiate.rs", "symbol": "MessageType", "reason": "Current shared numeric dispatch enum."},
+        {"repositoryId": "rayx-signalr", "path": "src/protocol/msgpack.rs", "reason": "Existing MessagePack framing and frame-level tests."}
+      ]
+    },
+    {
+      "id": "RESP-004",
+      "owner": "StatefulMessageBuffer",
+      "owns": ["per-direction sequence counters", "serialized outgoing trackable frames", "byte accounting and backpressure waiters", "Ack release", "Sequence reset", "ordered resend", "incoming duplicate suppression"],
+      "doesNotOwn": ["physical socket creation", "fresh reconnect", "application event IDs", "persistent storage"],
+      "stateOwned": ["next outgoing ID", "next incoming ID", "latest received ID", "unacknowledged frames", "buffered byte count", "resume and wait-for-Sequence flags", "blocked senders"],
+      "invariants": ["IDs start at 1 and advance once per trackable message.", "Only types 1 through 5 are tracked.", "Sequence precedes replay.", "A trackable incoming frame is dispatched at most once.", "Terminal disposal releases every blocked sender."],
+      "dependencies": ["HubProtocolCodec", "transport send boundary"],
+      "dependents": ["ReconnectCoordinator", "application dispatch"],
+      "lifecycle": "One in-memory buffer per negotiated logical connection; replaced on fresh reconnect and retained across stateful transport resume",
+      "evidence": [
+        {"repositoryId": "rayx-signalr", "path": "https://github.com/dotnet/aspnetcore/blob/main/src/SignalR/clients/ts/signalr/src/MessageBuffer.ts", "symbol": "MessageBuffer", "reason": "Official reference algorithm and state ownership."},
+        {"repositoryId": "rayx-signalr", "path": "https://github.com/dotnet/aspnetcore/blob/main/src/SignalR/common/Shared/MessageBuffer.cs", "symbol": "MessageBuffer", "reason": "Official server/client shared reference for Ack/Sequence sequencing."}
+      ]
+    },
+    {
+      "id": "RESP-005",
+      "owner": "ActionStorageLifecycle",
+      "owns": ["registered callback retention", "pending invocation and stream completion on terminal logical disconnect", "normal application message dispatch after sequence filtering"],
+      "doesNotOwn": ["wire replay", "transport retries", "application invocation replay"],
+      "stateOwned": ["callback registrations", "pending invocation actions", "pending stream actions"],
+      "invariants": ["Callbacks survive reconnect until explicitly unregistered.", "Stateful resume preserves valid pending actions.", "Fresh reconnect or terminal failure completes pending invocations/streams with an error and never replays them."],
+      "dependencies": ["UpdatableActionStorage", "UpdatableAction completion contract"],
+      "dependents": ["SignalRClient invoke/enumerate/register APIs"],
+      "lifecycle": "Shared across SignalRClient clones and transport generations",
+      "evidence": [{"repositoryId": "rayx-signalr", "path": "src/execution/storage.rs", "symbol": "Storage and process_message", "reason": "Current shared application action registry and dispatch boundary."}]
+    },
+    {
+      "id": "RESP-006",
+      "owner": "TokioTransportAdapter",
+      "owns": ["native WebSocket connect/send/receive/close", "native reconnect scheduling", "native cfg(test) physical-drop hook"],
+      "doesNotOwn": ["retry policy", "sequence semantics", "browser timers", "test-service lifecycle"],
+      "stateOwned": ["Tokio sink", "receive task", "native synchronization primitives"],
+      "invariants": ["No platform lock is held while invoking user code.", "Only the active transport generation can dispatch frames."],
+      "dependencies": ["ReconnectCoordinator", "HubProtocolCodec", "StatefulMessageBuffer"],
+      "dependents": ["native SignalRClient runtime tests"],
+      "lifecycle": "One active physical native transport per logical connection",
+      "evidence": [{"repositoryId": "rayx-signalr", "path": "src/communication/client_tokio.rs", "symbol": "CommunicationClient and CommunicationConnection", "reason": "Existing native transport owner."}]
+    },
+    {
+      "id": "RESP-007",
+      "owner": "WasmTransportAdapter",
+      "owns": ["browser WebSocket connect/send/poll/close", "browser-safe retry timers", "WASM reconnect handler context", "WASM cfg(test) physical-drop hook"],
+      "doesNotOwn": ["retry policy calculation", "sequence semantics", "Tokio synchronization", "browser UI"],
+      "stateOwned": ["PollingClient", "poll interval", "retry timer", "single-threaded transport generation"],
+      "invariants": ["No RefCell mutable borrow survives an await or user callback.", "Every interval and timeout is cancelled on terminal close.", "Disconnected/Error status triggers one lifecycle event rather than log spam."],
+      "dependencies": ["ReconnectCoordinator", "HubProtocolCodec", "StatefulMessageBuffer", "wasm-sockets and wasm-timer"],
+      "dependents": ["browser SignalRClient runtime tests"],
+      "lifecycle": "One active physical browser transport per logical connection",
+      "evidence": [{"repositoryId": "rayx-signalr", "path": "src/communication/client_wasm.rs", "symbol": "CommunicationClient", "reason": "Existing browser transport owner."}]
+    },
+    {
+      "id": "RESP-008",
+      "owner": "InteropHarness",
+      "owns": [".NET fixture startup and health check", "ordinary and stateful hub endpoints", "target/protocol/scenario selection", "timeout and cleanup", "focused failure diagnostics"],
+      "doesNotOwn": ["production transport behavior", "CI scheduling", "GameX schemas"],
+      "stateOwned": ["run-local service process", "run-local selected test command", "synthetic observed sequence"],
+      "invariants": ["The service is ready before clients start.", "Fault hooks close only the physical transport.", "Every run stops its service and browser processes.", "The same semantic assertions apply to JSON and MessagePack."],
+      "dependencies": ["SignalRTestService", "PowerShell 7", "cargo test", "wasm-bindgen-test-runner", "Chromium"],
+      "dependents": ["local validation", "GitHub Actions interop workflow"],
+      "lifecycle": "One isolated process group per scenario",
+      "evidence": [{"repositoryId": "rayx-signalr", "path": "dotnet/SignalRTestService", "reason": "Existing checked-in ASP.NET Core interop fixture."}]
+    },
+    {
+      "id": "RESP-009",
+      "owner": "GitHubActionsQualityGates",
+      "owns": ["quality and interop workflow matrices", "toolchain setup", "least permissions", "concurrency cancellation", "failure artifact policy", "vulnerability gates"],
+      "doesNotOwn": ["GitHub branch-protection settings", "release publishing", "production secrets"],
+      "stateOwned": ["ephemeral workflow artifacts and job status"],
+      "invariants": ["Required behavior is never replaced by compile-only evidence.", "Warnings fail the quality gate.", "Failure artifacts contain no credentials."],
+      "dependencies": ["documented local commands", "InteropHarness", "Rust 1.92.0/stable", ".NET 10", "Chromium"],
+      "dependents": ["maintainer merge policy"],
+      "lifecycle": "Per pull request, master push, or manual dispatch",
+      "evidence": [{"repositoryId": "rayx-signalr", "path": "FORK.md", "symbol": "Required hardening before production use", "reason": "Repository policy names the missing validation and CI boundary."}]
+    }
+  ],
+  "dependencyRules": [
+    {"from": "SignalRClient", "to": "ReconnectCoordinator", "rule": "allowed", "rationale": "The public facade delegates lifecycle recovery to one internal owner."},
+    {"from": "ReconnectCoordinator", "to": "TokioTransportAdapter and WasmTransportAdapter", "rule": "allowed", "rationale": "Shared lifecycle selects an operation while platform adapters own runtime primitives."},
+    {"from": "TokioTransportAdapter and WasmTransportAdapter", "to": "retry policy calculation", "rule": "forbidden", "rationale": "Duplicating policy decisions recreates cross-target drift."},
+    {"from": "StatefulMessageBuffer", "to": "GameX sports DTOs or persistence", "rule": "forbidden", "rationale": "Transport continuity is independent of application feed sequencing."},
+    {"from": "HubProtocolCodec", "to": "application dispatch", "rule": "forbidden", "rationale": "Codec validates frames; filtered logical messages reach ActionStorageLifecycle separately."},
+    {"from": "ActionStorageLifecycle", "to": "wire replay", "rule": "forbidden", "rationale": "Pending action ownership must not duplicate serialized-frame buffering."},
+    {"from": "InteropHarness", "to": "production-only test hooks", "rule": "forbidden", "rationale": "Physical-drop control remains cfg(test) and cannot expand release API."},
+    {"from": "GitHubActionsQualityGates", "to": "ad hoc duplicated service orchestration", "rule": "forbidden", "rationale": "CI invokes the same checked-in harness used locally."}
+  ],
+  "decisions": [
+    {
+      "id": "DES-001",
+      "title": "One lifecycle contract with target-specific runtime adapters",
+      "requirementIds": ["REQ-F-001", "REQ-NF-001", "REQ-NF-003"],
+      "responsibilityIds": ["RESP-001", "RESP-006", "RESP-007"],
+      "decision": "Introduce one crate-internal ReconnectCoordinator that owns transitions, single-flight generation, policy attempts, cancellation, and recovery mode. Native and WASM adapters retain their existing synchronization models and provide connect, resume, send, close, and delay operations without reimplementing lifecycle policy. ReconnectionHandler exposes the existing reconnect, reconnect_with_policy, is_connected, and endpoint methods on both targets.",
+      "rationale": "The current native and WASM state machines already diverge; sharing target locks is unsafe, while sharing only policy and transition ownership prevents semantic drift and preserves platform-idiomatic execution.",
+      "provenance": {"basis": "repository-pattern", "evidence": [{"repositoryId": "rayx-signalr", "path": "src/platform.rs", "reason": "The crate already uses cfg-specific bounds rather than forcing native synchronization into WASM."}, {"repositoryId": "rayx-signalr", "path": ".agentx/memory/knowledge/client-runtime/connection-lifecycle/rules.md", "reason": "Repository rules require explicit cross-platform support and native manual/automatic parity."}]},
+      "alternativesRejected": [
+        {"alternative": "Copy ClientDisconnectionHandler into client_wasm.rs", "reason": "A direct port duplicates transition policy and imports Tokio task/lock assumptions into Rc<RefCell> browser code."},
+        {"alternative": "Replace both transports with one async runtime and socket dependency", "reason": "That adds a production dependency and broad transport rewrite beyond the missing reconnect scope."}
+      ],
+      "affectedSurfaces": ["src/client/client.rs", "src/client/configuration.rs", "src/communication/reconnection.rs", "src/communication/client_tokio.rs", "src/communication/client_wasm.rs", "src/platform.rs"],
+      "controlFlow": ["Transport reports one normalized loss event with generation and Close metadata.", "Coordinator ignores stale/duplicate generations and checks LocalClosed.", "A user handler receives ReconnectionHandler and owns triggering manual reconnect; otherwise the configured policy schedules automatic attempts.", "Each attempt selects stateful resume only when an active negotiated buffer exists; otherwise it performs fresh connect.", "Successful current generation becomes Connected; exhaustion becomes terminal Disconnected and releases pending work."],
+      "dataFlow": ["Connection recipe and current negotiated data enter the coordinator.", "The policy receives retry_count and elapsed_milliseconds.", "The adapter returns a new transport generation or error.", "Lifecycle diagnostics carry mode, target, protocol, attempt, and redacted endpoint."],
+      "interfaces": ["Existing public ReconnectionPolicy and ReconnectionConfig remain.", "Existing public ReconnectionHandler gains functional WASM methods with target-appropriate Send/Sync bounds.", "Internal transport operations are cfg-specific functions or narrow internal traits; no public transport abstraction is added."],
+      "failureHandling": ["Local disconnect cancels delay and closes the active generation.", "Stale attempt completion is discarded and its socket closed.", "Retry exhaustion fails pending calls and disposes stateful buffer.", "User callback panics are outside the coordinator lock/borrow boundary."],
+      "concurrencyAndTransactions": ["Generation compare-and-transition is the lifecycle transaction.", "Tokio uses Arc/Mutex; WASM uses Rc/RefCell with borrow scopes ending before async yield.", "Only one policy loop is leased per logical connection."],
+      "compatibilityAndMigration": ["Default NoReconnectPolicy remains terminal after loss.", "Native manual and automatic policy modes remain, but fresh reconnect now renegotiates.", "Existing callback registrations remain shared across generations."],
+      "observability": ["Log one transition per generation and one result per attempt.", "Do not log repeatedly on every 100 ms WASM poll while disconnected."],
+      "securityAndPrivacy": ["Endpoint logs remove query strings and credentials.", "Authentication remains inside ConnectionRecipe and HttpClient."],
+      "validation": ["Unit transition/race tests on host.", "Real browser ordinary reconnect tests.", "Native regression tests for manual and automatic policy behavior."]
+    },
+    {
+      "id": "DES-002",
+      "title": "Fresh logical reconnect and stateful transport resume are distinct flows",
+      "requirementIds": ["REQ-F-001", "REQ-F-002", "REQ-NF-003", "REQ-NF-005"],
+      "responsibilityIds": ["RESP-001", "RESP-002", "RESP-005"],
+      "decision": "Persist an immutable internal ConnectionRecipe. A fresh reconnect calls HttpClient::negotiate with current authentication and protocol, obtains a new token, opens the socket, performs one JSON handshake, retains callbacks, and fails old pending calls without replay. A stateful resume reopens WebSockets at the current negotiated URL/token, sends no handshake, preserves pending calls, and invokes StatefulMessageBuffer resend.",
+      "rationale": "Reusing an old token plus another handshake conflates a new logical connection with transport continuation. Explicit flows prevent unsafe application replay and match ASP.NET Core stateful behavior.",
+      "provenance": {"basis": "repository-pattern", "evidence": [{"repositoryId": "rayx-signalr", "path": "src/communication/common.rs", "symbol": "HttpClient::negotiate", "reason": "Existing negotiate path can be made reusable."}, {"repositoryId": "rayx-signalr", "path": "https://github.com/dotnet/aspnetcore/blob/main/src/SignalR/clients/ts/signalr/src/HttpConnection.ts", "symbol": "stateful transport onclose reconnect", "reason": "Official client reconnects the transport at the same URL then resends without a second hub handshake."}]},
+      "alternativesRejected": [
+        {"alternative": "Always reconnect to the old endpoint and repeat handshake", "reason": "It is neither a valid fresh negotiation nor the stateful resume protocol."},
+        {"alternative": "Replay pending invocations after every fresh reconnect", "reason": "The server may already have executed them; automatic replay can duplicate non-idempotent operations."}
+      ],
+      "affectedSurfaces": ["src/client/configuration.rs", "src/client/client.rs", "src/communication/common.rs", "src/execution/storage.rs", "src/execution/invocation.rs", "src/execution/enumerable.rs"],
+      "controlFlow": ["Initial connect creates recipe then negotiates.", "Ordinary reconnect terminalizes old pending invocation/stream actions before a new logical connection becomes active.", "Stateful capability selects direct transport resume and retains pending actions.", "Callback registrations remain because storage is client-owned rather than transport-owned."],
+      "dataFlow": ["Recipe contains domain, hub, port/security, authentication, protocol, retry, and stateful opt-in.", "Negotiated data contains redacted display endpoint plus private socket URL/token.", "Terminal disconnect error flows to every pending future/stream."],
+      "interfaces": ["HttpClient::negotiate borrows or clones ConnectionRecipe instead of consuming the only configuration copy.", "Action storage receives an internal fail_pending(error) operation that excludes callbacks."],
+      "failureHandling": ["Negotiation and handshake failures close partial sockets.", "Fresh reconnect failure leaves callbacks registered but pending work completed with error.", "Explicit local close completes pending work and prevents further reconnect."],
+      "concurrencyAndTransactions": ["Recipe is immutable after connection creation.", "Replacing negotiated data and transport generation occurs in one coordinator transition.", "Pending-action drain is idempotent."],
+      "compatibilityAndMigration": ["No public connection constructor changes.", "Authentication configuration and MessagePack selection continue through ConnectionConfiguration.", "The endpoint accessor returns a redacted/display endpoint, not a credential-bearing URL."],
+      "observability": ["Fresh versus stateful mode is logged.", "Negotiate, socket, handshake, and resume failures are distinguishable without payload or credentials."],
+      "securityAndPrivacy": ["Bearer token remains usable for negotiation and browser query authentication but is excluded from Debug and logs."],
+      "validation": ["Contract tests count negotiate and handshake operations.", "Runtime tests prove callbacks survive while nonstateful pending work fails without replay.", "Redaction tests search captured logs for access_token and Authorization values."]
+    },
+    {
+      "id": "DES-003",
+      "title": "Official Ack/Sequence codec and bounded message buffer",
+      "requirementIds": ["REQ-F-002", "REQ-F-003", "REQ-NF-001", "REQ-NF-002"],
+      "responsibilityIds": ["RESP-003", "RESP-004"],
+      "decision": "Add Ack=8 and Sequence=9 as distinct MessageType variants, exact JSON and MessagePack codecs, and one shared StatefulMessageBuffer over already serialized frames. The buffer sequences only types 1 through 5, uses u64 checked increments, records byte size, applies asynchronous backpressure at the configured threshold, sends delayed cumulative Ack messages, requires Sequence first after reconnect, validates resets, suppresses duplicates, and resends a stable snapshot after its own Sequence frame.",
+      "rationale": "The protocol behavior is encoding-independent and must not be duplicated in transport loops. Buffering serialized frames preserves exact wire representation and avoids reserialization changes during replay.",
+      "provenance": {"basis": "repository-pattern", "evidence": [{"repositoryId": "rayx-signalr", "path": "https://github.com/dotnet/aspnetcore/blob/main/src/SignalR/docs/specs/HubProtocol.md", "symbol": "Ack and Sequence", "reason": "Normative message numbers and encodings."}, {"repositoryId": "rayx-signalr", "path": "https://github.com/dotnet/aspnetcore/blob/main/src/SignalR/clients/ts/signalr/src/MessageBuffer.ts", "symbol": "MessageBuffer", "reason": "Reference behavior for message classification, Ack timing, replay, backpressure, and duplicate handling."}]},
+      "alternativesRejected": [
+        {"alternative": "Store typed Invocation values and serialize again on replay", "reason": "That can change bytes, loses protocol-generic behavior, and cannot cover all trackable message directions uniformly."},
+        {"alternative": "Keep an unbounded Vec of frames", "reason": "A disconnected peer can cause unbounded memory growth and gives callers no backpressure."},
+        {"alternative": "Treat MessageType 8 as the existing Other variant", "reason": "Ack would be discarded and type 9 would remain unparseable."}
+      ],
+      "affectedSurfaces": ["src/protocol/negotiate.rs", "src/protocol/messages.rs", "src/protocol/msgpack.rs", "src/protocol/close.rs", "src/protocol/stateful.rs", "src/communication/stateful.rs", "src/execution/storage.rs"],
+      "controlFlow": ["Outgoing hub message is serialized once.", "If type 1-5 and stateful is active, buffer assigns next ID and byte count before transport send.", "Incoming Ack validates range and releases frames/waiters cumulatively.", "Physical loss marks reconnect-in-progress and wait-for-Sequence.", "After transport reconnect, client sends Sequence at first unacknowledged ID or total+1, resends snapshot, then permits new sends.", "Incoming Sequence validates it is not ahead, resets next incoming ID, and subsequent duplicate trackable frames are discarded before application dispatch.", "Incoming trackable traffic schedules one cumulative Ack after a one-second coalescing interval."],
+      "dataFlow": ["Serialized text or binary frame, message type, sequence ID, and byte length enter the buffer.", "Ack and Sequence control frames bypass buffering.", "Only accepted nonduplicate application frames reach ActionStorageLifecycle."],
+      "interfaces": ["Public StatefulReconnectConfig contains buffer_size_bytes and Default=100000.", "ConnectionConfiguration::with_stateful_reconnect stores explicit opt-in.", "Internal StatefulMessageBuffer exposes send_trackable, process_ack, should_process, reset_sequence, disconnected, resend, and dispose operations."],
+      "failureHandling": ["Zero configuration is rejected before negotiate.", "Ack beyond sent range, Sequence ahead of received range, zero/overflow sequence, or malformed frame becomes a protocol error and terminal close.", "A failed resend retains no ambiguous active transport; coordinator retries or terminates.", "Dispose rejects every blocked sender."],
+      "concurrencyAndTransactions": ["Buffer mutation is serialized by target-specific shared ownership.", "Resend uses a stable frame snapshot so concurrent Ack slicing cannot invalidate iteration.", "New sends remain buffered and unsent until resend completes."],
+      "compatibilityAndMigration": ["Feature is opt-in and WebSockets-only.", "Capability absence falls back to ordinary reconnect.", "Handshake protocol version remains 1; Ack/Sequence are hub messages after handshake."],
+      "observability": ["Log capability activation, sequence resets, cumulative Ack IDs, replay counts/bytes, backpressure entry/exit, and violations without frame content."],
+      "securityAndPrivacy": ["Never log buffered frame bodies.", "Bounded buffer limits memory exposure under network interruption."],
+      "validation": ["Golden JSON strings and MessagePack bytes from the official spec.", "Model/state unit tests for gaps, duplicates, Ack races, capacity, oversized frames, overflow, and disposal.", "Cross-language native and browser runtime proof."]
+    },
+    {
+      "id": "DES-004",
+      "title": "Deterministic checked-in interop harness",
+      "requirementIds": ["REQ-F-001", "REQ-F-002", "REQ-F-003", "REQ-F-004", "REQ-NF-001", "REQ-NF-005"],
+      "responsibilityIds": ["RESP-006", "RESP-007", "RESP-008"],
+      "decision": "Convert WASM coverage to wasm-bindgen-test running in Chromium, add cfg(test)-only physical socket-drop hooks to both adapters, map ordinary and AllowStatefulReconnects=true endpoints in SignalRTestService, add deterministic synthetic ordered callback/stream scenarios, and provide one PowerShell 7 runner that validates selectors, builds/starts/health-checks the service, invokes the exact Cargo test, enforces 60-second scenario timeout, captures redacted diagnostics, and cleans up in finally semantics.",
+      "rationale": "A real server and browser are required for SignalR transport proof, but a proxy or production fault API is unnecessary because both existing socket clients expose a close boundary that can be compiled only for tests.",
+      "provenance": {"basis": "repository-pattern", "evidence": [{"repositoryId": "rayx-signalr", "path": "src/tests/tests_wasm.rs", "reason": "Existing browser scenario can be converted rather than replaced with a second application."}, {"repositoryId": "rayx-signalr", "path": "dotnet/SignalRTestService", "reason": "Existing fixture already supplies JSON and MessagePack hub methods."}]},
+      "alternativesRejected": [
+        {"alternative": "Count cargo check for wasm32 as browser reconnect proof", "reason": "Compilation cannot exercise browser WebSocket events, timers, CORS, reconnect, or JavaScript integration."},
+        {"alternative": "Add Toxiproxy or a custom production proxy dependency", "reason": "A cfg(test) socket close is smaller and directly controls the physical transport boundary."},
+        {"alternative": "Use screenshots or a manual Trunk page", "reason": "They do not produce deterministic assertion results or CI closure."}
+      ],
+      "affectedSurfaces": ["Cargo.toml", ".cargo/config.toml", "src/tests/mod.rs", "src/tests/tests_tokio.rs", "src/tests/tests_msgpack.rs", "src/tests/tests_wasm.rs", "dotnet/SignalRTestService/Program.cs", "dotnet/SignalRTestService/TestHub.cs", "scripts/ci/run-interop.ps1"],
+      "controlFlow": ["Runner validates target/protocol/scenario before starting processes.", "Runner starts the .NET service on a controlled port and polls health with a deadline.", "Cargo executes the exact native or wasm-bindgen browser test filter.", "Test starts traffic, invokes cfg(test) physical close, observes resume and sequences, and repeats three times.", "Runner terminates process trees and checks cleanup in a finally block."],
+      "dataFlow": ["Synthetic integer sequence and invocation IDs flow through both protocols.", "Test assertions retain counts, ordering, logical connection identity, handshake count, and lifecycle transitions.", "Failure logs are redacted and bounded."],
+      "interfaces": ["run-interop.ps1 parameters are Target=native|wasm, Protocol=json|messagepack, Scenario=ordinary-reconnect|stateful-reconnect.", "Test-only force_transport_drop is crate-private under cfg(test).", "SignalRTestService maps /test and /test-stateful."],
+      "failureHandling": ["Invalid selector exits before process startup.", "Health, test, timeout, or assertion failures preserve nonzero status.", "finally cleanup kills the exact child process tree and verifies the port is released."],
+      "concurrencyAndTransactions": ["Each scenario owns one port and process group.", "CI matrix cells receive nonoverlapping ports or run serialized within a job.", "Test events are awaited rather than sleep-only synchronized."],
+      "compatibilityAndMigration": ["Existing /test methods remain available.", "Manual Trunk entry is retained only if still useful, but no longer counts as proof."],
+      "observability": ["Scenario output names target, protocol, lifecycle phase, observed counts, and timeout stage.", "Service logs expose synthetic connection IDs only."],
+      "securityAndPrivacy": ["Local CORS remains test-only.", "No real credentials or user data enter the fixture.", "Query strings are redacted before artifact capture."],
+      "validation": ["Runner self-tests invalid selectors and cleanup.", "Native and Chromium JSON/MessagePack ordinary and stateful scenarios run locally and in CI."]
+    },
+    {
+      "id": "DES-005",
+      "title": "Debt cleanup precedes immutable production gates",
+      "requirementIds": ["REQ-F-004", "REQ-NF-003", "REQ-NF-004", "REQ-NF-005"],
+      "responsibilityIds": ["RESP-009"],
+      "decision": "After reconnect behavior is checkpointed, apply repository-wide rustfmt and resolve every compiler, Clippy, and rustdoc warning without broad allow attributes. Declare rust-version 1.92 and rust-toolchain.toml with rustfmt, clippy, and wasm target. Add quality.yml and interop.yml for pull_request, master push, and manual interop dispatch; use identical checked-in commands, contents-read permissions, concurrency cancellation, .NET 10, Chromium, RustSec and NuGet transitive scans, bounded timeouts, and failure-only artifacts.",
+      "rationale": "Turning strict gates on before inherited debt is removed would create permanently red CI; postponing CI until after behavior proof avoids mixing mechanical global rewrites into reconnect checkpoints while still ending with enforced closure.",
+      "provenance": {"basis": "measured-evidence", "evidence": [{"repositoryId": "rayx-signalr", "path": "src", "reason": "Measured baseline: rustfmt 3349 diff lines, Clippy 76 error lines under -D warnings, native and WASM compiler warnings."}, {"repositoryId": "rayx-signalr", "path": ".codex/skills/rayx-signalr/SKILL.md", "reason": "Repository skill defines native, WASM, MessagePack, runtime, and formatting validation boundaries."}]},
+      "alternativesRejected": [
+        {"alternative": "Add allow attributes or remove -D warnings", "reason": "That hides debt and does not create a production quality gate."},
+        {"alternative": "Run only Linux compile checks", "reason": "The crate advertises native Tokio support and is maintained on Windows; OS matrix regressions must be visible."},
+        {"alternative": "Duplicate server startup logic in YAML", "reason": "Local and CI behavior would drift; workflows must invoke the checked-in runner."}
+      ],
+      "affectedSurfaces": ["Cargo.toml", "rust-toolchain.toml", "src/**/*.rs", ".github/workflows/quality.yml", ".github/workflows/interop.yml", "scripts/ci/run-interop.ps1", "README.md", "FORK.md"],
+      "controlFlow": ["Behavior sprints pass and checkpoint.", "Formatting and warning cleanup establishes a clean baseline with behavior-preservation tests.", "Quality workflow runs static and compile matrices.", "Interop workflow calls the shared runner for native and browser protocol matrices.", "Security jobs reject known advisories; failure diagnostics upload after redaction."],
+      "dataFlow": ["Workflow matrix values become exact command parameters.", "Exit status and bounded diagnostic files become named check results.", "No build outputs or credentials are committed."],
+      "interfaces": ["Stable job/check names are documented for later branch protection.", "Local reproduction commands in README match workflow argv."],
+      "failureHandling": ["Any warning, skipped required cell, timeout, cleanup failure, or advisory fails its job.", "Cancelled superseded runs stop child processes.", "Artifact upload failure does not mask the original test failure."],
+      "concurrencyAndTransactions": ["PR concurrency group cancels older runs for the same ref.", "Interop cells use isolated service ports.", "Global formatting cleanup is one sequential behavior-preserving task."],
+      "compatibilityAndMigration": ["Rust 1.92 is additive manifest metadata.", "No registry publishing or branch-settings mutation occurs."],
+      "observability": ["Named checks separate format/lint, OS compile, WASM, unit/contract, docs, security, native interop, and browser interop."],
+      "securityAndPrivacy": ["Workflow permissions default to contents: read.", "No pull-request secrets are required.", "Artifacts are uploaded only on failure and pass redaction assertions."],
+      "validation": ["Run each workflow command locally.", "Validate workflow YAML structure and trigger/job matrix content.", "Execute workflows on a pull request before branch protection adoption."]
+    }
+  ],
+  "minimalDesign": {
+    "existingMechanismsReused": [
+      "Existing ReconnectionPolicy implementations and ReconnectionConfig.",
+      "Existing target-specific CommunicationClient modules and platform bounds.",
+      "Existing HttpClient negotiation and ConnectionConfiguration endpoint/authentication logic.",
+      "Existing MessageParser record separation and MessagePack framing/helpers.",
+      "Existing UpdatableActionStorage shared callback/action ownership.",
+      "Existing SignalRTestService JSON and MessagePack hub fixture.",
+      "Existing wasm-sockets PollingClient close/status behavior for cfg(test) fault injection."
+    ],
+    "codeExpectedToBeDeletedOrReplaced": [
+      "The empty WASM ReconnectionHandler definition.",
+      "The native-only cfg block that discards WASM reconnect configuration and handler installation.",
+      "WASM disconnected/error poll logging without lifecycle transition.",
+      "MessageType::Other = 8 misclassification.",
+      "Direct native reconnect to the old negotiated endpoint with a second handshake.",
+      "The unlinked wasm_bindgen(start) test program as the only browser validation route.",
+      "Warning-producing and rustfmt-divergent inherited source forms."
+    ],
+    "newAbstractions": [
+      {"name": "ReconnectCoordinator", "designIds": ["DES-001", "DES-002"], "visibility": "internal", "invariantOrPolicyOwned": "Single-flight lifecycle transitions, retry policy execution, cancellation, and fresh-versus-stateful recovery selection.", "whyExistingCodeIsInsufficient": "Native embeds policy in a transport callback and WASM has none; direct duplication cannot guarantee parity or race safety.", "knownConsumers": ["SignalRClient", "TokioTransportAdapter", "WasmTransportAdapter", "ReconnectionHandler"]},
+      {"name": "ConnectionRecipe", "designIds": ["DES-002"], "visibility": "internal", "invariantOrPolicyOwned": "Credential-safe reusable negotiation inputs for fresh logical reconnect.", "whyExistingCodeIsInsufficient": "Current ConnectionData retains only a negotiated endpoint and loses the original configuration after initial connect.", "knownConsumers": ["HttpClient", "ReconnectCoordinator"]},
+      {"name": "StatefulMessageBuffer", "designIds": ["DES-003"], "visibility": "internal", "invariantOrPolicyOwned": "Ack/Sequence counters, byte-bounded serialized replay, backpressure, and duplicate suppression for one logical connection.", "whyExistingCodeIsInsufficient": "Action storage holds typed application completions and cannot provide wire-level acknowledgement, exact replay, or byte accounting.", "knownConsumers": ["ReconnectCoordinator", "HubProtocolCodec", "TokioTransportAdapter", "WasmTransportAdapter"]},
+      {"name": "InteropHarness", "designIds": ["DES-004"], "visibility": "internal", "invariantOrPolicyOwned": "Deterministic service readiness, scenario selection, timeout, fault injection coordination, and cleanup.", "whyExistingCodeIsInsufficient": "Existing network tests assume a manually running service and current WASM coverage has no test runner.", "knownConsumers": ["maintainers", "GitHub Actions"]}
+    ],
+    "newDependencies": [
+      {"name": "wasm-bindgen-test dev-dependency", "designIds": ["DES-004"], "reason": "Run asynchronous Rust assertions in a real browser with Cargo-integrated pass/fail results.", "whyStandardOrExistingMechanismsAreInsufficient": "wasm_bindgen(start), Trunk, and cargo check do not provide a deterministic browser test harness or CI result protocol."}
+    ],
+    "newPublicApi": [
+      {"surface": "StatefulReconnectConfig with Default buffer_size_bytes=100000", "requirementIds": ["REQ-F-002", "REQ-NF-002", "REQ-NF-003"], "designIds": ["DES-003"], "compatibility": "Additive opt-in value; zero capacity is rejected during connection configuration validation."},
+      {"surface": "ConnectionConfiguration::with_stateful_reconnect(StatefulReconnectConfig)", "requirementIds": ["REQ-F-002", "REQ-NF-003"], "designIds": ["DES-002", "DES-003"], "compatibility": "Additive method; absent call leaves stateful reconnect disabled."},
+      {"surface": "Existing ReconnectionHandler methods on wasm32", "requirementIds": ["REQ-F-001", "REQ-NF-003"], "designIds": ["DES-001"], "compatibility": "Completes an already exported cfg-specific type without removing or renaming native methods."}
+    ]
+  },
+  "testingStrategy": {
+    "profiles": [
+      {"profile": "unit", "scope": "Reconnect transitions, retry boundaries, Ack/Sequence codecs, buffer accounting, gaps, duplicates, overflow, disposal, and action terminalization.", "commandOrMethod": "cargo test --lib reconnect and cargo test --all-features --lib stateful", "assertion": "Pure lifecycle and protocol invariants pass without an external service."},
+      {"profile": "contract", "scope": "Exact negotiate query, handshake count, Close allowReconnect, JSON frames, and MessagePack golden frames.", "commandOrMethod": "Focused protocol and test-service contract tests", "assertion": "Wire behavior matches the official ASP.NET Core protocol."},
+      {"profile": "runtime", "scope": "Native Tokio and Chromium WASM ordinary/stateful reconnect for JSON and MessagePack.", "commandOrMethod": "pwsh -File scripts/ci/run-interop.ps1 with each target/protocol/scenario cell", "assertion": "Real transport interruption recovers with the specified logical-connection and exactly-once behavior."},
+      {"profile": "parity", "scope": "Same semantic assertions across native/WASM and JSON/MessagePack.", "commandOrMethod": "Interop matrix", "assertion": "No target or protocol has a weaker reconnect contract."},
+      {"profile": "performance", "scope": "Replay-buffer byte bound and backpressure.", "commandOrMethod": "StatefulMessageBuffer deterministic capacity tests", "assertion": "Memory remains within configured bytes plus one frame and no frame is silently lost."},
+      {"profile": "static-analysis", "scope": "rustfmt, compiler, Clippy, rustdoc, workflow YAML, and target matrix.", "commandOrMethod": "Frozen quality workflow commands", "assertion": "All commands exit zero with warnings denied."},
+      {"profile": "security", "scope": "Endpoint/log redaction, workflow permissions, RustSec, and NuGet advisories.", "commandOrMethod": "Redaction tests plus cargo audit and dotnet vulnerable-package scan", "assertion": "No credentials are captured and no known advisory remains."},
+      {"profile": "architecture", "scope": "Responsibility and dependency boundaries.", "commandOrMethod": "AgentX strict audit plus semantic diff review", "assertion": "No GameX sequencing, duplicate retry policy, production fault API, or undeclared dependency enters the crate."}
+    ]
+  },
+  "rollout": [
+    "Land and checkpoint ordinary WASM reconnect first while stateful behavior remains disabled by default.",
+    "Land protocol/buffer foundation with golden frames and opt-in configuration before enabling platform runtime paths.",
+    "Prove and checkpoint native and browser stateful runtime slices independently; neither becomes a default behavior.",
+    "Apply global format/lint debt cleanup only after behavior checkpoints, then add workflows and documentation.",
+    "Run all workflow jobs on a pull request and document stable check names; configure branch protection separately after repository settings authorization.",
+    "Consumers opt in explicitly after their server endpoint enables AllowStatefulReconnects."
+  ],
+  "alternatives": [
+    {"alternative": "Use only ordinary automatic reconnect and defer Ack/Sequence", "advantages": ["Smaller implementation", "No replay buffer"], "disadvantages": ["Loses in-flight continuity", "Cannot satisfy the explicit stateful requirement", "Fresh reconnect can miss server messages"], "reasonRejected": "The user explicitly requires Ack/Sequence stateful reconnect for the production client."},
+    {"alternative": "Fork the official JavaScript MessageBuffer line-for-line into WASM only", "advantages": ["Close to one official client"], "disadvantages": ["No native parity", "Duplicates JSON/MessagePack and target behavior", "Does not fit Rust ownership"], "reasonRejected": "A shared protocol-state owner with target adapters is smaller over the supported matrix."},
+    {"alternative": "Introduce a new async runtime and WebSocket stack shared by native and WASM", "advantages": ["Potentially fewer cfg modules"], "disadvantages": ["High migration risk", "New production dependencies", "Broad rewrite outside the epic"], "reasonRejected": "Existing target adapters are adequate once lifecycle and protocol state are separated."},
+    {"alternative": "Create CI before resolving formatting and warning debt", "advantages": ["Workflow visibility arrives earlier"], "disadvantages": ["Required checks begin permanently red", "Developers normalize failures", "Behavior diffs mix with mechanical cleanup"], "reasonRejected": "Behavior checkpoints followed by a dedicated cleanup/gate sprint provide reviewable evidence and a green required baseline."}
+  ]
+}

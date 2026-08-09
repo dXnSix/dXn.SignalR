@@ -1,0 +1,1923 @@
+{
+  "schemaVersion": 5,
+  "generatorVersion": "5.0",
+  "canonicalPlanHash": "7b5ec6efd41db1f0925cca99e4c66b38deae9cb6a8c759c3a0622a113221bfad",
+  "acceptanceTraceability": [
+    {
+      "acceptanceCriterionId": "AC-F-001-1",
+      "requirementId": "REQ-F-001",
+      "ownerTaskId": "sprint-1-task-1",
+      "supportingTaskIds": [],
+      "designIds": [
+        "DES-001",
+        "DES-002",
+        "DES-004"
+      ],
+      "validationCommandIds": [
+        "VAL-SPRINT-1-TASK-1-BROAD-CHECK-01",
+        "VAL-SPRINT-1-TASK-1-GREEN-WASM-JSON-01",
+        "VAL-SPRINT-1-TASK-1-GREEN-WASM-MSGPACK-01"
+      ]
+    },
+    {
+      "acceptanceCriterionId": "AC-F-001-2",
+      "requirementId": "REQ-F-001",
+      "ownerTaskId": "sprint-1-task-1",
+      "supportingTaskIds": [],
+      "designIds": [
+        "DES-001",
+        "DES-002",
+        "DES-004"
+      ],
+      "validationCommandIds": [
+        "VAL-SPRINT-1-TASK-1-BROAD-CHECK-01",
+        "VAL-SPRINT-1-TASK-1-GREEN-LIFECYCLE-01",
+        "VAL-SPRINT-1-TASK-1-GREEN-WASM-JSON-01"
+      ]
+    },
+    {
+      "acceptanceCriterionId": "AC-F-001-3",
+      "requirementId": "REQ-F-001",
+      "ownerTaskId": "sprint-1-task-1",
+      "supportingTaskIds": [],
+      "designIds": [
+        "DES-001",
+        "DES-002",
+        "DES-004"
+      ],
+      "validationCommandIds": [
+        "VAL-SPRINT-1-TASK-1-BROAD-CHECK-01",
+        "VAL-SPRINT-1-TASK-1-GREEN-LIFECYCLE-01",
+        "VAL-SPRINT-1-TASK-1-GREEN-WASM-JSON-01",
+        "VAL-SPRINT-1-TASK-1-GREEN-WASM-MSGPACK-01"
+      ]
+    },
+    {
+      "acceptanceCriterionId": "AC-F-002-1",
+      "requirementId": "REQ-F-002",
+      "ownerTaskId": "sprint-2-task-1",
+      "supportingTaskIds": [],
+      "designIds": [
+        "DES-002",
+        "DES-003",
+        "DES-004"
+      ],
+      "validationCommandIds": [
+        "VAL-SPRINT-2-TASK-1-BROAD-DOTNET-01",
+        "VAL-SPRINT-2-TASK-1-GREEN-HARNESS-01",
+        "VAL-SPRINT-2-TASK-1-GREEN-STATEFUL-DEFAULT-01"
+      ]
+    },
+    {
+      "acceptanceCriterionId": "AC-F-002-2",
+      "requirementId": "REQ-F-002",
+      "ownerTaskId": "sprint-2-task-1",
+      "supportingTaskIds": [],
+      "designIds": [
+        "DES-002",
+        "DES-003",
+        "DES-004"
+      ],
+      "validationCommandIds": [
+        "VAL-SPRINT-2-TASK-1-GREEN-CONTRACT-01",
+        "VAL-SPRINT-2-TASK-1-GREEN-STATEFUL-DEFAULT-01",
+        "VAL-SPRINT-2-TASK-1-GREEN-STATEFUL-MSGPACK-01"
+      ]
+    },
+    {
+      "acceptanceCriterionId": "AC-F-002-3",
+      "requirementId": "REQ-F-002",
+      "ownerTaskId": "sprint-2-task-1",
+      "supportingTaskIds": [],
+      "designIds": [
+        "DES-002",
+        "DES-003",
+        "DES-004"
+      ],
+      "validationCommandIds": [
+        "VAL-SPRINT-2-TASK-1-GREEN-STATEFUL-DEFAULT-01",
+        "VAL-SPRINT-2-TASK-1-GREEN-STATEFUL-MSGPACK-01"
+      ]
+    },
+    {
+      "acceptanceCriterionId": "AC-F-003-1",
+      "requirementId": "REQ-F-003",
+      "ownerTaskId": "sprint-3-task-1",
+      "supportingTaskIds": [],
+      "designIds": [
+        "DES-001",
+        "DES-003",
+        "DES-004"
+      ],
+      "validationCommandIds": [
+        "VAL-SPRINT-3-TASK-1-BROAD-NATIVE-01",
+        "VAL-SPRINT-3-TASK-1-GREEN-NATIVE-JSON-01",
+        "VAL-SPRINT-3-TASK-1-GREEN-NATIVE-MSGPACK-01"
+      ]
+    },
+    {
+      "acceptanceCriterionId": "AC-F-003-2",
+      "requirementId": "REQ-F-003",
+      "ownerTaskId": "sprint-4-task-1",
+      "supportingTaskIds": [],
+      "designIds": [
+        "DES-001",
+        "DES-003",
+        "DES-004"
+      ],
+      "validationCommandIds": [
+        "VAL-SPRINT-4-TASK-1-BROAD-WASM-01",
+        "VAL-SPRINT-4-TASK-1-GREEN-WASM-JSON-01",
+        "VAL-SPRINT-4-TASK-1-GREEN-WASM-MSGPACK-01"
+      ]
+    },
+    {
+      "acceptanceCriterionId": "AC-F-003-3",
+      "requirementId": "REQ-F-003",
+      "ownerTaskId": "sprint-5-task-2",
+      "supportingTaskIds": [],
+      "designIds": [
+        "DES-004",
+        "DES-005"
+      ],
+      "validationCommandIds": [
+        "VAL-SPRINT-5-TASK-2-BROAD-QUALITY-01",
+        "VAL-SPRINT-5-TASK-2-GREEN-FULL-INTEROP-01",
+        "VAL-SPRINT-5-TASK-2-GREEN-SECURITY-01"
+      ]
+    },
+    {
+      "acceptanceCriterionId": "AC-F-004-1",
+      "requirementId": "REQ-F-004",
+      "ownerTaskId": "sprint-5-task-2",
+      "supportingTaskIds": [],
+      "designIds": [
+        "DES-004",
+        "DES-005"
+      ],
+      "validationCommandIds": [
+        "VAL-SPRINT-5-TASK-2-BROAD-QUALITY-01",
+        "VAL-SPRINT-5-TASK-2-GREEN-WORKFLOWS-01"
+      ]
+    },
+    {
+      "acceptanceCriterionId": "AC-F-004-2",
+      "requirementId": "REQ-F-004",
+      "ownerTaskId": "sprint-5-task-2",
+      "supportingTaskIds": [],
+      "designIds": [
+        "DES-004",
+        "DES-005"
+      ],
+      "validationCommandIds": [
+        "VAL-SPRINT-5-TASK-2-BROAD-QUALITY-01",
+        "VAL-SPRINT-5-TASK-2-GREEN-FULL-INTEROP-01",
+        "VAL-SPRINT-5-TASK-2-GREEN-WORKFLOWS-01"
+      ]
+    },
+    {
+      "acceptanceCriterionId": "AC-F-004-3",
+      "requirementId": "REQ-F-004",
+      "ownerTaskId": "sprint-5-task-2",
+      "supportingTaskIds": [],
+      "designIds": [
+        "DES-004",
+        "DES-005"
+      ],
+      "validationCommandIds": [
+        "VAL-SPRINT-5-TASK-2-BROAD-QUALITY-01",
+        "VAL-SPRINT-5-TASK-2-GREEN-SECURITY-01",
+        "VAL-SPRINT-5-TASK-2-GREEN-WORKFLOWS-01"
+      ]
+    },
+    {
+      "acceptanceCriterionId": "AC-NF-001-1",
+      "requirementId": "REQ-NF-001",
+      "ownerTaskId": "sprint-5-task-2",
+      "supportingTaskIds": [],
+      "designIds": [
+        "DES-004",
+        "DES-005"
+      ],
+      "validationCommandIds": [
+        "VAL-SPRINT-5-TASK-2-BROAD-QUALITY-01",
+        "VAL-SPRINT-5-TASK-2-GREEN-FULL-INTEROP-01"
+      ]
+    },
+    {
+      "acceptanceCriterionId": "AC-NF-002-1",
+      "requirementId": "REQ-NF-002",
+      "ownerTaskId": "sprint-2-task-1",
+      "supportingTaskIds": [],
+      "designIds": [
+        "DES-002",
+        "DES-003",
+        "DES-004"
+      ],
+      "validationCommandIds": [
+        "VAL-SPRINT-2-TASK-1-GREEN-STATEFUL-DEFAULT-01",
+        "VAL-SPRINT-2-TASK-1-GREEN-STATEFUL-MSGPACK-01"
+      ]
+    },
+    {
+      "acceptanceCriterionId": "AC-NF-003-1",
+      "requirementId": "REQ-NF-003",
+      "ownerTaskId": "sprint-2-task-1",
+      "supportingTaskIds": [],
+      "designIds": [
+        "DES-002",
+        "DES-003",
+        "DES-004"
+      ],
+      "validationCommandIds": [
+        "VAL-SPRINT-2-TASK-1-GREEN-CONTRACT-01",
+        "VAL-SPRINT-2-TASK-1-GREEN-STATEFUL-DEFAULT-01"
+      ]
+    },
+    {
+      "acceptanceCriterionId": "AC-NF-004-1",
+      "requirementId": "REQ-NF-004",
+      "ownerTaskId": "sprint-5-task-1",
+      "supportingTaskIds": [],
+      "designIds": [
+        "DES-005"
+      ],
+      "validationCommandIds": [
+        "VAL-SPRINT-5-TASK-1-BROAD-DOC-01",
+        "VAL-SPRINT-5-TASK-1-TARGET-CLIPPY-01",
+        "VAL-SPRINT-5-TASK-1-TARGET-FMT-01",
+        "VAL-SPRINT-5-TASK-1-TARGET-WASM-01"
+      ]
+    },
+    {
+      "acceptanceCriterionId": "AC-NF-005-1",
+      "requirementId": "REQ-NF-005",
+      "ownerTaskId": "sprint-5-task-2",
+      "supportingTaskIds": [],
+      "designIds": [
+        "DES-004",
+        "DES-005"
+      ],
+      "validationCommandIds": [
+        "VAL-SPRINT-5-TASK-2-BROAD-QUALITY-01",
+        "VAL-SPRINT-5-TASK-2-GREEN-SECURITY-01"
+      ]
+    }
+  ],
+  "sourceTraceRequired": true,
+  "tasks": [
+    {
+      "id": "sprint-1-task-1",
+      "revisionId": "sprint-1-task-1@cb1c7fb83d6af397",
+      "behaviorContractHash": "cb1c7fb83d6af3979d6d2d5ad4a3a04cac34aa395f2bacc5d2191829b53017f5",
+      "planningMetadataHash": "c122328973fc513ad785ee1ade3ee1880c7a52de611c17980c16b257f4a9c7e7",
+      "sprint": 1,
+      "taskIndex": 1,
+      "kind": "feature",
+      "text": "MUST introduce the single-flight reconnect lifecycle and reusable connection recipe, implement the existing ReconnectionHandler contract on WASM, perform fresh negotiation and handshake outside stateful mode, obey local close and Close allowReconnect, retain callbacks, terminate nonstateful pending work without replay, and prove JSON plus MessagePack recovery in a real Chromium wasm-bindgen-test.",
+      "taskTextHash": "d8766a3d65d3de85f591d22cf52b7ebb22ff376f1498a0d159041a763750f26c",
+      "scope": {
+        "writePaths": [
+          "Cargo.toml",
+          ".cargo/config.toml",
+          "src/client/client.rs",
+          "src/client/configuration.rs",
+          "src/communication/common.rs",
+          "src/communication/reconnection.rs",
+          "src/communication/client_tokio.rs",
+          "src/communication/client_wasm.rs",
+          "src/communication/mod.rs",
+          "src/execution/storage.rs",
+          "src/execution/storage_tokio.rs",
+          "src/execution/storage_wasm.rs",
+          "src/execution/invocation.rs",
+          "src/execution/enumerable.rs",
+          "src/completer/**",
+          "src/tests/mod.rs",
+          "src/tests/tests_tokio.rs",
+          "src/tests/tests_wasm.rs"
+        ],
+        "generatedPaths": [],
+        "forbiddenPaths": [
+          ".github/**",
+          "dotnet/**",
+          "src/protocol/msgpack.rs",
+          "src/protocol/negotiate.rs",
+          "src/protocol/stateful.rs",
+          "docs/**"
+        ],
+        "responsibilityIds": [
+          "RESP-001",
+          "RESP-002",
+          "RESP-005",
+          "RESP-006",
+          "RESP-007"
+        ],
+        "symbols": [
+          "ReconnectCoordinator",
+          "ConnectionRecipe",
+          "ReconnectionHandler",
+          "SignalRClient::connect_internal",
+          "CommunicationClient",
+          "Storage::fail_pending"
+        ]
+      },
+      "repositoryIds": [
+        "rayx-signalr"
+      ],
+      "requirementIds": [
+        "REQ-F-001",
+        "REQ-NF-001"
+      ],
+      "designIds": [
+        "DES-001",
+        "DES-002",
+        "DES-004"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-F-001-1",
+        "AC-F-001-2",
+        "AC-F-001-3"
+      ],
+      "proofMode": "red-green",
+      "proofObligations": [
+        "Before implementation, dedicated WASM reconnect tests MUST fail because disconnected/error status has no recovery path and ReconnectionHandler has no methods.",
+        "After implementation, native and Chromium WASM ordinary reconnect MUST pass the same automatic/manual/local-close/Close contract in JSON and MessagePack modes.",
+        "A fresh reconnect MUST issue a new negotiate and one handshake, retain callbacks, fail pending calls, and send no replayed invocation.",
+        "Captured lifecycle diagnostics MUST contain no access_token or Authorization value."
+      ],
+      "implementationConstraints": {
+        "reuse": [
+          "Existing ReconnectionPolicy implementations",
+          "Existing target-specific CommunicationClient adapters",
+          "Existing HttpClient negotiation",
+          "Existing action storage and callback registrations",
+          "wasm-sockets PollingClient and wasm-timer"
+        ],
+        "prohibitedAdditions": [
+          "GameX-specific sequence type",
+          "new production async runtime",
+          "new WebSocket dependency",
+          "public transport abstraction",
+          "automatic nonstateful invocation replay",
+          "global lint allow"
+        ],
+        "allowedAdditions": [
+          "internal ReconnectCoordinator",
+          "internal ConnectionRecipe",
+          "internal pending-action terminalization",
+          "wasm-bindgen-test dev dependency and runner configuration",
+          "cfg(test) physical transport-drop hook",
+          "ReconnectCoordinator",
+          "ConnectionRecipe",
+          "InteropHarness",
+          "wasm-bindgen-test dev-dependency",
+          "ConnectionConfiguration::with_stateful_reconnect(StatefulReconnectConfig)",
+          "Existing ReconnectionHandler methods on wasm32"
+        ]
+      },
+      "validation": {
+        "red": [
+          {
+            "id": "VAL-SPRINT-1-TASK-1-RED-WASM-01",
+            "phase": "red",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "cargo",
+              "arguments": [
+                "test",
+                "--target",
+                "wasm32-unknown-unknown",
+                "--lib",
+                "wasm_ordinary_reconnect_json",
+                "--no-default-features"
+              ]
+            },
+            "target": "chromium-wasm32",
+            "validationProfile": "runtime",
+            "acceptanceCriteriaIds": [
+              "AC-F-001-1"
+            ],
+            "expected": {
+              "exitCode": "nonzero",
+              "failurePattern": "reconnect|disconnected|not implemented|test failed"
+            },
+            "command": "cargo test --target wasm32-unknown-unknown --lib wasm_ordinary_reconnect_json --no-default-features",
+            "assertion": "The focused Chromium test MUST expose missing WASM ordinary reconnect before production changes.",
+            "artifactPaths": [
+              "rayx-signalr:src/tests/tests_wasm.rs"
+            ]
+          }
+        ],
+        "green": [
+          {
+            "id": "VAL-SPRINT-1-TASK-1-GREEN-WASM-JSON-01",
+            "phase": "green",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "cargo",
+              "arguments": [
+                "test",
+                "--target",
+                "wasm32-unknown-unknown",
+                "--lib",
+                "wasm_ordinary_reconnect_json",
+                "--no-default-features"
+              ]
+            },
+            "target": "chromium-wasm32",
+            "validationProfile": "runtime",
+            "acceptanceCriteriaIds": [
+              "AC-F-001-1",
+              "AC-F-001-2",
+              "AC-F-001-3"
+            ],
+            "expected": {
+              "exitCode": 0
+            },
+            "command": "cargo test --target wasm32-unknown-unknown --lib wasm_ordinary_reconnect_json --no-default-features",
+            "assertion": "Chromium JSON MUST recover through fresh negotiation and handshake with correct lifecycle, callback, pending-action, and no-replay behavior.",
+            "artifactPaths": [
+              "rayx-signalr:src/communication/client_wasm.rs",
+              "rayx-signalr:src/tests/tests_wasm.rs"
+            ]
+          },
+          {
+            "id": "VAL-SPRINT-1-TASK-1-GREEN-WASM-MSGPACK-01",
+            "phase": "green",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "cargo",
+              "arguments": [
+                "test",
+                "--target",
+                "wasm32-unknown-unknown",
+                "--lib",
+                "wasm_ordinary_reconnect_messagepack",
+                "--features",
+                "messagepack"
+              ]
+            },
+            "target": "chromium-wasm32",
+            "validationProfile": "parity",
+            "acceptanceCriteriaIds": [
+              "AC-F-001-1",
+              "AC-F-001-3"
+            ],
+            "expected": {
+              "exitCode": 0
+            },
+            "command": "cargo test --target wasm32-unknown-unknown --lib wasm_ordinary_reconnect_messagepack --features messagepack",
+            "assertion": "Chromium MessagePack MUST satisfy the same ordinary reconnect contract as JSON.",
+            "artifactPaths": [
+              "rayx-signalr:src/tests/tests_wasm.rs"
+            ]
+          },
+          {
+            "id": "VAL-SPRINT-1-TASK-1-GREEN-LIFECYCLE-01",
+            "phase": "green",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "cargo",
+              "arguments": [
+                "test",
+                "--lib",
+                "reconnect_lifecycle",
+                "--all-features"
+              ]
+            },
+            "target": "host",
+            "validationProfile": "unit",
+            "acceptanceCriteriaIds": [
+              "AC-F-001-2",
+              "AC-F-001-3"
+            ],
+            "expected": {
+              "exitCode": 0
+            },
+            "command": "cargo test --lib reconnect_lifecycle --all-features",
+            "assertion": "Transition, cancellation, stale-generation, Close, fresh-negotiate, pending-action, and redaction contracts MUST pass deterministically.",
+            "artifactPaths": [
+              "rayx-signalr:src/communication/reconnection.rs",
+              "rayx-signalr:src/client/client.rs"
+            ]
+          }
+        ],
+        "broad": [
+          {
+            "id": "VAL-SPRINT-1-TASK-1-BROAD-CHECK-01",
+            "phase": "broad",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "cargo",
+              "arguments": [
+                "check",
+                "--all-targets",
+                "--all-features"
+              ]
+            },
+            "target": "native-host",
+            "validationProfile": "regression",
+            "acceptanceCriteriaIds": [
+              "AC-F-001-1",
+              "AC-F-001-2",
+              "AC-F-001-3"
+            ],
+            "expected": {
+              "exitCode": 0
+            },
+            "command": "cargo check --all-targets --all-features",
+            "assertion": "The affected native library and test targets MUST compile after the lifecycle change.",
+            "artifactPaths": [
+              "rayx-signalr:src"
+            ]
+          }
+        ],
+        "profiles": [
+          "unit",
+          "runtime",
+          "regression",
+          "parity"
+        ]
+      },
+      "validationProfiles": [
+        "unit",
+        "runtime",
+        "regression",
+        "parity"
+      ],
+      "evidenceRequired": true
+    },
+    {
+      "id": "sprint-2-task-1",
+      "revisionId": "sprint-2-task-1@95e9d4b5b363930c",
+      "behaviorContractHash": "95e9d4b5b363930cf45e1f5faf2d90fef85dc933bafdfd872cc70f316c95d83a",
+      "planningMetadataHash": "45b89c62a4d076a4cf6b27e73abaf284e7d4514e390fa1cd135a84b8dc670b52",
+      "sprint": 2,
+      "taskIndex": 1,
+      "kind": "feature",
+      "text": "MUST add explicit stateful configuration and negotiate capability, exact JSON and MessagePack Ack/Sequence codecs, the bounded serialized StatefulMessageBuffer with backpressure and duplicate suppression, shared action continuity rules, stateful .NET endpoints, and a validated local interop runner ready for native and WASM scenario tasks.",
+      "taskTextHash": "4dcfdd55212d111229c7f26c81bc8c56a50e371059c71d4e86e47217e3c1eadf",
+      "scope": {
+        "writePaths": [
+          "src/lib.rs",
+          "src/client/client.rs",
+          "src/client/configuration.rs",
+          "src/communication/common.rs",
+          "src/communication/mod.rs",
+          "src/communication/stateful.rs",
+          "src/protocol/mod.rs",
+          "src/protocol/negotiate.rs",
+          "src/protocol/messages.rs",
+          "src/protocol/msgpack.rs",
+          "src/protocol/close.rs",
+          "src/protocol/stateful.rs",
+          "src/execution/storage.rs",
+          "src/tests/mod.rs",
+          "src/tests/tests_msgpack.rs",
+          "dotnet/SignalRTestService/Program.cs",
+          "dotnet/SignalRTestService/TestHub.cs",
+          "dotnet/SignalRTestService/SignalRTestService.csproj",
+          "scripts/ci/run-interop.ps1"
+        ],
+        "generatedPaths": [],
+        "forbiddenPaths": [
+          ".github/**",
+          "docs/**",
+          "src/communication/client_tokio.rs",
+          "src/communication/client_wasm.rs",
+          "rust-toolchain.toml"
+        ],
+        "responsibilityIds": [
+          "RESP-002",
+          "RESP-003",
+          "RESP-004",
+          "RESP-005",
+          "RESP-008"
+        ],
+        "symbols": [
+          "StatefulReconnectConfig",
+          "MessageType::Ack",
+          "MessageType::Sequence",
+          "Ack",
+          "Sequence",
+          "StatefulMessageBuffer",
+          "run-interop.ps1"
+        ]
+      },
+      "repositoryIds": [
+        "rayx-signalr"
+      ],
+      "requirementIds": [
+        "REQ-F-002",
+        "REQ-NF-002",
+        "REQ-NF-003"
+      ],
+      "designIds": [
+        "DES-002",
+        "DES-003",
+        "DES-004"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-F-002-1",
+        "AC-F-002-2",
+        "AC-F-002-3",
+        "AC-NF-002-1",
+        "AC-NF-003-1"
+      ],
+      "proofMode": "red-green",
+      "proofObligations": [
+        "Golden protocol tests MUST fail before MessageType 8/9 and exact codecs exist.",
+        "Buffer model tests MUST cover every transition, capacity boundary, race, duplicate, gap, overflow, and terminal cleanup contract.",
+        "Stateful opt-in MUST be absent by default and capability fallback MUST retain ordinary reconnect.",
+        "The runner MUST reject invalid selectors and clean up a deliberately failing fixture run before platform scenarios use it."
+      ],
+      "implementationConstraints": {
+        "reuse": [
+          "MessageParser record separator",
+          "Existing MessagePack framing/value helpers",
+          "Existing ConnectionConfiguration and HttpClient",
+          "Existing action storage",
+          "Existing SignalRTestService and MessagePack package"
+        ],
+        "prohibitedAdditions": [
+          "unbounded replay buffer",
+          "typed-message reserialization on replay",
+          "GameX sequence fields",
+          "persistent replay storage",
+          "production transport fault endpoint",
+          "second handshake during stateful resume",
+          "new production dependency"
+        ],
+        "allowedAdditions": [
+          "StatefulReconnectConfig public value",
+          "with_stateful_reconnect public method",
+          "internal Ack/Sequence DTOs and codecs",
+          "internal StatefulMessageBuffer",
+          "test-service stateful endpoint and synthetic sequence methods",
+          "PowerShell 7 interop runner",
+          "ReconnectCoordinator",
+          "ConnectionRecipe",
+          "StatefulMessageBuffer",
+          "InteropHarness",
+          "wasm-bindgen-test dev-dependency",
+          "StatefulReconnectConfig with Default buffer_size_bytes=100000",
+          "ConnectionConfiguration::with_stateful_reconnect(StatefulReconnectConfig)"
+        ]
+      },
+      "validation": {
+        "red": [
+          {
+            "id": "VAL-SPRINT-2-TASK-1-RED-PROTOCOL-01",
+            "phase": "red",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "cargo",
+              "arguments": [
+                "test",
+                "--lib",
+                "stateful_golden_frames",
+                "--all-features"
+              ]
+            },
+            "target": "host",
+            "validationProfile": "contract",
+            "acceptanceCriteriaIds": [
+              "AC-F-002-2"
+            ],
+            "expected": {
+              "exitCode": "nonzero",
+              "failurePattern": "Ack|Sequence|type 8|type 9|test failed"
+            },
+            "command": "cargo test --lib stateful_golden_frames --all-features",
+            "assertion": "Golden frame tests MUST expose the missing Ack and Sequence protocol before implementation.",
+            "artifactPaths": [
+              "rayx-signalr:src/protocol/stateful.rs",
+              "rayx-signalr:src/protocol/msgpack.rs"
+            ]
+          }
+        ],
+        "green": [
+          {
+            "id": "VAL-SPRINT-2-TASK-1-GREEN-STATEFUL-DEFAULT-01",
+            "phase": "green",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "cargo",
+              "arguments": [
+                "test",
+                "--lib",
+                "stateful",
+                "--no-default-features"
+              ]
+            },
+            "target": "host",
+            "validationProfile": "unit",
+            "acceptanceCriteriaIds": [
+              "AC-F-002-1",
+              "AC-F-002-2",
+              "AC-F-002-3",
+              "AC-NF-002-1",
+              "AC-NF-003-1"
+            ],
+            "expected": {
+              "exitCode": 0
+            },
+            "command": "cargo test --lib stateful --no-default-features",
+            "assertion": "JSON negotiation, codec, buffer, backpressure, duplicate, gap, overflow, disposal, and compatibility tests MUST pass.",
+            "artifactPaths": [
+              "rayx-signalr:src/protocol/stateful.rs",
+              "rayx-signalr:src/communication/stateful.rs"
+            ]
+          },
+          {
+            "id": "VAL-SPRINT-2-TASK-1-GREEN-STATEFUL-MSGPACK-01",
+            "phase": "green",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "cargo",
+              "arguments": [
+                "test",
+                "--lib",
+                "stateful",
+                "--all-features"
+              ]
+            },
+            "target": "host",
+            "validationProfile": "parity",
+            "acceptanceCriteriaIds": [
+              "AC-F-002-2",
+              "AC-F-002-3",
+              "AC-NF-002-1"
+            ],
+            "expected": {
+              "exitCode": 0
+            },
+            "command": "cargo test --lib stateful --all-features",
+            "assertion": "MessagePack golden frames and shared stateful behavior MUST pass with the same logical assertions as JSON.",
+            "artifactPaths": [
+              "rayx-signalr:src/protocol/msgpack.rs",
+              "rayx-signalr:src/communication/stateful.rs"
+            ]
+          },
+          {
+            "id": "VAL-SPRINT-2-TASK-1-GREEN-CONTRACT-01",
+            "phase": "green",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "cargo",
+              "arguments": [
+                "test",
+                "--lib",
+                "stateful",
+                "--all-features"
+              ]
+            },
+            "target": "host",
+            "validationProfile": "contract",
+            "acceptanceCriteriaIds": [
+              "AC-F-002-2",
+              "AC-NF-003-1"
+            ],
+            "expected": {
+              "exitCode": 0
+            },
+            "command": "cargo test --lib stateful --all-features",
+            "assertion": "The JSON and MessagePack wire contract plus opt-in compatibility surface MUST pass together.",
+            "artifactPaths": [
+              "rayx-signalr:src/protocol/stateful.rs",
+              "rayx-signalr:src/client/configuration.rs"
+            ]
+          },
+          {
+            "id": "VAL-SPRINT-2-TASK-1-GREEN-HARNESS-01",
+            "phase": "green",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "pwsh",
+              "arguments": [
+                "-NoProfile",
+                "-File",
+                "scripts/ci/run-interop.ps1",
+                "-SelfTest"
+              ]
+            },
+            "target": "host",
+            "validationProfile": "integration",
+            "acceptanceCriteriaIds": [
+              "AC-F-002-1"
+            ],
+            "expected": {
+              "exitCode": 0
+            },
+            "command": "pwsh -NoProfile -File scripts/ci/run-interop.ps1 -SelfTest",
+            "assertion": "Runner selector validation, service health timeout, deliberate failure propagation, redaction, and finally cleanup MUST pass.",
+            "artifactPaths": [
+              "rayx-signalr:scripts/ci/run-interop.ps1",
+              "rayx-signalr:dotnet/SignalRTestService"
+            ]
+          }
+        ],
+        "broad": [
+          {
+            "id": "VAL-SPRINT-2-TASK-1-BROAD-DOTNET-01",
+            "phase": "broad",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "dotnet",
+              "arguments": [
+                "build",
+                "dotnet/SignalRTestService/SignalRTestService.csproj",
+                "--no-restore"
+              ]
+            },
+            "target": "host",
+            "validationProfile": "integration",
+            "acceptanceCriteriaIds": [
+              "AC-F-002-1"
+            ],
+            "expected": {
+              "exitCode": 0
+            },
+            "command": "dotnet build dotnet/SignalRTestService/SignalRTestService.csproj --no-restore",
+            "assertion": "The ordinary and stateful ASP.NET Core fixture endpoints MUST compile.",
+            "artifactPaths": [
+              "rayx-signalr:dotnet/SignalRTestService"
+            ]
+          }
+        ],
+        "profiles": [
+          "unit",
+          "contract",
+          "parity",
+          "integration"
+        ]
+      },
+      "validationProfiles": [
+        "unit",
+        "contract",
+        "parity",
+        "integration"
+      ],
+      "evidenceRequired": true
+    },
+    {
+      "id": "sprint-3-task-1",
+      "revisionId": "sprint-3-task-1@88ac5a9baeff715a",
+      "behaviorContractHash": "88ac5a9baeff715af474491030113978b72a596a42f3a5eecbcf7e06fccba063",
+      "planningMetadataHash": "674e893cc1c6491a04c6702179254f7552b276c418f936e8d792beecdc54649f",
+      "sprint": 3,
+      "taskIndex": 1,
+      "kind": "integration",
+      "text": "MUST integrate the shared stateful buffer and reconnect coordinator with the Tokio WebSocket adapter, resume the same negotiated transport without handshake, preserve valid in-flight actions, and pass three-drop JSON and MessagePack runtime scenarios against ASP.NET Core.",
+      "taskTextHash": "14e610cc5522772698cacaf9f421e5e58fa7596cf8a7416489dc2889fc20b148",
+      "scope": {
+        "writePaths": [
+          "src/communication/client_tokio.rs",
+          "src/tests/tests_tokio.rs",
+          "src/tests/tests_msgpack.rs"
+        ],
+        "generatedPaths": [],
+        "forbiddenPaths": [
+          "src/communication/client_wasm.rs",
+          "src/protocol/**",
+          "src/communication/stateful.rs",
+          "dotnet/**",
+          "scripts/**",
+          ".github/**"
+        ],
+        "responsibilityIds": [
+          "RESP-001",
+          "RESP-004",
+          "RESP-005",
+          "RESP-006"
+        ],
+        "symbols": [
+          "TokioTransportAdapter",
+          "CommunicationConnection::start_receiving",
+          "native_stateful_reconnect_json",
+          "native_stateful_reconnect_messagepack"
+        ]
+      },
+      "repositoryIds": [
+        "rayx-signalr"
+      ],
+      "requirementIds": [
+        "REQ-F-003",
+        "REQ-NF-001"
+      ],
+      "designIds": [
+        "DES-001",
+        "DES-003",
+        "DES-004"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-F-003-1"
+      ],
+      "proofMode": "red-green",
+      "proofObligations": [
+        "The native stateful scenario MUST fail before the adapter reopens the physical socket without another handshake and invokes ordered resend.",
+        "JSON and MessagePack MUST each survive three drops with one logical connection and exactly-once callback/stream observations.",
+        "Pending invocation and stream actions MUST remain live through stateful resume and complete normally.",
+        "Stale receive generations and duplicate replay frames MUST not reach application dispatch."
+      ],
+      "implementationConstraints": {
+        "reuse": [
+          "ReconnectCoordinator",
+          "StatefulMessageBuffer",
+          "existing tokio-websockets split sink/stream",
+          "existing UpdatableActionStorage",
+          "run-interop.ps1 and stateful test endpoint"
+        ],
+        "prohibitedAdditions": [
+          "native-only sequence implementation",
+          "second hub handshake during resume",
+          "new network dependency",
+          "changes to shared protocol or WASM adapter",
+          "sleep-only test synchronization"
+        ],
+        "allowedAdditions": [
+          "Tokio adapter resume operation",
+          "generation guards",
+          "cfg(test) native socket-drop hook",
+          "focused native JSON and MessagePack scenarios",
+          "ReconnectCoordinator",
+          "StatefulMessageBuffer",
+          "InteropHarness",
+          "wasm-bindgen-test dev-dependency",
+          "StatefulReconnectConfig with Default buffer_size_bytes=100000",
+          "ConnectionConfiguration::with_stateful_reconnect(StatefulReconnectConfig)",
+          "Existing ReconnectionHandler methods on wasm32"
+        ]
+      },
+      "validation": {
+        "red": [
+          {
+            "id": "VAL-SPRINT-3-TASK-1-RED-NATIVE-01",
+            "phase": "red",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "pwsh",
+              "arguments": [
+                "-NoProfile",
+                "-File",
+                "scripts/ci/run-interop.ps1",
+                "-Target",
+                "native",
+                "-Protocol",
+                "json",
+                "-Scenario",
+                "stateful-reconnect"
+              ]
+            },
+            "target": "native-host",
+            "validationProfile": "runtime",
+            "acceptanceCriteriaIds": [
+              "AC-F-003-1"
+            ],
+            "expected": {
+              "exitCode": "nonzero",
+              "failurePattern": "handshake|sequence|resume|test failed"
+            },
+            "command": "pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target native -Protocol json -Scenario stateful-reconnect",
+            "assertion": "The native stateful scenario MUST expose the missing same-token resume integration before implementation.",
+            "artifactPaths": [
+              "rayx-signalr:src/tests/tests_tokio.rs"
+            ]
+          }
+        ],
+        "green": [
+          {
+            "id": "VAL-SPRINT-3-TASK-1-GREEN-NATIVE-JSON-01",
+            "phase": "green",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "pwsh",
+              "arguments": [
+                "-NoProfile",
+                "-File",
+                "scripts/ci/run-interop.ps1",
+                "-Target",
+                "native",
+                "-Protocol",
+                "json",
+                "-Scenario",
+                "stateful-reconnect"
+              ]
+            },
+            "target": "native-host",
+            "validationProfile": "runtime",
+            "acceptanceCriteriaIds": [
+              "AC-F-003-1"
+            ],
+            "expected": {
+              "exitCode": 0
+            },
+            "command": "pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target native -Protocol json -Scenario stateful-reconnect",
+            "assertion": "Native JSON MUST survive three physical drops with one logical connection, no second handshake, exactly-once order, and valid in-flight completion.",
+            "artifactPaths": [
+              "rayx-signalr:src/communication/client_tokio.rs",
+              "rayx-signalr:src/tests/tests_tokio.rs"
+            ]
+          },
+          {
+            "id": "VAL-SPRINT-3-TASK-1-GREEN-NATIVE-MSGPACK-01",
+            "phase": "green",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "pwsh",
+              "arguments": [
+                "-NoProfile",
+                "-File",
+                "scripts/ci/run-interop.ps1",
+                "-Target",
+                "native",
+                "-Protocol",
+                "messagepack",
+                "-Scenario",
+                "stateful-reconnect"
+              ]
+            },
+            "target": "native-host",
+            "validationProfile": "parity",
+            "acceptanceCriteriaIds": [
+              "AC-F-003-1"
+            ],
+            "expected": {
+              "exitCode": 0
+            },
+            "command": "pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target native -Protocol messagepack -Scenario stateful-reconnect",
+            "assertion": "Native MessagePack MUST satisfy the exact same three-drop stateful assertions as JSON.",
+            "artifactPaths": [
+              "rayx-signalr:src/tests/tests_msgpack.rs"
+            ]
+          }
+        ],
+        "broad": [
+          {
+            "id": "VAL-SPRINT-3-TASK-1-BROAD-NATIVE-01",
+            "phase": "broad",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "cargo",
+              "arguments": [
+                "check",
+                "--all-targets",
+                "--all-features"
+              ]
+            },
+            "target": "native-host",
+            "validationProfile": "regression",
+            "acceptanceCriteriaIds": [
+              "AC-F-003-1"
+            ],
+            "expected": {
+              "exitCode": 0
+            },
+            "command": "cargo check --all-targets --all-features",
+            "assertion": "All native targets and features MUST compile after Tokio stateful integration.",
+            "artifactPaths": [
+              "rayx-signalr:src/communication/client_tokio.rs"
+            ]
+          }
+        ],
+        "profiles": [
+          "runtime",
+          "parity",
+          "regression"
+        ]
+      },
+      "validationProfiles": [
+        "runtime",
+        "parity",
+        "regression"
+      ],
+      "evidenceRequired": true
+    },
+    {
+      "id": "sprint-4-task-1",
+      "revisionId": "sprint-4-task-1@67737ff0b1e71d46",
+      "behaviorContractHash": "67737ff0b1e71d468142f32cef91b144408d0c0e62b7d79955a3c2ee91c0087f",
+      "planningMetadataHash": "59bd8465a2490c9f7b1654a1bffaa2a526a3aba2af0b364b8377cb6bac2df200",
+      "sprint": 4,
+      "taskIndex": 1,
+      "kind": "integration",
+      "text": "MUST integrate the shared stateful buffer and reconnect coordinator with the WASM polling adapter, use browser-safe timers and generation guards, resume the same negotiated WebSocket without handshake, preserve valid in-flight actions, and pass three-drop JSON and MessagePack scenarios in real Chromium.",
+      "taskTextHash": "0ccb4116b698fada3fdfa2747ce1356806f9facfab3099fa38d185c468722fa5",
+      "scope": {
+        "writePaths": [
+          "src/communication/client_wasm.rs",
+          "src/tests/tests_wasm.rs",
+          ".cargo/config.toml"
+        ],
+        "generatedPaths": [],
+        "forbiddenPaths": [
+          "src/communication/client_tokio.rs",
+          "src/protocol/**",
+          "src/communication/stateful.rs",
+          "dotnet/**",
+          "scripts/**",
+          ".github/**"
+        ],
+        "responsibilityIds": [
+          "RESP-001",
+          "RESP-004",
+          "RESP-005",
+          "RESP-007"
+        ],
+        "symbols": [
+          "WasmTransportAdapter",
+          "CommunicationClient::polling_loop",
+          "wasm_stateful_reconnect_json",
+          "wasm_stateful_reconnect_messagepack"
+        ]
+      },
+      "repositoryIds": [
+        "rayx-signalr"
+      ],
+      "requirementIds": [
+        "REQ-F-003",
+        "REQ-NF-001"
+      ],
+      "designIds": [
+        "DES-001",
+        "DES-003",
+        "DES-004"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-F-003-2"
+      ],
+      "proofMode": "red-green",
+      "proofObligations": [
+        "The browser stateful scenario MUST fail before WASM can resume the same transport and sequence replay.",
+        "JSON and MessagePack MUST each survive three real Chromium WebSocket drops with exactly-once ordered application observations.",
+        "No RefCell borrow MUST cross await/user-callback boundaries and all interval/timeout handles MUST be cancelled at terminal close.",
+        "Pending invocation and stream actions MUST complete after stateful resume rather than being lost or duplicated."
+      ],
+      "implementationConstraints": {
+        "reuse": [
+          "ReconnectCoordinator",
+          "StatefulMessageBuffer",
+          "wasm-sockets PollingClient",
+          "wasm-timer",
+          "existing WASM action storage",
+          "wasm-bindgen-test runner",
+          "run-interop.ps1 and stateful test endpoint"
+        ],
+        "prohibitedAdditions": [
+          "WASM-only sequence implementation",
+          "Tokio synchronization in wasm32 code",
+          "second handshake during resume",
+          "new browser automation framework",
+          "changes to shared protocol or native adapter",
+          "sleep-only assertions"
+        ],
+        "allowedAdditions": [
+          "WASM adapter resume operation",
+          "browser timer cancellation token",
+          "generation guards",
+          "cfg(test) browser socket-drop hook",
+          "focused Chromium JSON and MessagePack scenarios",
+          "ReconnectCoordinator",
+          "StatefulMessageBuffer",
+          "InteropHarness",
+          "wasm-bindgen-test dev-dependency",
+          "StatefulReconnectConfig with Default buffer_size_bytes=100000",
+          "ConnectionConfiguration::with_stateful_reconnect(StatefulReconnectConfig)",
+          "Existing ReconnectionHandler methods on wasm32"
+        ]
+      },
+      "validation": {
+        "red": [
+          {
+            "id": "VAL-SPRINT-4-TASK-1-RED-WASM-01",
+            "phase": "red",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "pwsh",
+              "arguments": [
+                "-NoProfile",
+                "-File",
+                "scripts/ci/run-interop.ps1",
+                "-Target",
+                "wasm",
+                "-Protocol",
+                "json",
+                "-Scenario",
+                "stateful-reconnect"
+              ]
+            },
+            "target": "chromium-wasm32",
+            "validationProfile": "runtime",
+            "acceptanceCriteriaIds": [
+              "AC-F-003-2"
+            ],
+            "expected": {
+              "exitCode": "nonzero",
+              "failurePattern": "handshake|sequence|resume|test failed"
+            },
+            "command": "pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target wasm -Protocol json -Scenario stateful-reconnect",
+            "assertion": "The browser stateful scenario MUST expose the missing WASM resume integration before implementation.",
+            "artifactPaths": [
+              "rayx-signalr:src/tests/tests_wasm.rs"
+            ]
+          }
+        ],
+        "green": [
+          {
+            "id": "VAL-SPRINT-4-TASK-1-GREEN-WASM-JSON-01",
+            "phase": "green",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "pwsh",
+              "arguments": [
+                "-NoProfile",
+                "-File",
+                "scripts/ci/run-interop.ps1",
+                "-Target",
+                "wasm",
+                "-Protocol",
+                "json",
+                "-Scenario",
+                "stateful-reconnect"
+              ]
+            },
+            "target": "chromium-wasm32",
+            "validationProfile": "runtime",
+            "acceptanceCriteriaIds": [
+              "AC-F-003-2"
+            ],
+            "expected": {
+              "exitCode": 0
+            },
+            "command": "pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target wasm -Protocol json -Scenario stateful-reconnect",
+            "assertion": "Chromium JSON MUST survive three physical drops with one logical connection, no second handshake, exactly-once order, and valid in-flight completion.",
+            "artifactPaths": [
+              "rayx-signalr:src/communication/client_wasm.rs",
+              "rayx-signalr:src/tests/tests_wasm.rs"
+            ]
+          },
+          {
+            "id": "VAL-SPRINT-4-TASK-1-GREEN-WASM-MSGPACK-01",
+            "phase": "green",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "pwsh",
+              "arguments": [
+                "-NoProfile",
+                "-File",
+                "scripts/ci/run-interop.ps1",
+                "-Target",
+                "wasm",
+                "-Protocol",
+                "messagepack",
+                "-Scenario",
+                "stateful-reconnect"
+              ]
+            },
+            "target": "chromium-wasm32",
+            "validationProfile": "parity",
+            "acceptanceCriteriaIds": [
+              "AC-F-003-2"
+            ],
+            "expected": {
+              "exitCode": 0
+            },
+            "command": "pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target wasm -Protocol messagepack -Scenario stateful-reconnect",
+            "assertion": "Chromium MessagePack MUST satisfy the same three-drop stateful assertions as JSON and native.",
+            "artifactPaths": [
+              "rayx-signalr:src/tests/tests_wasm.rs"
+            ]
+          }
+        ],
+        "broad": [
+          {
+            "id": "VAL-SPRINT-4-TASK-1-BROAD-WASM-01",
+            "phase": "broad",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "cargo",
+              "arguments": [
+                "check",
+                "--target",
+                "wasm32-unknown-unknown",
+                "--all-features"
+              ]
+            },
+            "target": "wasm32-unknown-unknown",
+            "validationProfile": "regression",
+            "acceptanceCriteriaIds": [
+              "AC-F-003-2"
+            ],
+            "expected": {
+              "exitCode": 0
+            },
+            "command": "cargo check --target wasm32-unknown-unknown --all-features",
+            "assertion": "The full WASM MessagePack target MUST compile after stateful integration.",
+            "artifactPaths": [
+              "rayx-signalr:src/communication/client_wasm.rs"
+            ]
+          }
+        ],
+        "profiles": [
+          "runtime",
+          "parity",
+          "regression"
+        ]
+      },
+      "validationProfiles": [
+        "runtime",
+        "parity",
+        "regression"
+      ],
+      "evidenceRequired": true
+    },
+    {
+      "id": "sprint-5-task-1",
+      "revisionId": "sprint-5-task-1@9fa6276040e63ce6",
+      "behaviorContractHash": "9fa6276040e63ce63da3ae25b42fdff862e9ce61aed7567da8da74cf56f144b1",
+      "planningMetadataHash": "362c59857fc7177eee8db29df60b5a60e06d37455e41f7cf694515f954b74c46",
+      "sprint": 5,
+      "taskIndex": 1,
+      "kind": "bugfix",
+      "text": "MUST apply repository-wide rustfmt, resolve every compiler, Clippy, and rustdoc warning without broad allow attributes or behavior changes, declare Rust 1.92 compatibility and the pinned toolchain components/target, and keep the complete reconnect matrix passing.",
+      "taskTextHash": "626f8aba717611e89cfcf17c4cb6963abdcff308a4307635e9bcc3829bbd3d0c",
+      "scope": {
+        "writePaths": [
+          "Cargo.toml",
+          "rust-toolchain.toml",
+          "src/**/*.rs",
+          "src/lib.rs",
+          "src/client"
+        ],
+        "generatedPaths": [],
+        "forbiddenPaths": [
+          ".github/**",
+          "scripts/**",
+          "dotnet/**",
+          "README.md",
+          "FORK.md"
+        ],
+        "responsibilityIds": [
+          "RESP-001",
+          "RESP-002",
+          "RESP-003",
+          "RESP-004",
+          "RESP-005",
+          "RESP-006",
+          "RESP-007",
+          "RESP-009"
+        ],
+        "symbols": []
+      },
+      "repositoryIds": [
+        "rayx-signalr"
+      ],
+      "requirementIds": [
+        "REQ-NF-004"
+      ],
+      "designIds": [
+        "DES-005"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-NF-004-1"
+      ],
+      "proofMode": "red-green",
+      "proofObligations": [
+        "Capture the measured rustfmt and Clippy failing baseline before edits.",
+        "After cleanup, rustfmt, native/WASM compiler checks, Clippy -D warnings, and rustdoc -D warnings MUST all exit zero.",
+        "No broad allow attribute, disabled lint, reduced target/feature set, or removed test MUST create the green result.",
+        "The native and Chromium ordinary/stateful JSON/MessagePack matrix MUST remain behaviorally unchanged."
+      ],
+      "implementationConstraints": {
+        "reuse": [
+          "rustfmt",
+          "Clippy fixes",
+          "existing tests and interop runner",
+          "Cargo rust-version and rust-toolchain.toml conventions"
+        ],
+        "prohibitedAdditions": [
+          "#![allow(warnings)]",
+          "broad Clippy allow",
+          "removed test",
+          "reduced feature matrix",
+          "behavior change without new red-green contract",
+          "new dependency"
+        ],
+        "allowedAdditions": [
+          "Rust 1.92 rust-version",
+          "rust-toolchain.toml with rustfmt clippy wasm32 target",
+          "narrow documented lint allow only when semantic behavior requires it and task reconciliation records it"
+        ]
+      },
+      "validation": {
+        "red": [
+          {
+            "id": "VAL-SPRINT-5-TASK-1-BASELINE-FMT-01",
+            "phase": "red",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "cargo",
+              "arguments": [
+                "fmt",
+                "--all",
+                "--check"
+              ]
+            },
+            "target": "host",
+            "validationProfile": "static-analysis",
+            "acceptanceCriteriaIds": [
+              "AC-NF-004-1"
+            ],
+            "expected": {
+              "exitCode": "nonzero",
+              "failurePattern": "Diff in"
+            },
+            "command": "cargo fmt --all --check",
+            "assertion": "The planning baseline MUST reproduce inherited formatting differences before cleanup.",
+            "artifactPaths": [
+              "rayx-signalr:src"
+            ]
+          },
+          {
+            "id": "VAL-SPRINT-5-TASK-1-BASELINE-CLIPPY-01",
+            "phase": "red",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "cargo",
+              "arguments": [
+                "clippy",
+                "--all-targets",
+                "--all-features",
+                "--",
+                "-D",
+                "warnings"
+              ]
+            },
+            "target": "native-host",
+            "validationProfile": "static-analysis",
+            "acceptanceCriteriaIds": [
+              "AC-NF-004-1"
+            ],
+            "expected": {
+              "exitCode": "nonzero",
+              "failurePattern": "error"
+            },
+            "command": "cargo clippy --all-targets --all-features -- -D warnings",
+            "assertion": "The planning baseline MUST reproduce inherited Clippy failures before cleanup.",
+            "artifactPaths": [
+              "rayx-signalr:src"
+            ]
+          }
+        ],
+        "green": [
+          {
+            "id": "VAL-SPRINT-5-TASK-1-TARGET-FMT-01",
+            "phase": "green",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "cargo",
+              "arguments": [
+                "fmt",
+                "--all",
+                "--check"
+              ]
+            },
+            "target": "host",
+            "validationProfile": "static-analysis",
+            "acceptanceCriteriaIds": [
+              "AC-NF-004-1"
+            ],
+            "expected": {
+              "exitCode": 0
+            },
+            "command": "cargo fmt --all --check",
+            "assertion": "The repository MUST have zero rustfmt differences.",
+            "artifactPaths": [
+              "rayx-signalr:src",
+              "rayx-signalr:Cargo.toml"
+            ]
+          },
+          {
+            "id": "VAL-SPRINT-5-TASK-1-TARGET-CLIPPY-01",
+            "phase": "green",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "cargo",
+              "arguments": [
+                "clippy",
+                "--all-targets",
+                "--all-features",
+                "--",
+                "-D",
+                "warnings"
+              ]
+            },
+            "target": "native-host",
+            "validationProfile": "static-analysis",
+            "acceptanceCriteriaIds": [
+              "AC-NF-004-1"
+            ],
+            "expected": {
+              "exitCode": 0
+            },
+            "command": "cargo clippy --all-targets --all-features -- -D warnings",
+            "assertion": "Native library and test targets MUST have zero compiler or Clippy warnings.",
+            "artifactPaths": [
+              "rayx-signalr:src"
+            ]
+          },
+          {
+            "id": "VAL-SPRINT-5-TASK-1-TARGET-WASM-01",
+            "phase": "green",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "shell",
+              "command": "$env:RUSTFLAGS='-D warnings'; cargo check --target wasm32-unknown-unknown --all-features",
+              "platform": "windows"
+            },
+            "target": "wasm32-unknown-unknown",
+            "validationProfile": "static-analysis",
+            "acceptanceCriteriaIds": [
+              "AC-NF-004-1"
+            ],
+            "expected": {
+              "exitCode": 0
+            },
+            "command": "$env:RUSTFLAGS='-D warnings'; cargo check --target wasm32-unknown-unknown --all-features",
+            "assertion": "WASM all-feature compilation MUST emit zero warnings.",
+            "artifactPaths": [
+              "rayx-signalr:src"
+            ]
+          }
+        ],
+        "broad": [
+          {
+            "id": "VAL-SPRINT-5-TASK-1-BROAD-DOC-01",
+            "phase": "broad",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "shell",
+              "command": "$env:RUSTDOCFLAGS='-D warnings'; cargo doc --all-features --no-deps",
+              "platform": "windows"
+            },
+            "target": "native-host",
+            "validationProfile": "regression",
+            "acceptanceCriteriaIds": [
+              "AC-NF-004-1"
+            ],
+            "expected": {
+              "exitCode": 0
+            },
+            "command": "$env:RUSTDOCFLAGS='-D warnings'; cargo doc --all-features --no-deps",
+            "assertion": "Public documentation MUST build with warnings denied.",
+            "artifactPaths": [
+              "rayx-signalr:src/lib.rs",
+              "rayx-signalr:src/client"
+            ]
+          }
+        ],
+        "profiles": [
+          "static-analysis",
+          "regression"
+        ]
+      },
+      "validationProfiles": [
+        "static-analysis",
+        "regression"
+      ],
+      "evidenceRequired": true
+    },
+    {
+      "id": "sprint-5-task-2",
+      "revisionId": "sprint-5-task-2@3027ebd476ccdffe",
+      "behaviorContractHash": "3027ebd476ccdffec4e626dcc6d2ae1803caf801956831ad90e3107fc7d34aac",
+      "planningMetadataHash": "c7706f4f34b9b362109ee65ea3481b66d36370bf4f806f033a419cc6b64317f9",
+      "sprint": 5,
+      "taskIndex": 2,
+      "kind": "infra",
+      "text": "MUST add least-privilege quality and interoperability workflows, exact local workflow-verification and security commands, native OS plus WASM matrices, real Chromium JSON/MessagePack reconnect jobs, failure-only redacted artifacts, and documentation of stable check names and local reproduction without enabling publishing or changing GitHub settings.",
+      "taskTextHash": "e673f79bafbb4ac37c85371d75f2091a7e94bdcaa245bae0d4396c8ea8a7e24d",
+      "scope": {
+        "writePaths": [
+          ".github/workflows/quality.yml",
+          ".github/workflows/interop.yml",
+          "scripts/ci/run-interop.ps1",
+          "scripts/ci/verify-workflows.ps1",
+          "README.md",
+          "FORK.md"
+        ],
+        "generatedPaths": [],
+        "forbiddenPaths": [
+          "src/**",
+          "dotnet/**",
+          "Cargo.toml",
+          "rust-toolchain.toml",
+          ".github/dependabot.yml"
+        ],
+        "responsibilityIds": [
+          "RESP-008",
+          "RESP-009"
+        ],
+        "symbols": [
+          "quality workflow",
+          "interop workflow",
+          "verify-workflows.ps1"
+        ]
+      },
+      "repositoryIds": [
+        "rayx-signalr"
+      ],
+      "requirementIds": [
+        "REQ-F-003",
+        "REQ-F-004",
+        "REQ-NF-001",
+        "REQ-NF-004",
+        "REQ-NF-005"
+      ],
+      "designIds": [
+        "DES-004",
+        "DES-005"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-F-003-3",
+        "AC-F-004-1",
+        "AC-F-004-2",
+        "AC-F-004-3",
+        "AC-NF-001-1",
+        "AC-NF-005-1"
+      ],
+      "proofMode": "red-green",
+      "proofObligations": [
+        "Before workflow creation, the verifier MUST fail because named workflows, permissions, triggers, matrices, timeouts, cleanup, security, and artifact contracts are absent.",
+        "Every command referenced by quality.yml and interop.yml MUST be executable from a clean local checkout through the documented route.",
+        "The final native/WASM JSON/MessagePack ordinary/stateful matrix MUST pass with 60-second per-scenario bounds and zero leaked processes.",
+        "Workflow files MUST define contents-read permissions, PR concurrency cancellation, no secret requirement, vulnerability gates, and failure-only redacted artifacts."
+      ],
+      "implementationConstraints": {
+        "reuse": [
+          "run-interop.ps1",
+          "Rust toolchain declaration",
+          "GitHub first-party checkout/setup-dotnet/cache actions",
+          "cargo audit",
+          "dotnet transitive vulnerability listing",
+          "documented local quality commands"
+        ],
+        "prohibitedAdditions": [
+          "publishing job",
+          "write repository permission",
+          "pull-request secret",
+          "compile-only browser gate",
+          "duplicated service orchestration in YAML",
+          "warning suppression",
+          "branch-protection API mutation"
+        ],
+        "allowedAdditions": [
+          "quality.yml",
+          "interop.yml",
+          "workflow structural verifier",
+          "stable check-name documentation",
+          "failure-only diagnostic artifact packaging",
+          "InteropHarness",
+          "wasm-bindgen-test dev-dependency"
+        ]
+      },
+      "validation": {
+        "red": [
+          {
+            "id": "VAL-SPRINT-5-TASK-2-RED-WORKFLOWS-01",
+            "phase": "red",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "pwsh",
+              "arguments": [
+                "-NoProfile",
+                "-File",
+                "scripts/ci/verify-workflows.ps1"
+              ]
+            },
+            "target": "host",
+            "validationProfile": "static-analysis",
+            "acceptanceCriteriaIds": [
+              "AC-F-004-1",
+              "AC-F-004-2",
+              "AC-F-004-3"
+            ],
+            "expected": {
+              "exitCode": "nonzero",
+              "failurePattern": "missing|workflow|quality|interop"
+            },
+            "command": "pwsh -NoProfile -File scripts/ci/verify-workflows.ps1",
+            "assertion": "The workflow contract verifier MUST expose the absent production gates before implementation.",
+            "artifactPaths": [
+              "rayx-signalr:scripts/ci/verify-workflows.ps1"
+            ]
+          }
+        ],
+        "green": [
+          {
+            "id": "VAL-SPRINT-5-TASK-2-GREEN-WORKFLOWS-01",
+            "phase": "green",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "pwsh",
+              "arguments": [
+                "-NoProfile",
+                "-File",
+                "scripts/ci/verify-workflows.ps1"
+              ]
+            },
+            "target": "host",
+            "validationProfile": "static-analysis",
+            "acceptanceCriteriaIds": [
+              "AC-F-004-1",
+              "AC-F-004-2",
+              "AC-F-004-3"
+            ],
+            "expected": {
+              "exitCode": 0
+            },
+            "command": "pwsh -NoProfile -File scripts/ci/verify-workflows.ps1",
+            "assertion": "Workflow triggers, permissions, concurrency, toolchains, matrices, timeouts, cleanup, security, failure artifacts, and local-command parity MUST match the frozen contract.",
+            "artifactPaths": [
+              "rayx-signalr:.github/workflows/quality.yml",
+              "rayx-signalr:.github/workflows/interop.yml",
+              "rayx-signalr:scripts/ci/verify-workflows.ps1"
+            ]
+          },
+          {
+            "id": "VAL-SPRINT-5-TASK-2-GREEN-FULL-INTEROP-01",
+            "phase": "green",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "pwsh",
+              "arguments": [
+                "-NoProfile",
+                "-File",
+                "scripts/ci/run-interop.ps1",
+                "-Target",
+                "native,wasm",
+                "-Protocol",
+                "json,messagepack",
+                "-Scenario",
+                "ordinary-reconnect,stateful-reconnect"
+              ]
+            },
+            "target": "native-and-chromium-wasm32",
+            "validationProfile": "runtime",
+            "acceptanceCriteriaIds": [
+              "AC-F-003-3",
+              "AC-F-004-2",
+              "AC-NF-001-1"
+            ],
+            "expected": {
+              "exitCode": 0
+            },
+            "command": "pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target native,wasm -Protocol json,messagepack -Scenario ordinary-reconnect,stateful-reconnect",
+            "assertion": "All eight target/protocol/scenario cells MUST pass with required timeouts, exactly-once assertions, and cleanup.",
+            "artifactPaths": [
+              "rayx-signalr:scripts/ci/run-interop.ps1"
+            ]
+          },
+          {
+            "id": "VAL-SPRINT-5-TASK-2-GREEN-SECURITY-01",
+            "phase": "green",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "pwsh",
+              "arguments": [
+                "-NoProfile",
+                "-File",
+                "scripts/ci/verify-workflows.ps1",
+                "-Security"
+              ]
+            },
+            "target": "host",
+            "validationProfile": "security",
+            "acceptanceCriteriaIds": [
+              "AC-F-003-3",
+              "AC-F-004-3",
+              "AC-NF-005-1"
+            ],
+            "expected": {
+              "exitCode": 0
+            },
+            "command": "pwsh -NoProfile -File scripts/ci/verify-workflows.ps1 -Security",
+            "assertion": "Least permissions, credential redaction, RustSec, NuGet transitive scan, and failure-only artifact contracts MUST pass.",
+            "artifactPaths": [
+              "rayx-signalr:.github/workflows",
+              "rayx-signalr:scripts/ci"
+            ]
+          }
+        ],
+        "broad": [
+          {
+            "id": "VAL-SPRINT-5-TASK-2-BROAD-QUALITY-01",
+            "phase": "broad",
+            "repositoryId": "rayx-signalr",
+            "workingDirectory": ".",
+            "runner": {
+              "kind": "argv",
+              "executable": "pwsh",
+              "arguments": [
+                "-NoProfile",
+                "-File",
+                "scripts/ci/verify-workflows.ps1",
+                "-RunLocalQuality"
+              ]
+            },
+            "target": "host-and-wasm32",
+            "validationProfile": "regression",
+            "acceptanceCriteriaIds": [
+              "AC-F-003-3",
+              "AC-F-004-1",
+              "AC-F-004-2",
+              "AC-F-004-3",
+              "AC-NF-001-1",
+              "AC-NF-005-1"
+            ],
+            "expected": {
+              "exitCode": 0
+            },
+            "command": "pwsh -NoProfile -File scripts/ci/verify-workflows.ps1 -RunLocalQuality",
+            "assertion": "The verifier MUST execute the frozen local quality commands and all MUST pass with warnings denied.",
+            "artifactPaths": [
+              "rayx-signalr:.github/workflows/quality.yml",
+              "rayx-signalr:README.md",
+              "rayx-signalr:scripts/ci/verify-workflows.ps1"
+            ]
+          }
+        ],
+        "profiles": [
+          "static-analysis",
+          "runtime",
+          "security",
+          "regression"
+        ]
+      },
+      "validationProfiles": [
+        "static-analysis",
+        "runtime",
+        "security",
+        "regression"
+      ],
+      "evidenceRequired": true
+    }
+  ]
+}

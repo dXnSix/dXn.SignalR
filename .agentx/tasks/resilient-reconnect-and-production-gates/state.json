@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 5,
+  "status": "backlog",
+  "planLifecycle": "frozen",
+  "integrationStatus": "not-ready",
+  "totalSprints": 5,
+  "currentSprint": -1,
+  "currentTask": -1,
+  "activeTasks": [],
+  "leaseEpoch": 0,
+  "attempts": {},
+  "run": {
+    "status": "idle",
+    "requestedBoundary": "sprint",
+    "maxParallelSprints": 2,
+    "maxAttempts": 3,
+    "lastHeartbeatAt": "",
+    "blocker": {},
+    "repositoryBaselines": {
+      "rayx-signalr": "4f23eee0dd8e2a2b1c4e718e35d33da34a13a6fb"
+    },
+    "sprintBaselines": {},
+    "sprintDirtyBaselines": {}
+  },
+  "lastResumeAt": "2026-08-09T21:01:50Z",
+  "lastResumeSpecHashes": {
+    "requirements": "e5f6504a0f61a9376e5f61729e2e611424c9d02d704338e3f66e793b6a3d1fff",
+    "design": "594d04b28c64847eba30b988b88512dd6384b1a652bb198cd1c7349c781723aa",
+    "plan": "7b5ec6efd41db1f0925cca99e4c66b38deae9cb6a8c759c3a0622a113221bfad",
+    "contracts": "761a55fde475a1804e25947df5f123c8238e9634b94593332646310e7aac5f7a"
+  }
+}

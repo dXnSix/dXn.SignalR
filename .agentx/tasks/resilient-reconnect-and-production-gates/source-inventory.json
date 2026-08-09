@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 5,
+  "epicId": "resilient-reconnect-and-production-gates",
+  "items": [
+    {
+      "id": "SRC-001",
+      "repositoryId": "rayx-signalr",
+      "path": "https://github.com/dotnet/aspnetcore/blob/main/src/SignalR/docs/specs/HubProtocol.md",
+      "symbol": "HubProtocol Ack and Sequence messages",
+      "behavior": "Defines Ack as message type 8 and Sequence as message type 9, including JSON and MessagePack wire shapes.",
+      "disposition": "implement",
+      "notes": "Use the official ASP.NET Core protocol specification as the wire-contract authority."
+    },
+    {
+      "id": "SRC-002",
+      "repositoryId": "rayx-signalr",
+      "path": "https://github.com/dotnet/aspnetcore/blob/main/src/SignalR/clients/ts/signalr/src/MessageBuffer.ts",
+      "symbol": "MessageBuffer",
+      "behavior": "Implements bounded outbound buffering, cumulative acknowledgements, sequence validation, duplicate suppression, backpressure, and replay of unacknowledged messages.",
+      "disposition": "implement",
+      "notes": "Translate semantics into idiomatic shared Rust without copying the TypeScript structure mechanically."
+    },
+    {
+      "id": "SRC-003",
+      "repositoryId": "rayx-signalr",
+      "path": "https://github.com/dotnet/aspnetcore/blob/main/src/SignalR/clients/ts/signalr/src/HttpConnection.ts",
+      "symbol": "statefulReconnect reconnect path",
+      "behavior": "Distinguishes stateful transport resume from ordinary reconnect and resumes the negotiated transport URL without a second hub handshake.",
+      "disposition": "implement",
+      "notes": "Preserve the semantic distinction between transport resume and a fresh logical connection."
+    },
+    {
+      "id": "SRC-004",
+      "repositoryId": "rayx-signalr",
+      "path": "https://learn.microsoft.com/en-us/aspnet/core/release-notes/aspnetcore-8.0?view=aspnetcore-10.0",
+      "symbol": "SignalR stateful reconnect",
+      "behavior": "Documents negotiate opt-in, endpoint enablement, client enablement, and the server buffer-size default for stateful reconnect.",
+      "disposition": "implement",
+      "notes": "Use for public configuration interoperability and fixture setup."
+    },
+    {
+      "id": "SRC-005",
+      "repositoryId": "rayx-signalr",
+      "path": "src/client/client_tokio.rs",
+      "symbol": "native connection and reconnect lifecycle",
+      "behavior": "Provides native retry policy integration but currently reconnects with the prior negotiated endpoint and performs another hub handshake.",
+      "disposition": "implement",
+      "notes": "Separate fresh ordinary reconnect from stateful transport resume and preserve existing default NoReconnect behavior."
+    },
+    {
+      "id": "SRC-006",
+      "repositoryId": "rayx-signalr",
+      "path": "src/client/client_wasm.rs; src/client/client.rs",
+      "symbol": "browser lifecycle and ReconnectionHandler",
+      "behavior": "The browser poller observes disconnect/error events, while the WASM ReconnectionHandler surface is empty and no reconnect policy is installed.",
+      "disposition": "implement",
+      "notes": "Add feature parity using browser timers and async tasks without introducing a Tokio runtime requirement."
+    },
+    {
+      "id": "SRC-007",
+      "repositoryId": "rayx-signalr",
+      "path": "src/protocol/**",
+      "symbol": "JSON and MessagePack hub protocol codecs",
+      "behavior": "Supports hub messages through Close type 7 but has no Ack type 8 or Sequence type 9 model or codec support.",
+      "disposition": "implement",
+      "notes": "Extend both codecs and keep the existing handshake JSON-only."
+    },
+    {
+      "id": "SRC-008",
+      "repositoryId": "rayx-signalr",
+      "path": "src/tests/**; dotnet/SignalRTestService/**",
+      "symbol": "current native, MessagePack, WASM, and .NET interop tests",
+      "behavior": "Native and MessagePack tests exist, but the WASM start hook is not a browser test harness and the .NET fixture lacks a stateful reconnect endpoint and deterministic fault controls.",
+      "disposition": "implement",
+      "notes": "Create deterministic native and Chromium WASM interop proof for ordinary and stateful reconnect."
+    },
+    {
+      "id": "SRC-009",
+      "repositoryId": "rayx-signalr",
+      "path": ".github/workflows/**; Cargo.toml; rust-toolchain.toml",
+      "symbol": "production quality baseline",
+      "behavior": "No GitHub Actions workflows exist; formatting and deny-warnings Clippy are red, while native and WASM checks compile with warnings.",
+      "disposition": "implement",
+      "notes": "Establish pinned, reproducible, least-privilege quality, interop, dependency, and security gates without publishing."
+    }
+  ]
+}

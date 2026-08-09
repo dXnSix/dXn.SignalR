@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 5,
+  "generatorVersion": "5.0",
+  "recordedAt": "2026-08-09T20:54:14Z",
+  "mode": "execute-baseline",
+  "specHashes": {
+    "requirements": "e5f6504a0f61a9376e5f61729e2e611424c9d02d704338e3f66e793b6a3d1fff",
+    "design": "594d04b28c64847eba30b988b88512dd6384b1a652bb198cd1c7349c781723aa",
+    "task-contracts": "c88205d397e0337d8575e616105d6b37e415f1f4ae61c210e1b3e1a4127e1896",
+    "implementation-plan": "14582149ae292ca9a3b8dc4bdb23b15043913fe62f17f94361835be78c702385"
+  },
+  "behaviorContractHashes": {
+    "sprint-1-task-1": "cb1c7fb83d6af3979d6d2d5ad4a3a04cac34aa395f2bacc5d2191829b53017f5",
+    "sprint-2-task-1": "95e9d4b5b363930cf45e1f5faf2d90fef85dc933bafdfd872cc70f316c95d83a",
+    "sprint-3-task-1": "88ac5a9baeff715af474491030113978b72a596a42f3a5eecbcf7e06fccba063",
+    "sprint-4-task-1": "67737ff0b1e71d468142f32cef91b144408d0c0e62b7d79955a3c2ee91c0087f",
+    "sprint-5-task-1": "9fa6276040e63ce63da3ae25b42fdff862e9ce61aed7567da8da74cf56f144b1",
+    "sprint-5-task-2": "3027ebd476ccdffec4e626dcc6d2ae1803caf801956831ad90e3107fc7d34aac"
+  },
+  "repositoryBindings": [
+    {
+      "repositoryId": "rayx-signalr",
+      "resolvedPath": "C:\\Users\\dinko\\Work\\projects\\RayX\\RayX.SignalR",
+      "head": "4f23eee0dd8e2a2b1c4e718e35d33da34a13a6fb",
+      "tree": "9dc50c9ebcdc4e61f0c05e92fa0e2eec0a5cda8e",
+      "branch": "master",
+      "identity": {
+        "gitCommonDirectoryFingerprint": "17c918eec1482122aaddd9cc5e477a22c1c8a5fd2d163d74d6c34997eceb5847",
+        "remoteFingerprint": "1279a36b08c2f3165ddd7358a8c839608bd041243ed326f04eaaf518a8aca073"
+      }
+    }
+  ],
+  "closure": {
+    "acceptanceCriteria": 17,
+    "ownedAcceptanceCriteria": 17,
+    "tasks": 6
+  },
+  "taskReports": [
+    {
+      "taskId": "sprint-1-task-1",
+      "sprint": 1,
+      "behaviorContractHash": "cb1c7fb83d6af3979d6d2d5ad4a3a04cac34aa395f2bacc5d2191829b53017f5",
+      "planningMetadataHash": "c122328973fc513ad785ee1ade3ee1880c7a52de611c17980c16b257f4a9c7e7",
+      "diagnostics": [],
+      "disposition": "pass"
+    },
+    {
+      "taskId": "sprint-2-task-1",
+      "sprint": 2,
+      "behaviorContractHash": "95e9d4b5b363930cf45e1f5faf2d90fef85dc933bafdfd872cc70f316c95d83a",
+      "planningMetadataHash": "45b89c62a4d076a4cf6b27e73abaf284e7d4514e390fa1cd135a84b8dc670b52",
+      "diagnostics": [],
+      "disposition": "pass"
+    },
+    {
+      "taskId": "sprint-3-task-1",
+      "sprint": 3,
+      "behaviorContractHash": "88ac5a9baeff715af474491030113978b72a596a42f3a5eecbcf7e06fccba063",
+      "planningMetadataHash": "674e893cc1c6491a04c6702179254f7552b276c418f936e8d792beecdc54649f",
+      "diagnostics": [],
+      "disposition": "pass"
+    },
+    {
+      "taskId": "sprint-4-task-1",
+      "sprint": 4,
+      "behaviorContractHash": "67737ff0b1e71d468142f32cef91b144408d0c0e62b7d79955a3c2ee91c0087f",
+      "planningMetadataHash": "59bd8465a2490c9f7b1654a1bffaa2a526a3aba2af0b364b8377cb6bac2df200",
+      "diagnostics": [],
+      "disposition": "pass"
+    },
+    {
+      "taskId": "sprint-5-task-1",
+      "sprint": 5,
+      "behaviorContractHash": "9fa6276040e63ce63da3ae25b42fdff862e9ce61aed7567da8da74cf56f144b1",
+      "planningMetadataHash": "362c59857fc7177eee8db29df60b5a60e06d37455e41f7cf694515f954b74c46",
+      "diagnostics": [],
+      "disposition": "pass"
+    },
+    {
+      "taskId": "sprint-5-task-2",
+      "sprint": 5,
+      "behaviorContractHash": "3027ebd476ccdffec4e626dcc6d2ae1803caf801956831ad90e3107fc7d34aac",
+      "planningMetadataHash": "c7706f4f34b9b362109ee65ea3481b66d36370bf4f806f033a419cc6b64317f9",
+      "diagnostics": [],
+      "disposition": "pass"
+    }
+  ],
+  "baselineResults": [],
+  "diagnostics": [],
+  "disposition": "pass",
+  "preflightHash": "df6c06f0c7f60fa1000effd044bd967e39597406e967b0961917f59837df4c18"
+}

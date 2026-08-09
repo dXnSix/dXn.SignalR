@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 5,
+  "epicId": "resilient-reconnect-and-production-gates",
+  "primaryRepositoryId": "rayx-signalr",
+  "repositories": [
+    {
+      "id": "rayx-signalr",
+      "binding": "task-directory-git-root",
+      "role": "primary",
+      "required": true,
+      "identity": {
+        "gitCommonDirectoryFingerprint": "17c918eec1482122aaddd9cc5e477a22c1c8a5fd2d163d74d6c34997eceb5847",
+        "remoteFingerprint": "1279a36b08c2f3165ddd7358a8c839608bd041243ed326f04eaaf518a8aca073"
+      },
+      "pathHint": "C:/Users/dinko/Work/projects/RayX/RayX.SignalR",
+      "baselineHead": "4f23eee0dd8e2a2b1c4e718e35d33da34a13a6fb",
+      "ownedScope": [
+        ".agentx/tasks/resilient-reconnect-and-production-gates/**",
+        ".cargo/config.toml",
+        ".github/workflows/**",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "src/client/**",
+        "src/protocol/**",
+        "src/tests/**",
+        "dotnet/SignalRTestService/**",
+        "scripts/ci/**",
+        "README.md",
+        "FORK.md"
+      ]
+    }
+  ]
+}
