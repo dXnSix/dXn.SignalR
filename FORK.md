@@ -12,6 +12,8 @@
 
 The full upstream Git history is preserved. `origin` is the RayX-owned hard
 fork. `upstream` tracks the source repository and must never receive pushes.
+The RayX default and integration branch is `master`; the source repository's
+independent `upstream/main` branch keeps its upstream-defined name.
 
 ## Hard-fork policy
 

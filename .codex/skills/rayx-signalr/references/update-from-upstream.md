@@ -2,7 +2,7 @@
 
 ## Guardrails
 
-- Start from a clean `main` or a dedicated worktree/branch.
+- Start from a clean `master` or a dedicated worktree/branch.
 - Fetch only from `upstream`; push only to `origin`.
 - Choose an explicit upstream commit SHA. Do not update to a moving branch name.
 - Preserve the RayX package/repository identity and every applicable patch below.
@@ -16,7 +16,7 @@
    SHA and range.
 3. Audit all upstream changes in that range, including manifests, protocol
    framing, native/WASM communication, tests, and the .NET service.
-4. Create an update branch from current RayX `main`.
+4. Create an update branch from current RayX `master`.
 5. Merge the explicit upstream SHA with `--no-ff --no-commit`, or import the
    selected commits individually when that produces clearer provenance.
 6. Reconcile conflicts and restore the patch surface. Never accept an upstream
@@ -25,7 +25,7 @@
    original subject in the body.
 8. Add separate repair commits for RayX patches that require adaptation.
 9. Run the full validation matrix below.
-10. Review the complete diff from pre-import RayX `main`, then merge and push to
+10. Review the complete diff from pre-import RayX `master`, then merge and push to
     `origin` only after validation succeeds.
 
 ## RayX patch surface

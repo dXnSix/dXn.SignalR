@@ -4,7 +4,7 @@ agentx:
   scope: repository-governance/fork-policy
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-08-09T21:45:00+02:00"
+  updated: "2026-08-09T21:58:45+02:00"
   topics:
     - fork
     - provenance
@@ -20,7 +20,7 @@ Read this file before work in this domain or subdomain and update it when the cu
 
 ## Current Technical Shape
 
-The fork baseline is upstream `d32bd04` (`v0.3.2`). RayX owns the `rayx-signalr` package and `rayx_signalr` crate identity, starting at version `0.1.0`; `publish = false`. `origin` is the RayX repository and `upstream` is fetch-only/read-only by policy.
+The fork baseline is upstream `d32bd04` (`v0.3.2`). RayX owns the `rayx-signalr` package and `rayx_signalr` crate identity, starting at version `0.1.0`; `publish = false`. `origin` is the RayX repository, its default/integration branch is `master`, and `upstream` remains fetch-only/read-only with its independent `upstream/main` branch.
 
 ## Backlinks
 

@@ -18,6 +18,8 @@ status/remotes, and recent history before changing the fork.
 
 - Keep `origin` pointed at `https://github.com/rayx-ui/RayX.SignalR.git` and push
   only there. Treat `upstream` as read-only.
+- Use `master` as the RayX default and integration branch. Keep
+  `upstream/main` named after the source repository's own default branch.
 - Keep the Cargo package named `rayx-signalr` and the Rust import crate named
   `rayx_signalr`; never restore the upstream identity during an import.
 - Preserve full upstream Git history and record the exact source commit in
