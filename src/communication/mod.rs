@@ -8,10 +8,10 @@ mod client_wasm;
 mod client_tokio;
 
 pub(crate) use common::HttpClient;
-pub use common::{ConnectionData, Communication};
+pub use common::{Communication, ConnectionData};
 
 #[cfg(target_arch = "wasm32")]
-pub use client_wasm::CommunicationClient;
+pub use client_wasm::{CommunicationClient, WasmReconnectionContext};
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use client_tokio::CommunicationClient;

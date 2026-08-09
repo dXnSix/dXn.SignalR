@@ -1,5 +1,78 @@
 use std::time::Duration;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum LifecycleState {
+    Disconnected,
+    Connected,
+    Reconnecting,
+    LocalClosed,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct CoordinatorState {
+    lifecycle: LifecycleState,
+    generation: u64,
+}
+
+/// Serializes reconnect ownership and rejects late results from superseded attempts.
+#[derive(Clone, Debug)]
+pub(crate) struct ReconnectCoordinator {
+    state: std::sync::Arc<std::sync::Mutex<CoordinatorState>>,
+}
+
+impl ReconnectCoordinator {
+    pub(crate) fn connected() -> Self {
+        Self {
+            state: std::sync::Arc::new(std::sync::Mutex::new(CoordinatorState {
+                lifecycle: LifecycleState::Connected,
+                generation: 0,
+            })),
+        }
+    }
+
+    pub(crate) fn begin(&self) -> Result<u64, &'static str> {
+        let mut state = self.state.lock().expect("reconnect coordinator poisoned");
+        match state.lifecycle {
+            LifecycleState::LocalClosed => Err("Client was locally disconnected"),
+            LifecycleState::Reconnecting => Err("A reconnect attempt is already running"),
+            LifecycleState::Connected | LifecycleState::Disconnected => {
+                state.generation = state.generation.wrapping_add(1);
+                state.lifecycle = LifecycleState::Reconnecting;
+                Ok(state.generation)
+            }
+        }
+    }
+
+    pub(crate) fn complete(&self, generation: u64) -> bool {
+        let mut state = self.state.lock().expect("reconnect coordinator poisoned");
+        if state.lifecycle != LifecycleState::Reconnecting || state.generation != generation {
+            return false;
+        }
+        state.lifecycle = LifecycleState::Connected;
+        true
+    }
+
+    pub(crate) fn fail(&self, generation: u64) {
+        let mut state = self.state.lock().expect("reconnect coordinator poisoned");
+        if state.lifecycle == LifecycleState::Reconnecting && state.generation == generation {
+            state.lifecycle = LifecycleState::Disconnected;
+        }
+    }
+
+    pub(crate) fn local_close(&self) {
+        let mut state = self.state.lock().expect("reconnect coordinator poisoned");
+        state.generation = state.generation.wrapping_add(1);
+        state.lifecycle = LifecycleState::LocalClosed;
+    }
+
+    pub(crate) fn lifecycle(&self) -> LifecycleState {
+        self.state
+            .lock()
+            .expect("reconnect coordinator poisoned")
+            .lifecycle
+    }
+}
+
 /// Defines the behavior for reconnection attempts.
 pub trait ReconnectionPolicy: crate::platform::MaybeSendSync {
     /// Returns the delay before the next reconnection attempt.
@@ -24,7 +97,10 @@ pub struct ConstantDelayPolicy {
 
 impl ConstantDelayPolicy {
     pub fn new(delay: Duration, max_attempts: Option<u32>) -> Self {
-        Self { delay, max_attempts }
+        Self {
+            delay,
+            max_attempts,
+        }
     }
 }
 
@@ -48,7 +124,12 @@ pub struct LinearBackoffPolicy {
 }
 
 impl LinearBackoffPolicy {
-    pub fn new(initial_delay: Duration, increment: Duration, max_delay: Option<Duration>, max_attempts: Option<u32>) -> Self {
+    pub fn new(
+        initial_delay: Duration,
+        increment: Duration,
+        max_delay: Option<Duration>,
+        max_attempts: Option<u32>,
+    ) -> Self {
         Self {
             initial_delay,
             increment,
@@ -67,7 +148,7 @@ impl ReconnectionPolicy for LinearBackoffPolicy {
         }
 
         let delay = self.initial_delay + self.increment * retry_count;
-        
+
         if let Some(max_delay) = self.max_delay {
             if delay > max_delay {
                 return Some(max_delay);
@@ -87,7 +168,12 @@ pub struct ExponentialBackoffPolicy {
 }
 
 impl ExponentialBackoffPolicy {
-    pub fn new(initial_delay: Duration, factor: f64, max_delay: Option<Duration>, max_attempts: Option<u32>) -> Self {
+    pub fn new(
+        initial_delay: Duration,
+        factor: f64,
+        max_delay: Option<Duration>,
+        max_attempts: Option<u32>,
+    ) -> Self {
         Self {
             initial_delay,
             factor,
@@ -129,5 +215,42 @@ impl Default for ReconnectionConfig {
         Self {
             policy: std::sync::Arc::new(NoReconnectPolicy),
         }
+    }
+}
+
+#[cfg(test)]
+mod reconnect_lifecycle {
+    use super::{LifecycleState, ReconnectCoordinator};
+
+    #[test]
+    fn reconnect_lifecycle_is_single_flight() {
+        let coordinator = ReconnectCoordinator::connected();
+        let generation = coordinator.begin().unwrap();
+        assert_eq!(coordinator.lifecycle(), LifecycleState::Reconnecting);
+        assert_eq!(
+            coordinator.begin(),
+            Err("A reconnect attempt is already running")
+        );
+        assert!(coordinator.complete(generation));
+        assert_eq!(coordinator.lifecycle(), LifecycleState::Connected);
+    }
+
+    #[test]
+    fn reconnect_lifecycle_rejects_stale_completion_and_local_close() {
+        let coordinator = ReconnectCoordinator::connected();
+        let stale_generation = coordinator.begin().unwrap();
+        coordinator.local_close();
+        assert!(!coordinator.complete(stale_generation));
+        assert_eq!(coordinator.lifecycle(), LifecycleState::LocalClosed);
+        assert_eq!(coordinator.begin(), Err("Client was locally disconnected"));
+    }
+
+    #[test]
+    fn reconnect_lifecycle_can_retry_after_failure() {
+        let coordinator = ReconnectCoordinator::connected();
+        let generation = coordinator.begin().unwrap();
+        coordinator.fail(generation);
+        assert_eq!(coordinator.lifecycle(), LifecycleState::Disconnected);
+        assert!(coordinator.begin().is_ok());
     }
 }

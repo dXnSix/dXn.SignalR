@@ -1,47 +1,108 @@
 {
-  "taskDir": "C:\\Users\\dinko\\Work\\projects\\RayX\\RayX.SignalR\\.agentx\\tasks\\resilient-reconnect-and-production-gates",
+  "taskDir": "D:\\Work\\projects\\RayX\\RayX.SignalR\\.agentx\\tasks\\resilient-reconnect-and-production-gates",
   "artifactFormat": "json",
   "sprintCount": 5,
   "taskCount": 6,
   "state": {
     "schemaVersion": 5,
-    "status": "backlog",
+    "status": "progress",
     "planLifecycle": "frozen",
     "integrationStatus": "not-ready",
     "totalSprints": 5,
-    "currentSprint": -1,
-    "currentTask": -1,
-    "activeTasks": [],
-    "leaseEpoch": 0,
-    "attempts": {},
+    "currentSprint": 1,
+    "currentTask": 1,
+    "activeTasks": [
+      {
+        "taskId": "sprint-1-task-1",
+        "sprint": 1,
+        "workerId": "root",
+        "leaseId": "9d7cbd22-c7ec-4666-b4c7-87fd5a3a1c62",
+        "leaseEpoch": 3,
+        "status": "running",
+        "leasedAt": "2026-08-09T22:31:04Z",
+        "heartbeatAt": "2026-08-09T22:31:04Z",
+        "expiresAt": "2026-08-10T00:31:04Z",
+        "attempt": 3,
+        "ownedScope": [
+          ".cargo/config.toml",
+          "Cargo.toml",
+          ".gitignore",
+          "src/client/client.rs",
+          "src/client/configuration.rs",
+          "src/client/mod.rs",
+          "src/communication/common.rs",
+          "src/communication/reconnection.rs",
+          "src/communication/client_tokio.rs",
+          "src/communication/client_wasm.rs",
+          "src/communication/mod.rs",
+          "src/execution/storage.rs",
+          "src/execution/storage_tokio.rs",
+          "src/execution/storage_wasm.rs",
+          "src/execution/invocation.rs",
+          "src/execution/enumerable.rs",
+          "src/completer/**",
+          "src/tests/tests_tokio.rs",
+          "tests/wasm-fixture/**",
+          "tools-node/**"
+        ],
+        "repositoryIds": [
+          "rayx-signalr"
+        ],
+        "lastError": "",
+        "lastValidationCommandId": "VAL-SPRINT-1-TASK-1-BROAD-CHECK-01",
+        "lastValidationMatched": true
+      }
+    ],
+    "leaseEpoch": 3,
+    "attempts": {
+      "sprint-1-task-1": 3
+    },
     "run": {
-      "status": "idle",
+      "status": "running",
       "requestedBoundary": "sprint",
       "maxParallelSprints": 2,
       "maxAttempts": 3,
-      "lastHeartbeatAt": "",
+      "lastHeartbeatAt": "2026-08-09T22:31:04Z",
       "blocker": {},
       "repositoryBaselines": {
         "rayx-signalr": "4f23eee0dd8e2a2b1c4e718e35d33da34a13a6fb"
       },
-      "sprintBaselines": {},
-      "sprintDirtyBaselines": {}
+      "sprintBaselines": {
+        "1": {
+          "rayx-signalr": "80b2a36948637d84442ae72b6dc2de463fce89f3"
+        }
+      },
+      "sprintDirtyBaselines": {
+        "1": {
+          "rayx-signalr": {
+            ".agentx/tasks/resilient-reconnect-and-production-gates/.agentx-task.lock": "7eee70d31f67c6141651dc36eb02a1da88821ab24ac6fd64982d358ffa1fc855",
+            ".agentx/tasks/resilient-reconnect-and-production-gates/contract-reconciliation.jsonl": "3c67067c88a86e0ad56fe1f7f5b3baf83f3d26d3c63f47fb5e7bc6af018f6059",
+            ".agentx/tasks/resilient-reconnect-and-production-gates/preflight.json": "774b698b2436e332bb36d3108155b5488244109166b660dc20dfd6e6fa3e4304",
+            ".agentx/tasks/resilient-reconnect-and-production-gates/repositories.json": "d3554be246de4e8f9a047f00dc98d9225c96a613b0820b5e9f4f5ea614e8686f",
+            ".agentx/tasks/resilient-reconnect-and-production-gates/resume.json": "350fb095d59e9f9e8eea27703c98499445d66d44254ecb0d412b13f35510c210",
+            ".agentx/tasks/resilient-reconnect-and-production-gates/source-inventory.json": "6bc9e5dfb3c7a97f6c1773736df63d531298dd31bf91b1884c4b8710cb3d1595",
+            ".agentx/tasks/resilient-reconnect-and-production-gates/state.json": "6c9dd66fe9a452acd0720ce26b321d4deabc777fead40769322fd5a533e4d790",
+            ".agentx/tasks/resilient-reconnect-and-production-gates/task-contracts.json": "c5ffde6a8dc18c6d06070a061d63cf6a8b1122597001b3874ffa51e660d5d39d",
+            ".agentx/tasks/resilient-reconnect-and-production-gates/traceability.json": "99e10c74c7f5b14cf1d66d8feae70d18c1445e6a816cd1ba41de0c1aab16440b"
+          }
+        }
+      }
     },
-    "lastResumeAt": "2026-08-09T21:01:50Z",
+    "lastResumeAt": "2026-08-09T22:59:48Z",
     "lastResumeSpecHashes": {
-      "requirements": "e5f6504a0f61a9376e5f61729e2e611424c9d02d704338e3f66e793b6a3d1fff",
-      "design": "594d04b28c64847eba30b988b88512dd6384b1a652bb198cd1c7349c781723aa",
-      "plan": "7b5ec6efd41db1f0925cca99e4c66b38deae9cb6a8c759c3a0622a113221bfad",
-      "contracts": "761a55fde475a1804e25947df5f123c8238e9634b94593332646310e7aac5f7a"
+      "requirements": "f2b54c9fd08734912af1948adb555043e4e492e23f5ce2e1df1e3fd2c51d1c1c",
+      "design": "10e8c5d8a3535948765d372914c0b4cc5661294cd629dafd10559595001865ea",
+      "plan": "903d402c78ad1fa2f35cbf518fe38092bb9b1cf6860e4ccd9fd6be51a12612f1",
+      "contracts": "73bb2d16b5778314a40323cd58927a049123d576fc19cda38665d5e7f5a1caa8"
     }
   },
-  "currentTaskId": "",
+  "currentTaskId": "sprint-1-task-1",
   "nextUncheckedTaskId": "sprint-1-task-1",
   "specHashes": {
-    "requirements": "e5f6504a0f61a9376e5f61729e2e611424c9d02d704338e3f66e793b6a3d1fff",
-    "design": "594d04b28c64847eba30b988b88512dd6384b1a652bb198cd1c7349c781723aa",
-    "plan": "7b5ec6efd41db1f0925cca99e4c66b38deae9cb6a8c759c3a0622a113221bfad",
-    "contracts": "761a55fde475a1804e25947df5f123c8238e9634b94593332646310e7aac5f7a"
+    "requirements": "f2b54c9fd08734912af1948adb555043e4e492e23f5ce2e1df1e3fd2c51d1c1c",
+    "design": "10e8c5d8a3535948765d372914c0b4cc5661294cd629dafd10559595001865ea",
+    "plan": "903d402c78ad1fa2f35cbf518fe38092bb9b1cf6860e4ccd9fd6be51a12612f1",
+    "contracts": "73bb2d16b5778314a40323cd58927a049123d576fc19cda38665d5e7f5a1caa8"
   },
   "satisfiability": {
     "schemaVersion": 5,
@@ -51,32 +112,32 @@
       {
         "taskId": "sprint-1-task-1",
         "sprint": 1,
-        "behaviorContractHash": "cb1c7fb83d6af3979d6d2d5ad4a3a04cac34aa395f2bacc5d2191829b53017f5",
-        "planningMetadataHash": "c122328973fc513ad785ee1ade3ee1880c7a52de611c17980c16b257f4a9c7e7",
+        "behaviorContractHash": "256987c9a65df0796fbbf2648b0f3c42ebe02b2daf43b1b50598e2d4151f1ea9",
+        "planningMetadataHash": "edf61fc067aaf9181237537c1d52db85411599098c612dd40477c4ade9557915",
         "diagnostics": [],
         "disposition": "pass"
       },
       {
         "taskId": "sprint-2-task-1",
         "sprint": 2,
-        "behaviorContractHash": "95e9d4b5b363930cf45e1f5faf2d90fef85dc933bafdfd872cc70f316c95d83a",
-        "planningMetadataHash": "45b89c62a4d076a4cf6b27e73abaf284e7d4514e390fa1cd135a84b8dc670b52",
+        "behaviorContractHash": "ab50f0a3f1d0b2a27bd53636e62bef50642893df4f2399eca19adc509a4b2307",
+        "planningMetadataHash": "4d35268727be2af009ce530f212accb601aa11fbab6c812e3862e5e8b716c0d7",
         "diagnostics": [],
         "disposition": "pass"
       },
       {
         "taskId": "sprint-3-task-1",
         "sprint": 3,
-        "behaviorContractHash": "88ac5a9baeff715af474491030113978b72a596a42f3a5eecbcf7e06fccba063",
-        "planningMetadataHash": "674e893cc1c6491a04c6702179254f7552b276c418f936e8d792beecdc54649f",
+        "behaviorContractHash": "534063453098a3335c143e9bad65a27bf664864530ef14be66c71c54a56fffbc",
+        "planningMetadataHash": "5131002f01f5103c18085ea7ef725fcc696c65592b5d16c4cf81708c8ea39aa4",
         "diagnostics": [],
         "disposition": "pass"
       },
       {
         "taskId": "sprint-4-task-1",
         "sprint": 4,
-        "behaviorContractHash": "67737ff0b1e71d468142f32cef91b144408d0c0e62b7d79955a3c2ee91c0087f",
-        "planningMetadataHash": "59bd8465a2490c9f7b1654a1bffaa2a526a3aba2af0b364b8377cb6bac2df200",
+        "behaviorContractHash": "7ce39a388b837ad9f71ba88db47fc29b66366873f4ca5dc1c9f9c6a3bbf7d6cd",
+        "planningMetadataHash": "79e964057b3b01d1d8f4c39c009e245db3205a81d0abe799c1e773a3e8f06ddf",
         "diagnostics": [],
         "disposition": "pass"
       },
@@ -84,15 +145,15 @@
         "taskId": "sprint-5-task-1",
         "sprint": 5,
         "behaviorContractHash": "9fa6276040e63ce63da3ae25b42fdff862e9ce61aed7567da8da74cf56f144b1",
-        "planningMetadataHash": "362c59857fc7177eee8db29df60b5a60e06d37455e41f7cf694515f954b74c46",
+        "planningMetadataHash": "3c000a44281af5b2eebd527c1f5a8bf3f5bbaf5898df12919204b2361e2efdd6",
         "diagnostics": [],
         "disposition": "pass"
       },
       {
         "taskId": "sprint-5-task-2",
         "sprint": 5,
-        "behaviorContractHash": "3027ebd476ccdffec4e626dcc6d2ae1803caf801956831ad90e3107fc7d34aac",
-        "planningMetadataHash": "c7706f4f34b9b362109ee65ea3481b66d36370bf4f806f033a419cc6b64317f9",
+        "behaviorContractHash": "19c9007c2b802decdb8942c60601323984b43112126b5483d4608547ffb5aba7",
+        "planningMetadataHash": "51768ed53e7776cc4a43b2f6690fcf15f71d08185251ad3f26b2b006bf004ca5",
         "diagnostics": [],
         "disposition": "pass"
       }
@@ -106,10 +167,10 @@
     "disposition": "pass"
   },
   "schemaVersion": 5,
-  "resumedAt": "2026-08-09T21:01:50Z",
-  "gitHead": "4f23eee0dd8e2a2b1c4e718e35d33da34a13a6fb",
-  "gitStatusShort": "?? .agentx/tasks/\n",
+  "resumedAt": "2026-08-09T22:59:48Z",
+  "gitHead": "80b2a36948637d84442ae72b6dc2de463fce89f3",
+  "gitStatusShort": " M .agentx/tasks/resilient-reconnect-and-production-gates/contract-reconciliation.jsonl\n M .agentx/tasks/resilient-reconnect-and-production-gates/design.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/implementation-plan.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/preflight.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/repositories.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/requirements.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/resume.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/source-inventory.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/state.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/task-contracts.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/traceability.json\n M .cargo/config.toml\n M .gitignore\n M Cargo.toml\n M src/client/client.rs\n M src/client/configuration.rs\n M src/client/mod.rs\n M src/communication/client_tokio.rs\n M src/communication/client_wasm.rs\n M src/communication/common.rs\n M src/communication/mod.rs\n M src/communication/reconnection.rs\n M src/execution/storage.rs\n M src/execution/storage_tokio.rs\n M src/execution/storage_wasm.rs\n?? .agentx/tasks/resilient-reconnect-and-production-gates/evidence.jsonl\n?? .agentx/tasks/resilient-reconnect-and-production-gates/run-events.jsonl\n?? tests/\n?? tools-node/\n",
   "errors": [],
   "warnings": [],
-  "requiredNextAction": "Start next unchecked task sprint-1-task-1 through agentx_task.py start-task."
+  "requiredNextAction": "Continue or resolve active task sprint-1-task-1; do not switch tasks without recording a blocker."
 }

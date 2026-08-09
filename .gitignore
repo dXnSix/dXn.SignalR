@@ -12,3 +12,8 @@ Cargo.lock
 obj
 bin
 dist
+
+artifacts-temp/
+tools-node/node_modules/
+tools-node/playwright-report/
+tools-node/test-results/

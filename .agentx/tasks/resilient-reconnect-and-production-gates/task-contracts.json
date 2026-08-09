@@ -1,7 +1,7 @@
 {
   "schemaVersion": 5,
   "generatorVersion": "5.0",
-  "canonicalPlanHash": "7b5ec6efd41db1f0925cca99e4c66b38deae9cb6a8c759c3a0622a113221bfad",
+  "canonicalPlanHash": "903d402c78ad1fa2f35cbf518fe38092bb9b1cf6860e4ccd9fd6be51a12612f1",
   "acceptanceTraceability": [
     {
       "acceptanceCriterionId": "AC-F-001-1",
@@ -268,20 +268,22 @@
   "tasks": [
     {
       "id": "sprint-1-task-1",
-      "revisionId": "sprint-1-task-1@cb1c7fb83d6af397",
-      "behaviorContractHash": "cb1c7fb83d6af3979d6d2d5ad4a3a04cac34aa395f2bacc5d2191829b53017f5",
-      "planningMetadataHash": "c122328973fc513ad785ee1ade3ee1880c7a52de611c17980c16b257f4a9c7e7",
+      "revisionId": "sprint-1-task-1@256987c9a65df079",
+      "behaviorContractHash": "256987c9a65df0796fbbf2648b0f3c42ebe02b2daf43b1b50598e2d4151f1ea9",
+      "planningMetadataHash": "edf61fc067aaf9181237537c1d52db85411599098c612dd40477c4ade9557915",
       "sprint": 1,
       "taskIndex": 1,
       "kind": "feature",
-      "text": "MUST introduce the single-flight reconnect lifecycle and reusable connection recipe, implement the existing ReconnectionHandler contract on WASM, perform fresh negotiation and handshake outside stateful mode, obey local close and Close allowReconnect, retain callbacks, terminate nonstateful pending work without replay, and prove JSON plus MessagePack recovery in a real Chromium wasm-bindgen-test.",
-      "taskTextHash": "d8766a3d65d3de85f591d22cf52b7ebb22ff376f1498a0d159041a763750f26c",
+      "text": "MUST introduce the single-flight reconnect lifecycle and reusable connection recipe, implement the existing ReconnectionHandler contract on WASM, perform fresh negotiation and handshake outside stateful mode, obey local close and Close allowReconnect, retain callbacks, terminate nonstateful pending work without replay, and prove JSON plus MessagePack recovery through a dedicated WASM fixture driven by repository-local Playwright in real Chromium.",
+      "taskTextHash": "6368c39b31502063391b55756fcccae93a886f4e788d7a1164e6459470a8ce3a",
       "scope": {
         "writePaths": [
-          "Cargo.toml",
           ".cargo/config.toml",
+          "Cargo.toml",
+          ".gitignore",
           "src/client/client.rs",
           "src/client/configuration.rs",
+          "src/client/mod.rs",
           "src/communication/common.rs",
           "src/communication/reconnection.rs",
           "src/communication/client_tokio.rs",
@@ -293,9 +295,9 @@
           "src/execution/invocation.rs",
           "src/execution/enumerable.rs",
           "src/completer/**",
-          "src/tests/mod.rs",
           "src/tests/tests_tokio.rs",
-          "src/tests/tests_wasm.rs"
+          "tests/wasm-fixture/**",
+          "tools-node/**"
         ],
         "generatedPaths": [],
         "forbiddenPaths": [
@@ -319,7 +321,9 @@
           "ReconnectionHandler",
           "SignalRClient::connect_internal",
           "CommunicationClient",
-          "Storage::fail_pending"
+          "Storage::fail_pending",
+          "BrowserFixture",
+          "Playwright Chromium scenario"
         ]
       },
       "repositoryIds": [
@@ -366,12 +370,13 @@
           "internal ReconnectCoordinator",
           "internal ConnectionRecipe",
           "internal pending-action terminalization",
-          "wasm-bindgen-test dev dependency and runner configuration",
-          "cfg(test) physical transport-drop hook",
+          "repository-local Playwright dev tooling",
+          "repository-local Playwright dev tooling and configuration",
+          "dedicated browser-facing WASM fixture with bounded diagnostics",
           "ReconnectCoordinator",
           "ConnectionRecipe",
           "InteropHarness",
-          "wasm-bindgen-test dev-dependency",
+          "Playwright-managed network fault injection",
           "ConnectionConfiguration::with_stateful_reconnect(StatefulReconnectConfig)",
           "Existing ReconnectionHandler methods on wasm32"
         ]
@@ -385,14 +390,15 @@
             "workingDirectory": ".",
             "runner": {
               "kind": "argv",
-              "executable": "cargo",
+              "executable": "pnpm",
               "arguments": [
+                "--dir=tools-node",
+                "exec",
+                "playwright",
                 "test",
-                "--target",
-                "wasm32-unknown-unknown",
-                "--lib",
-                "wasm_ordinary_reconnect_json",
-                "--no-default-features"
+                "--project=chromium",
+                "--grep",
+                "ordinary reconnect JSON"
               ]
             },
             "target": "chromium-wasm32",
@@ -404,10 +410,11 @@
               "exitCode": "nonzero",
               "failurePattern": "reconnect|disconnected|not implemented|test failed"
             },
-            "command": "cargo test --target wasm32-unknown-unknown --lib wasm_ordinary_reconnect_json --no-default-features",
+            "command": "pnpm --dir=tools-node exec playwright test --project=chromium --grep \"ordinary reconnect JSON\"",
             "assertion": "The focused Chromium test MUST expose missing WASM ordinary reconnect before production changes.",
             "artifactPaths": [
-              "rayx-signalr:src/tests/tests_wasm.rs"
+              "rayx-signalr:tools-node/tests/signalr-wasm.spec.ts",
+              "rayx-signalr:tests/wasm-fixture/src/lib.rs"
             ]
           }
         ],
@@ -419,14 +426,15 @@
             "workingDirectory": ".",
             "runner": {
               "kind": "argv",
-              "executable": "cargo",
+              "executable": "pnpm",
               "arguments": [
+                "--dir=tools-node",
+                "exec",
+                "playwright",
                 "test",
-                "--target",
-                "wasm32-unknown-unknown",
-                "--lib",
-                "wasm_ordinary_reconnect_json",
-                "--no-default-features"
+                "--project=chromium",
+                "--grep",
+                "ordinary reconnect JSON"
               ]
             },
             "target": "chromium-wasm32",
@@ -439,11 +447,12 @@
             "expected": {
               "exitCode": 0
             },
-            "command": "cargo test --target wasm32-unknown-unknown --lib wasm_ordinary_reconnect_json --no-default-features",
+            "command": "pnpm --dir=tools-node exec playwright test --project=chromium --grep \"ordinary reconnect JSON\"",
             "assertion": "Chromium JSON MUST recover through fresh negotiation and handshake with correct lifecycle, callback, pending-action, and no-replay behavior.",
             "artifactPaths": [
               "rayx-signalr:src/communication/client_wasm.rs",
-              "rayx-signalr:src/tests/tests_wasm.rs"
+              "rayx-signalr:tools-node/tests/signalr-wasm.spec.ts",
+              "rayx-signalr:tests/wasm-fixture/src/lib.rs"
             ]
           },
           {
@@ -453,15 +462,15 @@
             "workingDirectory": ".",
             "runner": {
               "kind": "argv",
-              "executable": "cargo",
+              "executable": "pnpm",
               "arguments": [
+                "--dir=tools-node",
+                "exec",
+                "playwright",
                 "test",
-                "--target",
-                "wasm32-unknown-unknown",
-                "--lib",
-                "wasm_ordinary_reconnect_messagepack",
-                "--features",
-                "messagepack"
+                "--project=chromium",
+                "--grep",
+                "ordinary reconnect MessagePack"
               ]
             },
             "target": "chromium-wasm32",
@@ -473,10 +482,11 @@
             "expected": {
               "exitCode": 0
             },
-            "command": "cargo test --target wasm32-unknown-unknown --lib wasm_ordinary_reconnect_messagepack --features messagepack",
+            "command": "pnpm --dir=tools-node exec playwright test --project=chromium --grep \"ordinary reconnect MessagePack\"",
             "assertion": "Chromium MessagePack MUST satisfy the same ordinary reconnect contract as JSON.",
             "artifactPaths": [
-              "rayx-signalr:src/tests/tests_wasm.rs"
+              "rayx-signalr:tools-node/tests/signalr-wasm.spec.ts",
+              "rayx-signalr:tests/wasm-fixture/src/lib.rs"
             ]
           },
           {
@@ -560,9 +570,9 @@
     },
     {
       "id": "sprint-2-task-1",
-      "revisionId": "sprint-2-task-1@95e9d4b5b363930c",
-      "behaviorContractHash": "95e9d4b5b363930cf45e1f5faf2d90fef85dc933bafdfd872cc70f316c95d83a",
-      "planningMetadataHash": "45b89c62a4d076a4cf6b27e73abaf284e7d4514e390fa1cd135a84b8dc670b52",
+      "revisionId": "sprint-2-task-1@ab50f0a3f1d0b2a2",
+      "behaviorContractHash": "ab50f0a3f1d0b2a27bd53636e62bef50642893df4f2399eca19adc509a4b2307",
+      "planningMetadataHash": "4d35268727be2af009ce530f212accb601aa11fbab6c812e3862e5e8b716c0d7",
       "sprint": 2,
       "taskIndex": 1,
       "kind": "feature",
@@ -670,7 +680,7 @@
           "ConnectionRecipe",
           "StatefulMessageBuffer",
           "InteropHarness",
-          "wasm-bindgen-test dev-dependency",
+          "repository-local Playwright dev tooling",
           "StatefulReconnectConfig with Default buffer_size_bytes=100000",
           "ConnectionConfiguration::with_stateful_reconnect(StatefulReconnectConfig)"
         ]
@@ -885,9 +895,9 @@
     },
     {
       "id": "sprint-3-task-1",
-      "revisionId": "sprint-3-task-1@88ac5a9baeff715a",
-      "behaviorContractHash": "88ac5a9baeff715af474491030113978b72a596a42f3a5eecbcf7e06fccba063",
-      "planningMetadataHash": "674e893cc1c6491a04c6702179254f7552b276c418f936e8d792beecdc54649f",
+      "revisionId": "sprint-3-task-1@534063453098a333",
+      "behaviorContractHash": "534063453098a3335c143e9bad65a27bf664864530ef14be66c71c54a56fffbc",
+      "planningMetadataHash": "5131002f01f5103c18085ea7ef725fcc696c65592b5d16c4cf81708c8ea39aa4",
       "sprint": 3,
       "taskIndex": 1,
       "kind": "integration",
@@ -966,7 +976,7 @@
           "ReconnectCoordinator",
           "StatefulMessageBuffer",
           "InteropHarness",
-          "wasm-bindgen-test dev-dependency",
+          "repository-local Playwright dev tooling",
           "StatefulReconnectConfig with Default buffer_size_bytes=100000",
           "ConnectionConfiguration::with_stateful_reconnect(StatefulReconnectConfig)",
           "Existing ReconnectionHandler methods on wasm32"
@@ -1126,9 +1136,9 @@
     },
     {
       "id": "sprint-4-task-1",
-      "revisionId": "sprint-4-task-1@67737ff0b1e71d46",
-      "behaviorContractHash": "67737ff0b1e71d468142f32cef91b144408d0c0e62b7d79955a3c2ee91c0087f",
-      "planningMetadataHash": "59bd8465a2490c9f7b1654a1bffaa2a526a3aba2af0b364b8377cb6bac2df200",
+      "revisionId": "sprint-4-task-1@7ce39a388b837ad9",
+      "behaviorContractHash": "7ce39a388b837ad9f71ba88db47fc29b66366873f4ca5dc1c9f9c6a3bbf7d6cd",
+      "planningMetadataHash": "79e964057b3b01d1d8f4c39c009e245db3205a81d0abe799c1e773a3e8f06ddf",
       "sprint": 4,
       "taskIndex": 1,
       "kind": "integration",
@@ -1137,8 +1147,8 @@
       "scope": {
         "writePaths": [
           "src/communication/client_wasm.rs",
-          "src/tests/tests_wasm.rs",
-          ".cargo/config.toml"
+          "tests/wasm-fixture/**",
+          "tools-node/**"
         ],
         "generatedPaths": [],
         "forbiddenPaths": [
@@ -1158,8 +1168,8 @@
         "symbols": [
           "WasmTransportAdapter",
           "CommunicationClient::polling_loop",
-          "wasm_stateful_reconnect_json",
-          "wasm_stateful_reconnect_messagepack"
+          "Playwright stateful reconnect JSON scenario",
+          "Playwright stateful reconnect MessagePack scenario"
         ]
       },
       "repositoryIds": [
@@ -1191,14 +1201,14 @@
           "wasm-sockets PollingClient",
           "wasm-timer",
           "existing WASM action storage",
-          "wasm-bindgen-test runner",
+          "repository-local Playwright Chromium harness",
           "run-interop.ps1 and stateful test endpoint"
         ],
         "prohibitedAdditions": [
           "WASM-only sequence implementation",
           "Tokio synchronization in wasm32 code",
           "second handshake during resume",
-          "new browser automation framework",
+          "browser automation framework other than the established repository-local Playwright harness",
           "changes to shared protocol or native adapter",
           "sleep-only assertions"
         ],
@@ -1206,12 +1216,13 @@
           "WASM adapter resume operation",
           "browser timer cancellation token",
           "generation guards",
-          "cfg(test) browser socket-drop hook",
+          "repository-local Playwright dev tooling",
+          "Playwright-managed browser network interruption",
           "focused Chromium JSON and MessagePack scenarios",
           "ReconnectCoordinator",
           "StatefulMessageBuffer",
           "InteropHarness",
-          "wasm-bindgen-test dev-dependency",
+          "bounded browser fixture diagnostics",
           "StatefulReconnectConfig with Default buffer_size_bytes=100000",
           "ConnectionConfiguration::with_stateful_reconnect(StatefulReconnectConfig)",
           "Existing ReconnectionHandler methods on wasm32"
@@ -1251,7 +1262,8 @@
             "command": "pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target wasm -Protocol json -Scenario stateful-reconnect",
             "assertion": "The browser stateful scenario MUST expose the missing WASM resume integration before implementation.",
             "artifactPaths": [
-              "rayx-signalr:src/tests/tests_wasm.rs"
+              "rayx-signalr:tools-node/tests/signalr-wasm.spec.ts",
+              "rayx-signalr:tests/wasm-fixture/src/lib.rs"
             ]
           }
         ],
@@ -1288,7 +1300,8 @@
             "assertion": "Chromium JSON MUST survive three physical drops with one logical connection, no second handshake, exactly-once order, and valid in-flight completion.",
             "artifactPaths": [
               "rayx-signalr:src/communication/client_wasm.rs",
-              "rayx-signalr:src/tests/tests_wasm.rs"
+              "rayx-signalr:tools-node/tests/signalr-wasm.spec.ts",
+              "rayx-signalr:tests/wasm-fixture/src/lib.rs"
             ]
           },
           {
@@ -1322,7 +1335,8 @@
             "command": "pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target wasm -Protocol messagepack -Scenario stateful-reconnect",
             "assertion": "Chromium MessagePack MUST satisfy the same three-drop stateful assertions as JSON and native.",
             "artifactPaths": [
-              "rayx-signalr:src/tests/tests_wasm.rs"
+              "rayx-signalr:tools-node/tests/signalr-wasm.spec.ts",
+              "rayx-signalr:tests/wasm-fixture/src/lib.rs"
             ]
           }
         ],
@@ -1374,7 +1388,7 @@
       "id": "sprint-5-task-1",
       "revisionId": "sprint-5-task-1@9fa6276040e63ce6",
       "behaviorContractHash": "9fa6276040e63ce63da3ae25b42fdff862e9ce61aed7567da8da74cf56f144b1",
-      "planningMetadataHash": "362c59857fc7177eee8db29df60b5a60e06d37455e41f7cf694515f954b74c46",
+      "planningMetadataHash": "3c000a44281af5b2eebd527c1f5a8bf3f5bbaf5898df12919204b2361e2efdd6",
       "sprint": 5,
       "taskIndex": 1,
       "kind": "bugfix",
@@ -1638,9 +1652,9 @@
     },
     {
       "id": "sprint-5-task-2",
-      "revisionId": "sprint-5-task-2@3027ebd476ccdffe",
-      "behaviorContractHash": "3027ebd476ccdffec4e626dcc6d2ae1803caf801956831ad90e3107fc7d34aac",
-      "planningMetadataHash": "c7706f4f34b9b362109ee65ea3481b66d36370bf4f806f033a419cc6b64317f9",
+      "revisionId": "sprint-5-task-2@19c9007c2b802dec",
+      "behaviorContractHash": "19c9007c2b802decdb8942c60601323984b43112126b5483d4608547ffb5aba7",
+      "planningMetadataHash": "51768ed53e7776cc4a43b2f6690fcf15f71d08185251ad3f26b2b006bf004ca5",
       "sprint": 5,
       "taskIndex": 2,
       "kind": "infra",
@@ -1727,7 +1741,7 @@
           "stable check-name documentation",
           "failure-only diagnostic artifact packaging",
           "InteropHarness",
-          "wasm-bindgen-test dev-dependency"
+          "repository-local Playwright dev tooling"
         ]
       },
       "validation": {

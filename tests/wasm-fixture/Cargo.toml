@@ -1,0 +1,19 @@
+[package]
+name = "rayx-signalr-wasm-fixture"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+console_error_panic_hook = "0.1"
+rayx-signalr = { path = "../..", features = ["messagepack"] }
+serde = { version = "1", features = ["derive"] }
+wasm-bindgen = "=0.2.126"
+
+[dependencies.wasm-bindgen-futures]
+version = "0.4"
+
+[workspace]

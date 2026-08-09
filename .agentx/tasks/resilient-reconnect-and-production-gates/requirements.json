@@ -39,7 +39,7 @@
     ],
     "dependencies": [
       "Reuse serde, serde_json, rmp/rmp-serde/rmpv, futures, tokio, tokio-websockets, wasm-sockets, wasm-bindgen-futures, wasm-timer, and the checked-in ASP.NET Core test service.",
-      "Add wasm-bindgen-test only as a dev dependency for real-browser test execution.",
+      "Use a repository-local Playwright package, matching the RayX.GameX browser-validation pattern, for real-Chromium test execution; add no WebDriver dependency or binary.",
       "Add no production runtime dependency unless a task-contract reconciliation proves the existing target-specific primitives cannot implement the frozen design."
     ],
     "data": [
@@ -52,7 +52,7 @@
     "operations": [
       "The repository remains a hard fork with origin as its only persistent remote and master as its integration branch.",
       "All production gates run non-interactively and fail closed; networked test commands start, health-check, and stop their own checked-in .NET fixture.",
-      "Browser behavior is complete only with wasm-bindgen-test in a real Chromium browser; wasm32 compilation alone is not runtime proof.",
+      "Browser behavior is complete only when the repository-local Playwright suite passes in real Chromium; wasm32 compilation alone is not runtime proof.",
       "CI workflows use read-only repository permissions, bounded timeouts, deterministic service cleanup, and diagnostic artifact upload only on failure.",
       "The initial declared Rust baseline is 1.92.0, matching the measured planning environment; the CI matrix also checks the current stable compiler without weakening the 1.92.0 gate."
     ]

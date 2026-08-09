@@ -41,7 +41,7 @@
     {
       "id": "SRC-005",
       "repositoryId": "rayx-signalr",
-      "path": "src/client/client_tokio.rs",
+      "path": "src/communication/client_tokio.rs",
       "symbol": "native connection and reconnect lifecycle",
       "behavior": "Provides native retry policy integration but currently reconnects with the prior negotiated endpoint and performs another hub handshake.",
       "disposition": "implement",
@@ -50,7 +50,7 @@
     {
       "id": "SRC-006",
       "repositoryId": "rayx-signalr",
-      "path": "src/client/client_wasm.rs; src/client/client.rs",
+      "path": "src/communication/client_wasm.rs; src/client/client.rs",
       "symbol": "browser lifecycle and ReconnectionHandler",
       "behavior": "The browser poller observes disconnect/error events, while the WASM ReconnectionHandler surface is empty and no reconnect policy is installed.",
       "disposition": "implement",
@@ -70,9 +70,9 @@
       "repositoryId": "rayx-signalr",
       "path": "src/tests/**; dotnet/SignalRTestService/**",
       "symbol": "current native, MessagePack, WASM, and .NET interop tests",
-      "behavior": "Native and MessagePack tests exist, but the WASM start hook is not a browser test harness and the .NET fixture lacks a stateful reconnect endpoint and deterministic fault controls.",
+      "behavior": "Native and MessagePack tests exist, but the unlinked WASM start hook is not a managed browser test harness and the .NET fixture lacks a stateful reconnect endpoint and deterministic fault controls.",
       "disposition": "implement",
-      "notes": "Create deterministic native and Chromium WASM interop proof for ordinary and stateful reconnect."
+      "notes": "Create deterministic native interop proof plus a dedicated browser-facing WASM fixture driven by repository-local Playwright in Chromium for ordinary and stateful reconnect."
     },
     {
       "id": "SRC-009",

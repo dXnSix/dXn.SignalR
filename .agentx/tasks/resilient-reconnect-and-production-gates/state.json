@@ -1,32 +1,52 @@
 {
   "schemaVersion": 5,
-  "status": "backlog",
+  "status": "progress",
   "planLifecycle": "frozen",
   "integrationStatus": "not-ready",
   "totalSprints": 5,
-  "currentSprint": -1,
+  "currentSprint": 2,
   "currentTask": -1,
   "activeTasks": [],
-  "leaseEpoch": 0,
-  "attempts": {},
+  "leaseEpoch": 3,
+  "attempts": {
+    "sprint-1-task-1": 3
+  },
   "run": {
     "status": "idle",
     "requestedBoundary": "sprint",
     "maxParallelSprints": 2,
     "maxAttempts": 3,
-    "lastHeartbeatAt": "",
+    "lastHeartbeatAt": "2026-08-09T22:31:04Z",
     "blocker": {},
     "repositoryBaselines": {
       "rayx-signalr": "4f23eee0dd8e2a2b1c4e718e35d33da34a13a6fb"
     },
-    "sprintBaselines": {},
-    "sprintDirtyBaselines": {}
+    "sprintBaselines": {
+      "1": {
+        "rayx-signalr": "80b2a36948637d84442ae72b6dc2de463fce89f3"
+      }
+    },
+    "sprintDirtyBaselines": {
+      "1": {
+        "rayx-signalr": {
+          ".agentx/tasks/resilient-reconnect-and-production-gates/.agentx-task.lock": "7eee70d31f67c6141651dc36eb02a1da88821ab24ac6fd64982d358ffa1fc855",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/contract-reconciliation.jsonl": "3c67067c88a86e0ad56fe1f7f5b3baf83f3d26d3c63f47fb5e7bc6af018f6059",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/preflight.json": "774b698b2436e332bb36d3108155b5488244109166b660dc20dfd6e6fa3e4304",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/repositories.json": "d3554be246de4e8f9a047f00dc98d9225c96a613b0820b5e9f4f5ea614e8686f",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/resume.json": "350fb095d59e9f9e8eea27703c98499445d66d44254ecb0d412b13f35510c210",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/source-inventory.json": "6bc9e5dfb3c7a97f6c1773736df63d531298dd31bf91b1884c4b8710cb3d1595",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/state.json": "6c9dd66fe9a452acd0720ce26b321d4deabc777fead40769322fd5a533e4d790",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/task-contracts.json": "c5ffde6a8dc18c6d06070a061d63cf6a8b1122597001b3874ffa51e660d5d39d",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/traceability.json": "99e10c74c7f5b14cf1d66d8feae70d18c1445e6a816cd1ba41de0c1aab16440b"
+        }
+      }
+    }
   },
-  "lastResumeAt": "2026-08-09T21:01:50Z",
+  "lastResumeAt": "2026-08-09T22:59:48Z",
   "lastResumeSpecHashes": {
-    "requirements": "e5f6504a0f61a9376e5f61729e2e611424c9d02d704338e3f66e793b6a3d1fff",
-    "design": "594d04b28c64847eba30b988b88512dd6384b1a652bb198cd1c7349c781723aa",
-    "plan": "7b5ec6efd41db1f0925cca99e4c66b38deae9cb6a8c759c3a0622a113221bfad",
-    "contracts": "761a55fde475a1804e25947df5f123c8238e9634b94593332646310e7aac5f7a"
+    "requirements": "f2b54c9fd08734912af1948adb555043e4e492e23f5ce2e1df1e3fd2c51d1c1c",
+    "design": "10e8c5d8a3535948765d372914c0b4cc5661294cd629dafd10559595001865ea",
+    "plan": "903d402c78ad1fa2f35cbf518fe38092bb9b1cf6860e4ccd9fd6be51a12612f1",
+    "contracts": "73bb2d16b5778314a40323cd58927a049123d576fc19cda38665d5e7f5a1caa8"
   }
 }

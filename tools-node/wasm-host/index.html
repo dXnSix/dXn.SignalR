@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>RayX.SignalR WASM fixture</title>
+  </head>
+  <body data-rayx-signalr-wasm="loading">
+    <script type="module">
+      import init, {
+        callback_count,
+        connect_and_probe,
+        probe_after_reconnect,
+        trigger_callback_after_reconnect,
+      } from "./rayx_signalr_fixture.js";
+
+      await init();
+      globalThis.rayxSignalRFixture = {
+        connectAndProbe: connect_and_probe,
+        probeAfterReconnect: probe_after_reconnect,
+        triggerCallbackAfterReconnect: trigger_callback_after_reconnect,
+        callbackCount: callback_count,
+      };
+      document.body.dataset.rayxSignalrWasm = "ready";
+    </script>
+  </body>
+</html>

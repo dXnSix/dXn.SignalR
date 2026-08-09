@@ -12,7 +12,7 @@ pub(crate) enum Authentication {
     Bearer {
         token: String,
     },
-} 
+}
 
 pub struct ConnectionConfiguration {
     _secure: bool,
@@ -26,6 +26,61 @@ pub struct ConnectionConfiguration {
     _disconnection: Option<Box<dyn DisconnectionHandler>>,
     _reconnection: ReconnectionConfig,
     _protocol: HubProtocolKind,
+}
+
+#[derive(Clone)]
+pub(crate) struct ConnectionRecipe {
+    secure: bool,
+    domain: String,
+    hub: String,
+    port: Option<i32>,
+    authentication: Authentication,
+    protocol: HubProtocolKind,
+}
+
+impl ConnectionRecipe {
+    pub(crate) fn web_url(&self) -> String {
+        format!("{}://{}/{}", self.http_schema(), self.domain(), self.hub)
+    }
+
+    pub(crate) fn socket_url(&self) -> String {
+        format!("{}://{}/{}", self.socket_schema(), self.domain(), self.hub)
+    }
+
+    pub(crate) fn authentication(&self) -> Authentication {
+        self.authentication.clone()
+    }
+
+    pub(crate) fn protocol(&self) -> HubProtocolKind {
+        self.protocol
+    }
+
+    pub(crate) fn display_endpoint(&self) -> String {
+        self.web_url()
+    }
+
+    fn http_schema(&self) -> &'static str {
+        if self.secure {
+            "https"
+        } else {
+            "http"
+        }
+    }
+
+    fn socket_schema(&self) -> &'static str {
+        if self.secure {
+            "wss"
+        } else {
+            "ws"
+        }
+    }
+
+    fn domain(&self) -> String {
+        match self.port {
+            Some(port) => format!("{}:{}", self.domain, port),
+            None => self.domain.clone(),
+        }
+    }
 }
 
 impl ConnectionConfiguration {
@@ -100,7 +155,7 @@ impl ConnectionConfiguration {
     /// let client = SignalRClient::connect_with("localhost", "test", |c| {
     ///     c.secure();
     /// }).await.unwrap();
-    /// ```    
+    /// ```
     pub fn secure(&mut self) -> &ConnectionConfiguration {
         self._secure = true;
 
@@ -119,7 +174,7 @@ impl ConnectionConfiguration {
     /// let client = SignalRClient::connect_with("localhost", "test", |c| {
     ///     c.unsecure();
     /// }).await.unwrap();
-    /// ```    
+    /// ```
     pub fn unsecure(&mut self) -> &ConnectionConfiguration {
         self._secure = false;
 
@@ -143,9 +198,16 @@ impl ConnectionConfiguration {
     /// let client = SignalRClient::connect_with("localhost", "test", |c| {
     ///     c.authenticate_basic("username".to_string(), Some("password".to_string()));
     /// }).await.unwrap();
-    /// ```    
-    pub fn authenticate_basic(&mut self, user: String, password: Option<String>) -> &ConnectionConfiguration {
-        self._authentication = Authentication::Basic { user: user, password: password };
+    /// ```
+    pub fn authenticate_basic(
+        &mut self,
+        user: String,
+        password: Option<String>,
+    ) -> &ConnectionConfiguration {
+        self._authentication = Authentication::Basic {
+            user: user,
+            password: password,
+        };
 
         self
     }
@@ -166,7 +228,7 @@ impl ConnectionConfiguration {
     /// let client = SignalRClient::connect_with("localhost", "test", |c| {
     ///     c.authenticate_bearer("your_bearer_token".to_string());
     /// }).await.unwrap();
-    /// ```    
+    /// ```
     pub fn authenticate_bearer(&mut self, token: String) -> &ConnectionConfiguration {
         self._authentication = Authentication::Bearer { token: token };
 
@@ -188,18 +250,33 @@ impl ConnectionConfiguration {
     ///     c.with_disconnection_handler(MyDisconnectionHandler{});
     /// }).await.unwrap();
     /// ```
-    pub fn with_disconnection_handler<Handler: DisconnectionHandler + crate::platform::MaybeSendSync + 'static>(&mut self, handler: Handler) -> &ConnectionConfiguration {
+    pub fn with_disconnection_handler<
+        Handler: DisconnectionHandler + crate::platform::MaybeSendSync + 'static,
+    >(
+        &mut self,
+        handler: Handler,
+    ) -> &ConnectionConfiguration {
         self._disconnection = Some(Box::new(handler));
 
         self
     }
 
     pub(crate) fn get_web_url(&self) -> String {
-        format!("{}://{}/{}", self.get_http_schema(), self.get_domain(), self._hub)
+        format!(
+            "{}://{}/{}",
+            self.get_http_schema(),
+            self.get_domain(),
+            self._hub
+        )
     }
 
     pub(crate) fn get_socket_url(&self) -> String {
-        format!("{}://{}/{}", self.get_socket_schema(), self.get_domain(), self._hub)
+        format!(
+            "{}://{}/{}",
+            self.get_socket_schema(),
+            self.get_domain(),
+            self._hub
+        )
     }
 
     pub(crate) fn get_authentication(&self) -> Authentication {
@@ -225,19 +302,21 @@ impl ConnectionConfiguration {
     fn get_domain(&self) -> String {
         match self._port {
             Some(port) => format!("{}:{}", self._domain, port),
-            None => self._domain.clone()
+            None => self._domain.clone(),
         }
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate)fn get_disconnection_handler(&mut self) -> Option<Box<dyn DisconnectionHandler + Send + Sync>> {
-        let handler =  self._disconnection.take();
+    pub(crate) fn get_disconnection_handler(
+        &mut self,
+    ) -> Option<Box<dyn DisconnectionHandler + Send + Sync>> {
+        let handler = self._disconnection.take();
         handler
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub(crate)fn get_disconnection_handler(&mut self) -> Option<Box<dyn DisconnectionHandler>> {
-        let handler =  self._disconnection.take();
+    pub(crate) fn get_disconnection_handler(&mut self) -> Option<Box<dyn DisconnectionHandler>> {
+        let handler = self._disconnection.take();
         handler
     }
 
@@ -246,15 +325,18 @@ impl ConnectionConfiguration {
     }
 
     /// Sets the reconnection policy for the connection.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `config` - A `ReconnectionConfig` specifying the policy.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `&ConnectionConfiguration` - Returns a reference to the updated connection configuration.
-    pub fn with_reconnection_policy(&mut self, config: ReconnectionConfig) -> &ConnectionConfiguration {
+    pub fn with_reconnection_policy(
+        &mut self,
+        config: ReconnectionConfig,
+    ) -> &ConnectionConfiguration {
         self._reconnection = config;
         self
     }
@@ -269,5 +351,16 @@ impl ConnectionConfiguration {
 
     pub(crate) fn get_protocol_kind(&self) -> HubProtocolKind {
         self._protocol
+    }
+
+    pub(crate) fn connection_recipe(&self) -> ConnectionRecipe {
+        ConnectionRecipe {
+            secure: self._secure,
+            domain: self._domain.clone(),
+            hub: self._hub.clone(),
+            port: self._port,
+            authentication: self._authentication.clone(),
+            protocol: self._protocol,
+        }
     }
 }

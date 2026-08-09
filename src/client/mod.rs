@@ -1,8 +1,8 @@
 mod client;
-mod context;
 mod configuration;
+mod context;
 
-pub use client::{SignalRClient, DisconnectionHandler, ReconnectionHandler};
-pub use context::InvocationContext;
+pub use client::{DisconnectionHandler, ReconnectionHandler, SignalRClient};
 pub use configuration::ConnectionConfiguration;
-pub(crate) use configuration::Authentication;
+pub(crate) use configuration::{Authentication, ConnectionRecipe};
+pub use context::InvocationContext;
