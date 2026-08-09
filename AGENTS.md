@@ -3,6 +3,10 @@
 **Critically important source-of-truth order:** current source code, tests, project files, generated contracts, and repository structure are the primary source of truth for current behavior and APIs. `.agentx` memories are a secondary layer for wider context, historical data, prior rationale, rules, and hypotheses. Start every task by inspecting the relevant current source enough to identify the real implementation surface and current state, then use `.agentx` memories to add context after that.
 Never let memory override current source evidence. If source code, tests, project files, generated contracts, or repository structure do not align with `.agentx` memory, treat the memory as stale and correct the narrowest relevant memory files in the same change so they reflect the current code.
 
+**RayX.SignalR maintenance skill:**
+
+Use the repository-local `.codex/skills/rayx-signalr/SKILL.md` for upstream `signalr-client` imports, SignalR Hub Protocol or transport changes, JSON/MessagePack compatibility, native Tokio or browser WASM work, reconnect/lifecycle hardening, dependency updates, releases, and consumer setup. For upstream refreshes, also read `.codex/skills/rayx-signalr/references/update-from-upstream.md` before fetching source commits. The skill owns the hard-fork identity, provenance, patch-preservation, remote, branch, and validation rules; current source and the non-superseded AgentX fork-policy decision remain authoritative when they evolve.
+
 After inspecting the current source enough to choose the relevant area, review `.agentx/memory/knowledge/INDEX.md`, then the relevant domain `INDEX.md` and `state.md`, then the relevant subdomain `INDEX.md`, `state.md`, `rules.md`, and `hypotheses.md`.
 Apply rules by default when they do not conflict with current source evidence. Check if any hypothesis can be tested with today's work.
 If a memory tree does not exist yet, or the user asks to initialize it from scratch, use the available `@agentx` skill (global or repository-local), inspect the repository architecture, create the conservative project-specific domain/subdomain tree, and record the taxonomy decision immediately.
