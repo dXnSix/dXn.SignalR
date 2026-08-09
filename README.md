@@ -24,7 +24,7 @@ The dependency is then imported as `rayx_signalr` in Rust source.
 
 ## Status
 
-![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
+![license](https://shields.io/badge/license-MIT-blue)
 
 I made this client because I could not find a client that supported my requirements calling a complex backend written in SignalR from a WASM frontend. This package was designed to overcome this limitation. It supports WebAssembly targets out of the box and both JSON and MessagePack hub protocols.
 
