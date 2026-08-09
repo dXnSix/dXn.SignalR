@@ -1,8 +1,29 @@
-# SignalR client for Rust 
+# RayX.SignalR
 
-[![Current Crates.io Version](https://img.shields.io/crates/v/signalr_client
-)](https://crates.io/crates/signalr_client)
-[![Documentation](https://img.shields.io/badge/docs-latest-blue)](https://docs.rs/signalr-client/latest/signalr_client/)
+This repository is the RayX-maintained fork of
+[`signalr-client`](https://github.com/danielleiszen/rust_signalr_client). It
+is a hard fork with the owned Cargo package and Rust crate identity
+`rayx-signalr` / `rayx_signalr`. See [FORK.md](FORK.md) for provenance, the
+upstream-import policy, and the current hardening scope.
+
+The fork targets reusable native Tokio and browser WebAssembly clients, with
+both JSON and MessagePack SignalR Hub Protocol support. It is not currently
+published to crates.io.
+
+## Local path dependency
+
+```toml
+[dependencies]
+rayx-signalr = {
+    path = "../RayX.SignalR",
+    features = ["messagepack"]
+}
+```
+
+The dependency is then imported as `rayx_signalr` in Rust source.
+
+## Status
+
 ![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
 
 I made this client because I could not find a client that supported my requirements calling a complex backend written in SignalR from a WASM frontend. This package was designed to overcome this limitation. It supports WebAssembly targets out of the box and both JSON and MessagePack hub protocols.
@@ -14,14 +35,14 @@ I tried to design this package to be simple and convenient to use without writin
 A .NET test backend is also provided for testing purposes (see the /dotnet folder). The tests in the package should run using that backend. Authorization is not tested with the test scenairo, however it's been tested already by using this package in a much larger project of mine. So, it should also work without issues.
 
 ## Package Overview
-signalr-client is a Rust library designed to provide a way to call SignalR hubs from a Rust cross-platform application. It supports tokio based async runtimes and WASM clients, making it versatile for various environments.
+`rayx-signalr` is a Rust library designed to call SignalR hubs from cross-platform Rust applications. It supports Tokio-based native runtimes and browser WASM clients.
 
 ## Installation Instructions
 To use this package, add the following to your Cargo.toml:
 
 ```toml
 [dependencies]
-signalr-client = "0.3.0"
+rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR.git" }
 ```
 
 ## MessagePack Protocol
@@ -32,7 +53,7 @@ To enable MessagePack support, add the `messagepack` feature:
 
 ```toml
 [dependencies]
-signalr-client = { version = "0.3.0", features = ["messagepack"] }
+rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR.git", features = ["messagepack"] }
 ```
 
 Then use the `with_messagepack_protocol()` builder method when connecting:
@@ -48,7 +69,7 @@ All other API calls (`invoke`, `enumerate`, `send`, `register`) work exactly the
 
 ## Usage Examples
 
-Here is a complex test scenario demonstrating how to use the signalr-client package:
+Here is a complex test scenario demonstrating how to use the `rayx-signalr` package:
 
 The `SignalRClient` can be used to invoke methods on the hub, send messages, and register callbacks.
 The client can be cloned and used freely across different parts of your application.

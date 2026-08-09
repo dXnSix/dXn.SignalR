@@ -1,13 +1,13 @@
 [package]
-name = "signalr-client"
-version = "0.3.2"
+name = "rayx-signalr"
+version = "0.1.0"
 edition = "2021"
-authors = ["Daniel Leiszen <daniel.leiszen@gmail.com>"]
-description = "A Rust library for calling SignalR hubs, supporting JSON and MessagePack protocols, with WASM and native (Tokio) targets."
+authors = ["RayX UI contributors", "Daniel Leiszen <daniel.leiszen@gmail.com>"]
+description = "RayX SignalR client with JSON and MessagePack support on WASM and native Tokio targets."
 license = "MIT"
-repository = "https://github.com/danielleiszen/rust_signalr_client"
-homepage = "https://github.com/danielleiszen/rust_signalr_client"
-documentation = "https://docs.rs/signalr-client"
+publish = false
+repository = "https://github.com/rayx-ui/RayX.SignalR"
+homepage = "https://github.com/rayx-ui/RayX.SignalR"
 readme = "README.md"
 keywords = ["signalr", "rust", "websockets", "tokio", "messagepack"]
 categories = ["network-programming", "web-programming", "asynchronous"]

@@ -1,0 +1,4 @@
+interface:
+  display_name: "RayX.SignalR"
+  short_description: "Maintain the RayX SignalR hard fork"
+  default_prompt: "Use $rayx-signalr to update or validate the RayX.SignalR hard fork while preserving upstream provenance and RayX patches."
