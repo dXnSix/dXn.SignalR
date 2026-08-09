@@ -16,6 +16,33 @@ namespace SignalRTestService
             };
         }
 
+        public string ConnectionIdentity() => Context.ConnectionId;
+
+        public async IAsyncEnumerable<int> OrderedSequence(int count, int delayMilliseconds = 1)
+        {
+            for (var value = 1; value <= count; value++)
+            {
+                if (Context.ConnectionAborted.IsCancellationRequested)
+                {
+                    yield break;
+                }
+
+                if (delayMilliseconds > 0)
+                {
+                    await Task.Delay(delayMilliseconds, Context.ConnectionAborted);
+                }
+                yield return value;
+            }
+        }
+
+        public async Task TriggerOrderedCallbacks(string callback, int count)
+        {
+            for (var value = 1; value <= count; value++)
+            {
+                await Clients.Caller.SendAsync(callback, value, Context.ConnectionAborted);
+            }
+        }
+
         public async IAsyncEnumerable<TestEntity> HundredEntities()
         {
             for(var i = 0; i < 100; i ++)

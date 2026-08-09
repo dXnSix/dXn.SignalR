@@ -190,6 +190,12 @@ pub trait Storage: Clone {
             negotiate::MessageType::Close => {
                 debug!("Close is arrived");
             }
+            negotiate::MessageType::Ack => {
+                debug!("Ack is handled by the stateful transport lifecycle");
+            }
+            negotiate::MessageType::Sequence => {
+                debug!("Sequence is handled by the stateful transport lifecycle");
+            }
             negotiate::MessageType::Other => {
                 debug!("Other is arrived");
             }

@@ -37,6 +37,7 @@ pub struct ConnectionData {
     connection_id: String,
     protocol_kind: HubProtocolKind,
     recipe: ConnectionRecipe,
+    stateful_reconnect: Option<crate::StatefulReconnectConfig>,
 }
 
 impl ConnectionData {
@@ -56,6 +57,10 @@ impl ConnectionData {
     pub(crate) fn get_recipe(&self) -> ConnectionRecipe {
         self.recipe.clone()
     }
+
+    pub(crate) fn stateful_reconnect(&self) -> Option<crate::StatefulReconnectConfig> {
+        self.stateful_reconnect
+    }
 }
 
 pub trait Communication: Clone {
@@ -71,7 +76,7 @@ pub struct HttpClient {}
 
 impl HttpClient {
     pub(crate) async fn negotiate(recipe: &ConnectionRecipe) -> Result<ConnectionData, String> {
-        let negotiate_endpoint = format!("{}/negotiate?negotiateVersion=1", recipe.web_url());
+        let negotiate_endpoint = recipe.negotiate_url();
         let protocol_kind = recipe.protocol();
         let authentication = recipe.authentication();
         let json_text =
@@ -116,6 +121,11 @@ impl HttpClient {
             .is_some();
 
         if fit {
+            let stateful_reconnect = if negotiate.use_stateful_reconnect() {
+                recipe.stateful_reconnect()
+            } else {
+                None
+            };
             let mut full_endpoint = format!("{}{}", endpoint, negotiate.endpoint_query());
 
             // Browsers cannot set custom headers on WebSocket connections.
@@ -134,6 +144,7 @@ impl HttpClient {
                 connection_id: negotiate.connection_id().to_string(),
                 protocol_kind,
                 recipe,
+                stateful_reconnect,
             })
         } else {
             None

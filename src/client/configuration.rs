@@ -1,6 +1,7 @@
 use crate::client::client::DisconnectionHandler;
 use crate::communication::reconnection::ReconnectionConfig;
 use crate::protocol::hub_protocol::HubProtocolKind;
+use crate::StatefulReconnectConfig;
 
 #[derive(Clone)]
 pub(crate) enum Authentication {
@@ -26,6 +27,7 @@ pub struct ConnectionConfiguration {
     _disconnection: Option<Box<dyn DisconnectionHandler>>,
     _reconnection: ReconnectionConfig,
     _protocol: HubProtocolKind,
+    _stateful_reconnect: Option<StatefulReconnectConfig>,
 }
 
 #[derive(Clone)]
@@ -36,6 +38,7 @@ pub(crate) struct ConnectionRecipe {
     port: Option<i32>,
     authentication: Authentication,
     protocol: HubProtocolKind,
+    stateful_reconnect: Option<StatefulReconnectConfig>,
 }
 
 impl ConnectionRecipe {
@@ -53,6 +56,18 @@ impl ConnectionRecipe {
 
     pub(crate) fn protocol(&self) -> HubProtocolKind {
         self.protocol
+    }
+
+    pub(crate) fn stateful_reconnect(&self) -> Option<StatefulReconnectConfig> {
+        self.stateful_reconnect
+    }
+
+    pub(crate) fn negotiate_url(&self) -> String {
+        let mut endpoint = format!("{}/negotiate?negotiateVersion=1", self.web_url());
+        if self.stateful_reconnect.is_some() {
+            endpoint.push_str("&useStatefulReconnect=true");
+        }
+        endpoint
     }
 
     pub(crate) fn display_endpoint(&self) -> String {
@@ -83,6 +98,26 @@ impl ConnectionRecipe {
     }
 }
 
+#[cfg(test)]
+mod stateful_configuration_tests {
+    use super::ConnectionConfiguration;
+    use crate::StatefulReconnectConfig;
+
+    #[test]
+    fn stateful_negotiate_query_is_opt_in_only() {
+        let mut configuration = ConnectionConfiguration::new("localhost".into(), "hub".into());
+        assert!(!configuration
+            .connection_recipe()
+            .negotiate_url()
+            .contains("useStatefulReconnect"));
+        configuration.with_stateful_reconnect(StatefulReconnectConfig::default());
+        assert!(configuration
+            .connection_recipe()
+            .negotiate_url()
+            .ends_with("&useStatefulReconnect=true"));
+    }
+}
+
 impl ConnectionConfiguration {
     pub(crate) fn new(domain: String, hub: String) -> Self {
         ConnectionConfiguration {
@@ -94,6 +129,7 @@ impl ConnectionConfiguration {
             _disconnection: None,
             _reconnection: ReconnectionConfig::default(),
             _protocol: HubProtocolKind::default(),
+            _stateful_reconnect: None,
         }
     }
 
@@ -341,6 +377,15 @@ impl ConnectionConfiguration {
         self
     }
 
+    /// Enables ASP.NET Core stateful reconnect for this connection.
+    pub fn with_stateful_reconnect(
+        &mut self,
+        config: StatefulReconnectConfig,
+    ) -> &ConnectionConfiguration {
+        self._stateful_reconnect = Some(config);
+        self
+    }
+
     /// Configures the connection to use the MessagePack hub protocol instead of JSON.
     /// Requires the `messagepack` cargo feature to be enabled.
     #[cfg(feature = "messagepack")]
@@ -361,6 +406,7 @@ impl ConnectionConfiguration {
             port: self._port,
             authentication: self._authentication.clone(),
             protocol: self._protocol,
+            stateful_reconnect: self._stateful_reconnect,
         }
     }
 }

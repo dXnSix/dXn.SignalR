@@ -7,10 +7,10 @@ pub struct TestEntity {
 }
 
 #[cfg(test)]
-#[cfg(not(target_arch="wasm32"))]
+#[cfg(not(target_arch = "wasm32"))]
 pub mod tests_tokio;
 
 #[cfg(test)]
-#[cfg(not(target_arch="wasm32"))]
+#[cfg(not(target_arch = "wasm32"))]
 #[cfg(feature = "messagepack")]
 pub mod tests_msgpack;

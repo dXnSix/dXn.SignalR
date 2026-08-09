@@ -1,5 +1,6 @@
 mod common;
 pub mod reconnection;
+pub(crate) mod stateful;
 
 #[cfg(target_arch = "wasm32")]
 mod client_wasm;

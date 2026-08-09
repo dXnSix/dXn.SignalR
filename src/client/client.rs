@@ -276,6 +276,13 @@ impl SignalRClient {
         let reconnection_config = config.get_reconnection_config();
         let recipe = config.connection_recipe();
 
+        if recipe
+            .stateful_reconnect()
+            .is_some_and(|stateful| stateful.buffer_size_bytes == 0)
+        {
+            return Err("Stateful reconnect buffer size must be greater than zero".to_string());
+        }
+
         let result = HttpClient::negotiate(&recipe).await;
 
         if result.is_ok() {

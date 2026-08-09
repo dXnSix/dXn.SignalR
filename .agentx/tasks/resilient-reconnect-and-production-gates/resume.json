@@ -6,63 +6,63 @@
   "state": {
     "schemaVersion": 5,
     "status": "progress",
-    "planLifecycle": "frozen",
+    "planLifecycle": "implementing",
     "integrationStatus": "not-ready",
     "totalSprints": 5,
-    "currentSprint": 1,
+    "currentSprint": 2,
     "currentTask": 1,
     "activeTasks": [
       {
-        "taskId": "sprint-1-task-1",
-        "sprint": 1,
+        "taskId": "sprint-2-task-1",
+        "sprint": 2,
         "workerId": "root",
-        "leaseId": "9d7cbd22-c7ec-4666-b4c7-87fd5a3a1c62",
-        "leaseEpoch": 3,
+        "leaseId": "628e8c66-b751-468b-a4bc-e5373c94d395",
+        "leaseEpoch": 4,
         "status": "running",
-        "leasedAt": "2026-08-09T22:31:04Z",
-        "heartbeatAt": "2026-08-09T22:31:04Z",
-        "expiresAt": "2026-08-10T00:31:04Z",
-        "attempt": 3,
+        "leasedAt": "2026-08-09T23:04:02Z",
+        "heartbeatAt": "2026-08-09T23:04:02Z",
+        "expiresAt": "2026-08-10T01:04:02Z",
+        "attempt": 1,
         "ownedScope": [
-          ".cargo/config.toml",
-          "Cargo.toml",
-          ".gitignore",
+          "src/lib.rs",
           "src/client/client.rs",
           "src/client/configuration.rs",
-          "src/client/mod.rs",
           "src/communication/common.rs",
-          "src/communication/reconnection.rs",
-          "src/communication/client_tokio.rs",
-          "src/communication/client_wasm.rs",
           "src/communication/mod.rs",
+          "src/communication/stateful.rs",
+          "src/protocol/mod.rs",
+          "src/protocol/negotiate.rs",
+          "src/protocol/messages.rs",
+          "src/protocol/msgpack.rs",
+          "src/protocol/close.rs",
+          "src/protocol/stateful.rs",
           "src/execution/storage.rs",
-          "src/execution/storage_tokio.rs",
-          "src/execution/storage_wasm.rs",
-          "src/execution/invocation.rs",
-          "src/execution/enumerable.rs",
-          "src/completer/**",
-          "src/tests/tests_tokio.rs",
-          "tests/wasm-fixture/**",
-          "tools-node/**"
+          "src/tests/mod.rs",
+          "src/tests/tests_msgpack.rs",
+          "dotnet/SignalRTestService/Program.cs",
+          "dotnet/SignalRTestService/TestHub.cs",
+          "dotnet/SignalRTestService/SignalRTestService.csproj",
+          "scripts/ci/run-interop.ps1"
         ],
         "repositoryIds": [
           "rayx-signalr"
         ],
         "lastError": "",
-        "lastValidationCommandId": "VAL-SPRINT-1-TASK-1-BROAD-CHECK-01",
+        "lastValidationCommandId": "VAL-SPRINT-2-TASK-1-BROAD-DOTNET-01",
         "lastValidationMatched": true
       }
     ],
-    "leaseEpoch": 3,
+    "leaseEpoch": 4,
     "attempts": {
-      "sprint-1-task-1": 3
+      "sprint-1-task-1": 3,
+      "sprint-2-task-1": 1
     },
     "run": {
       "status": "running",
       "requestedBoundary": "sprint",
       "maxParallelSprints": 2,
       "maxAttempts": 3,
-      "lastHeartbeatAt": "2026-08-09T22:31:04Z",
+      "lastHeartbeatAt": "2026-08-09T23:04:02Z",
       "blocker": {},
       "repositoryBaselines": {
         "rayx-signalr": "4f23eee0dd8e2a2b1c4e718e35d33da34a13a6fb"
@@ -70,6 +70,9 @@
       "sprintBaselines": {
         "1": {
           "rayx-signalr": "80b2a36948637d84442ae72b6dc2de463fce89f3"
+        },
+        "2": {
+          "rayx-signalr": "e66e53701b73575e4d64aee89810916235c074c4"
         }
       },
       "sprintDirtyBaselines": {
@@ -85,10 +88,16 @@
             ".agentx/tasks/resilient-reconnect-and-production-gates/task-contracts.json": "c5ffde6a8dc18c6d06070a061d63cf6a8b1122597001b3874ffa51e660d5d39d",
             ".agentx/tasks/resilient-reconnect-and-production-gates/traceability.json": "99e10c74c7f5b14cf1d66d8feae70d18c1445e6a816cd1ba41de0c1aab16440b"
           }
+        },
+        "2": {
+          "rayx-signalr": {
+            ".agentx/tasks/resilient-reconnect-and-production-gates/.agentx-task.lock": "bb9962655b37f984bf4369872cac0ab9d213d9cffb6875321e704d739528f8b0",
+            ".agentx/tasks/resilient-reconnect-and-production-gates/preflight.json": "3048a2035525ed477cf456fd2acb8bffa4b0a09f4d2b032da9cf57a39ad78b6a"
+          }
         }
       }
     },
-    "lastResumeAt": "2026-08-09T22:59:48Z",
+    "lastResumeAt": "2026-08-09T23:11:59Z",
     "lastResumeSpecHashes": {
       "requirements": "f2b54c9fd08734912af1948adb555043e4e492e23f5ce2e1df1e3fd2c51d1c1c",
       "design": "10e8c5d8a3535948765d372914c0b4cc5661294cd629dafd10559595001865ea",
@@ -96,8 +105,8 @@
       "contracts": "73bb2d16b5778314a40323cd58927a049123d576fc19cda38665d5e7f5a1caa8"
     }
   },
-  "currentTaskId": "sprint-1-task-1",
-  "nextUncheckedTaskId": "sprint-1-task-1",
+  "currentTaskId": "sprint-2-task-1",
+  "nextUncheckedTaskId": "sprint-2-task-1",
   "specHashes": {
     "requirements": "f2b54c9fd08734912af1948adb555043e4e492e23f5ce2e1df1e3fd2c51d1c1c",
     "design": "10e8c5d8a3535948765d372914c0b4cc5661294cd629dafd10559595001865ea",
@@ -167,10 +176,10 @@
     "disposition": "pass"
   },
   "schemaVersion": 5,
-  "resumedAt": "2026-08-09T22:59:48Z",
-  "gitHead": "80b2a36948637d84442ae72b6dc2de463fce89f3",
-  "gitStatusShort": " M .agentx/tasks/resilient-reconnect-and-production-gates/contract-reconciliation.jsonl\n M .agentx/tasks/resilient-reconnect-and-production-gates/design.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/implementation-plan.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/preflight.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/repositories.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/requirements.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/resume.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/source-inventory.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/state.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/task-contracts.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/traceability.json\n M .cargo/config.toml\n M .gitignore\n M Cargo.toml\n M src/client/client.rs\n M src/client/configuration.rs\n M src/client/mod.rs\n M src/communication/client_tokio.rs\n M src/communication/client_wasm.rs\n M src/communication/common.rs\n M src/communication/mod.rs\n M src/communication/reconnection.rs\n M src/execution/storage.rs\n M src/execution/storage_tokio.rs\n M src/execution/storage_wasm.rs\n?? .agentx/tasks/resilient-reconnect-and-production-gates/evidence.jsonl\n?? .agentx/tasks/resilient-reconnect-and-production-gates/run-events.jsonl\n?? tests/\n?? tools-node/\n",
+  "resumedAt": "2026-08-09T23:11:59Z",
+  "gitHead": "e66e53701b73575e4d64aee89810916235c074c4",
+  "gitStatusShort": " M .agentx/tasks/resilient-reconnect-and-production-gates/evidence.jsonl\n M .agentx/tasks/resilient-reconnect-and-production-gates/implementation-plan.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/preflight.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/run-events.jsonl\n M .agentx/tasks/resilient-reconnect-and-production-gates/state.json\n M dotnet/SignalRTestService/Program.cs\n M dotnet/SignalRTestService/TestHub.cs\n M src/client/client.rs\n M src/client/configuration.rs\n M src/client/context.rs\n M src/communication/common.rs\n M src/communication/mod.rs\n M src/completer/completed_future.rs\n M src/completer/manual_future.rs\n M src/completer/manual_stream.rs\n M src/completer/mod.rs\n M src/execution/arguments.rs\n M src/execution/callback.rs\n M src/execution/enumerable.rs\n M src/execution/invocation.rs\n M src/execution/mod.rs\n M src/execution/storage.rs\n M src/lib.rs\n M src/protocol/close.rs\n M src/protocol/invoke.rs\n M src/protocol/messages.rs\n M src/protocol/mod.rs\n M src/protocol/msgpack.rs\n M src/protocol/negotiate.rs\n M src/protocol/streaming.rs\n M src/tests/mod.rs\n M src/tests/tests_msgpack.rs\n M src/tests/tests_tokio.rs\n?? scripts/\n?? src/communication/stateful.rs\n?? src/protocol/stateful.rs\n",
   "errors": [],
   "warnings": [],
-  "requiredNextAction": "Continue or resolve active task sprint-1-task-1; do not switch tasks without recording a blocker."
+  "requiredNextAction": "Continue or resolve active task sprint-2-task-1; do not switch tasks without recording a blocker."
 }
