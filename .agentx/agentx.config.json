@@ -1,0 +1,7 @@
+{
+  "$schema": "https://agentx.local/schemas/v1/agentx-config.schema.json",
+  "schemaVersion": 1,
+  "worktrees": {
+    "root": "../.agentx-worktrees"
+  }
+}
