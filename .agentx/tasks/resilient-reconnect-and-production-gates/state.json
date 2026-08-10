@@ -7,10 +7,10 @@
   "currentSprint": -1,
   "currentTask": -1,
   "activeTasks": [],
-  "leaseEpoch": 14,
+  "leaseEpoch": 15,
   "attempts": {
     "sprint-1-task-1": 3,
-    "sprint-2-task-1": 2,
+    "sprint-2-task-1": 3,
     "sprint-3-task-1": 2,
     "sprint-4-task-1": 2,
     "sprint-5-task-1": 2,
@@ -21,7 +21,7 @@
     "requestedBoundary": "sprint",
     "maxParallelSprints": 2,
     "maxAttempts": 3,
-    "lastHeartbeatAt": "2026-08-10T01:12:13Z",
+    "lastHeartbeatAt": "2026-08-10T01:31:33Z",
     "blocker": {},
     "repositoryBaselines": {
       "rayx-signalr": "4f23eee0dd8e2a2b1c4e718e35d33da34a13a6fb"
@@ -88,11 +88,11 @@
       }
     }
   },
-  "lastResumeAt": "2026-08-10T01:13:20Z",
+  "lastResumeAt": "2026-08-10T01:34:46Z",
   "lastResumeSpecHashes": {
     "requirements": "f2b54c9fd08734912af1948adb555043e4e492e23f5ce2e1df1e3fd2c51d1c1c",
     "design": "10e8c5d8a3535948765d372914c0b4cc5661294cd629dafd10559595001865ea",
-    "plan": "75ca51864483e7e8b8cfb40d8d92820d361ee6ae6edb94b049741804714e10fc",
-    "contracts": "2c454b611465e98694baebfe90ef43bf892c681d002ea590d85ee2be01151e8d"
+    "plan": "67e5a9b4bcf49945d22dcabcedd1fe4b0ecab606135015f552b7cf07509ce9e5",
+    "contracts": "5a4663118ea29ad7ef6f5fb7d6a8ceca60077fd6f34ceed1cdf91a9107808b65"
   }
 }

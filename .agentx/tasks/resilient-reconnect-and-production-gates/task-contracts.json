@@ -1,7 +1,7 @@
 {
   "schemaVersion": 5,
   "generatorVersion": "5.0",
-  "canonicalPlanHash": "75ca51864483e7e8b8cfb40d8d92820d361ee6ae6edb94b049741804714e10fc",
+  "canonicalPlanHash": "67e5a9b4bcf49945d22dcabcedd1fe4b0ecab606135015f552b7cf07509ce9e5",
   "acceptanceTraceability": [
     {
       "acceptanceCriterionId": "AC-F-001-1",
@@ -1402,6 +1402,7 @@
           "Cargo.toml",
           "rust-toolchain.toml",
           "src/**/*.rs",
+          "src/platform.rs",
           "src/lib.rs",
           "src/client"
         ],
@@ -1677,7 +1678,9 @@
           "src/communication/client_tokio.rs",
           "src/protocol/invoke.rs"
         ],
-        "generatedPaths": [],
+        "generatedPaths": [
+          ".agentx/memory/**"
+        ],
         "forbiddenPaths": [
           "dotnet/**",
           "Cargo.toml",

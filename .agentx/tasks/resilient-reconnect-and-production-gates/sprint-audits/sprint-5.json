@@ -1,0 +1,391 @@
+{
+  "schemaVersion": 5,
+  "generatorVersion": "5.0",
+  "epicId": "resilient-reconnect-and-production-gates",
+  "sprint": 5,
+  "status": "passed",
+  "headBeforeCommit": "0c7a9c2970b9fd3910eacda219c818a97b2f6fe3",
+  "filesReviewed": [
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\.github\\workflows",
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\.github\\workflows\\interop.yml",
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\.github\\workflows\\quality.yml",
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\Cargo.toml",
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\README.md",
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci",
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci\\run-interop.ps1",
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci\\verify-workflows.ps1",
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\src",
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\client",
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\lib.rs"
+  ],
+  "conformance": [
+    {
+      "requirementId": "REQ-F-003",
+      "taskIds": [
+        "sprint-5-task-2"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-F-003-3",
+        "AC-F-004-1",
+        "AC-F-004-2",
+        "AC-F-004-3",
+        "AC-NF-001-1",
+        "AC-NF-005-1"
+      ],
+      "evidenceAcceptanceCriteriaIds": [
+        "AC-F-003-3",
+        "AC-F-004-1",
+        "AC-F-004-2",
+        "AC-F-004-3",
+        "AC-NF-001-1",
+        "AC-NF-005-1"
+      ],
+      "missingAcceptanceCriteriaIds": [],
+      "implementationLocations": [
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\.github\\workflows",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\.github\\workflows\\interop.yml",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\.github\\workflows\\quality.yml",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\README.md",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci\\run-interop.ps1",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci\\verify-workflows.ps1"
+      ],
+      "testLocations": [],
+      "evidenceProfiles": [
+        "regression",
+        "runtime",
+        "security",
+        "static-analysis"
+      ],
+      "missingProfiles": [],
+      "result": "pass",
+      "reason": "All mapped tasks are done with fresh profile-complete evidence."
+    },
+    {
+      "requirementId": "REQ-F-004",
+      "taskIds": [
+        "sprint-5-task-2"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-F-003-3",
+        "AC-F-004-1",
+        "AC-F-004-2",
+        "AC-F-004-3",
+        "AC-NF-001-1",
+        "AC-NF-005-1"
+      ],
+      "evidenceAcceptanceCriteriaIds": [
+        "AC-F-003-3",
+        "AC-F-004-1",
+        "AC-F-004-2",
+        "AC-F-004-3",
+        "AC-NF-001-1",
+        "AC-NF-005-1"
+      ],
+      "missingAcceptanceCriteriaIds": [],
+      "implementationLocations": [
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\.github\\workflows",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\.github\\workflows\\interop.yml",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\.github\\workflows\\quality.yml",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\README.md",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci\\run-interop.ps1",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci\\verify-workflows.ps1"
+      ],
+      "testLocations": [],
+      "evidenceProfiles": [
+        "regression",
+        "runtime",
+        "security",
+        "static-analysis"
+      ],
+      "missingProfiles": [],
+      "result": "pass",
+      "reason": "All mapped tasks are done with fresh profile-complete evidence."
+    },
+    {
+      "requirementId": "REQ-NF-001",
+      "taskIds": [
+        "sprint-5-task-2"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-F-003-3",
+        "AC-F-004-1",
+        "AC-F-004-2",
+        "AC-F-004-3",
+        "AC-NF-001-1",
+        "AC-NF-005-1"
+      ],
+      "evidenceAcceptanceCriteriaIds": [
+        "AC-F-003-3",
+        "AC-F-004-1",
+        "AC-F-004-2",
+        "AC-F-004-3",
+        "AC-NF-001-1",
+        "AC-NF-005-1"
+      ],
+      "missingAcceptanceCriteriaIds": [],
+      "implementationLocations": [
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\.github\\workflows",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\.github\\workflows\\interop.yml",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\.github\\workflows\\quality.yml",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\README.md",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci\\run-interop.ps1",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci\\verify-workflows.ps1"
+      ],
+      "testLocations": [],
+      "evidenceProfiles": [
+        "regression",
+        "runtime",
+        "security",
+        "static-analysis"
+      ],
+      "missingProfiles": [],
+      "result": "pass",
+      "reason": "All mapped tasks are done with fresh profile-complete evidence."
+    },
+    {
+      "requirementId": "REQ-NF-004",
+      "taskIds": [
+        "sprint-5-task-1",
+        "sprint-5-task-2"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-F-003-3",
+        "AC-F-004-1",
+        "AC-F-004-2",
+        "AC-F-004-3",
+        "AC-NF-001-1",
+        "AC-NF-004-1",
+        "AC-NF-005-1"
+      ],
+      "evidenceAcceptanceCriteriaIds": [
+        "AC-F-003-3",
+        "AC-F-004-1",
+        "AC-F-004-2",
+        "AC-F-004-3",
+        "AC-NF-001-1",
+        "AC-NF-004-1",
+        "AC-NF-005-1"
+      ],
+      "missingAcceptanceCriteriaIds": [],
+      "implementationLocations": [
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\.github\\workflows",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\.github\\workflows\\interop.yml",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\.github\\workflows\\quality.yml",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\Cargo.toml",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\README.md",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci\\run-interop.ps1",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci\\verify-workflows.ps1",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\client",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\lib.rs"
+      ],
+      "testLocations": [],
+      "evidenceProfiles": [
+        "regression",
+        "runtime",
+        "security",
+        "static-analysis"
+      ],
+      "missingProfiles": [],
+      "result": "pass",
+      "reason": "All mapped tasks are done with fresh profile-complete evidence."
+    },
+    {
+      "requirementId": "REQ-NF-005",
+      "taskIds": [
+        "sprint-5-task-2"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-F-003-3",
+        "AC-F-004-1",
+        "AC-F-004-2",
+        "AC-F-004-3",
+        "AC-NF-001-1",
+        "AC-NF-005-1"
+      ],
+      "evidenceAcceptanceCriteriaIds": [
+        "AC-F-003-3",
+        "AC-F-004-1",
+        "AC-F-004-2",
+        "AC-F-004-3",
+        "AC-NF-001-1",
+        "AC-NF-005-1"
+      ],
+      "missingAcceptanceCriteriaIds": [],
+      "implementationLocations": [
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\.github\\workflows",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\.github\\workflows\\interop.yml",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\.github\\workflows\\quality.yml",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\README.md",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci\\run-interop.ps1",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci\\verify-workflows.ps1"
+      ],
+      "testLocations": [],
+      "evidenceProfiles": [
+        "regression",
+        "runtime",
+        "security",
+        "static-analysis"
+      ],
+      "missingProfiles": [],
+      "result": "pass",
+      "reason": "All mapped tasks are done with fresh profile-complete evidence."
+    }
+  ],
+  "designQuality": {
+    "declaredWritePaths": [
+      "rayx-signalr:.agentx/memory/**",
+      "rayx-signalr:.github/workflows/interop.yml",
+      "rayx-signalr:.github/workflows/quality.yml",
+      "rayx-signalr:Cargo.toml",
+      "rayx-signalr:FORK.md",
+      "rayx-signalr:README.md",
+      "rayx-signalr:rust-toolchain.toml",
+      "rayx-signalr:scripts/ci/run-interop.ps1",
+      "rayx-signalr:scripts/ci/verify-workflows.ps1",
+      "rayx-signalr:src/**/*.rs",
+      "rayx-signalr:src/client",
+      "rayx-signalr:src/communication/client_tokio.rs",
+      "rayx-signalr:src/communication/client_wasm.rs",
+      "rayx-signalr:src/communication/common.rs",
+      "rayx-signalr:src/communication/stateful.rs",
+      "rayx-signalr:src/lib.rs",
+      "rayx-signalr:src/platform.rs",
+      "rayx-signalr:src/protocol/invoke.rs"
+    ],
+    "actualChangedPaths": [
+      "rayx-signalr:.agentx/memory/decisions/INDEX.md",
+      "rayx-signalr:.agentx/memory/decisions/interop-validation/INDEX.md",
+      "rayx-signalr:.agentx/memory/decisions/interop-validation/rust-tests/2026-08-10-interop-validation-rust-tests-use-playwright-for-browser-runtime.md",
+      "rayx-signalr:.agentx/memory/knowledge/INDEX.md",
+      "rayx-signalr:.agentx/memory/knowledge/client-runtime/action-execution/hypotheses.md",
+      "rayx-signalr:.agentx/memory/knowledge/client-runtime/action-execution/knowledge.md",
+      "rayx-signalr:.agentx/memory/knowledge/client-runtime/action-execution/state.md",
+      "rayx-signalr:.agentx/memory/knowledge/client-runtime/connection-lifecycle/hypotheses.md",
+      "rayx-signalr:.agentx/memory/knowledge/client-runtime/connection-lifecycle/knowledge.md",
+      "rayx-signalr:.agentx/memory/knowledge/client-runtime/connection-lifecycle/rules.md",
+      "rayx-signalr:.agentx/memory/knowledge/client-runtime/connection-lifecycle/state.md",
+      "rayx-signalr:.agentx/memory/knowledge/client-runtime/hub-protocol/knowledge.md",
+      "rayx-signalr:.agentx/memory/knowledge/client-runtime/hub-protocol/rules.md",
+      "rayx-signalr:.agentx/memory/knowledge/client-runtime/hub-protocol/state.md",
+      "rayx-signalr:.agentx/memory/knowledge/client-runtime/public-api/knowledge.md",
+      "rayx-signalr:.agentx/memory/knowledge/client-runtime/public-api/state.md",
+      "rayx-signalr:.agentx/memory/knowledge/client-runtime/state.md",
+      "rayx-signalr:.agentx/memory/knowledge/client-runtime/transport/knowledge.md",
+      "rayx-signalr:.agentx/memory/knowledge/client-runtime/transport/rules.md",
+      "rayx-signalr:.agentx/memory/knowledge/client-runtime/transport/state.md",
+      "rayx-signalr:.agentx/memory/knowledge/interop-validation/INDEX.md",
+      "rayx-signalr:.agentx/memory/knowledge/interop-validation/dotnet-test-service/knowledge.md",
+      "rayx-signalr:.agentx/memory/knowledge/interop-validation/dotnet-test-service/rules.md",
+      "rayx-signalr:.agentx/memory/knowledge/interop-validation/dotnet-test-service/state.md",
+      "rayx-signalr:.agentx/memory/knowledge/interop-validation/hypotheses.md",
+      "rayx-signalr:.agentx/memory/knowledge/interop-validation/knowledge.md",
+      "rayx-signalr:.agentx/memory/knowledge/interop-validation/rules.md",
+      "rayx-signalr:.agentx/memory/knowledge/interop-validation/rust-tests/hypotheses.md",
+      "rayx-signalr:.agentx/memory/knowledge/interop-validation/rust-tests/knowledge.md",
+      "rayx-signalr:.agentx/memory/knowledge/interop-validation/rust-tests/rules.md",
+      "rayx-signalr:.agentx/memory/knowledge/interop-validation/rust-tests/state.md",
+      "rayx-signalr:.agentx/memory/knowledge/interop-validation/state.md",
+      "rayx-signalr:.agentx/memory/knowledge/repository-governance/INDEX.md",
+      "rayx-signalr:.agentx/memory/knowledge/repository-governance/knowledge.md",
+      "rayx-signalr:.agentx/memory/knowledge/repository-governance/quality-gates/INDEX.md",
+      "rayx-signalr:.agentx/memory/knowledge/repository-governance/quality-gates/hypotheses.md",
+      "rayx-signalr:.agentx/memory/knowledge/repository-governance/quality-gates/knowledge.md",
+      "rayx-signalr:.agentx/memory/knowledge/repository-governance/quality-gates/rules.md",
+      "rayx-signalr:.agentx/memory/knowledge/repository-governance/quality-gates/state.md",
+      "rayx-signalr:.agentx/memory/knowledge/repository-governance/rules.md",
+      "rayx-signalr:.agentx/memory/knowledge/repository-governance/state.md",
+      "rayx-signalr:.github/workflows/interop.yml",
+      "rayx-signalr:.github/workflows/quality.yml",
+      "rayx-signalr:Cargo.toml",
+      "rayx-signalr:FORK.md",
+      "rayx-signalr:README.md",
+      "rayx-signalr:rust-toolchain.toml",
+      "rayx-signalr:scripts/ci/run-interop.ps1",
+      "rayx-signalr:scripts/ci/verify-workflows.ps1",
+      "rayx-signalr:src/client/client.rs",
+      "rayx-signalr:src/client/configuration.rs",
+      "rayx-signalr:src/client/context.rs",
+      "rayx-signalr:src/client/mod.rs",
+      "rayx-signalr:src/communication/client_tokio.rs",
+      "rayx-signalr:src/communication/client_wasm.rs",
+      "rayx-signalr:src/communication/common.rs",
+      "rayx-signalr:src/communication/reconnection.rs",
+      "rayx-signalr:src/communication/stateful.rs",
+      "rayx-signalr:src/completer/completed_future.rs",
+      "rayx-signalr:src/completer/manual_future.rs",
+      "rayx-signalr:src/completer/manual_stream.rs",
+      "rayx-signalr:src/completer/mod.rs",
+      "rayx-signalr:src/execution/arguments.rs",
+      "rayx-signalr:src/execution/callback.rs",
+      "rayx-signalr:src/execution/enumerable.rs",
+      "rayx-signalr:src/execution/invocation.rs",
+      "rayx-signalr:src/execution/mod.rs",
+      "rayx-signalr:src/execution/storage.rs",
+      "rayx-signalr:src/execution/storage_tokio.rs",
+      "rayx-signalr:src/platform.rs",
+      "rayx-signalr:src/protocol/hub_protocol.rs",
+      "rayx-signalr:src/protocol/invoke.rs",
+      "rayx-signalr:src/protocol/messages.rs",
+      "rayx-signalr:src/protocol/mod.rs",
+      "rayx-signalr:src/protocol/msgpack.rs",
+      "rayx-signalr:src/protocol/negotiate.rs",
+      "rayx-signalr:src/protocol/streaming.rs",
+      "rayx-signalr:src/tests/mod.rs",
+      "rayx-signalr:src/tests/tests_msgpack.rs",
+      "rayx-signalr:src/tests/tests_tokio.rs"
+    ],
+    "unexpectedChangedPaths": [],
+    "responsibilityIds": [
+      "RESP-001",
+      "RESP-002",
+      "RESP-003",
+      "RESP-004",
+      "RESP-005",
+      "RESP-006",
+      "RESP-007",
+      "RESP-008",
+      "RESP-009"
+    ],
+    "newAbstractions": [
+      "InteropHarness"
+    ],
+    "newDependencies": [
+      "repository-local Playwright dev tooling"
+    ],
+    "newPublicApi": [],
+    "unapprovedDesignAdditions": [],
+    "result": "pass",
+    "reason": "Actual changed paths stay within declared task scopes; declared responsibilities and explicitly allowed design additions are recorded for semantic review."
+  },
+  "commands": [
+    {
+      "command": "pwsh -NoProfile -File scripts/ci/verify-workflows.ps1 -RunLocalQuality",
+      "effectiveCommand": "pwsh -NoProfile -File scripts/ci/verify-workflows.ps1 -RunLocalQuality",
+      "exitCode": 0,
+      "assertion": "The complete production quality and security command set MUST pass locally with the same contract as CI.",
+      "stdoutHash": "c73a0308246c253a2c3bfe1bfa3a4d94ba459bd8a22be3214cffbadc4e5f9220",
+      "stderrHash": "c85d97522b5ed129b340fdcdc1220c645ce77c739365f1e95769a8786213af0e",
+      "failureOutputTail": ""
+    },
+    {
+      "command": "pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target native,wasm -Protocol json,messagepack -Scenario ordinary-reconnect,stateful-reconnect",
+      "effectiveCommand": "pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target native,wasm -Protocol json,messagepack -Scenario ordinary-reconnect,stateful-reconnect",
+      "exitCode": 0,
+      "assertion": "The complete production runtime matrix MUST pass before the epic can close.",
+      "stdoutHash": "5768c478fe4c9b55ce48cea46e5d278e2be52134304e7bffd88a4f87109a4373",
+      "stderrHash": "d0fc53751edab278147055856cca46db8315ac3645583ab3a423fdd69f4e8e9e",
+      "failureOutputTail": ""
+    }
+  ],
+  "defects": [],
+  "repairs": [],
+  "reauditCount": 3,
+  "residualRisks": [],
+  "generatedAt": "2026-08-10T01:29:26Z"
+}

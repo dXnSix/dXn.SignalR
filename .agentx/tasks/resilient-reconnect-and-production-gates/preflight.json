@@ -1,13 +1,13 @@
 {
   "schemaVersion": 5,
   "generatorVersion": "5.0",
-  "recordedAt": "2026-08-10T01:11:31Z",
+  "recordedAt": "2026-08-10T01:24:26Z",
   "mode": "static",
   "specHashes": {
     "requirements": "ab1d98e2852207dc07023ee7fb22d451224a85d69ef9e49742565a3db4401e99",
     "design": "8bd87b045f70a87fc5f45b05116885be5a8e5a400615165b1ee32ecf09bbd77e",
-    "task-contracts": "4f3955826b82cece635505853834757edaaef8ee1d9dcad4ce4f17fda139fce1",
-    "implementation-plan": "fbf71a0ed00c19cc82e812fd91cd27df6682e191c8c0dba4195e8c9c5277eb42"
+    "task-contracts": "9dc95e06f4ffaac829581114f53c71a8c3cc2910620af764d0f4edb3eb329669",
+    "implementation-plan": "1f6e78b15b8014fdf67f7365948f20caea15f3f2405ee51180e66a992731e20e"
   },
   "behaviorContractHashes": {
     "sprint-1-task-1": "256987c9a65df0796fbbf2648b0f3c42ebe02b2daf43b1b50598e2d4151f1ea9",
@@ -21,8 +21,8 @@
     {
       "repositoryId": "rayx-signalr",
       "resolvedPath": "D:\\Work\\projects\\RayX\\RayX.SignalR",
-      "head": "d5847c41e3e58bdabe82eb94a7798a75bb5b0027",
-      "tree": "20213ae8bfd83a6751ab58516ff686805446c1b3",
+      "head": "0c7a9c2970b9fd3910eacda219c818a97b2f6fe3",
+      "tree": "6686df8606afb97dbac906d47e2fd9105ce6d139",
       "branch": "implementation/resilient-reconnect-and-production-gates-impl",
       "identity": {
         "gitCommonDirectoryFingerprint": "1583c9a0848e77660b35f8fa0306c4001601f739d0e168047fc18be09782f4f7",
@@ -88,5 +88,5 @@
   "baselineResults": [],
   "diagnostics": [],
   "disposition": "pass",
-  "preflightHash": "e9d7377754bb9b830072206246a480ac45142cd1b32567f49ec0e8c70bcbbb1f"
+  "preflightHash": "a1fbeb22fba370feea4d225c5a323186ca9005e5603dad6c89c4261ae340221c"
 }

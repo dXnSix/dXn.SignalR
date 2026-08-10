@@ -33,3 +33,5 @@
 {"schemaVersion": 5, "recordedAt": "2026-08-10T01:10:52Z", "event": "worker-exited", "runId": "manual", "taskId": "sprint-2-task-1", "leaseId": "5d5743ee-0bff-4152-a8e9-0062609eed4c", "workerId": "root", "attempt": 2}
 {"schemaVersion": 5, "recordedAt": "2026-08-10T01:12:14Z", "event": "task-leased", "runId": "manual", "taskId": "sprint-5-task-1", "sprint": 5, "leaseId": "931f4505-df99-44ae-967e-7a19a4fd7bf4", "workerId": "root", "attempt": 2}
 {"schemaVersion": 5, "recordedAt": "2026-08-10T01:12:50Z", "event": "worker-exited", "runId": "manual", "taskId": "sprint-5-task-1", "leaseId": "931f4505-df99-44ae-967e-7a19a4fd7bf4", "workerId": "root", "attempt": 2}
+{"schemaVersion": 5, "recordedAt": "2026-08-10T01:31:34Z", "event": "task-leased", "runId": "manual", "taskId": "sprint-2-task-1", "sprint": 2, "leaseId": "8a2e603f-14b9-45b1-a2d8-affaea8535ac", "workerId": "root", "attempt": 3}
+{"schemaVersion": 5, "recordedAt": "2026-08-10T01:33:26Z", "event": "worker-exited", "runId": "manual", "taskId": "sprint-2-task-1", "leaseId": "8a2e603f-14b9-45b1-a2d8-affaea8535ac", "workerId": "root", "attempt": 3}

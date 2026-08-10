@@ -1613,6 +1613,7 @@
                   "Cargo.toml",
                   "rust-toolchain.toml",
                   "src/**/*.rs",
+                  "src/platform.rs",
                   "src/lib.rs",
                   "src/client"
                 ],
@@ -1896,7 +1897,9 @@
                   "src/communication/client_tokio.rs",
                   "src/protocol/invoke.rs"
                 ],
-                "generatedPaths": [],
+                "generatedPaths": [
+                  ".agentx/memory/**"
+                ],
                 "forbiddenPaths": [
                   "dotnet/**",
                   "Cargo.toml",
