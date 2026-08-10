@@ -2,6 +2,7 @@
 name = "rayx-signalr"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.92"
 authors = ["RayX UI contributors", "Daniel Leiszen <daniel.leiszen@gmail.com>"]
 description = "RayX SignalR client with JSON and MessagePack support on WASM and native Tokio targets."
 license = "MIT"
@@ -46,6 +47,3 @@ tokio = { version = "1.49.0", features = ["full"] }
 tokio-websockets = { version = "0.13.1", features = ["sha1_smol", "fastrand", "client", "native-tls"] }
 tokio-native-tls = "0.3.1"
 http = { version = "1.4.0", default-features = false, features = ["std"] }
-
-# [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
-# wasm-bindgen-test = "0.3.50"

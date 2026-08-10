@@ -1,6 +1,7 @@
-use crate::client::client::DisconnectionHandler;
+use crate::client::DisconnectionHandler;
 use crate::communication::reconnection::ReconnectionConfig;
 use crate::protocol::hub_protocol::HubProtocolKind;
+use crate::StatefulReconnectConfig;
 
 #[derive(Clone)]
 pub(crate) enum Authentication {
@@ -12,7 +13,7 @@ pub(crate) enum Authentication {
     Bearer {
         token: String,
     },
-} 
+}
 
 pub struct ConnectionConfiguration {
     _secure: bool,
@@ -26,6 +27,75 @@ pub struct ConnectionConfiguration {
     _disconnection: Option<Box<dyn DisconnectionHandler>>,
     _reconnection: ReconnectionConfig,
     _protocol: HubProtocolKind,
+    _stateful_reconnect: Option<StatefulReconnectConfig>,
+}
+
+#[derive(Clone)]
+pub(crate) struct ConnectionRecipe {
+    secure: bool,
+    domain: String,
+    hub: String,
+    port: Option<i32>,
+    authentication: Authentication,
+    protocol: HubProtocolKind,
+    stateful_reconnect: Option<StatefulReconnectConfig>,
+}
+
+impl ConnectionRecipe {
+    pub(crate) fn web_url(&self) -> String {
+        format!("{}://{}/{}", self.http_schema(), self.domain(), self.hub)
+    }
+
+    pub(crate) fn socket_url(&self) -> String {
+        format!("{}://{}/{}", self.socket_schema(), self.domain(), self.hub)
+    }
+
+    pub(crate) fn authentication(&self) -> Authentication {
+        self.authentication.clone()
+    }
+
+    pub(crate) fn protocol(&self) -> HubProtocolKind {
+        self.protocol
+    }
+
+    pub(crate) fn stateful_reconnect(&self) -> Option<StatefulReconnectConfig> {
+        self.stateful_reconnect
+    }
+
+    pub(crate) fn negotiate_url(&self) -> String {
+        let mut endpoint = format!("{}/negotiate?negotiateVersion=1", self.web_url());
+        if self.stateful_reconnect.is_some() {
+            endpoint.push_str("&useStatefulReconnect=true");
+        }
+        endpoint
+    }
+
+    pub(crate) fn display_endpoint(&self) -> String {
+        self.web_url()
+    }
+
+    fn http_schema(&self) -> &'static str {
+        if self.secure {
+            "https"
+        } else {
+            "http"
+        }
+    }
+
+    fn socket_schema(&self) -> &'static str {
+        if self.secure {
+            "wss"
+        } else {
+            "ws"
+        }
+    }
+
+    fn domain(&self) -> String {
+        match self.port {
+            Some(port) => format!("{}:{}", self.domain, port),
+            None => self.domain.clone(),
+        }
+    }
 }
 
 impl ConnectionConfiguration {
@@ -39,6 +109,7 @@ impl ConnectionConfiguration {
             _disconnection: None,
             _reconnection: ReconnectionConfig::default(),
             _protocol: HubProtocolKind::default(),
+            _stateful_reconnect: None,
         }
     }
 
@@ -100,7 +171,7 @@ impl ConnectionConfiguration {
     /// let client = SignalRClient::connect_with("localhost", "test", |c| {
     ///     c.secure();
     /// }).await.unwrap();
-    /// ```    
+    /// ```
     pub fn secure(&mut self) -> &ConnectionConfiguration {
         self._secure = true;
 
@@ -119,7 +190,7 @@ impl ConnectionConfiguration {
     /// let client = SignalRClient::connect_with("localhost", "test", |c| {
     ///     c.unsecure();
     /// }).await.unwrap();
-    /// ```    
+    /// ```
     pub fn unsecure(&mut self) -> &ConnectionConfiguration {
         self._secure = false;
 
@@ -143,9 +214,13 @@ impl ConnectionConfiguration {
     /// let client = SignalRClient::connect_with("localhost", "test", |c| {
     ///     c.authenticate_basic("username".to_string(), Some("password".to_string()));
     /// }).await.unwrap();
-    /// ```    
-    pub fn authenticate_basic(&mut self, user: String, password: Option<String>) -> &ConnectionConfiguration {
-        self._authentication = Authentication::Basic { user: user, password: password };
+    /// ```
+    pub fn authenticate_basic(
+        &mut self,
+        user: String,
+        password: Option<String>,
+    ) -> &ConnectionConfiguration {
+        self._authentication = Authentication::Basic { user, password };
 
         self
     }
@@ -166,9 +241,9 @@ impl ConnectionConfiguration {
     /// let client = SignalRClient::connect_with("localhost", "test", |c| {
     ///     c.authenticate_bearer("your_bearer_token".to_string());
     /// }).await.unwrap();
-    /// ```    
+    /// ```
     pub fn authenticate_bearer(&mut self, token: String) -> &ConnectionConfiguration {
-        self._authentication = Authentication::Bearer { token: token };
+        self._authentication = Authentication::Bearer { token };
 
         self
     }
@@ -188,57 +263,27 @@ impl ConnectionConfiguration {
     ///     c.with_disconnection_handler(MyDisconnectionHandler{});
     /// }).await.unwrap();
     /// ```
-    pub fn with_disconnection_handler<Handler: DisconnectionHandler + crate::platform::MaybeSendSync + 'static>(&mut self, handler: Handler) -> &ConnectionConfiguration {
+    pub fn with_disconnection_handler<
+        Handler: DisconnectionHandler + crate::platform::MaybeSendSync + 'static,
+    >(
+        &mut self,
+        handler: Handler,
+    ) -> &ConnectionConfiguration {
         self._disconnection = Some(Box::new(handler));
 
         self
     }
 
-    pub(crate) fn get_web_url(&self) -> String {
-        format!("{}://{}/{}", self.get_http_schema(), self.get_domain(), self._hub)
-    }
-
-    pub(crate) fn get_socket_url(&self) -> String {
-        format!("{}://{}/{}", self.get_socket_schema(), self.get_domain(), self._hub)
-    }
-
-    pub(crate) fn get_authentication(&self) -> Authentication {
-        self._authentication.clone()
-    }
-
-    fn get_http_schema(&self) -> String {
-        if self._secure {
-            "https".to_string()
-        } else {
-            "http".to_string()
-        }
-    }
-
-    fn get_socket_schema(&self) -> String {
-        if self._secure {
-            "wss".to_string()
-        } else {
-            "ws".to_string()
-        }
-    }
-
-    fn get_domain(&self) -> String {
-        match self._port {
-            Some(port) => format!("{}:{}", self._domain, port),
-            None => self._domain.clone()
-        }
-    }
-
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate)fn get_disconnection_handler(&mut self) -> Option<Box<dyn DisconnectionHandler + Send + Sync>> {
-        let handler =  self._disconnection.take();
-        handler
+    pub(crate) fn get_disconnection_handler(
+        &mut self,
+    ) -> Option<Box<dyn DisconnectionHandler + Send + Sync>> {
+        self._disconnection.take()
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub(crate)fn get_disconnection_handler(&mut self) -> Option<Box<dyn DisconnectionHandler>> {
-        let handler =  self._disconnection.take();
-        handler
+    pub(crate) fn get_disconnection_handler(&mut self) -> Option<Box<dyn DisconnectionHandler>> {
+        self._disconnection.take()
     }
 
     pub(crate) fn get_reconnection_config(&self) -> ReconnectionConfig {
@@ -246,16 +291,28 @@ impl ConnectionConfiguration {
     }
 
     /// Sets the reconnection policy for the connection.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `config` - A `ReconnectionConfig` specifying the policy.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `&ConnectionConfiguration` - Returns a reference to the updated connection configuration.
-    pub fn with_reconnection_policy(&mut self, config: ReconnectionConfig) -> &ConnectionConfiguration {
+    pub fn with_reconnection_policy(
+        &mut self,
+        config: ReconnectionConfig,
+    ) -> &ConnectionConfiguration {
         self._reconnection = config;
+        self
+    }
+
+    /// Enables ASP.NET Core stateful reconnect for this connection.
+    pub fn with_stateful_reconnect(
+        &mut self,
+        config: StatefulReconnectConfig,
+    ) -> &ConnectionConfiguration {
+        self._stateful_reconnect = Some(config);
         self
     }
 
@@ -267,7 +324,35 @@ impl ConnectionConfiguration {
         self
     }
 
-    pub(crate) fn get_protocol_kind(&self) -> HubProtocolKind {
-        self._protocol
+    pub(crate) fn connection_recipe(&self) -> ConnectionRecipe {
+        ConnectionRecipe {
+            secure: self._secure,
+            domain: self._domain.clone(),
+            hub: self._hub.clone(),
+            port: self._port,
+            authentication: self._authentication.clone(),
+            protocol: self._protocol,
+            stateful_reconnect: self._stateful_reconnect,
+        }
+    }
+}
+
+#[cfg(test)]
+mod stateful_configuration_tests {
+    use super::ConnectionConfiguration;
+    use crate::StatefulReconnectConfig;
+
+    #[test]
+    fn stateful_negotiate_query_is_opt_in_only() {
+        let mut configuration = ConnectionConfiguration::new("localhost".into(), "hub".into());
+        assert!(!configuration
+            .connection_recipe()
+            .negotiate_url()
+            .contains("useStatefulReconnect"));
+        configuration.with_stateful_reconnect(StatefulReconnectConfig::default());
+        assert!(configuration
+            .connection_recipe()
+            .negotiate_url()
+            .ends_with("&useStatefulReconnect=true"));
     }
 }

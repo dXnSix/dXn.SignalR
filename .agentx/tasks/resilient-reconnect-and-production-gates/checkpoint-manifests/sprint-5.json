@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 5,
+  "epicId": "resilient-reconnect-and-production-gates",
+  "sprint": 5,
+  "auditSha256": "5e4d213a8a94967e115526346ed5e72594fd939c7eb6a442333e08ce5e5681ab",
+  "evidenceSha256": "fa74028d4d632294cd27c4a331c1c6a508c640d6bea6350763328f2ecc82a41f",
+  "repositories": [
+    {
+      "id": "rayx-signalr",
+      "path": "D:\\Work\\projects\\RayX\\RayX.SignalR",
+      "baselineHead": "2869854cc9b27e2bd5d7ce74f5945c04c8a62b6e",
+      "resultHead": "1617ea4015bae3f8be453d5374a5f35545a88f53",
+      "commits": [
+        "77dd3f6abed8d8dee368c37c21c4b8ffe900e756",
+        "d5847c41e3e58bdabe82eb94a7798a75bb5b0027",
+        "f58221ebcad993ef79bf6b57d8b90f37ea1e6eba",
+        "0c7a9c2970b9fd3910eacda219c818a97b2f6fe3",
+        "1617ea4015bae3f8be453d5374a5f35545a88f53"
+      ],
+      "statusHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sprintOwnedPaths": [
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\.github\\workflows",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\.github\\workflows\\interop.yml",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\.github\\workflows\\quality.yml",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\Cargo.toml",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\README.md",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci\\run-interop.ps1",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci\\verify-workflows.ps1",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\client",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\lib.rs"
+      ],
+      "unrelatedDirtyPaths": [],
+      "rollbackCommand": "git -C \"D:\\Work\\projects\\RayX\\RayX.SignalR\" revert --no-commit 2869854cc9b27e2bd5d7ce74f5945c04c8a62b6e..1617ea4015bae3f8be453d5374a5f35545a88f53"
+    }
+  ],
+  "generatedAt": "2026-08-10T01:36:10Z"
+}

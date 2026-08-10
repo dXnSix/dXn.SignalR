@@ -1,8 +1,9 @@
-mod client;
-mod context;
 mod configuration;
+mod context;
+#[path = "client.rs"]
+mod runtime;
 
-pub use client::{SignalRClient, DisconnectionHandler, ReconnectionHandler};
-pub use context::InvocationContext;
 pub use configuration::ConnectionConfiguration;
-pub(crate) use configuration::Authentication;
+pub(crate) use configuration::{Authentication, ConnectionRecipe};
+pub use context::InvocationContext;
+pub use runtime::{DisconnectionHandler, ReconnectionHandler, SignalRClient};

@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 5,
+  "epicId": "resilient-reconnect-and-production-gates",
+  "sprint": 3,
+  "auditSha256": "dedefcaff58f42fb5fd8690c09ff67675425f8755e02d2e1b561e1e4277c1803",
+  "evidenceSha256": "dbd349be544e4720827e8b24e7a93967bcb0ab5edf6bc5618a7ef5c7bee70311",
+  "repositories": [
+    {
+      "id": "rayx-signalr",
+      "path": "D:\\Work\\projects\\RayX\\RayX.SignalR",
+      "baselineHead": "fb14b0599b2522abc326bbff44e79985dafe1c63",
+      "resultHead": "b4ecadb0fcb35fbc72d9f86cbafec187c24dca1c",
+      "commits": [
+        "b4ecadb0fcb35fbc72d9f86cbafec187c24dca1c"
+      ],
+      "statusHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sprintOwnedPaths": [
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\communication\\client_tokio.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\tests\\tests_msgpack.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\tests\\tests_tokio.rs"
+      ],
+      "unrelatedDirtyPaths": [],
+      "rollbackCommand": "git -C \"D:\\Work\\projects\\RayX\\RayX.SignalR\" revert --no-commit fb14b0599b2522abc326bbff44e79985dafe1c63..b4ecadb0fcb35fbc72d9f86cbafec187c24dca1c"
+    }
+  ],
+  "generatedAt": "2026-08-09T23:45:57Z"
+}

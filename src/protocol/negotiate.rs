@@ -11,7 +11,9 @@ pub enum MessageType {
     CancelInvocation = 5,
     Ping = 6,
     Close = 7,
-    Other = 8,
+    Ack = 8,
+    Sequence = 9,
+    Other = 255,
 }
 
 /// Version 0: only `connection_id`, used directly as `?id=` on the transport URL.
@@ -21,6 +23,8 @@ pub struct NegotiateResponseV0 {
     pub connection_id: String,
     pub negotiate_version: u8,
     pub available_transports: Vec<TransportSpec>,
+    #[serde(default)]
+    pub use_stateful_reconnect: bool,
 }
 
 /// Version 1: adds `connection_token` which must be used as `?id=` instead of `connection_id`.
@@ -31,6 +35,8 @@ pub struct NegotiateResponseV1 {
     pub connection_token: String,
     pub negotiate_version: u8,
     pub available_transports: Vec<TransportSpec>,
+    #[serde(default)]
+    pub use_stateful_reconnect: bool,
 }
 
 /// Parsed negotiate response — version is determined from `negotiateVersion` in the JSON.
@@ -83,6 +89,13 @@ impl NegotiateResponse {
             NegotiateResponse::V1(v) => &v.available_transports,
         }
     }
+
+    pub fn use_stateful_reconnect(&self) -> bool {
+        match self {
+            NegotiateResponse::V0(v) => v.use_stateful_reconnect,
+            NegotiateResponse::V1(v) => v.use_stateful_reconnect,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -109,6 +122,7 @@ impl HandshakeRequest {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 /// Sent by the server as an acknowledgment of the previous `HandshakeRequest` message. Contains an error if the handshake failed.
@@ -142,13 +156,25 @@ impl Default for Ping {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-/// Sent by the server when a connection is closed. Contains an error if the connection was closed because of an error.
-pub struct Close {
-    r#type: MessageType,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    error: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    allow_reconnect: Option<bool>,
+#[cfg(test)]
+mod stateful_negotiate_tests {
+    use super::NegotiateResponse;
+
+    const TRANSPORTS: &str = r#"[{"transport":"WebSockets","transferFormats":["Text","Binary"]}]"#;
+
+    #[test]
+    fn stateful_capability_defaults_off_and_reads_explicit_true() {
+        let disabled = format!(
+            r#"{{"connectionId":"id","connectionToken":"token","negotiateVersion":1,"availableTransports":{TRANSPORTS}}}"#
+        );
+        let enabled = format!(
+            r#"{{"connectionId":"id","connectionToken":"token","negotiateVersion":1,"useStatefulReconnect":true,"availableTransports":{TRANSPORTS}}}"#
+        );
+        assert!(!NegotiateResponse::from_json(&disabled)
+            .unwrap()
+            .use_stateful_reconnect());
+        assert!(NegotiateResponse::from_json(&enabled)
+            .unwrap()
+            .use_stateful_reconnect());
+    }
 }

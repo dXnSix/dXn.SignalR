@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 5,
+  "epicId": "resilient-reconnect-and-production-gates",
+  "sprint": 2,
+  "auditSha256": "7dfdf141f82618fb0f75825eb1cdaaa037c86ca4c0823ae8c70f097b68166582",
+  "evidenceSha256": "8c159c6676f6f7ddd9f2c1f776777a9923fb55e3171bbfe8e83622a315a96307",
+  "repositories": [
+    {
+      "id": "rayx-signalr",
+      "path": "D:\\Work\\projects\\RayX\\RayX.SignalR",
+      "baselineHead": "e66e53701b73575e4d64aee89810916235c074c4",
+      "resultHead": "af44928d0ffeda151663e27ddec90616cf3a275f",
+      "commits": [
+        "af44928d0ffeda151663e27ddec90616cf3a275f"
+      ],
+      "statusHash": "0d67db80330e089978af3649a0f755d5ce246b1b9e1ce3adaacf73604d971695",
+      "sprintOwnedPaths": [
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\dotnet\\SignalRTestService",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\scripts\\ci\\run-interop.ps1",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\client\\configuration.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\communication\\stateful.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\protocol\\msgpack.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\protocol\\stateful.rs"
+      ],
+      "unrelatedDirtyPaths": [
+        "?? .agentx/tasks/resilient-reconnect-and-production-gates/sprint-audits/sprint-2.json"
+      ],
+      "rollbackCommand": "git -C \"D:\\Work\\projects\\RayX\\RayX.SignalR\" revert --no-commit e66e53701b73575e4d64aee89810916235c074c4..af44928d0ffeda151663e27ddec90616cf3a275f"
+    }
+  ],
+  "generatedAt": "2026-08-09T23:12:50Z"
+}

@@ -1,4 +1,9 @@
-use std::{collections::VecDeque, pin::Pin, sync::{Arc, Mutex}, task::{Context, Poll, Waker}};
+use std::{
+    collections::VecDeque,
+    pin::Pin,
+    sync::{Arc, Mutex},
+    task::{Context, Poll, Waker},
+};
 
 use futures::Stream;
 
@@ -9,7 +14,10 @@ struct ManualStreamState<T> {
 
 impl<T> Clone for ManualStreamState<T> {
     fn clone(&self) -> Self {
-        Self { queue: self.queue.clone(), waker: self.waker.clone() }
+        Self {
+            queue: self.queue.clone(),
+            waker: self.waker.clone(),
+        }
     }
 }
 
@@ -39,7 +47,6 @@ impl<T> ManualStreamState<T> {
     }
 }
 
-
 pub struct ManualStream<T> {
     state: ManualStreamState<T>,
 }
@@ -48,11 +55,12 @@ impl<T> ManualStream<T> {
     pub fn create() -> (Self, ManualStreamCompleter<T>) {
         let state = ManualStreamState::new();
 
-        (ManualStream {
-            state: state.clone()
-        }, ManualStreamCompleter {
-            state: state
-        })
+        (
+            ManualStream {
+                state: state.clone(),
+            },
+            ManualStreamCompleter { state },
+        )
     }
 }
 
@@ -79,14 +87,14 @@ impl<T> Stream for ManualStream<T> {
         if let Some(item) = queue.pop_front() {
             // debug!("Item popped...");
             match item {
-                Some(value) => { 
+                Some(value) => {
                     // debug!("Poll Ready with value");
                     Poll::Ready(Some(value))
-                },
+                }
                 None => {
                     // debug!("Poll Ready without value");
                     Poll::Ready(None)
-                },
+                }
             }
         } else {
             // debug!("Waker is peding..");

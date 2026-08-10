@@ -1,0 +1,118 @@
+name: Interoperability
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: interop-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+  CI: true
+
+jobs:
+  native:
+    name: interop / native (${{ matrix.os }}, ${{ matrix.protocol }}, ${{ matrix.scenario }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        protocol: [json, messagepack]
+        scenario: [ordinary-reconnect, stateful-reconnect]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust
+        run: rustup toolchain install 1.92.0 --profile minimal
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: interop-native-${{ matrix.os }}-${{ hashFiles('Cargo.toml', 'dotnet/**/*.csproj') }}
+      - name: Run native reconnect cell
+        shell: pwsh
+        run: >-
+          ./scripts/ci/run-interop.ps1
+          -Target native
+          -Protocol ${{ matrix.protocol }}
+          -Scenario ${{ matrix.scenario }}
+          -ScenarioTimeoutSeconds 60
+      - name: Upload redacted native diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: interop-native-${{ matrix.os }}-${{ matrix.protocol }}-${{ matrix.scenario }}
+          path: artifacts-temp/interop
+          if-no-files-found: ignore
+          retention-days: 7
+
+  chromium-wasm:
+    name: interop / Chromium WASM (${{ matrix.protocol }}, ${{ matrix.scenario }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        protocol: [json, messagepack]
+        scenario: [ordinary-reconnect, stateful-reconnect]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install pinned WASM toolchain
+        run: rustup toolchain install 1.92.0 --profile minimal --target wasm32-unknown-unknown
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: interop-wasm-${{ hashFiles('Cargo.toml', 'tests/wasm-fixture/Cargo.toml') }}
+      - name: Install repository-local Playwright
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.28.2 --activate
+          pnpm --dir tools-node install --frozen-lockfile
+          pnpm --dir tools-node exec playwright install --with-deps chromium
+      - name: Run real-Chromium reconnect cell
+        shell: pwsh
+        run: >-
+          ./scripts/ci/run-interop.ps1
+          -Target wasm
+          -Protocol ${{ matrix.protocol }}
+          -Scenario ${{ matrix.scenario }}
+          -ScenarioTimeoutSeconds 60
+      - name: Upload redacted Chromium diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: interop-chromium-${{ matrix.protocol }}-${{ matrix.scenario }}
+          path: |
+            artifacts-temp/interop
+            tools-node/playwright-report
+            tools-node/test-results
+          if-no-files-found: ignore
+          retention-days: 7

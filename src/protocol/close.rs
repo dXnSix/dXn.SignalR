@@ -1,7 +1,6 @@
-use std::fmt::Debug;
-use serde::{Deserialize, Serialize};
 use super::negotiate::MessageType;
-
+use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

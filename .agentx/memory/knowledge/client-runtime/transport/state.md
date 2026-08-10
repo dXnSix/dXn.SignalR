@@ -4,7 +4,7 @@ agentx:
   scope: client-runtime/transport
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-08-09T21:45:00+02:00"
+  updated: "2026-08-10T03:15:00+02:00"
   topics:
     - http
     - websocket
@@ -22,7 +22,7 @@ Read this file before work in this domain or subdomain and update it when the cu
 
 ## Current Technical Shape
 
-Shared `HttpClient` posts to SignalR negotiate version 1, selects WebSockets with the protocol-required transfer format, and constructs connection data. Native transport uses `tokio-websockets` with native TLS support; browser transport uses `wasm-sockets::PollingClient` on a 100 ms JavaScript interval.
+Shared `HttpClient` posts to SignalR negotiate version 1, selects WebSockets with the protocol-required transfer format, and constructs connection data. Stateful opt-in adds `useStatefulReconnect=true` to negotiation and retains the negotiated connection token across physical transport replacement. Native transport uses `tokio-websockets` with native TLS support; browser transport uses `wasm-sockets::PollingClient` on a 100 ms JavaScript interval.
 
 ## Backlinks
 

@@ -38,6 +38,8 @@ app.UseCors();
 app.UseWebSockets(webSocketOptions);
 
 app.MapGet("/", () => "Hello World!");
+app.MapGet("/health", () => Results.Ok(new { status = "ready" }));
 app.MapHub<TestHub>("/test");
+app.MapHub<TestHub>("/test-stateful", options => options.AllowStatefulReconnects = true);
 
 app.Run();

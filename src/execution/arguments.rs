@@ -10,8 +10,8 @@ pub struct ArgumentConfiguration {
 
 impl ArgumentConfiguration {
     pub(crate) fn new(invocation: Invocation) -> Self {
-        Self {  
-            invocation: Some(invocation)
+        Self {
+            invocation: Some(invocation),
         }
     }
 
@@ -49,7 +49,7 @@ impl ArgumentConfiguration {
     ///         error!("Failed to invoke method: {}", e);
     ///     }
     /// }
-    /// ```    
+    /// ```
     pub fn argument<T: Serialize>(&mut self, value: T) -> &mut ArgumentConfiguration {
         if self.invocation.is_some() {
             let succ = self.invocation.as_mut().unwrap().with_argument(value);
@@ -64,9 +64,9 @@ impl ArgumentConfiguration {
 
     pub(crate) fn build_invocation(mut self) -> Invocation {
         if self.invocation.is_some() {
-            return self.invocation.take().unwrap();
+            self.invocation.take().unwrap()
         } else {
             panic!("Invocation cannot be built before it is provided");
-        }     
-    } 
+        }
+    }
 }

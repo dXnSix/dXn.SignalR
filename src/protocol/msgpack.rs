@@ -82,6 +82,8 @@ pub fn read_message_type(data: &[u8]) -> Result<MessageType, String> {
         5 => Ok(MessageType::CancelInvocation),
         6 => Ok(MessageType::Ping),
         7 => Ok(MessageType::Close),
+        8 => Ok(MessageType::Ack),
+        9 => Ok(MessageType::Sequence),
         _ => Ok(MessageType::Other),
     }
 }
@@ -89,7 +91,10 @@ pub fn read_message_type(data: &[u8]) -> Result<MessageType, String> {
 // ── Outbound Encoding (Manual Array Writing) ────────────────────────────
 
 /// Encode headers as a MessagePack map. Empty headers = fixmap 0 (0x80).
-fn encode_headers(buf: &mut Vec<u8>, headers: &Option<HashMap<String, String>>) -> Result<(), String> {
+fn encode_headers(
+    buf: &mut Vec<u8>,
+    headers: &Option<HashMap<String, String>>,
+) -> Result<(), String> {
     match headers {
         Some(h) if !h.is_empty() => {
             rmp::encode::write_map_len(buf, h.len() as u32).map_err(|e| e.to_string())?;
@@ -145,6 +150,28 @@ pub fn encode_invocation(
     Ok(buf)
 }
 
+/// Encode and frame a non-void Completion (type 3).
+/// Layout: [3, Headers, InvocationId, ResultKind=3, Result]
+pub fn encode_completion<T: serde::Serialize>(
+    invocation_id: &str,
+    result: &T,
+) -> Result<Vec<u8>, String> {
+    let encoded = rmp_serde::to_vec_named(result)
+        .map_err(|error| format!("MessagePack completion serialization failed: {error}"))?;
+    let value = rmpv::decode::read_value(&mut Cursor::new(encoded))
+        .map_err(|error| format!("MessagePack completion value failed: {error}"))?;
+
+    let mut payload = Vec::new();
+    rmp::encode::write_array_len(&mut payload, 5).map_err(|error| error.to_string())?;
+    rmp::encode::write_uint(&mut payload, MessageType::Completion as u8 as u64)
+        .map_err(|error| error.to_string())?;
+    encode_headers(&mut payload, &None)?;
+    rmp::encode::write_str(&mut payload, invocation_id).map_err(|error| error.to_string())?;
+    rmp::encode::write_uint(&mut payload, 3).map_err(|error| error.to_string())?;
+    rmpv::encode::write_value(&mut payload, &value).map_err(|error| error.to_string())?;
+    Ok(frame_message(&payload))
+}
+
 /// Encode Ping (type 6). Layout: [6]
 #[allow(dead_code)]
 pub fn encode_ping() -> Vec<u8> {
@@ -190,7 +217,11 @@ pub fn parse_invocation(items: &[rmpv::Value]) -> Result<MsgpackInvocation, Stri
         _ => return Err("Invalid arguments".to_string()),
     };
 
-    Ok(MsgpackInvocation { invocation_id, target, arguments })
+    Ok(MsgpackInvocation {
+        invocation_id,
+        target,
+        arguments,
+    })
 }
 
 /// Parsed Completion from MessagePack.
@@ -207,11 +238,22 @@ pub fn parse_completion(items: &[rmpv::Value]) -> Result<MsgpackCompletion, Stri
     if items.len() < 4 {
         return Err("Completion array too short".to_string());
     }
-    let invocation_id = items[2].as_str().ok_or("Invalid invocation_id")?.to_string();
+    let invocation_id = items[2]
+        .as_str()
+        .ok_or("Invalid invocation_id")?
+        .to_string();
     let result_kind = items[3].as_u64().ok_or("Invalid ResultKind")? as u8;
-    let payload = if items.len() > 4 { Some(items[4].clone()) } else { None };
+    let payload = if items.len() > 4 {
+        Some(items[4].clone())
+    } else {
+        None
+    };
 
-    Ok(MsgpackCompletion { invocation_id, result_kind, payload })
+    Ok(MsgpackCompletion {
+        invocation_id,
+        result_kind,
+        payload,
+    })
 }
 
 /// Parsed StreamItem from MessagePack.
@@ -226,10 +268,16 @@ pub fn parse_stream_item(items: &[rmpv::Value]) -> Result<MsgpackStreamItem, Str
     if items.len() < 4 {
         return Err("StreamItem array too short".to_string());
     }
-    let invocation_id = items[2].as_str().ok_or("Invalid invocation_id")?.to_string();
+    let invocation_id = items[2]
+        .as_str()
+        .ok_or("Invalid invocation_id")?
+        .to_string();
     let item = items[3].clone();
 
-    Ok(MsgpackStreamItem { invocation_id, item })
+    Ok(MsgpackStreamItem {
+        invocation_id,
+        item,
+    })
 }
 
 // ── Value Conversion ────────────────────────────────────────────────────
@@ -254,13 +302,16 @@ pub fn json_value_to_msgpack(value: &serde_json::Value) -> rmpv::Value {
         serde_json::Value::Array(arr) => {
             rmpv::Value::Array(arr.iter().map(json_value_to_msgpack).collect())
         }
-        serde_json::Value::Object(obj) => {
-            rmpv::Value::Map(
-                obj.iter()
-                    .map(|(k, v)| (rmpv::Value::String(rmpv::Utf8String::from(k.as_str())), json_value_to_msgpack(v)))
-                    .collect()
-            )
-        }
+        serde_json::Value::Object(obj) => rmpv::Value::Map(
+            obj.iter()
+                .map(|(k, v)| {
+                    (
+                        rmpv::Value::String(rmpv::Utf8String::from(k.as_str())),
+                        json_value_to_msgpack(v),
+                    )
+                })
+                .collect(),
+        ),
     }
 }
 
@@ -278,19 +329,13 @@ pub fn msgpack_value_to_json(value: &rmpv::Value) -> serde_json::Value {
                 serde_json::Value::Null
             }
         }
-        rmpv::Value::F32(f) => {
-            serde_json::Number::from_f64(*f as f64)
-                .map(serde_json::Value::Number)
-                .unwrap_or(serde_json::Value::Null)
-        }
-        rmpv::Value::F64(f) => {
-            serde_json::Number::from_f64(*f)
-                .map(serde_json::Value::Number)
-                .unwrap_or(serde_json::Value::Null)
-        }
-        rmpv::Value::String(s) => {
-            serde_json::Value::String(s.as_str().unwrap_or("").to_string())
-        }
+        rmpv::Value::F32(f) => serde_json::Number::from_f64(*f as f64)
+            .map(serde_json::Value::Number)
+            .unwrap_or(serde_json::Value::Null),
+        rmpv::Value::F64(f) => serde_json::Number::from_f64(*f)
+            .map(serde_json::Value::Number)
+            .unwrap_or(serde_json::Value::Null),
+        rmpv::Value::String(s) => serde_json::Value::String(s.as_str().unwrap_or("").to_string()),
         rmpv::Value::Binary(b) => {
             serde_json::Value::String(base64::engine::general_purpose::STANDARD.encode(b))
         }
@@ -298,9 +343,11 @@ pub fn msgpack_value_to_json(value: &rmpv::Value) -> serde_json::Value {
             serde_json::Value::Array(arr.iter().map(msgpack_value_to_json).collect())
         }
         rmpv::Value::Map(entries) => {
-            let obj: serde_json::Map<String, serde_json::Value> = entries.iter()
+            let obj: serde_json::Map<String, serde_json::Value> = entries
+                .iter()
                 .filter_map(|(k, v)| {
-                    k.as_str().map(|key| (key.to_string(), msgpack_value_to_json(v)))
+                    k.as_str()
+                        .map(|key| (key.to_string(), msgpack_value_to_json(v)))
                 })
                 .collect();
             serde_json::Value::Object(obj)
@@ -322,26 +369,23 @@ fn to_camel_case(s: &str) -> String {
 
 fn transform_keys(value: &rmpv::Value, transform: fn(&str) -> String) -> rmpv::Value {
     match value {
-        rmpv::Value::Map(entries) => {
-            rmpv::Value::Map(
-                entries.iter()
-                    .map(|(k, v)| {
-                        let new_key = match k {
-                            rmpv::Value::String(s) => {
-                                rmpv::Value::String(rmpv::Utf8String::from(
-                                    transform(s.as_str().unwrap_or(""))
-                                ))
-                            },
-                            _ => k.clone(),
-                        };
-                        (new_key, transform_keys(v, transform))
-                    })
-                    .collect()
-            )
-        },
+        rmpv::Value::Map(entries) => rmpv::Value::Map(
+            entries
+                .iter()
+                .map(|(k, v)| {
+                    let new_key = match k {
+                        rmpv::Value::String(s) => rmpv::Value::String(rmpv::Utf8String::from(
+                            transform(s.as_str().unwrap_or("")),
+                        )),
+                        _ => k.clone(),
+                    };
+                    (new_key, transform_keys(v, transform))
+                })
+                .collect(),
+        ),
         rmpv::Value::Array(arr) => {
             rmpv::Value::Array(arr.iter().map(|v| transform_keys(v, transform)).collect())
-        },
+        }
         other => other.clone(),
     }
 }
@@ -419,6 +463,26 @@ mod tests {
     }
 
     #[test]
+    fn production_stateful_protocol_repairs_encode_callback_completion() {
+        let framed = encode_completion("callback-7", &serde_json::json!({"wireName": 42}))
+            .expect("completion should encode");
+        let payloads = split_framed_messages(&framed).expect("completion should be framed");
+        assert_eq!(payloads.len(), 1);
+
+        let items = parse_msgpack_message(&payloads[0]).expect("completion should parse");
+        let completion = parse_completion(&items).expect("completion fields should parse");
+        assert_eq!(completion.invocation_id, "callback-7");
+        assert_eq!(completion.result_kind, 3);
+        assert_eq!(
+            completion.payload,
+            Some(rmpv::Value::Map(vec![(
+                rmpv::Value::from("wireName"),
+                rmpv::Value::from(42),
+            )]))
+        );
+    }
+
+    #[test]
     fn test_read_message_type() {
         // Invocation: fixarray(5) + fixint(1) + ...
         let mut buf = Vec::new();
@@ -457,7 +521,8 @@ mod tests {
             "TestMethod",
             &args,
             &None,
-        ).unwrap();
+        )
+        .unwrap();
 
         let items = parse_msgpack_message(&encoded).unwrap();
         assert_eq!(items[0].as_u64().unwrap(), 1);
@@ -480,12 +545,24 @@ mod tests {
 
         // Build a MessagePack map value
         let val = rmpv::Value::Map(vec![
-            (rmpv::Value::String("name".into()), rmpv::Value::String("test".into())),
-            (rmpv::Value::String("value".into()), rmpv::Value::Integer(42.into())),
+            (
+                rmpv::Value::String("name".into()),
+                rmpv::Value::String("test".into()),
+            ),
+            (
+                rmpv::Value::String("value".into()),
+                rmpv::Value::Integer(42.into()),
+            ),
         ]);
 
         let result: TestStruct = value_to_type(&val).unwrap();
-        assert_eq!(result, TestStruct { name: "test".to_string(), value: 42 });
+        assert_eq!(
+            result,
+            TestStruct {
+                name: "test".to_string(),
+                value: 42
+            }
+        );
     }
 
     #[test]
@@ -497,8 +574,14 @@ mod tests {
             text: String,
         }
 
-        let entity1 = TestEntity { text: "entity1".to_string(), number: 200 };
-        let entity2 = TestEntity { text: "entity2".to_string(), number: 300 };
+        let entity1 = TestEntity {
+            text: "entity1".to_string(),
+            number: 200,
+        };
+        let entity2 = TestEntity {
+            text: "entity2".to_string(),
+            number: 300,
+        };
 
         // Step 1: Serialize to JSON (as ArgumentConfiguration does)
         let json1 = serde_json::to_value(&entity1).unwrap();
@@ -510,11 +593,17 @@ mod tests {
 
         // Step 3: Preserve serializer-owned keys exactly.
         if let rmpv::Value::Map(entries) = &raw1 {
-            let keys: Vec<&str> = entries.iter()
-                .filter_map(|(k, _)| k.as_str())
-                .collect();
-            assert!(keys.contains(&"number"), "Expected 'number' key, got: {:?}", keys);
-            assert!(keys.contains(&"text"), "Expected 'text' key, got: {:?}", keys);
+            let keys: Vec<&str> = entries.iter().filter_map(|(k, _)| k.as_str()).collect();
+            assert!(
+                keys.contains(&"number"),
+                "Expected 'number' key, got: {:?}",
+                keys
+            );
+            assert!(
+                keys.contains(&"text"),
+                "Expected 'text' key, got: {:?}",
+                keys
+            );
 
             for (k, v) in entries {
                 if k.as_str() == Some("number") {
@@ -537,7 +626,8 @@ mod tests {
             "PushTwoEntities",
             &args,
             &None,
-        ).unwrap();
+        )
+        .unwrap();
 
         // Step 5: Parse back and verify
         let items = parse_msgpack_message(&payload).unwrap();
@@ -552,7 +642,11 @@ mod tests {
         if let rmpv::Value::Map(entries) = arg1 {
             for (k, v) in entries {
                 if k.as_str() == Some("number") {
-                    assert_eq!(v.as_i64(), Some(200), "Arg1 Number mismatch after round-trip");
+                    assert_eq!(
+                        v.as_i64(),
+                        Some(200),
+                        "Arg1 Number mismatch after round-trip"
+                    );
                 }
             }
         } else {
@@ -562,7 +656,11 @@ mod tests {
         if let rmpv::Value::Map(entries) = arg2 {
             for (k, v) in entries {
                 if k.as_str() == Some("number") {
-                    assert_eq!(v.as_i64(), Some(300), "Arg2 Number mismatch after round-trip");
+                    assert_eq!(
+                        v.as_i64(),
+                        Some(300),
+                        "Arg2 Number mismatch after round-trip"
+                    );
                 }
             }
         } else {
@@ -580,7 +678,10 @@ mod tests {
         rmpv::encode::write_value(&mut direct_bytes, &direct_val1).unwrap();
 
         // They should produce the same result
-        assert_eq!(our_bytes, direct_bytes, "Encoding mismatch between JSON path and direct rmp_serde path");
+        assert_eq!(
+            our_bytes, direct_bytes,
+            "Encoding mismatch between JSON path and direct rmp_serde path"
+        );
     }
 
     #[test]
@@ -599,7 +700,9 @@ mod tests {
         })
         .unwrap();
         let value = rmpv::decode::read_value(&mut Cursor::new(&bytes)).unwrap();
-        let entries = value.as_map().expect("named MessagePack struct should be a map");
+        let entries = value
+            .as_map()
+            .expect("named MessagePack struct should be a map");
         let keys: Vec<&str> = entries.iter().filter_map(|(key, _)| key.as_str()).collect();
 
         assert_eq!(keys, vec!["sid", "seq"]);
@@ -614,20 +717,34 @@ mod tests {
             text: String,
         }
 
-        let entity = TestEntity { text: "entity1".to_string(), number: 200 };
+        let entity = TestEntity {
+            text: "entity1".to_string(),
+            number: 200,
+        };
 
         // Array format (what .NET StandardResolver expects)
         let array_bytes = rmp_serde::to_vec(&entity).unwrap();
         let array_val = rmpv::decode::read_value(&mut Cursor::new(&array_bytes)).unwrap();
 
         // Should be an array [200, "entity1"] (field declaration order)
-        assert!(matches!(array_val, rmpv::Value::Array(_)),
-            "Expected Array format, got: {:?}", array_val);
+        assert!(
+            matches!(array_val, rmpv::Value::Array(_)),
+            "Expected Array format, got: {:?}",
+            array_val
+        );
 
         if let rmpv::Value::Array(items) = &array_val {
             assert_eq!(items.len(), 2);
-            assert_eq!(items[0].as_i64(), Some(200), "First element should be number");
-            assert_eq!(items[1].as_str(), Some("entity1"), "Second element should be text");
+            assert_eq!(
+                items[0].as_i64(),
+                Some(200),
+                "First element should be number"
+            );
+            assert_eq!(
+                items[1].as_str(),
+                Some("entity1"),
+                "Second element should be text"
+            );
         }
 
         // Map format (what ContractlessStandardResolver expects)
@@ -635,8 +752,11 @@ mod tests {
         let map_val = rmpv::decode::read_value(&mut Cursor::new(&map_bytes)).unwrap();
 
         // Should be a map {"number": 200, "text": "entity1"}
-        assert!(matches!(map_val, rmpv::Value::Map(_)),
-            "Expected Map format, got: {:?}", map_val);
+        assert!(
+            matches!(map_val, rmpv::Value::Map(_)),
+            "Expected Map format, got: {:?}",
+            map_val
+        );
 
         // Both formats should deserialize back correctly
         let from_array: TestEntity = rmp_serde::from_slice(&array_bytes).unwrap();
@@ -660,14 +780,32 @@ mod tests {
             rmpv::Value::String("hello".into()),
         ]);
         let from_array: TestEntity = value_to_type(&array_val).unwrap();
-        assert_eq!(from_array, TestEntity { number: 42, text: "hello".to_string() });
+        assert_eq!(
+            from_array,
+            TestEntity {
+                number: 42,
+                text: "hello".to_string()
+            }
+        );
 
         // Map format with PascalCase keys (from .NET ContractlessStandardResolver)
         let map_val = rmpv::Value::Map(vec![
-            (rmpv::Value::String("Number".into()), rmpv::Value::Integer(42.into())),
-            (rmpv::Value::String("Text".into()), rmpv::Value::String("hello".into())),
+            (
+                rmpv::Value::String("Number".into()),
+                rmpv::Value::Integer(42.into()),
+            ),
+            (
+                rmpv::Value::String("Text".into()),
+                rmpv::Value::String("hello".into()),
+            ),
         ]);
         let from_map: TestEntity = value_to_type(&map_val).unwrap();
-        assert_eq!(from_map, TestEntity { number: 42, text: "hello".to_string() });
+        assert_eq!(
+            from_map,
+            TestEntity {
+                number: 42,
+                text: "hello".to_string()
+            }
+        );
     }
 }

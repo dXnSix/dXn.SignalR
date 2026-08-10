@@ -1,6 +1,6 @@
-use std::{collections::HashMap, fmt::Debug};
-use serde::{Deserialize, Serialize};
 use super::negotiate::MessageType;
+use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, fmt::Debug};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]

@@ -1,392 +1,903 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+    time::Duration,
+};
 
 use log::{debug, error, info, warn};
-use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
+use wasm_bindgen_futures::spawn_local;
 use wasm_sockets::{ConnectionStatus, PollingClient};
 
-use crate::{completer::CompletedFuture,
-    execution::
-        {ManualFutureState, Storage, UpdatableActionStorage}, protocol::{hub_protocol::{HubProtocolKind, MessagePayload}, messages::{MessageParser, RECORD_SEPARATOR}, negotiate::{HandshakeRequest, HandshakeResponse, Ping}}};
+use crate::{
+    client::ConnectionRecipe,
+    execution::{Storage, UpdatableActionStorage},
+    protocol::{
+        hub_protocol::{HubProtocolKind, MessagePayload},
+        messages::{MessageParser, RECORD_SEPARATOR},
+        negotiate::{HandshakeRequest, HandshakeResponse, MessageType, Ping},
+        stateful::{Ack, Sequence},
+    },
+};
 
-use super::common::Communication;
+use super::{
+    common::Communication,
+    reconnection::ReconnectionConfig,
+    stateful::{SerializedFrame, StatefulMessageBuffer, TrackResult},
+    HttpClient,
+};
+
+type SharedStatefulBuffer = Rc<RefCell<StatefulMessageBuffer>>;
 
 #[wasm_bindgen]
 extern "C" {
-    fn setInterval(closure: &wasm_bindgen::prelude::Closure<dyn Fn()>, time: u32) -> f64;
-    fn clearInterval(token: f64);
+    #[wasm_bindgen(js_namespace = globalThis, js_name = setInterval)]
+    fn set_interval(closure: &wasm_bindgen::prelude::Closure<dyn Fn()>, time: u32) -> f64;
+    #[wasm_bindgen(js_namespace = globalThis, js_name = clearInterval)]
+    fn clear_interval(token: f64);
+    #[wasm_bindgen(js_namespace = Date, js_name = now)]
+    fn date_now() -> f64;
+    #[wasm_bindgen(js_namespace = globalThis, js_name = setTimeout)]
+    fn set_timeout(closure: &wasm_bindgen::prelude::Closure<dyn FnMut()>, time: u32) -> f64;
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LifecycleState {
+    Connected,
+    Reconnecting,
+    Disconnected,
+    LocalClosed,
+}
+
+type DisconnectionCallback = dyn Fn(WasmReconnectionContext);
+
 #[derive(Clone)]
-pub enum ConnectionState {
-    Connect(ManualFutureState),
-    Handshake(ManualFutureState),
-    Process(UpdatableActionStorage),
+pub struct WasmReconnectionContext {
+    client: Rc<RefCell<Option<Rc<RefCell<PollingClient>>>>>,
+    storage: UpdatableActionStorage,
+    recipe: ConnectionRecipe,
+    transport_endpoint: String,
+    protocol_kind: HubProtocolKind,
+    stateful: Option<SharedStatefulBuffer>,
+    reconnection_config: Rc<RefCell<ReconnectionConfig>>,
+    lifecycle: Rc<Cell<LifecycleState>>,
+    attempt_in_progress: Rc<Cell<bool>>,
+    generation: Rc<Cell<u64>>,
+}
+
+impl WasmReconnectionContext {
+    pub async fn reconnect(&self) -> Result<(), String> {
+        if self.attempt_in_progress.replace(true) {
+            return Err("A reconnect attempt is already running".to_string());
+        }
+
+        self.lifecycle.set(LifecycleState::Reconnecting);
+        if self.stateful.is_none() {
+            let mut storage = self.storage.clone();
+            storage.fail_pending("The connection was replaced by a fresh logical reconnect");
+        }
+        let result = self.connect_current().await;
+        self.finish_attempt(&result);
+        result
+    }
+
+    pub async fn reconnect_with_policy(&self) -> Result<(), String> {
+        if self.attempt_in_progress.replace(true) {
+            return Err("A reconnect attempt is already running".to_string());
+        }
+
+        self.lifecycle.set(LifecycleState::Reconnecting);
+        if self.stateful.is_none() {
+            let mut storage = self.storage.clone();
+            storage.fail_pending("The connection was replaced by a fresh logical reconnect");
+        }
+
+        let started = date_now();
+        let mut retry_count = 0;
+        let result = loop {
+            if self.lifecycle.get() == LifecycleState::LocalClosed {
+                break Err("Client was locally disconnected".to_string());
+            }
+
+            let delay = self
+                .reconnection_config
+                .borrow()
+                .policy
+                .next_retry_delay(retry_count, (date_now() - started).max(0.0) as u64);
+            let Some(delay) = delay else {
+                break Err("Reconnection attempts exhausted".to_string());
+            };
+
+            CommunicationClient::sleep(delay).await?;
+            if self.lifecycle.get() == LifecycleState::LocalClosed {
+                break Err("Client was locally disconnected".to_string());
+            }
+
+            match self.connect_current().await {
+                Ok(()) => break Ok(()),
+                Err(error) => {
+                    warn!(
+                        "WASM reconnect attempt {} failed: {}",
+                        retry_count + 1,
+                        error
+                    );
+                    retry_count += 1;
+                }
+            }
+        };
+
+        if let Err(error) = &result {
+            if let Some(buffer) = &self.stateful {
+                buffer.borrow_mut().dispose();
+            }
+            let mut storage = self.storage.clone();
+            storage.fail_pending(error);
+        }
+        self.finish_attempt(&result);
+        result
+    }
+
+    pub async fn is_connected(&self) -> bool {
+        self.lifecycle.get() == LifecycleState::Connected
+    }
+
+    pub fn endpoint(&self) -> String {
+        self.recipe.display_endpoint()
+    }
+
+    async fn connect_current(&self) -> Result<(), String> {
+        let generation = self.generation.get().wrapping_add(1);
+        self.generation.set(generation);
+        let client = if let Some(buffer) = &self.stateful {
+            CommunicationClient::resume_to_server(
+                self.transport_endpoint.clone(),
+                self.protocol_kind,
+                buffer.clone(),
+            )
+            .await?
+        } else {
+            let configuration = HttpClient::negotiate(&self.recipe).await?;
+            CommunicationClient::connect_physical(
+                configuration.get_endpoint(),
+                self.protocol_kind,
+                false,
+            )
+            .await?
+        };
+
+        if self.lifecycle.get() == LifecycleState::LocalClosed {
+            let _ = client.borrow().close();
+            return Err("Client was locally disconnected".to_string());
+        }
+        if self.generation.get() != generation {
+            let _ = client.borrow().close();
+            return Err("Stale reconnect generation was discarded".to_string());
+        }
+
+        self.client.replace(Some(client));
+        self.lifecycle.set(LifecycleState::Connected);
+        info!("WASM fresh logical reconnect completed");
+        Ok(())
+    }
+
+    fn finish_attempt(&self, result: &Result<(), String>) {
+        self.attempt_in_progress.set(false);
+        if result.is_err() && self.lifecycle.get() != LifecycleState::LocalClosed {
+            self.lifecycle.set(LifecycleState::Disconnected);
+        }
+    }
 }
 
 pub struct CommunicationClient {
-    _client: Option<Rc<RefCell<PollingClient>>>,
-    _state: Rc<RefCell<ConnectionState>>,
-    _token: Option<f64>,
-    _protocol_kind: HubProtocolKind,
+    client: Rc<RefCell<Option<Rc<RefCell<PollingClient>>>>>,
+    storage: UpdatableActionStorage,
+    recipe: ConnectionRecipe,
+    transport_endpoint: String,
+    protocol_kind: HubProtocolKind,
+    stateful: Option<SharedStatefulBuffer>,
+    reconnection_config: Rc<RefCell<ReconnectionConfig>>,
+    disconnection_handler: Rc<RefCell<Option<Rc<DisconnectionCallback>>>>,
+    lifecycle: Rc<Cell<LifecycleState>>,
+    attempt_in_progress: Rc<Cell<bool>>,
+    generation: Rc<Cell<u64>>,
+    interval_token: Rc<Cell<Option<f64>>>,
+    poll_closure: Rc<RefCell<Option<wasm_bindgen::prelude::Closure<dyn Fn()>>>>,
+    owners: Rc<Cell<usize>>,
 }
 
 impl Clone for CommunicationClient {
     fn clone(&self) -> Self {
-        if self._client.is_some() {
-            let count = Rc::strong_count(self._client.as_ref().unwrap());
-
-            info!("Cloning communication client {} times", count + 1);
-        } else {
-            info!("Cloning empty communication client");
+        self.owners.set(self.owners.get() + 1);
+        Self {
+            client: self.client.clone(),
+            storage: self.storage.clone(),
+            recipe: self.recipe.clone(),
+            transport_endpoint: self.transport_endpoint.clone(),
+            protocol_kind: self.protocol_kind,
+            stateful: self.stateful.clone(),
+            reconnection_config: self.reconnection_config.clone(),
+            disconnection_handler: self.disconnection_handler.clone(),
+            lifecycle: self.lifecycle.clone(),
+            attempt_in_progress: self.attempt_in_progress.clone(),
+            generation: self.generation.clone(),
+            interval_token: self.interval_token.clone(),
+            poll_closure: self.poll_closure.clone(),
+            owners: self.owners.clone(),
         }
-        Self { _client: self._client.clone(), _state: self._state.clone(), _token: self._token.clone(), _protocol_kind: self._protocol_kind }
     }
 }
 
 impl Drop for CommunicationClient {
     fn drop(&mut self) {
-        self.disconnect_internal();
+        let remaining = self.owners.get().saturating_sub(1);
+        self.owners.set(remaining);
+        if remaining == 0 {
+            self.disconnect_internal();
+        }
     }
 }
 
 impl Communication for CommunicationClient {
     async fn connect(configuration: &super::ConnectionData) -> Result<Self, String> {
-        let mut ret = CommunicationClient::create(configuration);
-
-        let res = ret.connect_internal().await;
-
-        if res.is_ok() {
-            return Ok(ret);
-        } else {
-            return Err(res.err().unwrap());
-        }
+        let client = Self::connect_physical(
+            configuration.get_endpoint(),
+            configuration.get_protocol_kind(),
+            configuration.stateful_reconnect().is_some(),
+        )
+        .await?;
+        let mut result = Self::create(configuration, client);
+        result.start_polling();
+        Ok(result)
     }
 
     async fn send<T: serde::Serialize>(&mut self, data: T) -> Result<(), String> {
-        let res = self.send_internal(data);
-
-        CompletedFuture::new(res).await
+        self.send_internal(data).await
     }
 
+    #[cfg(feature = "messagepack")]
     async fn send_binary(&mut self, data: Vec<u8>) -> Result<(), String> {
-        let res = self.send_binary_internal(data);
-
-        CompletedFuture::new(res).await
+        self.send_binary_internal(data).await
     }
 
     fn get_protocol_kind(&self) -> HubProtocolKind {
-        self._protocol_kind
+        self.protocol_kind
     }
 
     fn get_storage(&self) -> Result<UpdatableActionStorage, String> {
-        let procstate: ConnectionState;
-
-        {
-            let st = self._state.borrow();
-            procstate = st.clone();
-            drop(st);
-        }
-
-        if let ConnectionState::Process(storage) = procstate {
-            Ok(storage)
-        } else {
-            Err(format!("The connection is in a bad state"))
-        }
+        Ok(self.storage.clone())
     }
 
     async fn disconnect(&mut self) {
-        let task = CompletedFuture::new(());
-        task.await;
-
-        self.disconnect_internal();
-    }    
+        if self.owners.get() <= 1 {
+            self.disconnect_internal();
+        }
+    }
 }
 
 impl CommunicationClient {
-    fn create(configuration: &super::ConnectionData) -> Self {
-        info!("Creating communication client to {}", &configuration.get_endpoint());
-        let res = PollingClient::new(&configuration.get_endpoint());
-        let protocol_kind = configuration.get_protocol_kind();
+    fn create(configuration: &super::ConnectionData, client: Rc<RefCell<PollingClient>>) -> Self {
+        Self {
+            client: Rc::new(RefCell::new(Some(client))),
+            storage: UpdatableActionStorage::new(),
+            recipe: configuration.get_recipe(),
+            transport_endpoint: configuration.get_endpoint(),
+            protocol_kind: configuration.get_protocol_kind(),
+            stateful: configuration.stateful_reconnect().map(|config| {
+                Rc::new(RefCell::new(
+                    StatefulMessageBuffer::new(config.buffer_size_bytes)
+                        .expect("negotiated stateful reconnect configuration is valid"),
+                ))
+            }),
+            reconnection_config: Rc::new(RefCell::new(ReconnectionConfig::default())),
+            disconnection_handler: Rc::new(RefCell::new(None)),
+            lifecycle: Rc::new(Cell::new(LifecycleState::Connected)),
+            attempt_in_progress: Rc::new(Cell::new(false)),
+            generation: Rc::new(Cell::new(0)),
+            interval_token: Rc::new(Cell::new(None)),
+            poll_closure: Rc::new(RefCell::new(None)),
+            owners: Rc::new(Cell::new(1)),
+        }
+    }
 
-        if res.is_ok() {
-            CommunicationClient {
-                _state: Rc::new(RefCell::new(ConnectionState::Connect(ManualFutureState::new()))),
-                _client: Some(Rc::new(RefCell::new(res.unwrap()))),
-                _token: None,
-                _protocol_kind: protocol_kind,
-            }
+    pub fn set_reconnection_config(&mut self, config: ReconnectionConfig) {
+        self.reconnection_config.replace(config);
+    }
+
+    pub fn set_disconnection_handler(
+        &mut self,
+        handler: impl Fn(WasmReconnectionContext) + 'static,
+    ) {
+        self.disconnection_handler.replace(Some(Rc::new(handler)));
+    }
+
+    async fn connect_physical(
+        endpoint: String,
+        protocol_kind: HubProtocolKind,
+        stateful_reconnect: bool,
+    ) -> Result<Rc<RefCell<PollingClient>>, String> {
+        let client = Self::connect_socket(endpoint).await?;
+
+        let handshake = if stateful_reconnect {
+            MessageParser::to_json(&serde_json::json!({
+                "protocol": protocol_kind.protocol_name(),
+                "version": 2,
+            }))
         } else {
-            CommunicationClient {
-                _state: Rc::new(RefCell::new(ConnectionState::Connect(ManualFutureState::new()))),
-                _client: None,
-                _token: None,
-                _protocol_kind: protocol_kind,
-            }
+            MessageParser::to_json(&HandshakeRequest::new(protocol_kind.protocol_name()))
         }
-    }
+        .map_err(|error| format!("Cannot serialize handshake: {error}"))?;
+        client
+            .borrow()
+            .send_string(&handshake)
+            .map_err(Self::js_error)?;
 
-    async fn connect_internal(&mut self) -> Result<(), String> {
-        let connstate: ConnectionState;
-        {
-            let st = self._state.borrow_mut();
-            connstate = st.clone();
-            drop(st);
-        }
-
-        if let ConnectionState::Connect(mut connected) = connstate {
-            if self._client.is_some() {
-                let refclient = self._client.as_ref().unwrap().clone();
-                let refstate = self._state.clone();
-                let protocol_kind = self._protocol_kind;
-
-                let closure = wasm_bindgen::prelude::Closure::wrap(Box::new(move || {
-                    CommunicationClient::polling_loop(&refclient, &refstate, protocol_kind);
-                }) as Box<dyn Fn()>);
-        
-                info!("Starting poll loop");
-                let token = setInterval(&closure, 100);
-                closure.forget();
-        
-                info!("Waiting for uplink...");
-                connected.awaiter().await;
-                self._token = Some(token);
-    
-                info!("Initiating handshake...");
-                let r = self.send(HandshakeRequest::new(self._protocol_kind.protocol_name().to_string())).await;
-    
-                if r.is_err() {
-                    return Err(format!("Handshake cannot be sent. {}", r.unwrap_err()));
+        Self::wait_until("SignalR handshake", Duration::from_secs(10), || {
+            let messages = client.borrow_mut().receive();
+            for message in messages {
+                let text = match message {
+                    wasm_sockets::Message::Text(text) => Some(text),
+                    wasm_sockets::Message::Binary(bytes) => String::from_utf8(bytes).ok(),
+                };
+                if let Some(text) = text {
+                    let text = MessageParser::strip_record_separator(&text);
+                    if text.is_empty() {
+                        continue;
+                    }
+                    return MessageParser::parse_message::<HandshakeResponse>(text)
+                        .map(|_| Some(()))
+                        .map_err(|error| format!("SignalR handshake failed: {error}"));
                 }
-    
-                let mut state = self._state.borrow_mut(); 
-                *state = ConnectionState::Handshake(ManualFutureState::new());    
-            } else {
-                return Err(format!("Connection client is not created properly. Connection has failed"));
             }
-        }
+            Ok(None)
+        })
+        .await?;
 
-        let handstate: ConnectionState;
-
-        {
-            let st = self._state.borrow_mut();
-            handstate = st.clone();
-            drop(st);
-        }
-        
-        if let ConnectionState::Handshake(mut handshake) = handstate {
-            let shook = handshake.awaiter().await;
-
-            if shook {
-                let mut state = self._state.borrow_mut(); 
-                *state = ConnectionState::Process(UpdatableActionStorage::new());
-            } else {
-                return Err("Unsuccessfull handshake".to_string());
-            }
-        }
-
-        Ok(())
+        Ok(client)
     }
 
-    fn get_text_messages(message: wasm_sockets::Message) -> Vec<String> {
-        match message {
-            wasm_sockets::Message::Text(txt) => {
-                txt.split(RECORD_SEPARATOR).map(|s| MessageParser::strip_record_separator(s).to_string()).collect()
+    async fn connect_socket(endpoint: String) -> Result<Rc<RefCell<PollingClient>>, String> {
+        info!(
+            "Connecting WASM transport to {}",
+            Self::display_endpoint(&endpoint)
+        );
+        let client = Rc::new(RefCell::new(
+            PollingClient::new(&endpoint).map_err(|error| format!("{error:?}"))?,
+        ));
+        Self::wait_until(
+            "WebSocket connection",
+            Duration::from_secs(10),
+            || match client.borrow().status() {
+                ConnectionStatus::Connected => Ok(Some(())),
+                ConnectionStatus::Error | ConnectionStatus::Disconnected => {
+                    Err("WebSocket connection failed".to_string())
+                }
+                _ => Ok(None),
             },
-            wasm_sockets::Message::Binary(_) => {
-                debug!("Received binary message in text mode, ignoring");
-                Vec::new()
-            },
-        }
+        )
+        .await?;
+        Ok(client)
     }
 
-    #[cfg(feature = "messagepack")]
-    fn get_binary_messages(message: wasm_sockets::Message) -> Vec<Vec<u8>> {
-        match message {
-            wasm_sockets::Message::Binary(data) => {
-                match crate::protocol::msgpack::split_framed_messages(&data) {
-                    Ok(frames) => frames,
-                    Err(e) => {
-                        error!("Failed to split binary frames: {}", e);
-                        Vec::new()
+    async fn resume_to_server(
+        endpoint: String,
+        protocol_kind: HubProtocolKind,
+        buffer: SharedStatefulBuffer,
+    ) -> Result<Rc<RefCell<PollingClient>>, String> {
+        let client = Self::connect_socket(endpoint).await?;
+        let (sequence_id, frames) = buffer.borrow_mut().begin_resend()?;
+        let resend_result = (|| {
+            match protocol_kind {
+                HubProtocolKind::Json => {
+                    let sequence = MessageParser::to_json(&Sequence::new(sequence_id))
+                        .map_err(|error| error.to_string())?;
+                    client
+                        .borrow()
+                        .send_string(&sequence)
+                        .map_err(Self::js_error)?;
+                }
+                #[cfg(feature = "messagepack")]
+                HubProtocolKind::MessagePack => {
+                    let sequence = crate::protocol::stateful::encode_messagepack_control(
+                        MessageType::Sequence,
+                        sequence_id,
+                    )?;
+                    client
+                        .borrow()
+                        .send_binary(sequence)
+                        .map_err(Self::js_error)?;
+                }
+            }
+            for frame in frames {
+                match frame.payload {
+                    SerializedFrame::Text(text) => {
+                        client.borrow().send_string(&text).map_err(Self::js_error)?;
+                    }
+                    #[cfg(feature = "messagepack")]
+                    SerializedFrame::Binary(binary) => {
+                        client
+                            .borrow()
+                            .send_binary(binary)
+                            .map_err(Self::js_error)?;
                     }
                 }
-            },
-            wasm_sockets::Message::Text(_) => {
-                warn!("Received text message in binary mode, ignoring");
-                Vec::new()
-            },
+            }
+            Ok::<(), String>(())
+        })();
+        buffer.borrow_mut().finish_resend()?;
+        resend_result?;
+        Ok(client)
+    }
+
+    async fn wait_until<T>(
+        operation: &str,
+        timeout: Duration,
+        mut poll: impl FnMut() -> Result<Option<T>, String>,
+    ) -> Result<T, String> {
+        let started = date_now();
+        loop {
+            if let Some(value) = poll()? {
+                return Ok(value);
+            }
+            if date_now() - started >= timeout.as_millis() as f64 {
+                return Err(format!("{operation} timed out"));
+            }
+            Self::sleep(Duration::from_millis(20)).await?;
         }
     }
 
-    fn send_internal<T: serde::Serialize>(&self, data: T) -> Result<(), String> {
-        let json = MessageParser::to_json(&data).unwrap();
-
-        if self._client.is_some() {
-            let bclient = self._client.as_ref().unwrap().borrow();
-            return bclient.send_string(&json).map_err(|e| e.as_string().unwrap());
-        } else {
-            return Err(format!("The client is not connected. Cannot send data"));
-        }
+    async fn sleep(delay: Duration) -> Result<(), String> {
+        let (sender, receiver) = futures::channel::oneshot::channel();
+        let closure = wasm_bindgen::prelude::Closure::once(move || {
+            let _ = sender.send(());
+        });
+        set_timeout(&closure, delay.as_millis().min(u32::MAX as u128) as u32);
+        closure.forget();
+        receiver
+            .await
+            .map_err(|_| "Browser timer was cancelled".to_string())
     }
 
-    fn send_binary_internal(&self, data: Vec<u8>) -> Result<(), String> {
-        if self._client.is_some() {
-            let bclient = self._client.as_ref().unwrap().borrow();
-            return bclient.send_binary(data).map_err(|e| e.as_string().unwrap());
-        } else {
-            return Err(format!("The client is not connected. Cannot send data"));
+    fn start_polling(&mut self) {
+        if self.interval_token.get().is_some() {
+            return;
         }
+
+        let client = self.client.clone();
+        let storage = self.storage.clone();
+        let recipe = self.recipe.clone();
+        let transport_endpoint = self.transport_endpoint.clone();
+        let protocol_kind = self.protocol_kind;
+        let stateful = self.stateful.clone();
+        let reconnection_config = self.reconnection_config.clone();
+        let disconnection_handler = self.disconnection_handler.clone();
+        let lifecycle = self.lifecycle.clone();
+        let attempt_in_progress = self.attempt_in_progress.clone();
+        let generation = self.generation.clone();
+
+        let closure = wasm_bindgen::prelude::Closure::wrap(Box::new(move || {
+            Self::polling_loop(
+                &client,
+                &storage,
+                &recipe,
+                &transport_endpoint,
+                protocol_kind,
+                &stateful,
+                &reconnection_config,
+                &disconnection_handler,
+                &lifecycle,
+                &attempt_in_progress,
+                &generation,
+            );
+        }) as Box<dyn Fn()>);
+        let token = set_interval(&closure, 50);
+        self.interval_token.set(Some(token));
+        self.poll_closure.replace(Some(closure));
     }
 
-    fn polling_loop(client: &Rc<RefCell<wasm_sockets::PollingClient>>, state: &Rc<RefCell<ConnectionState>>, protocol_kind: HubProtocolKind) {
+    #[allow(clippy::too_many_arguments)]
+    fn polling_loop(
+        client_slot: &Rc<RefCell<Option<Rc<RefCell<PollingClient>>>>>,
+        storage: &UpdatableActionStorage,
+        recipe: &ConnectionRecipe,
+        transport_endpoint: &str,
+        protocol_kind: HubProtocolKind,
+        stateful: &Option<SharedStatefulBuffer>,
+        reconnection_config: &Rc<RefCell<ReconnectionConfig>>,
+        disconnection_handler: &Rc<RefCell<Option<Rc<DisconnectionCallback>>>>,
+        lifecycle: &Rc<Cell<LifecycleState>>,
+        attempt_in_progress: &Rc<Cell<bool>>,
+        generation: &Rc<Cell<u64>>,
+    ) {
+        let Some(client) = client_slot.borrow().clone() else {
+            return;
+        };
         let status = client.borrow().status();
-
-        if status == ConnectionStatus::Connected {
-            let mstate = &mut *state.borrow_mut();
-
-            match mstate {
-                ConnectionState::Connect(connected) => {
-                    connected.complete(true);
-                },
-                ConnectionState::Handshake(handshake) => {
-                    // Drain ALL messages from the buffer in one call.
-                    // The handshake response is JSON even for MessagePack, but
-                    // ASP.NET Core may send it as a binary WebSocket frame when
-                    // MessagePack is negotiated — so we must check both.
-                    let raw_messages = client.borrow_mut().receive();
-
-                    let mut handshake_text: Option<String> = None;
-                    for msg in &raw_messages {
-                        if handshake_text.is_some() { break; }
-                        match msg {
-                            wasm_sockets::Message::Text(t) => {
-                                let stripped = MessageParser::strip_record_separator(t).to_string();
-                                if !stripped.is_empty() {
-                                    handshake_text = Some(stripped);
-                                }
-                            }
-                            wasm_sockets::Message::Binary(b) => {
-                                if let Ok(text) = std::str::from_utf8(b) {
-                                    let stripped = MessageParser::strip_record_separator(text).to_string();
-                                    if !stripped.is_empty() {
-                                        handshake_text = Some(stripped);
-                                    }
-                                }
-                            }
+        match status {
+            ConnectionStatus::Connected => {
+                let mut storage = storage.clone();
+                if let Some(allow_reconnect) =
+                    Self::process_messages(&client, &mut storage, protocol_kind, stateful.as_ref())
+                {
+                    let _ = client.borrow().close();
+                    if !allow_reconnect {
+                        lifecycle.set(LifecycleState::Disconnected);
+                        storage.fail_pending(
+                            "Server closed the connection without allowing reconnect",
+                        );
+                        if let Some(buffer) = stateful {
+                            buffer.borrow_mut().dispose();
                         }
                     }
-
-                    if let Some(ref hs_text) = handshake_text {
-                        let hs = MessageParser::parse_message::<HandshakeResponse>(hs_text);
-                        match hs {
-                            Ok(_) => {
-                                info!("Handshake completed");
-                                handshake.complete(true);
-                            }
-                            Err(e) => {
-                                error!("Handshake response parse failed: {}. Raw: {:?}", e, hs_text);
-                                handshake.complete(false);
-                            }
-                        }
-                    }
-                },
-                ConnectionState::Process(storage) => {
-                    match protocol_kind {
-                        HubProtocolKind::Json => {
-                            let messages = CommunicationClient::receive_text_messages(client);
-
-                            for message in messages {
-                                let ping = MessageParser::parse_message::<Ping>(&message);
-
-                                if ping.is_ok() {
-                                    let r = storage.process_message(MessagePayload::Text(message), ping.unwrap().message_type());
-
-                                    if r.is_err() {
-                                        error!("Message could not be processed: {}", r.unwrap_err());
-                                    }
-                                } else {
-                                    error!("Message could not be parsed: {:?}", message);
-                                }
-                            }
-                        },
-                        #[cfg(feature = "messagepack")]
-                        HubProtocolKind::MessagePack => {
-                            let payloads = CommunicationClient::receive_binary_messages(client);
-
-                            for payload in payloads {
-                                match crate::protocol::msgpack::read_message_type(&payload) {
-                                    Ok(msg_type) => {
-                                        let r = storage.process_message(MessagePayload::Binary(payload), msg_type);
-                                        if r.is_err() {
-                                            error!("Error processing msgpack message: {}", r.unwrap_err());
-                                        }
-                                    },
-                                    Err(e) => error!("Cannot read msgpack message type: {}", e),
-                                }
-                            }
-                        },
-                    }
-                },
+                }
             }
-        } else if status == ConnectionStatus::Connecting {
-            info!("Hub is connecting");
-        } else if status == ConnectionStatus::Disconnected {
-            warn!("Hub is NOT connected at endpoint {}", client.borrow().url);
-        } else if status == ConnectionStatus::Error {
-            error!("Hub error at endpoint {}", client.borrow().url);
+            ConnectionStatus::Disconnected | ConnectionStatus::Error => {
+                if lifecycle.get() != LifecycleState::Connected {
+                    return;
+                }
+                lifecycle.set(LifecycleState::Reconnecting);
+                if let Some(buffer) = stateful {
+                    if let Err(error) = buffer.borrow_mut().disconnected() {
+                        error!("Cannot enter WASM stateful resume: {}", error);
+                        lifecycle.set(LifecycleState::Disconnected);
+                        let mut storage = storage.clone();
+                        storage.fail_pending(&error);
+                        return;
+                    }
+                }
+                let context = WasmReconnectionContext {
+                    client: client_slot.clone(),
+                    storage: storage.clone(),
+                    recipe: recipe.clone(),
+                    transport_endpoint: transport_endpoint.to_string(),
+                    protocol_kind,
+                    stateful: stateful.clone(),
+                    reconnection_config: reconnection_config.clone(),
+                    lifecycle: lifecycle.clone(),
+                    attempt_in_progress: attempt_in_progress.clone(),
+                    generation: generation.clone(),
+                };
+
+                if let Some(handler) = disconnection_handler.borrow().clone() {
+                    lifecycle.set(LifecycleState::Disconnected);
+                    handler(context);
+                } else {
+                    spawn_local(async move {
+                        if let Err(error) = context.reconnect_with_policy().await {
+                            warn!("WASM automatic reconnect stopped: {}", error);
+                        }
+                    });
+                }
+            }
+            ConnectionStatus::Connecting => debug!("SignalR WebSocket is connecting"),
         }
     }
 
-    fn receive_text_messages(client: &Rc<RefCell<wasm_sockets::PollingClient>>) -> Vec<String> {
-        let response = client.borrow_mut().receive();
-        let mut ret = Vec::new();
-
-        for msg in response {
-            for message in CommunicationClient::get_text_messages(msg).into_iter() {
-                if message.len() > 0 {
-                    ret.push(message);
+    fn process_messages(
+        client: &Rc<RefCell<PollingClient>>,
+        storage: &mut UpdatableActionStorage,
+        protocol_kind: HubProtocolKind,
+        stateful: Option<&SharedStatefulBuffer>,
+    ) -> Option<bool> {
+        match protocol_kind {
+            HubProtocolKind::Json => {
+                for message in Self::receive_text_messages(client) {
+                    match MessageParser::parse_message::<Ping>(&message) {
+                        Ok(parsed) => {
+                            let message_type = parsed.message_type();
+                            if let Some(buffer) = stateful {
+                                let control_result = match message_type {
+                                    MessageType::Ack => {
+                                        MessageParser::parse_message::<Ack>(&message)
+                                            .and_then(|ack| ack.sequence_id())
+                                            .and_then(|sequence_id| {
+                                                buffer
+                                                    .borrow_mut()
+                                                    .acknowledge(sequence_id)
+                                                    .map(|_| ())
+                                            })
+                                    }
+                                    MessageType::Sequence => {
+                                        MessageParser::parse_message::<Sequence>(&message)
+                                            .and_then(|sequence| sequence.sequence_id())
+                                            .and_then(|sequence_id| {
+                                                buffer
+                                                    .borrow_mut()
+                                                    .reset_incoming_sequence(sequence_id)
+                                            })
+                                    }
+                                    _ => Ok(()),
+                                };
+                                if let Err(error) = control_result {
+                                    error!("WASM stateful protocol error: {}", error);
+                                    return Some(false);
+                                }
+                                if matches!(message_type, MessageType::Ack | MessageType::Sequence)
+                                {
+                                    continue;
+                                }
+                                let should_process =
+                                    match buffer.borrow_mut().should_process(message_type) {
+                                        Ok(value) => value,
+                                        Err(error) => {
+                                            error!("WASM stateful protocol error: {}", error);
+                                            return Some(false);
+                                        }
+                                    };
+                                let acknowledgement =
+                                    match buffer.borrow_mut().take_acknowledgement() {
+                                        Ok(value) => value,
+                                        Err(error) => {
+                                            error!("Cannot prepare WASM stateful Ack: {error}");
+                                            return Some(false);
+                                        }
+                                    };
+                                if let Some(sequence_id) = acknowledgement {
+                                    if let Err(error) =
+                                        Self::send_ack(client, protocol_kind, sequence_id)
+                                    {
+                                        error!("Cannot send WASM stateful Ack: {error}");
+                                        return Some(false);
+                                    }
+                                }
+                                if !should_process {
+                                    continue;
+                                }
+                            }
+                            let payload = MessagePayload::Text(message);
+                            if message_type == crate::protocol::negotiate::MessageType::Close {
+                                let allow = super::common::close_allows_reconnect(&payload)
+                                    .unwrap_or(false);
+                                let _ = storage.process_message(payload, message_type);
+                                return Some(allow);
+                            }
+                            if let Err(error) = storage.process_message(payload, message_type) {
+                                error!("Message could not be processed: {}", error);
+                            }
+                        }
+                        Err(error) => error!("Message could not be parsed: {}", error),
+                    }
+                }
+            }
+            #[cfg(feature = "messagepack")]
+            HubProtocolKind::MessagePack => {
+                for payload in Self::receive_binary_messages(client) {
+                    match crate::protocol::msgpack::read_message_type(&payload) {
+                        Ok(message_type) => {
+                            if let Some(buffer) = stateful {
+                                let control_result = match message_type {
+                                    MessageType::Ack => {
+                                        crate::protocol::stateful::decode_messagepack_control(
+                                            &payload,
+                                            MessageType::Ack,
+                                        )
+                                        .and_then(
+                                            |sequence_id| {
+                                                buffer
+                                                    .borrow_mut()
+                                                    .acknowledge(sequence_id)
+                                                    .map(|_| ())
+                                            },
+                                        )
+                                    }
+                                    MessageType::Sequence => {
+                                        crate::protocol::stateful::decode_messagepack_control(
+                                            &payload,
+                                            MessageType::Sequence,
+                                        )
+                                        .and_then(
+                                            |sequence_id| {
+                                                buffer
+                                                    .borrow_mut()
+                                                    .reset_incoming_sequence(sequence_id)
+                                            },
+                                        )
+                                    }
+                                    _ => Ok(()),
+                                };
+                                if let Err(error) = control_result {
+                                    error!("WASM stateful protocol error: {}", error);
+                                    return Some(false);
+                                }
+                                if matches!(message_type, MessageType::Ack | MessageType::Sequence)
+                                {
+                                    continue;
+                                }
+                                let should_process =
+                                    match buffer.borrow_mut().should_process(message_type) {
+                                        Ok(value) => value,
+                                        Err(error) => {
+                                            error!("WASM stateful protocol error: {}", error);
+                                            return Some(false);
+                                        }
+                                    };
+                                let acknowledgement =
+                                    match buffer.borrow_mut().take_acknowledgement() {
+                                        Ok(value) => value,
+                                        Err(error) => {
+                                            error!("Cannot prepare WASM stateful Ack: {error}");
+                                            return Some(false);
+                                        }
+                                    };
+                                if let Some(sequence_id) = acknowledgement {
+                                    if let Err(error) =
+                                        Self::send_ack(client, protocol_kind, sequence_id)
+                                    {
+                                        error!("Cannot send WASM stateful Ack: {error}");
+                                        return Some(false);
+                                    }
+                                }
+                                if !should_process {
+                                    continue;
+                                }
+                            }
+                            let payload = MessagePayload::Binary(payload);
+                            if message_type == crate::protocol::negotiate::MessageType::Close {
+                                let allow = super::common::close_allows_reconnect(&payload)
+                                    .unwrap_or(false);
+                                let _ = storage.process_message(payload, message_type);
+                                return Some(allow);
+                            }
+                            if let Err(error) = storage.process_message(payload, message_type) {
+                                error!("MessagePack message could not be processed: {}", error);
+                            }
+                        }
+                        Err(error) => error!("Cannot read MessagePack message type: {}", error),
+                    }
                 }
             }
         }
+        None
+    }
 
-        ret
+    fn send_ack(
+        client: &Rc<RefCell<PollingClient>>,
+        protocol_kind: HubProtocolKind,
+        sequence_id: u64,
+    ) -> Result<(), String> {
+        match protocol_kind {
+            HubProtocolKind::Json => {
+                let ack = MessageParser::to_json(&Ack::new(sequence_id))
+                    .map_err(|error| error.to_string())?;
+                client.borrow().send_string(&ack).map_err(Self::js_error)
+            }
+            #[cfg(feature = "messagepack")]
+            HubProtocolKind::MessagePack => {
+                let ack = crate::protocol::stateful::encode_messagepack_control(
+                    MessageType::Ack,
+                    sequence_id,
+                )?;
+                client.borrow().send_binary(ack).map_err(Self::js_error)
+            }
+        }
+    }
+
+    async fn send_internal<T: serde::Serialize>(&self, data: T) -> Result<(), String> {
+        if self.lifecycle.get() != LifecycleState::Connected {
+            return Err(format!(
+                "Client is not connected: {:?}",
+                self.lifecycle.get()
+            ));
+        }
+        let json = MessageParser::to_json(&data).map_err(|error| error.to_string())?;
+        let message_type =
+            MessageParser::parse_message::<Ping>(MessageParser::strip_record_separator(&json))?
+                .message_type();
+        self.track_outgoing(message_type, SerializedFrame::Text(json.clone()))
+            .await?;
+        let client = self
+            .client
+            .borrow()
+            .clone()
+            .ok_or_else(|| "Client is not connected".to_string())?;
+        let result = client.borrow().send_string(&json).map_err(Self::js_error);
+        result
     }
 
     #[cfg(feature = "messagepack")]
-    fn receive_binary_messages(client: &Rc<RefCell<wasm_sockets::PollingClient>>) -> Vec<Vec<u8>> {
-        let response = client.borrow_mut().receive();
-        let mut ret = Vec::new();
-
-        for msg in response {
-            for payload in CommunicationClient::get_binary_messages(msg).into_iter() {
-                if !payload.is_empty() {
-                    ret.push(payload);
-                }
-            }
+    async fn send_binary_internal(&self, data: Vec<u8>) -> Result<(), String> {
+        if self.lifecycle.get() != LifecycleState::Connected {
+            return Err(format!(
+                "Client is not connected: {:?}",
+                self.lifecycle.get()
+            ));
         }
-
-        ret
+        #[cfg(feature = "messagepack")]
+        if self.stateful.is_some() {
+            let frames = crate::protocol::msgpack::split_framed_messages(&data)?;
+            let first = frames
+                .first()
+                .ok_or_else(|| "Cannot send an empty MessagePack frame".to_string())?;
+            let message_type = crate::protocol::msgpack::read_message_type(first)?;
+            self.track_outgoing(message_type, SerializedFrame::Binary(data.clone()))
+                .await?;
+        }
+        let client = self
+            .client
+            .borrow()
+            .clone()
+            .ok_or_else(|| "Client is not connected".to_string())?;
+        let result = client.borrow().send_binary(data).map_err(Self::js_error);
+        result
     }
 
-    fn disconnect_internal(&mut self) {
-        if self._token.is_some() {
-            if self._client.is_some() {
-                let refc = self._client.as_ref().unwrap();
-                let count = Rc::strong_count(refc);
-
-                if count == 2 {
-                    info!("Breaking message loop, destroying clients...");
-                    let token = self._token.take().unwrap();
-    
-                    clearInterval(token);
-                } else {
-                    info!("Connection cannot be destroyed, has still {} references", count);
-                }
-            } else {
-                info!("Connection is already disconnected");
+    async fn track_outgoing(
+        &self,
+        message_type: MessageType,
+        payload: SerializedFrame,
+    ) -> Result<(), String> {
+        let Some(buffer) = &self.stateful else {
+            return Ok(());
+        };
+        loop {
+            let result = buffer.borrow_mut().track(message_type, payload.clone())?;
+            match result {
+                TrackResult::Buffered(_) | TrackResult::Bypass => return Ok(()),
+                TrackResult::Backpressured => Self::sleep(Duration::from_millis(5)).await?,
             }
-        } else {
-            info!("Message loop is presumably stopped already");
         }
+    }
+
+    fn receive_text_messages(client: &Rc<RefCell<PollingClient>>) -> Vec<String> {
+        client
+            .borrow_mut()
+            .receive()
+            .into_iter()
+            .flat_map(|message| match message {
+                wasm_sockets::Message::Text(text) => text
+                    .split(RECORD_SEPARATOR)
+                    .map(MessageParser::strip_record_separator)
+                    .filter(|message| !message.is_empty())
+                    .map(str::to_string)
+                    .collect(),
+                wasm_sockets::Message::Binary(_) => Vec::new(),
+            })
+            .collect()
+    }
+
+    #[cfg(feature = "messagepack")]
+    fn receive_binary_messages(client: &Rc<RefCell<PollingClient>>) -> Vec<Vec<u8>> {
+        client
+            .borrow_mut()
+            .receive()
+            .into_iter()
+            .flat_map(|message| match message {
+                wasm_sockets::Message::Binary(data) => {
+                    crate::protocol::msgpack::split_framed_messages(&data).unwrap_or_else(|error| {
+                        error!("Failed to split MessagePack frames: {}", error);
+                        Vec::new()
+                    })
+                }
+                wasm_sockets::Message::Text(_) => Vec::new(),
+            })
+            .collect()
+    }
+
+    fn disconnect_internal(&self) {
+        if self.lifecycle.replace(LifecycleState::LocalClosed) == LifecycleState::LocalClosed {
+            return;
+        }
+        self.generation.set(self.generation.get().wrapping_add(1));
+        if let Some(token) = self.interval_token.take() {
+            clear_interval(token);
+        }
+        self.poll_closure.borrow_mut().take();
+        if let Some(client) = self.client.borrow_mut().take() {
+            let _ = client.borrow().close();
+        }
+        if let Some(buffer) = &self.stateful {
+            buffer.borrow_mut().dispose();
+        }
+        let mut storage = self.storage.clone();
+        storage.fail_pending("Client was locally disconnected");
+    }
+
+    fn display_endpoint(endpoint: &str) -> String {
+        endpoint.split('?').next().unwrap_or(endpoint).to_string()
+    }
+
+    fn js_error(error: JsValue) -> String {
+        error
+            .as_string()
+            .unwrap_or_else(|| "JavaScript WebSocket operation failed".to_string())
     }
 }

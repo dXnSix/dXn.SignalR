@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 5,
+  "generatorVersion": "5.0",
+  "epicId": "resilient-reconnect-and-production-gates",
+  "sprint": 3,
+  "status": "passed",
+  "headBeforeCommit": "fb14b0599b2522abc326bbff44e79985dafe1c63",
+  "filesReviewed": [
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\communication\\client_tokio.rs",
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\tests\\tests_msgpack.rs",
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\tests\\tests_tokio.rs"
+  ],
+  "conformance": [
+    {
+      "requirementId": "REQ-F-003",
+      "taskIds": [
+        "sprint-3-task-1"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-F-003-1"
+      ],
+      "evidenceAcceptanceCriteriaIds": [
+        "AC-F-003-1"
+      ],
+      "missingAcceptanceCriteriaIds": [],
+      "implementationLocations": [
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\communication\\client_tokio.rs"
+      ],
+      "testLocations": [
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\tests\\tests_msgpack.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\tests\\tests_tokio.rs"
+      ],
+      "evidenceProfiles": [
+        "parity",
+        "regression",
+        "runtime"
+      ],
+      "missingProfiles": [],
+      "result": "pass",
+      "reason": "All mapped tasks are done with fresh profile-complete evidence."
+    },
+    {
+      "requirementId": "REQ-NF-001",
+      "taskIds": [
+        "sprint-3-task-1"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-F-003-1"
+      ],
+      "evidenceAcceptanceCriteriaIds": [
+        "AC-F-003-1"
+      ],
+      "missingAcceptanceCriteriaIds": [],
+      "implementationLocations": [
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\communication\\client_tokio.rs"
+      ],
+      "testLocations": [
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\tests\\tests_msgpack.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\tests\\tests_tokio.rs"
+      ],
+      "evidenceProfiles": [
+        "parity",
+        "regression",
+        "runtime"
+      ],
+      "missingProfiles": [],
+      "result": "pass",
+      "reason": "All mapped tasks are done with fresh profile-complete evidence."
+    }
+  ],
+  "designQuality": {
+    "declaredWritePaths": [
+      "rayx-signalr:src/communication/client_tokio.rs",
+      "rayx-signalr:src/tests/tests_msgpack.rs",
+      "rayx-signalr:src/tests/tests_tokio.rs"
+    ],
+    "actualChangedPaths": [
+      "rayx-signalr:src/communication/client_tokio.rs",
+      "rayx-signalr:src/tests/tests_msgpack.rs",
+      "rayx-signalr:src/tests/tests_tokio.rs"
+    ],
+    "unexpectedChangedPaths": [],
+    "responsibilityIds": [
+      "RESP-001",
+      "RESP-004",
+      "RESP-005",
+      "RESP-006"
+    ],
+    "newAbstractions": [
+      "InteropHarness",
+      "ReconnectCoordinator",
+      "StatefulMessageBuffer"
+    ],
+    "newDependencies": [
+      "repository-local Playwright dev tooling"
+    ],
+    "newPublicApi": [
+      "ConnectionConfiguration::with_stateful_reconnect(StatefulReconnectConfig)",
+      "Existing ReconnectionHandler methods on wasm32",
+      "StatefulReconnectConfig with Default buffer_size_bytes=100000"
+    ],
+    "unapprovedDesignAdditions": [],
+    "result": "pass",
+    "reason": "Actual changed paths stay within declared task scopes; declared responsibilities and explicitly allowed design additions are recorded for semantic review."
+  },
+  "commands": [
+    {
+      "command": "pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target native -Protocol json,messagepack -Scenario ordinary-reconnect,stateful-reconnect",
+      "effectiveCommand": "pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target native -Protocol json,messagepack -Scenario ordinary-reconnect,stateful-reconnect",
+      "exitCode": 0,
+      "assertion": "The complete native ordinary/stateful JSON/MessagePack matrix MUST pass as one checkpoint.",
+      "stdoutHash": "2e22f2704ba14b8eb11cd38ae84d603671407296bc6daa2571f5a4fe722842fc",
+      "stderrHash": "31625e0a6f61fec68f739856417474c5995a8df717d60445ecfc1ce34e32edc4",
+      "failureOutputTail": ""
+    }
+  ],
+  "defects": [],
+  "repairs": [],
+  "reauditCount": 1,
+  "residualRisks": [],
+  "generatedAt": "2026-08-09T23:45:14Z"
+}

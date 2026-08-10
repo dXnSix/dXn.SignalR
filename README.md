@@ -34,6 +34,55 @@ I tried to design this package to be simple and convenient to use without writin
 
 A .NET test backend is also provided for testing purposes (see the /dotnet folder). The tests in the package should run using that backend. Authorization is not tested with the test scenairo, however it's been tested already by using this package in a much larger project of mine. So, it should also work without issues.
 
+## Production validation
+
+The repository has two least-privilege GitHub Actions workflows. They run on
+pull requests to `master` and pushes to `master`; interoperability can also be
+started manually. They do not publish packages, require pull-request secrets,
+or change repository settings.
+
+Stable quality check names are:
+
+- `quality / rustfmt`
+- `quality / clippy`
+- `quality / native (<os>, Rust <toolchain>)`
+- `quality / wasm (<feature mode>)`
+- `quality / unit-contract (<protocol>)`
+- `quality / rustdoc`
+- `quality / dependency-security`
+
+Stable interoperability check names are:
+
+- `interop / native (<os>, <protocol>, <scenario>)`
+- `interop / Chromium WASM (<protocol>, <scenario>)`
+
+Run the structural and local quality gates from the repository root:
+
+```powershell
+pwsh -NoProfile -File scripts/ci/verify-workflows.ps1
+pwsh -NoProfile -File scripts/ci/verify-workflows.ps1 -RunLocalQuality
+```
+
+Run the complete native and repository-local Playwright/Chromium reconnect
+matrix with:
+
+```powershell
+pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target native,wasm -Protocol json,messagepack -Scenario ordinary-reconnect,stateful-reconnect
+```
+
+For dependency security, install RustSec's scanner once and run the same route
+used by CI:
+
+```powershell
+cargo install cargo-audit --locked
+pwsh -NoProfile -File scripts/ci/verify-workflows.ps1 -Security
+```
+
+Each interop scenario is bounded to 60 seconds. The harness health-checks and
+terminates the .NET fixture, requires one real selected test per matrix cell,
+and writes bounded redacted diagnostics only after failure under
+`artifacts-temp/interop/`.
+
 ## Package Overview
 `rayx-signalr` is a Rust library designed to call SignalR hubs from cross-platform Rust applications. It supports Tokio-based native runtimes and browser WASM clients.
 

@@ -6,25 +6,25 @@
       "sourceItemId": "SRC-001",
       "targetModules": ["src/protocol/**"],
       "taskIds": ["sprint-2-task-1"],
-      "testLocations": ["src/tests/tests.rs", "src/tests/tests_msgpack.rs"],
+      "testLocations": ["src/protocol/stateful.rs", "src/tests/tests_msgpack.rs"],
       "runtimeProof": ["cargo test --all-features protocol"],
       "evidenceIds": [],
       "status": "deferred"
     },
     {
       "sourceItemId": "SRC-002",
-      "targetModules": ["src/client/message_buffer.rs", "src/client/storage.rs"],
+      "targetModules": ["src/communication/stateful.rs", "src/execution/storage.rs"],
       "taskIds": ["sprint-2-task-1", "sprint-3-task-1", "sprint-4-task-1"],
-      "testLocations": ["src/tests/tests.rs", "src/tests/tests_tokio.rs", "src/tests/tests_wasm.rs"],
+      "testLocations": ["src/communication/stateful.rs", "src/tests/tests_tokio.rs", "tests/wasm-fixture/src/lib.rs", "tools-node/tests/signalr-wasm.spec.ts"],
       "runtimeProof": ["pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Scenario stateful-reconnect"],
       "evidenceIds": [],
       "status": "deferred"
     },
     {
       "sourceItemId": "SRC-003",
-      "targetModules": ["src/client/client_tokio.rs", "src/client/client_wasm.rs", "src/client/http_client.rs"],
+      "targetModules": ["src/communication/client_tokio.rs", "src/communication/client_wasm.rs", "src/communication/common.rs"],
       "taskIds": ["sprint-3-task-1", "sprint-4-task-1"],
-      "testLocations": ["src/tests/tests_tokio.rs", "src/tests/tests_wasm.rs"],
+      "testLocations": ["src/tests/tests_tokio.rs", "tests/wasm-fixture/src/lib.rs", "tools-node/tests/signalr-wasm.spec.ts"],
       "runtimeProof": ["pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target native,wasm -Scenario stateful-reconnect"],
       "evidenceIds": [],
       "status": "deferred"
@@ -33,14 +33,14 @@
       "sourceItemId": "SRC-004",
       "targetModules": ["src/client/client.rs", "dotnet/SignalRTestService/**"],
       "taskIds": ["sprint-2-task-1", "sprint-3-task-1", "sprint-4-task-1"],
-      "testLocations": ["src/tests/tests_tokio.rs", "src/tests/tests_wasm.rs"],
+      "testLocations": ["src/tests/tests_tokio.rs", "tests/wasm-fixture/src/lib.rs", "tools-node/tests/signalr-wasm.spec.ts"],
       "runtimeProof": ["pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Protocol json,messagepack -Scenario stateful-reconnect"],
       "evidenceIds": [],
       "status": "deferred"
     },
     {
       "sourceItemId": "SRC-005",
-      "targetModules": ["src/client/client_tokio.rs", "src/client/client.rs"],
+      "targetModules": ["src/communication/client_tokio.rs", "src/client/client.rs"],
       "taskIds": ["sprint-1-task-1", "sprint-3-task-1"],
       "testLocations": ["src/tests/tests_tokio.rs"],
       "runtimeProof": ["pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target native -Scenario ordinary-reconnect,stateful-reconnect"],
@@ -49,9 +49,9 @@
     },
     {
       "sourceItemId": "SRC-006",
-      "targetModules": ["src/client/client_wasm.rs", "src/client/client.rs"],
+      "targetModules": ["src/communication/client_wasm.rs", "src/client/client.rs"],
       "taskIds": ["sprint-1-task-1", "sprint-4-task-1"],
-      "testLocations": ["src/tests/tests_wasm.rs"],
+      "testLocations": ["tests/wasm-fixture/src/lib.rs", "tools-node/tests/signalr-wasm.spec.ts"],
       "runtimeProof": ["pwsh -NoProfile -File scripts/ci/run-wasm-tests.ps1 -Browser chromium"],
       "evidenceIds": [],
       "status": "deferred"
@@ -60,7 +60,7 @@
       "sourceItemId": "SRC-007",
       "targetModules": ["src/protocol/**"],
       "taskIds": ["sprint-2-task-1"],
-      "testLocations": ["src/tests/tests.rs", "src/tests/tests_msgpack.rs"],
+      "testLocations": ["src/protocol/stateful.rs", "src/tests/tests_msgpack.rs"],
       "runtimeProof": ["cargo test --all-features protocol"],
       "evidenceIds": [],
       "status": "deferred"
@@ -69,7 +69,7 @@
       "sourceItemId": "SRC-008",
       "targetModules": ["src/tests/**", "dotnet/SignalRTestService/**", "scripts/ci/run-interop.ps1"],
       "taskIds": ["sprint-1-task-1", "sprint-2-task-1", "sprint-3-task-1", "sprint-4-task-1", "sprint-5-task-2"],
-      "testLocations": ["src/tests/tests_tokio.rs", "src/tests/tests_msgpack.rs", "src/tests/tests_wasm.rs"],
+      "testLocations": ["src/tests/tests_tokio.rs", "src/tests/tests_msgpack.rs", "tests/wasm-fixture/src/lib.rs", "tools-node/tests/signalr-wasm.spec.ts"],
       "runtimeProof": ["pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target native,wasm -Protocol json,messagepack -Scenario ordinary-reconnect,stateful-reconnect"],
       "evidenceIds": [],
       "status": "deferred"

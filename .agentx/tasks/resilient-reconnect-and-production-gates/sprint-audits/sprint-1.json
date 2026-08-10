@@ -1,0 +1,187 @@
+{
+  "schemaVersion": 5,
+  "generatorVersion": "5.0",
+  "epicId": "resilient-reconnect-and-production-gates",
+  "sprint": 1,
+  "status": "passed",
+  "headBeforeCommit": "6eae3e5e78ce897eb7070d05568754aa9b8fd468",
+  "filesReviewed": [
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\client\\client.rs",
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\communication\\client_tokio.rs",
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\communication\\client_wasm.rs",
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\communication\\reconnection.rs",
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\tests\\wasm-fixture\\src\\lib.rs",
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\tools-node\\tests\\signalr-wasm.spec.ts"
+  ],
+  "conformance": [
+    {
+      "requirementId": "REQ-F-001",
+      "taskIds": [
+        "sprint-1-task-1"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-F-001-1",
+        "AC-F-001-2",
+        "AC-F-001-3"
+      ],
+      "evidenceAcceptanceCriteriaIds": [
+        "AC-F-001-1",
+        "AC-F-001-2",
+        "AC-F-001-3"
+      ],
+      "missingAcceptanceCriteriaIds": [],
+      "implementationLocations": [
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\client\\client.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\communication\\client_tokio.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\communication\\client_wasm.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\communication\\reconnection.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\tests\\wasm-fixture\\src\\lib.rs"
+      ],
+      "testLocations": [
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\tools-node\\tests\\signalr-wasm.spec.ts"
+      ],
+      "evidenceProfiles": [
+        "parity",
+        "regression",
+        "runtime",
+        "unit"
+      ],
+      "missingProfiles": [],
+      "result": "pass",
+      "reason": "All mapped tasks are done with fresh profile-complete evidence."
+    },
+    {
+      "requirementId": "REQ-NF-001",
+      "taskIds": [
+        "sprint-1-task-1"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-F-001-1",
+        "AC-F-001-2",
+        "AC-F-001-3"
+      ],
+      "evidenceAcceptanceCriteriaIds": [
+        "AC-F-001-1",
+        "AC-F-001-2",
+        "AC-F-001-3"
+      ],
+      "missingAcceptanceCriteriaIds": [],
+      "implementationLocations": [
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\client\\client.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\communication\\client_tokio.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\communication\\client_wasm.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\communication\\reconnection.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\tests\\wasm-fixture\\src\\lib.rs"
+      ],
+      "testLocations": [
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\tools-node\\tests\\signalr-wasm.spec.ts"
+      ],
+      "evidenceProfiles": [
+        "parity",
+        "regression",
+        "runtime",
+        "unit"
+      ],
+      "missingProfiles": [],
+      "result": "pass",
+      "reason": "All mapped tasks are done with fresh profile-complete evidence."
+    }
+  ],
+  "designQuality": {
+    "declaredWritePaths": [
+      "rayx-signalr:.cargo/config.toml",
+      "rayx-signalr:.gitignore",
+      "rayx-signalr:Cargo.toml",
+      "rayx-signalr:src/client/client.rs",
+      "rayx-signalr:src/client/configuration.rs",
+      "rayx-signalr:src/client/mod.rs",
+      "rayx-signalr:src/communication/client_tokio.rs",
+      "rayx-signalr:src/communication/client_wasm.rs",
+      "rayx-signalr:src/communication/common.rs",
+      "rayx-signalr:src/communication/mod.rs",
+      "rayx-signalr:src/communication/reconnection.rs",
+      "rayx-signalr:src/completer/**",
+      "rayx-signalr:src/execution/enumerable.rs",
+      "rayx-signalr:src/execution/invocation.rs",
+      "rayx-signalr:src/execution/storage.rs",
+      "rayx-signalr:src/execution/storage_tokio.rs",
+      "rayx-signalr:src/execution/storage_wasm.rs",
+      "rayx-signalr:src/tests/tests_tokio.rs",
+      "rayx-signalr:tests/wasm-fixture/**",
+      "rayx-signalr:tools-node/**"
+    ],
+    "actualChangedPaths": [
+      "rayx-signalr:.cargo/config.toml",
+      "rayx-signalr:.gitignore",
+      "rayx-signalr:Cargo.toml",
+      "rayx-signalr:src/client/client.rs",
+      "rayx-signalr:src/client/configuration.rs",
+      "rayx-signalr:src/client/mod.rs",
+      "rayx-signalr:src/communication/client_tokio.rs",
+      "rayx-signalr:src/communication/client_wasm.rs",
+      "rayx-signalr:src/communication/common.rs",
+      "rayx-signalr:src/communication/mod.rs",
+      "rayx-signalr:src/communication/reconnection.rs",
+      "rayx-signalr:src/execution/storage.rs",
+      "rayx-signalr:src/execution/storage_tokio.rs",
+      "rayx-signalr:src/execution/storage_wasm.rs",
+      "rayx-signalr:tests/wasm-fixture/Cargo.toml",
+      "rayx-signalr:tests/wasm-fixture/src/lib.rs",
+      "rayx-signalr:tools-node/package.json",
+      "rayx-signalr:tools-node/playwright.config.ts",
+      "rayx-signalr:tools-node/pnpm-lock.yaml",
+      "rayx-signalr:tools-node/scripts/build-wasm-fixture.mjs",
+      "rayx-signalr:tools-node/scripts/serve-wasm-fixture.mjs",
+      "rayx-signalr:tools-node/tests/signalr-wasm.spec.ts",
+      "rayx-signalr:tools-node/wasm-host/index.html"
+    ],
+    "unexpectedChangedPaths": [],
+    "responsibilityIds": [
+      "RESP-001",
+      "RESP-002",
+      "RESP-005",
+      "RESP-006",
+      "RESP-007"
+    ],
+    "newAbstractions": [
+      "ConnectionRecipe",
+      "InteropHarness",
+      "ReconnectCoordinator"
+    ],
+    "newDependencies": [
+      "repository-local Playwright dev tooling"
+    ],
+    "newPublicApi": [
+      "ConnectionConfiguration::with_stateful_reconnect(StatefulReconnectConfig)",
+      "Existing ReconnectionHandler methods on wasm32"
+    ],
+    "unapprovedDesignAdditions": [],
+    "result": "pass",
+    "reason": "Actual changed paths stay within declared task scopes; declared responsibilities and explicitly allowed design additions are recorded for semantic review."
+  },
+  "commands": [
+    {
+      "command": "cargo check --target wasm32-unknown-unknown --all-features",
+      "effectiveCommand": "cargo check --target wasm32-unknown-unknown --all-features",
+      "exitCode": 0,
+      "assertion": "The complete WASM all-feature crate MUST compile after ordinary reconnect parity.",
+      "stdoutHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrHash": "769826f286520c0acdac63f0a3d3d50288e373fdfc207ebc918c5f666f7141d9",
+      "failureOutputTail": ""
+    },
+    {
+      "command": "cargo check --all-targets --all-features",
+      "effectiveCommand": "cargo check --all-targets --all-features",
+      "exitCode": 0,
+      "assertion": "Native behavior remains compile-clean across all targets and features.",
+      "stdoutHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrHash": "675b5491f4309943348cecbb566841ee4976679cf4994e30ce258d5b674cee4f",
+      "failureOutputTail": ""
+    }
+  ],
+  "defects": [],
+  "repairs": [],
+  "reauditCount": 1,
+  "residualRisks": [],
+  "generatedAt": "2026-08-09T23:02:59Z"
+}

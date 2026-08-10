@@ -10,8 +10,9 @@ pub enum MessagePayload {
 }
 
 /// Protocol selection for the SignalR hub connection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HubProtocolKind {
+    #[default]
     Json,
     #[cfg(feature = "messagepack")]
     MessagePack,
@@ -34,11 +35,5 @@ impl HubProtocolKind {
             #[cfg(feature = "messagepack")]
             HubProtocolKind::MessagePack => "Binary",
         }
-    }
-}
-
-impl Default for HubProtocolKind {
-    fn default() -> Self {
-        HubProtocolKind::Json
     }
 }

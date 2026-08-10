@@ -1,32 +1,98 @@
 {
   "schemaVersion": 5,
-  "status": "backlog",
-  "planLifecycle": "frozen",
-  "integrationStatus": "not-ready",
+  "status": "done",
+  "planLifecycle": "completed",
+  "integrationStatus": "integration-ready",
   "totalSprints": 5,
   "currentSprint": -1,
   "currentTask": -1,
   "activeTasks": [],
-  "leaseEpoch": 0,
-  "attempts": {},
+  "leaseEpoch": 15,
+  "attempts": {
+    "sprint-1-task-1": 3,
+    "sprint-2-task-1": 3,
+    "sprint-3-task-1": 2,
+    "sprint-4-task-1": 2,
+    "sprint-5-task-1": 2,
+    "sprint-5-task-2": 3
+  },
   "run": {
-    "status": "idle",
+    "status": "done",
     "requestedBoundary": "sprint",
     "maxParallelSprints": 2,
     "maxAttempts": 3,
-    "lastHeartbeatAt": "",
+    "lastHeartbeatAt": "2026-08-10T01:31:33Z",
     "blocker": {},
     "repositoryBaselines": {
       "rayx-signalr": "4f23eee0dd8e2a2b1c4e718e35d33da34a13a6fb"
     },
-    "sprintBaselines": {},
-    "sprintDirtyBaselines": {}
+    "sprintBaselines": {
+      "1": {
+        "rayx-signalr": "80b2a36948637d84442ae72b6dc2de463fce89f3"
+      },
+      "2": {
+        "rayx-signalr": "e66e53701b73575e4d64aee89810916235c074c4"
+      },
+      "3": {
+        "rayx-signalr": "fb14b0599b2522abc326bbff44e79985dafe1c63"
+      },
+      "4": {
+        "rayx-signalr": "f944ee17b7d80516d43f9e4d3deb5aa88dbd1c72"
+      },
+      "5": {
+        "rayx-signalr": "2869854cc9b27e2bd5d7ce74f5945c04c8a62b6e"
+      }
+    },
+    "sprintDirtyBaselines": {
+      "1": {
+        "rayx-signalr": {
+          ".agentx/tasks/resilient-reconnect-and-production-gates/.agentx-task.lock": "7eee70d31f67c6141651dc36eb02a1da88821ab24ac6fd64982d358ffa1fc855",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/contract-reconciliation.jsonl": "3c67067c88a86e0ad56fe1f7f5b3baf83f3d26d3c63f47fb5e7bc6af018f6059",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/preflight.json": "774b698b2436e332bb36d3108155b5488244109166b660dc20dfd6e6fa3e4304",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/repositories.json": "d3554be246de4e8f9a047f00dc98d9225c96a613b0820b5e9f4f5ea614e8686f",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/resume.json": "350fb095d59e9f9e8eea27703c98499445d66d44254ecb0d412b13f35510c210",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/source-inventory.json": "6bc9e5dfb3c7a97f6c1773736df63d531298dd31bf91b1884c4b8710cb3d1595",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/state.json": "6c9dd66fe9a452acd0720ce26b321d4deabc777fead40769322fd5a533e4d790",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/task-contracts.json": "c5ffde6a8dc18c6d06070a061d63cf6a8b1122597001b3874ffa51e660d5d39d",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/traceability.json": "99e10c74c7f5b14cf1d66d8feae70d18c1445e6a816cd1ba41de0c1aab16440b"
+        }
+      },
+      "2": {
+        "rayx-signalr": {
+          ".agentx/tasks/resilient-reconnect-and-production-gates/.agentx-task.lock": "bb9962655b37f984bf4369872cac0ab9d213d9cffb6875321e704d739528f8b0",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/preflight.json": "3048a2035525ed477cf456fd2acb8bffa4b0a09f4d2b032da9cf57a39ad78b6a"
+        }
+      },
+      "3": {
+        "rayx-signalr": {
+          ".agentx/tasks/resilient-reconnect-and-production-gates/.agentx-task.lock": "ae83132d6a321d1945b865d315dd271b3d90295c22b86a34eb9381f47994de55",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/preflight.json": "637deed7cc1321c5aeae703be86bd277adf1c4eb11ba1f3c2962999d7f4fda08",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/state.json": "35e5c23da73954318231cbd23b98c2e469068c187c9f046b677c3dbf36ab77c5"
+        }
+      },
+      "4": {
+        "rayx-signalr": {
+          ".agentx/tasks/resilient-reconnect-and-production-gates/.agentx-task.lock": "8d0f0717cccc17369f1580606d66ed8dd02e0c51bb7962cccf72014689f45e53",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/preflight.json": "a5cdeaee5978420810890eadf9f51e2d33715844cb3daa94d46c5370d4db256c",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/resume.json": "4141c384c56f42c42848395bbb676f2aa7eb0941011457c5384f693b4d37ca00",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/state.json": "510072baf173d259646c99e88aec51913b7d9f7580e93e3489baa86ce2151806"
+        }
+      },
+      "5": {
+        "rayx-signalr": {
+          ".agentx/tasks/resilient-reconnect-and-production-gates/.agentx-task.lock": "cad8e6792ba2bbe0adc52cd6b1a8d898522e0f56f472360bf6f5eb43427baee1",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/preflight.json": "06f45ab595c9dac26fb74cf60a64994ec97b3541b854de984de980c643f093dc",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/resume.json": "c4b4b2fe07ff084bb2a0fe92af96a0ed16ef4781c868dc502927af7a5ec7614e",
+          ".agentx/tasks/resilient-reconnect-and-production-gates/state.json": "d70f7bc05a876019afc7ef84fa6abe7ded4d94ffb7ac2c0715ef9e0a46eda10d"
+        }
+      }
+    }
   },
-  "lastResumeAt": "2026-08-09T21:01:50Z",
+  "lastResumeAt": "2026-08-10T01:34:46Z",
   "lastResumeSpecHashes": {
-    "requirements": "e5f6504a0f61a9376e5f61729e2e611424c9d02d704338e3f66e793b6a3d1fff",
-    "design": "594d04b28c64847eba30b988b88512dd6384b1a652bb198cd1c7349c781723aa",
-    "plan": "7b5ec6efd41db1f0925cca99e4c66b38deae9cb6a8c759c3a0622a113221bfad",
-    "contracts": "761a55fde475a1804e25947df5f123c8238e9634b94593332646310e7aac5f7a"
+    "requirements": "f2b54c9fd08734912af1948adb555043e4e492e23f5ce2e1df1e3fd2c51d1c1c",
+    "design": "10e8c5d8a3535948765d372914c0b4cc5661294cd629dafd10559595001865ea",
+    "plan": "67e5a9b4bcf49945d22dcabcedd1fe4b0ecab606135015f552b7cf07509ce9e5",
+    "contracts": "5a4663118ea29ad7ef6f5fb7d6a8ceca60077fd6f34ceed1cdf91a9107808b65"
   }
 }

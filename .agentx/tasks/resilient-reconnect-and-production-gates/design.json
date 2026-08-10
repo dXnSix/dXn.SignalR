@@ -123,7 +123,7 @@
       "doesNotOwn": ["production transport behavior", "CI scheduling", "GameX schemas"],
       "stateOwned": ["run-local service process", "run-local selected test command", "synthetic observed sequence"],
       "invariants": ["The service is ready before clients start.", "Fault hooks close only the physical transport.", "Every run stops its service and browser processes.", "The same semantic assertions apply to JSON and MessagePack."],
-      "dependencies": ["SignalRTestService", "PowerShell 7", "cargo test", "wasm-bindgen-test-runner", "Chromium"],
+      "dependencies": ["SignalRTestService", "PowerShell 7", "Cargo", "wasm-bindgen CLI", "repository-local Playwright", "Chromium"],
       "dependents": ["local validation", "GitHub Actions interop workflow"],
       "lifecycle": "One isolated process group per scenario",
       "evidence": [{"repositoryId": "rayx-signalr", "path": "dotnet/SignalRTestService", "reason": "Existing checked-in ASP.NET Core interop fixture."}]
@@ -227,16 +227,16 @@
       "title": "Deterministic checked-in interop harness",
       "requirementIds": ["REQ-F-001", "REQ-F-002", "REQ-F-003", "REQ-F-004", "REQ-NF-001", "REQ-NF-005"],
       "responsibilityIds": ["RESP-006", "RESP-007", "RESP-008"],
-      "decision": "Convert WASM coverage to wasm-bindgen-test running in Chromium, add cfg(test)-only physical socket-drop hooks to both adapters, map ordinary and AllowStatefulReconnects=true endpoints in SignalRTestService, add deterministic synthetic ordered callback/stream scenarios, and provide one PowerShell 7 runner that validates selectors, builds/starts/health-checks the service, invokes the exact Cargo test, enforces 60-second scenario timeout, captures redacted diagnostics, and cleans up in finally semantics.",
-      "rationale": "A real server and browser are required for SignalR transport proof, but a proxy or production fault API is unnecessary because both existing socket clients expose a close boundary that can be compiled only for tests.",
-      "provenance": {"basis": "repository-pattern", "evidence": [{"repositoryId": "rayx-signalr", "path": "src/tests/tests_wasm.rs", "reason": "Existing browser scenario can be converted rather than replaced with a second application."}, {"repositoryId": "rayx-signalr", "path": "dotnet/SignalRTestService", "reason": "Existing fixture already supplies JSON and MessagePack hub methods."}]},
+      "decision": "Build a dedicated browser-facing WASM fixture, serve it locally, and drive real Chromium through a repository-local Playwright package modeled on RayX.GameX; expose bounded diagnostic state to Playwright, use Playwright-controlled network interruption for browser transport loss, add a native cfg(test)-only physical socket-drop hook, map ordinary and AllowStatefulReconnects=true endpoints in SignalRTestService, add deterministic synthetic ordered callback/stream scenarios, and provide one PowerShell 7 runner that validates selectors, builds/starts/health-checks the service, invokes the exact Playwright or Cargo scenario, enforces a 60-second scenario timeout, captures redacted diagnostics, and cleans up in finally semantics.",
+      "rationale": "A real server and browser are required for SignalR transport proof. The established RayX.GameX pattern gives Playwright ownership of Chromium startup, shutdown, timeouts, traces, and assertions while the WASM fixture owns only protocol behavior and diagnostic publication; no WebDriver binary or Rust browser runner is needed.",
+      "provenance": {"basis": "repository-pattern", "evidence": [{"repositoryId": "rayx-signalr", "path": "src/tests/tests_wasm.rs", "reason": "The existing unlinked start program demonstrates browser compilation but is replaced by a dedicated fixture with an explicit diagnostic contract."}, {"repositoryId": "rayx-signalr", "path": "dotnet/SignalRTestService", "reason": "Existing fixture already supplies JSON and MessagePack hub methods."}]},
       "alternativesRejected": [
         {"alternative": "Count cargo check for wasm32 as browser reconnect proof", "reason": "Compilation cannot exercise browser WebSocket events, timers, CORS, reconnect, or JavaScript integration."},
         {"alternative": "Add Toxiproxy or a custom production proxy dependency", "reason": "A cfg(test) socket close is smaller and directly controls the physical transport boundary."},
         {"alternative": "Use screenshots or a manual Trunk page", "reason": "They do not produce deterministic assertion results or CI closure."}
       ],
-      "affectedSurfaces": ["Cargo.toml", ".cargo/config.toml", "src/tests/mod.rs", "src/tests/tests_tokio.rs", "src/tests/tests_msgpack.rs", "src/tests/tests_wasm.rs", "dotnet/SignalRTestService/Program.cs", "dotnet/SignalRTestService/TestHub.cs", "scripts/ci/run-interop.ps1"],
-      "controlFlow": ["Runner validates target/protocol/scenario before starting processes.", "Runner starts the .NET service on a controlled port and polls health with a deadline.", "Cargo executes the exact native or wasm-bindgen browser test filter.", "Test starts traffic, invokes cfg(test) physical close, observes resume and sequences, and repeats three times.", "Runner terminates process trees and checks cleanup in a finally block."],
+      "affectedSurfaces": ["Cargo.toml", "tests/wasm-fixture", "tools-node/package.json", "tools-node/playwright.config.ts", "tools-node/tests/signalr-wasm.spec.ts", "src/tests/tests_tokio.rs", "src/tests/tests_msgpack.rs", "dotnet/SignalRTestService/Program.cs", "dotnet/SignalRTestService/TestHub.cs", "scripts/ci/run-interop.ps1"],
+      "controlFlow": ["Runner validates target/protocol/scenario before starting processes.", "Runner starts the .NET service on a controlled port and polls health with a deadline.", "Native scenarios execute an exact Cargo test filter; browser scenarios build the dedicated WASM fixture and execute an exact Playwright grep in managed Chromium.", "The scenario starts traffic, Playwright interrupts browser networking or the native test invokes its physical-close hook, then assertions observe resume and sequences and repeat three times.", "Playwright and the runner terminate browser and service process trees and check cleanup in finally semantics."],
       "dataFlow": ["Synthetic integer sequence and invocation IDs flow through both protocols.", "Test assertions retain counts, ordering, logical connection identity, handshake count, and lifecycle transitions.", "Failure logs are redacted and bounded."],
       "interfaces": ["run-interop.ps1 parameters are Target=native|wasm, Protocol=json|messagepack, Scenario=ordinary-reconnect|stateful-reconnect.", "Test-only force_transport_drop is crate-private under cfg(test).", "SignalRTestService maps /test and /test-stateful."],
       "failureHandling": ["Invalid selector exits before process startup.", "Health, test, timeout, or assertion failures preserve nonzero status.", "finally cleanup kills the exact child process tree and verifies the port is released."],
@@ -287,7 +287,7 @@
       "WASM disconnected/error poll logging without lifecycle transition.",
       "MessageType::Other = 8 misclassification.",
       "Direct native reconnect to the old negotiated endpoint with a second handshake.",
-      "The unlinked wasm_bindgen(start) test program as the only browser validation route.",
+      "The unlinked wasm_bindgen(start) test program or a WebDriver-backed Rust test runner as the browser validation route.",
       "Warning-producing and rustfmt-divergent inherited source forms."
     ],
     "newAbstractions": [
@@ -297,7 +297,7 @@
       {"name": "InteropHarness", "designIds": ["DES-004"], "visibility": "internal", "invariantOrPolicyOwned": "Deterministic service readiness, scenario selection, timeout, fault injection coordination, and cleanup.", "whyExistingCodeIsInsufficient": "Existing network tests assume a manually running service and current WASM coverage has no test runner.", "knownConsumers": ["maintainers", "GitHub Actions"]}
     ],
     "newDependencies": [
-      {"name": "wasm-bindgen-test dev-dependency", "designIds": ["DES-004"], "reason": "Run asynchronous Rust assertions in a real browser with Cargo-integrated pass/fail results.", "whyStandardOrExistingMechanismsAreInsufficient": "wasm_bindgen(start), Trunk, and cargo check do not provide a deterministic browser test harness or CI result protocol."}
+      {"name": "repository-local Playwright dev tooling", "designIds": ["DES-004"], "reason": "Drive the dedicated WASM fixture in real Chromium with managed lifecycle, timeout, trace, and assertion results using the same pattern as RayX.GameX.", "whyStandardOrExistingMechanismsAreInsufficient": "wasm_bindgen(start), cargo check, and WebDriver-backed wasm-bindgen-test do not match the established repository browser harness or provide the desired Playwright-owned lifecycle."}
     ],
     "newPublicApi": [
       {"surface": "StatefulReconnectConfig with Default buffer_size_bytes=100000", "requirementIds": ["REQ-F-002", "REQ-NF-002", "REQ-NF-003"], "designIds": ["DES-003"], "compatibility": "Additive opt-in value; zero capacity is rejected during connection configuration validation."},

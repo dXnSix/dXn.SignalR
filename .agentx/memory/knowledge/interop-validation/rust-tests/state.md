@@ -4,7 +4,7 @@ agentx:
   scope: interop-validation/rust-tests
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-08-09T21:45:00+02:00"
+  updated: "2026-08-10T03:15:00+02:00"
   topics:
     - tokio
     - wasm
@@ -21,8 +21,9 @@ Read this file before work in this domain or subdomain and update it when the cu
 
 ## Current Technical Shape
 
-The native Tokio integration test exercises invoke, streaming, argument serialization, callbacks, cloning, and disconnect against the service. A feature-gated MessagePack integration test covers invoke and streams. `src/protocol/msgpack.rs` includes frame/value unit tests. The WASM path is a `wasm_bindgen(start)` browser program rather than a `wasm-bindgen-test` suite.
+Native Tokio tests cover baseline interop plus ordinary and stateful reconnect in JSON and MessagePack. The WASM fixture remains a `wasm_bindgen(start)` browser program, but Playwright 1.59.1 now drives it in real Chromium with dedicated ordinary/stateful JSON/MessagePack assertions. Protocol and buffer unit tests cover Ack/Sequence golden frames, bounded replay, backpressure, duplicate suppression, gaps, overflow, disposal, and cumulative acknowledgements.
 
 ## Backlinks
 
-- Source anchors: [src/tests](../../../../../src/tests), [src/protocol/msgpack.rs](../../../../../src/protocol/msgpack.rs), [index.html](../../../../../index.html).
+- Source anchors: [src/tests](../../../../../src/tests), [WASM fixture](../../../../../tests/wasm-fixture), [Playwright tests](../../../../../tools-node/tests/signalr-wasm.spec.ts), [run-interop.ps1](../../../../../scripts/ci/run-interop.ps1).
+- 2026-08-10 current [Decision: use repository-local Playwright for browser runtime validation](../../../decisions/interop-validation/rust-tests/2026-08-10-interop-validation-rust-tests-use-playwright-for-browser-runtime.md).

@@ -3,9 +3,7 @@ use serde_json::Value;
 
 pub const RECORD_SEPARATOR: &str = "\u{001E}";
 
-pub struct MessageParser {
-
-}
+pub struct MessageParser {}
 
 impl MessageParser {
     pub fn to_json<T: ?Sized + Serialize>(value: &T) -> Result<String, serde_json::Error> {
@@ -23,12 +21,6 @@ impl MessageParser {
     }
 
     pub fn parse_message<T: DeserializeOwned>(message: &str) -> Result<T, String> {
-        let response= serde_json::from_str::<T>(message);
-
-        if response.is_ok() {
-            Ok(response.unwrap())
-        } else {
-            Err(response.err().unwrap().to_string())
-        }
+        serde_json::from_str::<T>(message).map_err(|error| error.to_string())
     }
 }
