@@ -1,13 +1,13 @@
 {
   "schemaVersion": 5,
   "generatorVersion": "5.0",
-  "recordedAt": "2026-08-10T00:08:27Z",
+  "recordedAt": "2026-08-10T00:52:51Z",
   "mode": "static",
   "specHashes": {
     "requirements": "ab1d98e2852207dc07023ee7fb22d451224a85d69ef9e49742565a3db4401e99",
     "design": "8bd87b045f70a87fc5f45b05116885be5a8e5a400615165b1ee32ecf09bbd77e",
-    "task-contracts": "aaec1ef1212bbf7e9a7bc2946f96ef7143c61e4688ae4367058943df6b4d9b5d",
-    "implementation-plan": "187edad2104dcc8625d083ad4ca33955c1092e3b8dad8823f3798b324ffe72b4"
+    "task-contracts": "4f3955826b82cece635505853834757edaaef8ee1d9dcad4ce4f17fda139fce1",
+    "implementation-plan": "fbf71a0ed00c19cc82e812fd91cd27df6682e191c8c0dba4195e8c9c5277eb42"
   },
   "behaviorContractHashes": {
     "sprint-1-task-1": "256987c9a65df0796fbbf2648b0f3c42ebe02b2daf43b1b50598e2d4151f1ea9",
@@ -15,14 +15,14 @@
     "sprint-3-task-1": "534063453098a3335c143e9bad65a27bf664864530ef14be66c71c54a56fffbc",
     "sprint-4-task-1": "fb9717384e2c05c8609518d8e97b460bf140ddffaf9e63d9358e5f3a780c9f7b",
     "sprint-5-task-1": "9fa6276040e63ce63da3ae25b42fdff862e9ce61aed7567da8da74cf56f144b1",
-    "sprint-5-task-2": "19c9007c2b802decdb8942c60601323984b43112126b5483d4608547ffb5aba7"
+    "sprint-5-task-2": "50cf6c63cbc607361ed94498f09968e8aff411c7fdf325349eff8bc8b7a5aff9"
   },
   "repositoryBindings": [
     {
       "repositoryId": "rayx-signalr",
       "resolvedPath": "D:\\Work\\projects\\RayX\\RayX.SignalR",
-      "head": "2869854cc9b27e2bd5d7ce74f5945c04c8a62b6e",
-      "tree": "dbb47428a484dcd8c07a1ceb5b36a5ced180359d",
+      "head": "77dd3f6abed8d8dee368c37c21c4b8ffe900e756",
+      "tree": "fbb10a3b83e73896e5717619953ce8cbd90ce659",
       "branch": "implementation/resilient-reconnect-and-production-gates-impl",
       "identity": {
         "gitCommonDirectoryFingerprint": "1583c9a0848e77660b35f8fa0306c4001601f739d0e168047fc18be09782f4f7",
@@ -79,7 +79,7 @@
     {
       "taskId": "sprint-5-task-2",
       "sprint": 5,
-      "behaviorContractHash": "19c9007c2b802decdb8942c60601323984b43112126b5483d4608547ffb5aba7",
+      "behaviorContractHash": "50cf6c63cbc607361ed94498f09968e8aff411c7fdf325349eff8bc8b7a5aff9",
       "planningMetadataHash": "51768ed53e7776cc4a43b2f6690fcf15f71d08185251ad3f26b2b006bf004ca5",
       "diagnostics": [],
       "disposition": "pass"
@@ -88,5 +88,5 @@
   "baselineResults": [],
   "diagnostics": [],
   "disposition": "pass",
-  "preflightHash": "c6b4fdcdb351b5574f3515cd1be4bcc17053c01aa0a0af00d31a313cda774c56"
+  "preflightHash": "3859edb2d7e39f63014d5ee9a1c4f3a50b080b329c8ee11f8f0e35a3f5f027af"
 }

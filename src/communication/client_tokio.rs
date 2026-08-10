@@ -480,8 +480,8 @@ impl CommunicationConnection {
             .map_err(|e| e.to_string())
     }
 
+    #[cfg(feature = "messagepack")]
     async fn send_binary(&mut self, data: Vec<u8>) -> Result<(), String> {
-        #[cfg(feature = "messagepack")]
         if self._stateful.is_some() {
             let frames = crate::protocol::msgpack::split_framed_messages(&data)?;
             let first = frames
@@ -651,6 +651,7 @@ impl Communication for CommunicationClient {
         }
     }
 
+    #[cfg(feature = "messagepack")]
     async fn send_binary(&mut self, data: Vec<u8>) -> Result<(), String> {
         let state = self._state.lock().await;
         match &*state {
@@ -889,6 +890,7 @@ impl CommunicationClient {
                         .send(Message::text(text))
                         .await
                         .map_err(|error| error.to_string())?,
+                    #[cfg(feature = "messagepack")]
                     SerializedFrame::Binary(binary) => write
                         .send(Message::binary(binary))
                         .await

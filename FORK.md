@@ -38,13 +38,22 @@ explicitly established.
 - Maintain the owned `rayx-signalr` package identity and RayX repository
   metadata across upstream imports.
 
-## Required hardening before production use
+## Production hardening baseline
 
-- Replace panic/`unwrap`-driven network and protocol paths with typed errors.
-- Make reconnect, lifecycle notifications, callback re-registration, and WASM
-  behavior explicit and testable.
-- Add native and browser runtime integration coverage for JSON and MessagePack.
-- Add cross-language golden-frame tests against the GameX schema fixtures.
-- Add CI quality gates after the inherited formatting and lint debt is resolved.
+The fork now has explicit ordinary and stateful reconnect lifecycles on native
+Tokio and browser WASM, JSON and MessagePack Ack/Sequence compatibility, bounded
+replay and duplicate suppression, and runtime interoperability coverage against
+the checked-in ASP.NET Core service. Browser proof uses the repository-local
+Playwright 1.59.1 Chromium harness following the RayX.GameX validation pattern.
 
-These are tracked design constraints, not claims about the current fork.
+The production gate baseline pins Rust 1.92, denies native/WASM/rustdoc warnings,
+checks pinned and stable Rust across Windows/Linux/macOS, runs service-independent
+unit and contract tests, executes every native/browser reconnect matrix cell,
+and scans RustSec and NuGet transitive vulnerabilities. Workflows use
+`contents: read`, cancel superseded pull-request runs, require no secrets, and
+upload bounded redacted diagnostics only after failure. Publishing and branch
+protection remain separate, explicitly authorized repository-owner actions.
+
+Replacing the remaining inherited panic/`unwrap` network and protocol paths
+with a fully typed public error model remains follow-up hardening and is not
+claimed complete by this reconnect-and-production-gates epic.

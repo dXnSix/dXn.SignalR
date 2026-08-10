@@ -66,6 +66,7 @@ impl ConnectionData {
 pub trait Communication: Clone {
     async fn connect(configuration: &ConnectionData) -> Result<Self, String>;
     async fn send<T: Serialize>(&mut self, data: T) -> Result<(), String>;
+    #[cfg(feature = "messagepack")]
     async fn send_binary(&mut self, data: Vec<u8>) -> Result<(), String>;
     fn get_storage(&self) -> Result<UpdatableActionStorage, String>;
     fn get_protocol_kind(&self) -> HubProtocolKind;

@@ -1,0 +1,173 @@
+name: Quality
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+  RUSTDOCFLAGS: -D warnings
+
+jobs:
+  rustfmt:
+    name: quality / rustfmt
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install pinned rustfmt
+        run: rustup toolchain install 1.92.0 --profile minimal --component rustfmt
+      - name: Check formatting
+        run: cargo +1.92.0 fmt --all --check
+
+  clippy:
+    name: quality / clippy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install pinned Clippy
+        run: rustup toolchain install 1.92.0 --profile minimal --component clippy
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: clippy-${{ runner.os }}-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
+      - name: Deny compiler and Clippy warnings
+        run: cargo +1.92.0 clippy --all-targets --all-features -- -D warnings
+
+  native:
+    name: quality / native (${{ matrix.os }}, Rust ${{ matrix.toolchain }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        toolchain: [1.92.0, stable]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install Rust toolchain
+        run: rustup toolchain install ${{ matrix.toolchain }} --profile minimal
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: native-${{ matrix.os }}-${{ matrix.toolchain }}-${{ hashFiles('Cargo.toml') }}
+      - name: Check native targets and features
+        run: cargo +${{ matrix.toolchain }} check --all-targets --all-features
+
+  wasm:
+    name: quality / wasm (${{ matrix.mode }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: default
+            feature_args: ""
+          - mode: all-features
+            feature_args: --all-features
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install pinned WASM toolchain
+        run: rustup toolchain install 1.92.0 --profile minimal --target wasm32-unknown-unknown
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: wasm-${{ matrix.mode }}-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
+      - name: Check WASM feature mode
+        run: cargo +1.92.0 check --target wasm32-unknown-unknown ${{ matrix.feature_args }}
+
+  unit-contract:
+    name: quality / unit-contract (${{ matrix.protocol }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - protocol: JSON
+            feature_args: --no-default-features
+          - protocol: MessagePack
+            feature_args: --all-features
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust
+        run: rustup toolchain install 1.92.0 --profile minimal
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: tests-${{ matrix.protocol }}-${{ hashFiles('Cargo.toml') }}
+      - name: Run service-independent unit and contract tests
+        run: >-
+          cargo +1.92.0 test --lib ${{ matrix.feature_args }} --
+          --skip tests::tests_tokio::test_service
+          --skip tests::tests_tokio::interop_ordinary_reconnect_json
+          --skip tests::tests_tokio::interop_stateful_reconnect_json
+          --skip tests::tests_msgpack::test_msgpack_service
+          --skip tests::tests_msgpack::interop_ordinary_reconnect_messagepack
+          --skip tests::tests_msgpack::interop_stateful_reconnect_messagepack
+
+  rustdoc:
+    name: quality / rustdoc
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust
+        run: rustup toolchain install 1.92.0 --profile minimal
+      - name: Build public documentation with warnings denied
+        run: cargo +1.92.0 doc --all-features --no-deps
+
+  dependency-security:
+    name: quality / dependency-security
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust
+        run: rustup toolchain install 1.92.0 --profile minimal
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: Install RustSec scanner
+        run: cargo install cargo-audit --locked
+      - name: Scan Rust and NuGet dependency graphs
+        shell: pwsh
+        run: ./scripts/ci/verify-workflows.ps1 -Security

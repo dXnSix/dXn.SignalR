@@ -254,6 +254,7 @@ impl Communication for CommunicationClient {
         self.send_internal(data).await
     }
 
+    #[cfg(feature = "messagepack")]
     async fn send_binary(&mut self, data: Vec<u8>) -> Result<(), String> {
         self.send_binary_internal(data).await
     }
@@ -411,6 +412,7 @@ impl CommunicationClient {
                     SerializedFrame::Text(text) => {
                         client.borrow().send_string(&text).map_err(Self::js_error)?;
                     }
+                    #[cfg(feature = "messagepack")]
                     SerializedFrame::Binary(binary) => {
                         client
                             .borrow()
@@ -791,6 +793,7 @@ impl CommunicationClient {
         result
     }
 
+    #[cfg(feature = "messagepack")]
     async fn send_binary_internal(&self, data: Vec<u8>) -> Result<(), String> {
         if self.lifecycle.get() != LifecycleState::Connected {
             return Err(format!(

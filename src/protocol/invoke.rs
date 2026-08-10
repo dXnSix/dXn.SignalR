@@ -89,6 +89,7 @@ impl Invocation {
         self.target.clone()
     }
 
+    #[cfg(feature = "messagepack")]
     pub(crate) fn get_message_type(&self) -> u8 {
         self.r#type as u8
     }

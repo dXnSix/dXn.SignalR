@@ -2,7 +2,7 @@
   "schemaVersion": 5,
   "epicId": "resilient-reconnect-and-production-gates",
   "title": "Implement Cross-Target Reconnect, Stateful Continuity, And Production Gates",
-  "lifecycle": "implementing",
+  "lifecycle": "completed",
   "plannedAgainst": {
     "repositoryId": "rayx-signalr",
     "targetBranch": "master",
@@ -1863,7 +1863,7 @@
             {
               "id": "sprint-5-task-2",
               "title": "Add and prove production GitHub Actions gates",
-              "action": "MUST add least-privilege quality and interoperability workflows, exact local workflow-verification and security commands, native OS plus WASM matrices, real Chromium JSON/MessagePack reconnect jobs, failure-only redacted artifacts, and documentation of stable check names and local reproduction without enabling publishing or changing GitHub settings.",
+              "action": "MUST add least-privilege quality and interoperability workflows, exact local workflow-verification and security commands, native OS plus default/all-feature WASM zero-warning matrices, real Chromium JSON/MessagePack reconnect jobs, failure-only redacted artifacts, and documentation of stable check names and local reproduction without enabling publishing or changing GitHub settings; the task MUST also correct the narrow feature-gating defects exposed by the newly enforced default-feature WASM warning gate.",
               "kind": "infra",
               "requirementIds": [
                 "REQ-F-003",
@@ -1889,11 +1889,15 @@
                   "scripts/ci/run-interop.ps1",
                   "scripts/ci/verify-workflows.ps1",
                   "README.md",
-                  "FORK.md"
+                  "FORK.md",
+                  "src/communication/common.rs",
+                  "src/communication/stateful.rs",
+                  "src/communication/client_wasm.rs",
+                  "src/communication/client_tokio.rs",
+                  "src/protocol/invoke.rs"
                 ],
                 "generatedPaths": [],
                 "forbiddenPaths": [
-                  "src/**",
                   "dotnet/**",
                   "Cargo.toml",
                   "rust-toolchain.toml",
@@ -1906,7 +1910,8 @@
                 "symbols": [
                   "quality workflow",
                   "interop workflow",
-                  "verify-workflows.ps1"
+                  "verify-workflows.ps1",
+                  "default-feature WASM cfg boundaries"
                 ]
               },
               "acceptanceCriteriaIds": [
@@ -1921,6 +1926,7 @@
               "proofObligations": [
                 "Before workflow creation, the verifier MUST fail because named workflows, permissions, triggers, matrices, timeouts, cleanup, security, and artifact contracts are absent.",
                 "Every command referenced by quality.yml and interop.yml MUST be executable from a clean local checkout through the documented route.",
+                "Default-feature and all-feature WASM checks MUST both pass with warnings denied; feature-only binary send and MessagePack frame paths MUST be compiled only when the messagepack feature is enabled.",
                 "The final native/WASM JSON/MessagePack ordinary/stateful matrix MUST pass with 60-second per-scenario bounds and zero leaked processes.",
                 "Workflow files MUST define contents-read permissions, PR concurrency cancellation, no secret requirement, vulnerability gates, and failure-only redacted artifacts."
               ],
@@ -1949,7 +1955,8 @@
                   "stable check-name documentation",
                   "failure-only diagnostic artifact packaging",
                   "InteropHarness",
-                  "repository-local Playwright dev tooling"
+                  "repository-local Playwright dev tooling",
+                  "narrow cfg(feature = messagepack) gates on MessagePack-only internal symbols"
                 ]
               },
               "validation": {
@@ -2133,7 +2140,7 @@
                   }
                 ]
               },
-              "status": "pending"
+              "status": "done"
             }
           ]
         }

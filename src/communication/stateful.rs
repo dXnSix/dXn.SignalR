@@ -5,6 +5,7 @@ use crate::protocol::negotiate::MessageType;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum SerializedFrame {
     Text(String),
+    #[cfg(feature = "messagepack")]
     Binary(Vec<u8>),
 }
 
@@ -12,6 +13,7 @@ impl SerializedFrame {
     fn len(&self) -> usize {
         match self {
             Self::Text(value) => value.len(),
+            #[cfg(feature = "messagepack")]
             Self::Binary(value) => value.len(),
         }
     }
