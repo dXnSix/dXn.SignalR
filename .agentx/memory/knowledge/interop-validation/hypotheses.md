@@ -4,7 +4,7 @@ agentx:
   scope: interop-validation
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-08-09T21:45:00+02:00"
+  updated: "2026-08-10T03:15:00+02:00"
   topics:
     - ci
   supersedes: []
@@ -12,4 +12,4 @@ agentx:
 ---
 # Hypotheses
 
-- A deterministic service-start and browser-run harness is needed before these integration paths can become reliable CI gates.
+No interop-harness hypotheses are active; the deterministic native/Chromium matrix is a proven CI gate.

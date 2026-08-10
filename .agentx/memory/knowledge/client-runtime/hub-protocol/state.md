@@ -4,7 +4,7 @@ agentx:
   scope: client-runtime/hub-protocol
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-08-09T21:45:00+02:00"
+  updated: "2026-08-10T03:15:00+02:00"
   topics:
     - handshake
     - json
@@ -21,7 +21,7 @@ Read this file before work in this domain or subdomain and update it when the cu
 
 ## Current Technical Shape
 
-The shared protocol layer models negotiation, handshake, invocation, completion, streaming, cancel, ping, and close messages. JSON uses the SignalR record separator. Optional MessagePack uses varint length framing and binary Hub Protocol arrays; the initial handshake remains JSON.
+The shared protocol layer models negotiation, handshake, invocation, completion, streaming, cancel, ping, close, Ack, and Sequence messages. JSON uses the SignalR record separator. Optional MessagePack uses varint length framing and binary Hub Protocol arrays; the initial handshake remains JSON. Ack is cumulative, Sequence establishes the post-resume receive position, zero sequence IDs are rejected, and MessagePack callback results use protocol-aware Completion encoding.
 
 ## Backlinks
 
