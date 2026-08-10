@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 5,
+  "epicId": "resilient-reconnect-and-production-gates",
+  "sprint": 4,
+  "auditSha256": "bfdac86585fbfcba6d817713afec6a50156cdf7cbc0190c38a2f722fc31b1c42",
+  "evidenceSha256": "6327f240e9f3e08982fb4e0eba03d46f20eadf75e57b31d1a9a88961efdf3535",
+  "repositories": [
+    {
+      "id": "rayx-signalr",
+      "path": "D:\\Work\\projects\\RayX\\RayX.SignalR",
+      "baselineHead": "f944ee17b7d80516d43f9e4d3deb5aa88dbd1c72",
+      "resultHead": "0ea05dae51cbd688c619e41184cdcf8762124d7f",
+      "commits": [
+        "0ea05dae51cbd688c619e41184cdcf8762124d7f"
+      ],
+      "statusHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "sprintOwnedPaths": [
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\communication\\client_wasm.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\tests\\wasm-fixture\\src\\lib.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\tools-node\\tests\\signalr-wasm.spec.ts"
+      ],
+      "unrelatedDirtyPaths": [],
+      "rollbackCommand": "git -C \"D:\\Work\\projects\\RayX\\RayX.SignalR\" revert --no-commit f944ee17b7d80516d43f9e4d3deb5aa88dbd1c72..0ea05dae51cbd688c619e41184cdcf8762124d7f"
+    }
+  ],
+  "generatedAt": "2026-08-10T00:07:51Z"
+}
