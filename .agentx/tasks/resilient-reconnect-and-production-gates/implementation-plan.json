@@ -1233,7 +1233,8 @@
         "disjointOwnedScopes": [
           "src/communication/client_wasm.rs",
           "tests/wasm-fixture/**",
-          "tools-node/**"
+          "tools-node/**",
+          "dotnet/SignalRTestService/TestHub.cs"
         ]
       },
       "groups": [
@@ -1268,14 +1269,14 @@
                 "writePaths": [
                   "src/communication/client_wasm.rs",
                   "tests/wasm-fixture/**",
-                  "tools-node/**"
+                  "tools-node/**",
+                  "dotnet/SignalRTestService/TestHub.cs"
                 ],
                 "generatedPaths": [],
                 "forbiddenPaths": [
                   "src/communication/client_tokio.rs",
                   "src/protocol/**",
                   "src/communication/stateful.rs",
-                  "dotnet/**",
                   "scripts/**",
                   ".github/**"
                 ],
@@ -1283,11 +1284,13 @@
                   "RESP-001",
                   "RESP-004",
                   "RESP-005",
-                  "RESP-007"
+                  "RESP-007",
+                  "RESP-008"
                 ],
                 "symbols": [
                   "WasmTransportAdapter",
                   "CommunicationClient::polling_loop",
+                  "TestHub.AbortPhysicalTransport",
                   "Playwright stateful reconnect JSON scenario",
                   "Playwright stateful reconnect MessagePack scenario"
                 ]
@@ -1324,6 +1327,7 @@
                   "WASM adapter resume operation",
                   "browser timer cancellation token",
                   "generation guards",
+                  "ASP.NET fixture-only physical transport abort hook",
                   "repository-local Playwright dev tooling",
                   "Playwright-managed browser network interruption",
                   "focused Chromium JSON and MessagePack scenarios",
@@ -1485,7 +1489,7 @@
                   }
                 ]
               },
-              "status": "pending"
+              "status": "done"
             }
           ]
         }

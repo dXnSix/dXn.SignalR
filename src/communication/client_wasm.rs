@@ -15,11 +15,19 @@ use crate::{
     protocol::{
         hub_protocol::{HubProtocolKind, MessagePayload},
         messages::{MessageParser, RECORD_SEPARATOR},
-        negotiate::{HandshakeRequest, HandshakeResponse, Ping},
+        negotiate::{HandshakeRequest, HandshakeResponse, MessageType, Ping},
+        stateful::{Ack, Sequence},
     },
 };
 
-use super::{common::Communication, reconnection::ReconnectionConfig, HttpClient};
+use super::{
+    common::Communication,
+    reconnection::ReconnectionConfig,
+    stateful::{SerializedFrame, StatefulMessageBuffer, TrackResult},
+    HttpClient,
+};
+
+type SharedStatefulBuffer = Rc<RefCell<StatefulMessageBuffer>>;
 
 #[wasm_bindgen]
 extern "C" {
@@ -48,7 +56,9 @@ pub struct WasmReconnectionContext {
     client: Rc<RefCell<Option<Rc<RefCell<PollingClient>>>>>,
     storage: UpdatableActionStorage,
     recipe: ConnectionRecipe,
+    transport_endpoint: String,
     protocol_kind: HubProtocolKind,
+    stateful: Option<SharedStatefulBuffer>,
     reconnection_config: Rc<RefCell<ReconnectionConfig>>,
     lifecycle: Rc<Cell<LifecycleState>>,
     attempt_in_progress: Rc<Cell<bool>>,
@@ -62,9 +72,11 @@ impl WasmReconnectionContext {
         }
 
         self.lifecycle.set(LifecycleState::Reconnecting);
-        let mut storage = self.storage.clone();
-        storage.fail_pending("The connection was replaced by a fresh logical reconnect");
-        let result = self.connect_fresh().await;
+        if self.stateful.is_none() {
+            let mut storage = self.storage.clone();
+            storage.fail_pending("The connection was replaced by a fresh logical reconnect");
+        }
+        let result = self.connect_current().await;
         self.finish_attempt(&result);
         result
     }
@@ -75,8 +87,10 @@ impl WasmReconnectionContext {
         }
 
         self.lifecycle.set(LifecycleState::Reconnecting);
-        let mut storage = self.storage.clone();
-        storage.fail_pending("The connection was replaced by a fresh logical reconnect");
+        if self.stateful.is_none() {
+            let mut storage = self.storage.clone();
+            storage.fail_pending("The connection was replaced by a fresh logical reconnect");
+        }
 
         let started = date_now();
         let mut retry_count = 0;
@@ -99,7 +113,7 @@ impl WasmReconnectionContext {
                 break Err("Client was locally disconnected".to_string());
             }
 
-            match self.connect_fresh().await {
+            match self.connect_current().await {
                 Ok(()) => break Ok(()),
                 Err(error) => {
                     warn!(
@@ -112,6 +126,13 @@ impl WasmReconnectionContext {
             }
         };
 
+        if let Err(error) = &result {
+            if let Some(buffer) = &self.stateful {
+                buffer.borrow_mut().dispose();
+            }
+            let mut storage = self.storage.clone();
+            storage.fail_pending(error);
+        }
         self.finish_attempt(&result);
         result
     }
@@ -124,13 +145,25 @@ impl WasmReconnectionContext {
         self.recipe.display_endpoint()
     }
 
-    async fn connect_fresh(&self) -> Result<(), String> {
+    async fn connect_current(&self) -> Result<(), String> {
         let generation = self.generation.get().wrapping_add(1);
         self.generation.set(generation);
-        let configuration = HttpClient::negotiate(&self.recipe).await?;
-        let client =
-            CommunicationClient::connect_physical(configuration.get_endpoint(), self.protocol_kind)
-                .await?;
+        let client = if let Some(buffer) = &self.stateful {
+            CommunicationClient::resume_to_server(
+                self.transport_endpoint.clone(),
+                self.protocol_kind,
+                buffer.clone(),
+            )
+            .await?
+        } else {
+            let configuration = HttpClient::negotiate(&self.recipe).await?;
+            CommunicationClient::connect_physical(
+                configuration.get_endpoint(),
+                self.protocol_kind,
+                false,
+            )
+            .await?
+        };
 
         if self.lifecycle.get() == LifecycleState::LocalClosed {
             let _ = client.borrow().close();
@@ -159,7 +192,9 @@ pub struct CommunicationClient {
     client: Rc<RefCell<Option<Rc<RefCell<PollingClient>>>>>,
     storage: UpdatableActionStorage,
     recipe: ConnectionRecipe,
+    transport_endpoint: String,
     protocol_kind: HubProtocolKind,
+    stateful: Option<SharedStatefulBuffer>,
     reconnection_config: Rc<RefCell<ReconnectionConfig>>,
     disconnection_handler: Rc<RefCell<Option<Rc<DisconnectionCallback>>>>,
     lifecycle: Rc<Cell<LifecycleState>>,
@@ -177,7 +212,9 @@ impl Clone for CommunicationClient {
             client: self.client.clone(),
             storage: self.storage.clone(),
             recipe: self.recipe.clone(),
+            transport_endpoint: self.transport_endpoint.clone(),
             protocol_kind: self.protocol_kind,
+            stateful: self.stateful.clone(),
             reconnection_config: self.reconnection_config.clone(),
             disconnection_handler: self.disconnection_handler.clone(),
             lifecycle: self.lifecycle.clone(),
@@ -205,6 +242,7 @@ impl Communication for CommunicationClient {
         let client = Self::connect_physical(
             configuration.get_endpoint(),
             configuration.get_protocol_kind(),
+            configuration.stateful_reconnect().is_some(),
         )
         .await?;
         let mut result = Self::create(configuration, client);
@@ -213,11 +251,11 @@ impl Communication for CommunicationClient {
     }
 
     async fn send<T: serde::Serialize>(&mut self, data: T) -> Result<(), String> {
-        self.send_internal(data)
+        self.send_internal(data).await
     }
 
     async fn send_binary(&mut self, data: Vec<u8>) -> Result<(), String> {
-        self.send_binary_internal(data)
+        self.send_binary_internal(data).await
     }
 
     fn get_protocol_kind(&self) -> HubProtocolKind {
@@ -241,7 +279,14 @@ impl CommunicationClient {
             client: Rc::new(RefCell::new(Some(client))),
             storage: UpdatableActionStorage::new(),
             recipe: configuration.get_recipe(),
+            transport_endpoint: configuration.get_endpoint(),
             protocol_kind: configuration.get_protocol_kind(),
+            stateful: configuration.stateful_reconnect().map(|config| {
+                Rc::new(RefCell::new(
+                    StatefulMessageBuffer::new(config.buffer_size_bytes)
+                        .expect("negotiated stateful reconnect configuration is valid"),
+                ))
+            }),
             reconnection_config: Rc::new(RefCell::new(ReconnectionConfig::default())),
             disconnection_handler: Rc::new(RefCell::new(None)),
             lifecycle: Rc::new(Cell::new(LifecycleState::Connected)),
@@ -267,27 +312,19 @@ impl CommunicationClient {
     async fn connect_physical(
         endpoint: String,
         protocol_kind: HubProtocolKind,
+        stateful_reconnect: bool,
     ) -> Result<Rc<RefCell<PollingClient>>, String> {
-        let client = Rc::new(RefCell::new(
-            PollingClient::new(&endpoint).map_err(|error| format!("{error:?}"))?,
-        ));
+        let client = Self::connect_socket(endpoint).await?;
 
-        Self::wait_until(
-            "WebSocket connection",
-            Duration::from_secs(10),
-            || match client.borrow().status() {
-                ConnectionStatus::Connected => Ok(Some(())),
-                ConnectionStatus::Error | ConnectionStatus::Disconnected => {
-                    Err("WebSocket connection failed".to_string())
-                }
-                _ => Ok(None),
-            },
-        )
-        .await?;
-
-        let handshake =
+        let handshake = if stateful_reconnect {
+            MessageParser::to_json(&serde_json::json!({
+                "protocol": protocol_kind.protocol_name(),
+                "version": 2,
+            }))
+        } else {
             MessageParser::to_json(&HandshakeRequest::new(protocol_kind.protocol_name()))
-                .map_err(|error| format!("Cannot serialize handshake: {error}"))?;
+        }
+        .map_err(|error| format!("Cannot serialize handshake: {error}"))?;
         client
             .borrow()
             .send_string(&handshake)
@@ -314,6 +351,78 @@ impl CommunicationClient {
         })
         .await?;
 
+        Ok(client)
+    }
+
+    async fn connect_socket(endpoint: String) -> Result<Rc<RefCell<PollingClient>>, String> {
+        info!(
+            "Connecting WASM transport to {}",
+            Self::display_endpoint(&endpoint)
+        );
+        let client = Rc::new(RefCell::new(
+            PollingClient::new(&endpoint).map_err(|error| format!("{error:?}"))?,
+        ));
+        Self::wait_until(
+            "WebSocket connection",
+            Duration::from_secs(10),
+            || match client.borrow().status() {
+                ConnectionStatus::Connected => Ok(Some(())),
+                ConnectionStatus::Error | ConnectionStatus::Disconnected => {
+                    Err("WebSocket connection failed".to_string())
+                }
+                _ => Ok(None),
+            },
+        )
+        .await?;
+        Ok(client)
+    }
+
+    async fn resume_to_server(
+        endpoint: String,
+        protocol_kind: HubProtocolKind,
+        buffer: SharedStatefulBuffer,
+    ) -> Result<Rc<RefCell<PollingClient>>, String> {
+        let client = Self::connect_socket(endpoint).await?;
+        let (sequence_id, frames) = buffer.borrow_mut().begin_resend()?;
+        let resend_result = (|| {
+            match protocol_kind {
+                HubProtocolKind::Json => {
+                    let sequence = MessageParser::to_json(&Sequence::new(sequence_id))
+                        .map_err(|error| error.to_string())?;
+                    client
+                        .borrow()
+                        .send_string(&sequence)
+                        .map_err(Self::js_error)?;
+                }
+                #[cfg(feature = "messagepack")]
+                HubProtocolKind::MessagePack => {
+                    let sequence = crate::protocol::stateful::encode_messagepack_control(
+                        MessageType::Sequence,
+                        sequence_id,
+                    )?;
+                    client
+                        .borrow()
+                        .send_binary(sequence)
+                        .map_err(Self::js_error)?;
+                }
+            }
+            for frame in frames {
+                match frame.payload {
+                    SerializedFrame::Text(text) => {
+                        client.borrow().send_string(&text).map_err(Self::js_error)?;
+                    }
+                    SerializedFrame::Binary(binary) => {
+                        client
+                            .borrow()
+                            .send_binary(binary)
+                            .map_err(Self::js_error)?;
+                    }
+                }
+            }
+            Ok::<(), String>(())
+        })();
+        buffer.borrow_mut().finish_resend()?;
+        resend_result?;
         Ok(client)
     }
 
@@ -354,7 +463,9 @@ impl CommunicationClient {
         let client = self.client.clone();
         let storage = self.storage.clone();
         let recipe = self.recipe.clone();
+        let transport_endpoint = self.transport_endpoint.clone();
         let protocol_kind = self.protocol_kind;
+        let stateful = self.stateful.clone();
         let reconnection_config = self.reconnection_config.clone();
         let disconnection_handler = self.disconnection_handler.clone();
         let lifecycle = self.lifecycle.clone();
@@ -366,7 +477,9 @@ impl CommunicationClient {
                 &client,
                 &storage,
                 &recipe,
+                &transport_endpoint,
                 protocol_kind,
+                &stateful,
                 &reconnection_config,
                 &disconnection_handler,
                 &lifecycle,
@@ -384,7 +497,9 @@ impl CommunicationClient {
         client_slot: &Rc<RefCell<Option<Rc<RefCell<PollingClient>>>>>,
         storage: &UpdatableActionStorage,
         recipe: &ConnectionRecipe,
+        transport_endpoint: &str,
         protocol_kind: HubProtocolKind,
+        stateful: &Option<SharedStatefulBuffer>,
         reconnection_config: &Rc<RefCell<ReconnectionConfig>>,
         disconnection_handler: &Rc<RefCell<Option<Rc<DisconnectionCallback>>>>,
         lifecycle: &Rc<Cell<LifecycleState>>,
@@ -399,7 +514,7 @@ impl CommunicationClient {
             ConnectionStatus::Connected => {
                 let mut storage = storage.clone();
                 if let Some(allow_reconnect) =
-                    Self::process_messages(&client, &mut storage, protocol_kind)
+                    Self::process_messages(&client, &mut storage, protocol_kind, stateful.as_ref())
                 {
                     let _ = client.borrow().close();
                     if !allow_reconnect {
@@ -407,6 +522,9 @@ impl CommunicationClient {
                         storage.fail_pending(
                             "Server closed the connection without allowing reconnect",
                         );
+                        if let Some(buffer) = stateful {
+                            buffer.borrow_mut().dispose();
+                        }
                     }
                 }
             }
@@ -415,11 +533,22 @@ impl CommunicationClient {
                     return;
                 }
                 lifecycle.set(LifecycleState::Reconnecting);
+                if let Some(buffer) = stateful {
+                    if let Err(error) = buffer.borrow_mut().disconnected() {
+                        error!("Cannot enter WASM stateful resume: {}", error);
+                        lifecycle.set(LifecycleState::Disconnected);
+                        let mut storage = storage.clone();
+                        storage.fail_pending(&error);
+                        return;
+                    }
+                }
                 let context = WasmReconnectionContext {
                     client: client_slot.clone(),
                     storage: storage.clone(),
                     recipe: recipe.clone(),
+                    transport_endpoint: transport_endpoint.to_string(),
                     protocol_kind,
+                    stateful: stateful.clone(),
                     reconnection_config: reconnection_config.clone(),
                     lifecycle: lifecycle.clone(),
                     attempt_in_progress: attempt_in_progress.clone(),
@@ -445,6 +574,7 @@ impl CommunicationClient {
         client: &Rc<RefCell<PollingClient>>,
         storage: &mut UpdatableActionStorage,
         protocol_kind: HubProtocolKind,
+        stateful: Option<&SharedStatefulBuffer>,
     ) -> Option<bool> {
         match protocol_kind {
             HubProtocolKind::Json => {
@@ -452,6 +582,46 @@ impl CommunicationClient {
                     match MessageParser::parse_message::<Ping>(&message) {
                         Ok(parsed) => {
                             let message_type = parsed.message_type();
+                            if let Some(buffer) = stateful {
+                                let control_result = match message_type {
+                                    MessageType::Ack => {
+                                        MessageParser::parse_message::<Ack>(&message)
+                                            .and_then(|ack| ack.sequence_id())
+                                            .and_then(|sequence_id| {
+                                                buffer
+                                                    .borrow_mut()
+                                                    .acknowledge(sequence_id)
+                                                    .map(|_| ())
+                                            })
+                                    }
+                                    MessageType::Sequence => {
+                                        MessageParser::parse_message::<Sequence>(&message)
+                                            .and_then(|sequence| sequence.sequence_id())
+                                            .and_then(|sequence_id| {
+                                                buffer
+                                                    .borrow_mut()
+                                                    .reset_incoming_sequence(sequence_id)
+                                            })
+                                    }
+                                    _ => Ok(()),
+                                };
+                                if let Err(error) = control_result {
+                                    error!("WASM stateful protocol error: {}", error);
+                                    return Some(false);
+                                }
+                                if matches!(message_type, MessageType::Ack | MessageType::Sequence)
+                                {
+                                    continue;
+                                }
+                                match buffer.borrow_mut().should_process(message_type) {
+                                    Ok(true) => {}
+                                    Ok(false) => continue,
+                                    Err(error) => {
+                                        error!("WASM stateful protocol error: {}", error);
+                                        return Some(false);
+                                    }
+                                }
+                            }
                             let payload = MessagePayload::Text(message);
                             if message_type == crate::protocol::negotiate::MessageType::Close {
                                 let allow = super::common::close_allows_reconnect(&payload)
@@ -472,6 +642,54 @@ impl CommunicationClient {
                 for payload in Self::receive_binary_messages(client) {
                     match crate::protocol::msgpack::read_message_type(&payload) {
                         Ok(message_type) => {
+                            if let Some(buffer) = stateful {
+                                let control_result = match message_type {
+                                    MessageType::Ack => {
+                                        crate::protocol::stateful::decode_messagepack_control(
+                                            &payload,
+                                            MessageType::Ack,
+                                        )
+                                        .and_then(
+                                            |sequence_id| {
+                                                buffer
+                                                    .borrow_mut()
+                                                    .acknowledge(sequence_id)
+                                                    .map(|_| ())
+                                            },
+                                        )
+                                    }
+                                    MessageType::Sequence => {
+                                        crate::protocol::stateful::decode_messagepack_control(
+                                            &payload,
+                                            MessageType::Sequence,
+                                        )
+                                        .and_then(
+                                            |sequence_id| {
+                                                buffer
+                                                    .borrow_mut()
+                                                    .reset_incoming_sequence(sequence_id)
+                                            },
+                                        )
+                                    }
+                                    _ => Ok(()),
+                                };
+                                if let Err(error) = control_result {
+                                    error!("WASM stateful protocol error: {}", error);
+                                    return Some(false);
+                                }
+                                if matches!(message_type, MessageType::Ack | MessageType::Sequence)
+                                {
+                                    continue;
+                                }
+                                match buffer.borrow_mut().should_process(message_type) {
+                                    Ok(true) => {}
+                                    Ok(false) => continue,
+                                    Err(error) => {
+                                        error!("WASM stateful protocol error: {}", error);
+                                        return Some(false);
+                                    }
+                                }
+                            }
                             let payload = MessagePayload::Binary(payload);
                             if message_type == crate::protocol::negotiate::MessageType::Close {
                                 let allow = super::common::close_allows_reconnect(&payload)
@@ -491,7 +709,7 @@ impl CommunicationClient {
         None
     }
 
-    fn send_internal<T: serde::Serialize>(&self, data: T) -> Result<(), String> {
+    async fn send_internal<T: serde::Serialize>(&self, data: T) -> Result<(), String> {
         if self.lifecycle.get() != LifecycleState::Connected {
             return Err(format!(
                 "Client is not connected: {:?}",
@@ -499,6 +717,11 @@ impl CommunicationClient {
             ));
         }
         let json = MessageParser::to_json(&data).map_err(|error| error.to_string())?;
+        let message_type =
+            MessageParser::parse_message::<Ping>(MessageParser::strip_record_separator(&json))?
+                .message_type();
+        self.track_outgoing(message_type, SerializedFrame::Text(json.clone()))
+            .await?;
         let client = self
             .client
             .borrow()
@@ -508,12 +731,22 @@ impl CommunicationClient {
         result
     }
 
-    fn send_binary_internal(&self, data: Vec<u8>) -> Result<(), String> {
+    async fn send_binary_internal(&self, data: Vec<u8>) -> Result<(), String> {
         if self.lifecycle.get() != LifecycleState::Connected {
             return Err(format!(
                 "Client is not connected: {:?}",
                 self.lifecycle.get()
             ));
+        }
+        #[cfg(feature = "messagepack")]
+        if self.stateful.is_some() {
+            let frames = crate::protocol::msgpack::split_framed_messages(&data)?;
+            let first = frames
+                .first()
+                .ok_or_else(|| "Cannot send an empty MessagePack frame".to_string())?;
+            let message_type = crate::protocol::msgpack::read_message_type(first)?;
+            self.track_outgoing(message_type, SerializedFrame::Binary(data.clone()))
+                .await?;
         }
         let client = self
             .client
@@ -522,6 +755,23 @@ impl CommunicationClient {
             .ok_or_else(|| "Client is not connected".to_string())?;
         let result = client.borrow().send_binary(data).map_err(Self::js_error);
         result
+    }
+
+    async fn track_outgoing(
+        &self,
+        message_type: MessageType,
+        payload: SerializedFrame,
+    ) -> Result<(), String> {
+        let Some(buffer) = &self.stateful else {
+            return Ok(());
+        };
+        loop {
+            let result = buffer.borrow_mut().track(message_type, payload.clone())?;
+            match result {
+                TrackResult::Buffered(_) | TrackResult::Bypass => return Ok(()),
+                TrackResult::Backpressured => Self::sleep(Duration::from_millis(5)).await?,
+            }
+        }
     }
 
     fn receive_text_messages(client: &Rc<RefCell<PollingClient>>) -> Vec<String> {
@@ -571,8 +821,15 @@ impl CommunicationClient {
         if let Some(client) = self.client.borrow_mut().take() {
             let _ = client.borrow().close();
         }
+        if let Some(buffer) = &self.stateful {
+            buffer.borrow_mut().dispose();
+        }
         let mut storage = self.storage.clone();
         storage.fail_pending("Client was locally disconnected");
+    }
+
+    fn display_endpoint(endpoint: &str) -> String {
+        endpoint.split('?').next().unwrap_or(endpoint).to_string()
     }
 
     fn js_error(error: JsValue) -> String {

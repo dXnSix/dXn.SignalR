@@ -7,17 +7,45 @@
   <body data-rayx-signalr-wasm="loading">
     <script type="module">
       import init, {
+        abort_physical_transport,
         callback_count,
         connect_and_probe,
+        connect_stateful,
+        pending_invocation_result,
+        pending_invocation_started,
         probe_after_reconnect,
+        probe_stateful_identity,
+        scenario_error,
+        start_pending_invocation,
+        start_stateful_stream,
+        stateful_callback_count,
+        stateful_callback_value,
+        stateful_stream_count,
+        stateful_stream_done,
+        stateful_stream_value,
         trigger_callback_after_reconnect,
+        trigger_stateful_callbacks,
       } from "./rayx_signalr_fixture.js";
 
       await init();
       globalThis.rayxSignalRFixture = {
+        abortPhysicalTransport: abort_physical_transport,
         connectAndProbe: connect_and_probe,
+        connectStateful: connect_stateful,
+        pendingInvocationResult: pending_invocation_result,
+        pendingInvocationStarted: pending_invocation_started,
         probeAfterReconnect: probe_after_reconnect,
+        probeStatefulIdentity: probe_stateful_identity,
+        scenarioError: scenario_error,
+        startPendingInvocation: start_pending_invocation,
+        startStatefulStream: start_stateful_stream,
+        statefulCallbackCount: stateful_callback_count,
+        statefulCallbackValue: stateful_callback_value,
+        statefulStreamCount: stateful_stream_count,
+        statefulStreamDone: stateful_stream_done,
+        statefulStreamValue: stateful_stream_value,
         triggerCallbackAfterReconnect: trigger_callback_after_reconnect,
+        triggerStatefulCallbacks: trigger_stateful_callbacks,
         callbackCount: callback_count,
       };
       document.body.dataset.rayxSignalrWasm = "ready";

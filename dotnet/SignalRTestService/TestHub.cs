@@ -18,6 +18,17 @@ namespace SignalRTestService
 
         public string ConnectionIdentity() => Context.ConnectionId;
 
+        public async Task AbortPhysicalTransport()
+        {
+            var httpContext = Context.GetHttpContext()
+                ?? throw new InvalidOperationException("SignalR transport has no HTTP context");
+
+            // Let the stateful protocol acknowledge the test command before severing only the
+            // underlying HTTP transport. The logical SignalR connection remains resumable.
+            await Task.Delay(1200, Context.ConnectionAborted);
+            httpContext.Abort();
+        }
+
         public async IAsyncEnumerable<int> OrderedSequence(int count, int delayMilliseconds = 1)
         {
             for (var value = 1; value <= count; value++)

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 5,
   "generatorVersion": "5.0",
-  "canonicalPlanHash": "903d402c78ad1fa2f35cbf518fe38092bb9b1cf6860e4ccd9fd6be51a12612f1",
+  "canonicalPlanHash": "22d9a2a631c5dfb54aa233c66b40edb63a19b0741baa1d8ed0f1c6776b14ac39",
   "acceptanceTraceability": [
     {
       "acceptanceCriterionId": "AC-F-001-1",
@@ -1136,8 +1136,8 @@
     },
     {
       "id": "sprint-4-task-1",
-      "revisionId": "sprint-4-task-1@7ce39a388b837ad9",
-      "behaviorContractHash": "7ce39a388b837ad9f71ba88db47fc29b66366873f4ca5dc1c9f9c6a3bbf7d6cd",
+      "revisionId": "sprint-4-task-1@fb9717384e2c05c8",
+      "behaviorContractHash": "fb9717384e2c05c8609518d8e97b460bf140ddffaf9e63d9358e5f3a780c9f7b",
       "planningMetadataHash": "79e964057b3b01d1d8f4c39c009e245db3205a81d0abe799c1e773a3e8f06ddf",
       "sprint": 4,
       "taskIndex": 1,
@@ -1148,14 +1148,14 @@
         "writePaths": [
           "src/communication/client_wasm.rs",
           "tests/wasm-fixture/**",
-          "tools-node/**"
+          "tools-node/**",
+          "dotnet/SignalRTestService/TestHub.cs"
         ],
         "generatedPaths": [],
         "forbiddenPaths": [
           "src/communication/client_tokio.rs",
           "src/protocol/**",
           "src/communication/stateful.rs",
-          "dotnet/**",
           "scripts/**",
           ".github/**"
         ],
@@ -1163,11 +1163,13 @@
           "RESP-001",
           "RESP-004",
           "RESP-005",
-          "RESP-007"
+          "RESP-007",
+          "RESP-008"
         ],
         "symbols": [
           "WasmTransportAdapter",
           "CommunicationClient::polling_loop",
+          "TestHub.AbortPhysicalTransport",
           "Playwright stateful reconnect JSON scenario",
           "Playwright stateful reconnect MessagePack scenario"
         ]
@@ -1216,6 +1218,7 @@
           "WASM adapter resume operation",
           "browser timer cancellation token",
           "generation guards",
+          "ASP.NET fixture-only physical transport abort hook",
           "repository-local Playwright dev tooling",
           "Playwright-managed browser network interruption",
           "focused Chromium JSON and MessagePack scenarios",

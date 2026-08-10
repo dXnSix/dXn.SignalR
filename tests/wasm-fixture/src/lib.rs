@@ -1,12 +1,169 @@
-use std::{cell::{Cell, RefCell}, sync::Arc, time::Duration};
+use std::{
+    cell::{Cell, RefCell},
+    sync::Arc,
+    time::Duration,
+};
 
-use rayx_signalr::{ConstantDelayPolicy, ReconnectionConfig, SignalRClient};
+use futures::StreamExt;
+use rayx_signalr::{
+    ConstantDelayPolicy, ReconnectionConfig, SignalRClient, StatefulReconnectConfig,
+};
 use serde::Deserialize;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::spawn_local;
 
 thread_local! {
     static CLIENT: RefCell<Option<SignalRClient>> = const { RefCell::new(None) };
     static CALLBACK_COUNT: Cell<u32> = const { Cell::new(0) };
+    static STATEFUL_CALLBACK_VALUES: RefCell<Vec<i32>> = const { RefCell::new(Vec::new()) };
+    static STATEFUL_STREAM_VALUES: RefCell<Vec<i32>> = const { RefCell::new(Vec::new()) };
+    static STATEFUL_STREAM_DONE: Cell<bool> = const { Cell::new(false) };
+    static STATEFUL_CONNECTION_ID: RefCell<String> = const { RefCell::new(String::new()) };
+    static PENDING_INVOCATION_STARTED: Cell<bool> = const { Cell::new(false) };
+    static PENDING_INVOCATION_RESULT: RefCell<Option<String>> = const { RefCell::new(None) };
+    static SCENARIO_ERROR: RefCell<Option<String>> = const { RefCell::new(None) };
+}
+
+#[wasm_bindgen]
+pub async fn connect_stateful(protocol: String) -> Result<String, JsValue> {
+    let use_messagepack = protocol_is_messagepack(&protocol)?;
+    reset_stateful_observations();
+    let mut client =
+        SignalRClient::connect_with("127.0.0.1", "test-stateful", move |configuration| {
+            configuration.unsecure();
+            configuration.with_port(5220);
+            configuration.with_stateful_reconnect(StatefulReconnectConfig::default());
+            configuration.with_reconnection_policy(ReconnectionConfig {
+                policy: Arc::new(ConstantDelayPolicy::new(
+                    Duration::from_millis(50),
+                    Some(50),
+                )),
+            });
+            if use_messagepack {
+                configuration.with_messagepack_protocol();
+            }
+        })
+        .await
+        .map_err(js_error("stateful initial connect failed"))?;
+
+    let connection_id = client
+        .invoke::<String>("ConnectionIdentity".to_string())
+        .await
+        .map_err(js_error("stateful identity probe failed"))?;
+    STATEFUL_CONNECTION_ID.with(|slot| *slot.borrow_mut() = connection_id.clone());
+
+    let callback = client.register("wasmStatefulCallback".to_string(), |context| match context
+        .argument::<i32>(0)
+    {
+        Ok(value) => STATEFUL_CALLBACK_VALUES.with(|values| values.borrow_mut().push(value)),
+        Err(error) => set_scenario_error(format!("callback decode failed: {error}")),
+    });
+    std::mem::forget(callback);
+    CLIENT.with(|slot| *slot.borrow_mut() = Some(client));
+    Ok(connection_id)
+}
+
+#[wasm_bindgen]
+pub fn start_stateful_stream() -> Result<(), JsValue> {
+    let mut client = fixture_client()?;
+    spawn_local(async move {
+        let mut stream = client
+            .enumerate_with_args::<i32, _>("OrderedSequence".to_string(), |arguments| {
+                arguments.argument(240);
+                arguments.argument(20);
+            })
+            .await;
+        while let Some(value) = stream.next().await {
+            STATEFUL_STREAM_VALUES.with(|values| values.borrow_mut().push(value));
+        }
+        STATEFUL_STREAM_DONE.with(|done| done.set(true));
+    });
+    Ok(())
+}
+
+#[wasm_bindgen]
+pub async fn abort_physical_transport() -> Result<(), JsValue> {
+    fixture_client()?
+        .send("AbortPhysicalTransport".to_string())
+        .await
+        .map_err(js_error("physical transport abort request failed"))
+}
+
+#[wasm_bindgen]
+pub fn stateful_stream_count() -> usize {
+    STATEFUL_STREAM_VALUES.with(|values| values.borrow().len())
+}
+
+#[wasm_bindgen]
+pub fn stateful_stream_value(index: usize) -> i32 {
+    STATEFUL_STREAM_VALUES.with(|values| values.borrow().get(index).copied().unwrap_or(-1))
+}
+
+#[wasm_bindgen]
+pub fn stateful_stream_done() -> bool {
+    STATEFUL_STREAM_DONE.with(Cell::get)
+}
+
+#[wasm_bindgen]
+pub fn start_pending_invocation() -> Result<(), JsValue> {
+    let mut client = fixture_client()?;
+    PENDING_INVOCATION_STARTED.with(|started| started.set(true));
+    spawn_local(async move {
+        match client
+            .invoke::<String>("ConnectionIdentity".to_string())
+            .await
+        {
+            Ok(value) => {
+                PENDING_INVOCATION_RESULT.with(|result| *result.borrow_mut() = Some(value))
+            }
+            Err(error) => set_scenario_error(format!("pending invocation failed: {error}")),
+        }
+    });
+    Ok(())
+}
+
+#[wasm_bindgen]
+pub fn pending_invocation_started() -> bool {
+    PENDING_INVOCATION_STARTED.with(Cell::get)
+}
+
+#[wasm_bindgen]
+pub fn pending_invocation_result() -> Option<String> {
+    PENDING_INVOCATION_RESULT.with(|result| result.borrow().clone())
+}
+
+#[wasm_bindgen]
+pub async fn probe_stateful_identity() -> Result<String, JsValue> {
+    fixture_client()?
+        .invoke::<String>("ConnectionIdentity".to_string())
+        .await
+        .map_err(js_error("stateful reconnect identity probe failed"))
+}
+
+#[wasm_bindgen]
+pub async fn trigger_stateful_callbacks(count: i32) -> Result<(), JsValue> {
+    fixture_client()?
+        .send_with_args("TriggerOrderedCallbacks".to_string(), |arguments| {
+            arguments.argument("wasmStatefulCallback".to_string());
+            arguments.argument(count);
+        })
+        .await
+        .map_err(js_error("stateful callback trigger failed"))
+}
+
+#[wasm_bindgen]
+pub fn stateful_callback_count() -> usize {
+    STATEFUL_CALLBACK_VALUES.with(|values| values.borrow().len())
+}
+
+#[wasm_bindgen]
+pub fn stateful_callback_value(index: usize) -> i32 {
+    STATEFUL_CALLBACK_VALUES.with(|values| values.borrow().get(index).copied().unwrap_or(-1))
+}
+
+#[wasm_bindgen]
+pub fn scenario_error() -> Option<String> {
+    SCENARIO_ERROR.with(|error| error.borrow().clone())
 }
 
 #[derive(Deserialize)]
@@ -22,11 +179,7 @@ pub fn start() {
 
 #[wasm_bindgen]
 pub async fn connect_and_probe(protocol: String) -> Result<String, JsValue> {
-    let use_messagepack = match protocol.as_str() {
-        "json" => false,
-        "messagepack" => true,
-        other => return Err(JsValue::from_str(&format!("unsupported protocol: {other}"))),
-    };
+    let use_messagepack = protocol_is_messagepack(&protocol)?;
 
     let mut client = SignalRClient::connect_with("127.0.0.1", "test", move |configuration| {
         configuration.unsecure();
@@ -96,4 +249,36 @@ fn validate_entity(entity: &TestEntity) -> Result<(), JsValue> {
     } else {
         Err(JsValue::from_str("unexpected SingleEntity payload"))
     }
+}
+
+fn protocol_is_messagepack(protocol: &str) -> Result<bool, JsValue> {
+    match protocol {
+        "json" => Ok(false),
+        "messagepack" => Ok(true),
+        other => Err(JsValue::from_str(&format!("unsupported protocol: {other}"))),
+    }
+}
+
+fn fixture_client() -> Result<SignalRClient, JsValue> {
+    CLIENT
+        .with(|slot| slot.borrow().clone())
+        .ok_or_else(|| JsValue::from_str("fixture client is not connected"))
+}
+
+fn reset_stateful_observations() {
+    STATEFUL_CALLBACK_VALUES.with(|values| values.borrow_mut().clear());
+    STATEFUL_STREAM_VALUES.with(|values| values.borrow_mut().clear());
+    STATEFUL_STREAM_DONE.with(|done| done.set(false));
+    STATEFUL_CONNECTION_ID.with(|id| id.borrow_mut().clear());
+    PENDING_INVOCATION_STARTED.with(|started| started.set(false));
+    PENDING_INVOCATION_RESULT.with(|result| *result.borrow_mut() = None);
+    SCENARIO_ERROR.with(|error| *error.borrow_mut() = None);
+}
+
+fn set_scenario_error(error: String) {
+    SCENARIO_ERROR.with(|slot| *slot.borrow_mut() = Some(error));
+}
+
+fn js_error(prefix: &'static str) -> impl FnOnce(String) -> JsValue {
+    move |error| JsValue::from_str(&format!("{prefix}: {error}"))
 }

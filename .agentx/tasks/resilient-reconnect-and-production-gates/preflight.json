@@ -1,19 +1,19 @@
 {
   "schemaVersion": 5,
   "generatorVersion": "5.0",
-  "recordedAt": "2026-08-09T23:14:24Z",
+  "recordedAt": "2026-08-09T23:58:05Z",
   "mode": "static",
   "specHashes": {
     "requirements": "ab1d98e2852207dc07023ee7fb22d451224a85d69ef9e49742565a3db4401e99",
     "design": "8bd87b045f70a87fc5f45b05116885be5a8e5a400615165b1ee32ecf09bbd77e",
-    "task-contracts": "14e5c18347599e4f02d92081773c595204b5ae973a078f770318c9c1763ccd1f",
-    "implementation-plan": "e0454bb6af428324a47b904882c10d14f352dc6b61c5b6c9e40fb168f4414599"
+    "task-contracts": "aaec1ef1212bbf7e9a7bc2946f96ef7143c61e4688ae4367058943df6b4d9b5d",
+    "implementation-plan": "187edad2104dcc8625d083ad4ca33955c1092e3b8dad8823f3798b324ffe72b4"
   },
   "behaviorContractHashes": {
     "sprint-1-task-1": "256987c9a65df0796fbbf2648b0f3c42ebe02b2daf43b1b50598e2d4151f1ea9",
     "sprint-2-task-1": "ab50f0a3f1d0b2a27bd53636e62bef50642893df4f2399eca19adc509a4b2307",
     "sprint-3-task-1": "534063453098a3335c143e9bad65a27bf664864530ef14be66c71c54a56fffbc",
-    "sprint-4-task-1": "7ce39a388b837ad9f71ba88db47fc29b66366873f4ca5dc1c9f9c6a3bbf7d6cd",
+    "sprint-4-task-1": "fb9717384e2c05c8609518d8e97b460bf140ddffaf9e63d9358e5f3a780c9f7b",
     "sprint-5-task-1": "9fa6276040e63ce63da3ae25b42fdff862e9ce61aed7567da8da74cf56f144b1",
     "sprint-5-task-2": "19c9007c2b802decdb8942c60601323984b43112126b5483d4608547ffb5aba7"
   },
@@ -21,8 +21,8 @@
     {
       "repositoryId": "rayx-signalr",
       "resolvedPath": "D:\\Work\\projects\\RayX\\RayX.SignalR",
-      "head": "fb14b0599b2522abc326bbff44e79985dafe1c63",
-      "tree": "d857bd98fa36f5174b07924436ea0aee145f3faf",
+      "head": "f944ee17b7d80516d43f9e4d3deb5aa88dbd1c72",
+      "tree": "e205d51990b1d2dc321b77d9d82be3e6e1d0ba1a",
       "branch": "implementation/resilient-reconnect-and-production-gates-impl",
       "identity": {
         "gitCommonDirectoryFingerprint": "1583c9a0848e77660b35f8fa0306c4001601f739d0e168047fc18be09782f4f7",
@@ -63,7 +63,7 @@
     {
       "taskId": "sprint-4-task-1",
       "sprint": 4,
-      "behaviorContractHash": "7ce39a388b837ad9f71ba88db47fc29b66366873f4ca5dc1c9f9c6a3bbf7d6cd",
+      "behaviorContractHash": "fb9717384e2c05c8609518d8e97b460bf140ddffaf9e63d9358e5f3a780c9f7b",
       "planningMetadataHash": "79e964057b3b01d1d8f4c39c009e245db3205a81d0abe799c1e773a3e8f06ddf",
       "diagnostics": [],
       "disposition": "pass"
@@ -88,5 +88,5 @@
   "baselineResults": [],
   "diagnostics": [],
   "disposition": "pass",
-  "preflightHash": "6bee739d613bcd68b9872fab136649b2b81dab63bc07749f92e47c89ced42ae7"
+  "preflightHash": "a5b19bdee544d2ac0f8264b98d7011a8b346c95cd6911908bec8a38af258f4b9"
 }

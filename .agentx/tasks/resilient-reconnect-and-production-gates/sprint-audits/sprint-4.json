@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 5,
+  "generatorVersion": "5.0",
+  "epicId": "resilient-reconnect-and-production-gates",
+  "sprint": 4,
+  "status": "passed",
+  "headBeforeCommit": "f944ee17b7d80516d43f9e4d3deb5aa88dbd1c72",
+  "filesReviewed": [
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\communication\\client_wasm.rs",
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\tests\\wasm-fixture\\src\\lib.rs",
+    "D:\\Work\\projects\\RayX\\RayX.SignalR\\tools-node\\tests\\signalr-wasm.spec.ts"
+  ],
+  "conformance": [
+    {
+      "requirementId": "REQ-F-003",
+      "taskIds": [
+        "sprint-4-task-1"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-F-003-2"
+      ],
+      "evidenceAcceptanceCriteriaIds": [
+        "AC-F-003-2"
+      ],
+      "missingAcceptanceCriteriaIds": [],
+      "implementationLocations": [
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\communication\\client_wasm.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\tests\\wasm-fixture\\src\\lib.rs"
+      ],
+      "testLocations": [
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\tools-node\\tests\\signalr-wasm.spec.ts"
+      ],
+      "evidenceProfiles": [
+        "parity",
+        "regression",
+        "runtime"
+      ],
+      "missingProfiles": [],
+      "result": "pass",
+      "reason": "All mapped tasks are done with fresh profile-complete evidence."
+    },
+    {
+      "requirementId": "REQ-NF-001",
+      "taskIds": [
+        "sprint-4-task-1"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-F-003-2"
+      ],
+      "evidenceAcceptanceCriteriaIds": [
+        "AC-F-003-2"
+      ],
+      "missingAcceptanceCriteriaIds": [],
+      "implementationLocations": [
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\src\\communication\\client_wasm.rs",
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\tests\\wasm-fixture\\src\\lib.rs"
+      ],
+      "testLocations": [
+        "D:\\Work\\projects\\RayX\\RayX.SignalR\\tools-node\\tests\\signalr-wasm.spec.ts"
+      ],
+      "evidenceProfiles": [
+        "parity",
+        "regression",
+        "runtime"
+      ],
+      "missingProfiles": [],
+      "result": "pass",
+      "reason": "All mapped tasks are done with fresh profile-complete evidence."
+    }
+  ],
+  "designQuality": {
+    "declaredWritePaths": [
+      "rayx-signalr:dotnet/SignalRTestService/TestHub.cs",
+      "rayx-signalr:src/communication/client_wasm.rs",
+      "rayx-signalr:tests/wasm-fixture/**",
+      "rayx-signalr:tools-node/**"
+    ],
+    "actualChangedPaths": [
+      "rayx-signalr:dotnet/SignalRTestService/TestHub.cs",
+      "rayx-signalr:src/communication/client_wasm.rs",
+      "rayx-signalr:tests/wasm-fixture/Cargo.toml",
+      "rayx-signalr:tests/wasm-fixture/src/lib.rs",
+      "rayx-signalr:tools-node/tests/signalr-wasm.spec.ts",
+      "rayx-signalr:tools-node/wasm-host/index.html"
+    ],
+    "unexpectedChangedPaths": [],
+    "responsibilityIds": [
+      "RESP-001",
+      "RESP-004",
+      "RESP-005",
+      "RESP-007",
+      "RESP-008"
+    ],
+    "newAbstractions": [
+      "InteropHarness",
+      "ReconnectCoordinator",
+      "StatefulMessageBuffer"
+    ],
+    "newDependencies": [
+      "repository-local Playwright dev tooling"
+    ],
+    "newPublicApi": [
+      "ConnectionConfiguration::with_stateful_reconnect(StatefulReconnectConfig)",
+      "Existing ReconnectionHandler methods on wasm32",
+      "StatefulReconnectConfig with Default buffer_size_bytes=100000"
+    ],
+    "unapprovedDesignAdditions": [],
+    "result": "pass",
+    "reason": "Actual changed paths stay within declared task scopes; declared responsibilities and explicitly allowed design additions are recorded for semantic review."
+  },
+  "commands": [
+    {
+      "command": "pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target wasm -Protocol json,messagepack -Scenario ordinary-reconnect,stateful-reconnect",
+      "effectiveCommand": "pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target wasm -Protocol json,messagepack -Scenario ordinary-reconnect,stateful-reconnect",
+      "exitCode": 0,
+      "assertion": "The complete Chromium ordinary/stateful JSON/MessagePack matrix MUST pass as one checkpoint.",
+      "stdoutHash": "cb49dd72c6710d680dc15351cf2046d37c93a0bc9f67d4fd2eceb26a0b0580e5",
+      "stderrHash": "5a6f99a578946f1d3886da26e24f133859ca2a7c9d2619dddc1fe27e453518e3",
+      "failureOutputTail": ""
+    }
+  ],
+  "defects": [],
+  "repairs": [],
+  "reauditCount": 0,
+  "residualRisks": [],
+  "generatedAt": "2026-08-10T00:07:10Z"
+}
