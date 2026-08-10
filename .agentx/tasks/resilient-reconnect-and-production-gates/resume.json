@@ -5,58 +5,28 @@
   "taskCount": 6,
   "state": {
     "schemaVersion": 5,
-    "status": "progress",
-    "planLifecycle": "implementing",
-    "integrationStatus": "not-ready",
+    "status": "done",
+    "planLifecycle": "completed",
+    "integrationStatus": "integration-ready",
     "totalSprints": 5,
-    "currentSprint": 5,
-    "currentTask": 2,
-    "activeTasks": [
-      {
-        "taskId": "sprint-5-task-2",
-        "sprint": 5,
-        "workerId": "root",
-        "leaseId": "7ef8fc10-4da2-4ec6-829e-9136593b5db1",
-        "leaseEpoch": 12,
-        "status": "leased",
-        "leasedAt": "2026-08-10T00:54:16Z",
-        "heartbeatAt": "2026-08-10T00:54:16Z",
-        "expiresAt": "2026-08-10T01:54:16Z",
-        "attempt": 3,
-        "ownedScope": [
-          ".github/workflows/quality.yml",
-          ".github/workflows/interop.yml",
-          "scripts/ci/run-interop.ps1",
-          "scripts/ci/verify-workflows.ps1",
-          "README.md",
-          "FORK.md",
-          "src/communication/common.rs",
-          "src/communication/stateful.rs",
-          "src/communication/client_wasm.rs",
-          "src/communication/client_tokio.rs",
-          "src/protocol/invoke.rs"
-        ],
-        "repositoryIds": [
-          "rayx-signalr"
-        ],
-        "lastError": ""
-      }
-    ],
-    "leaseEpoch": 12,
+    "currentSprint": -1,
+    "currentTask": -1,
+    "activeTasks": [],
+    "leaseEpoch": 14,
     "attempts": {
       "sprint-1-task-1": 3,
-      "sprint-2-task-1": 1,
+      "sprint-2-task-1": 2,
       "sprint-3-task-1": 2,
       "sprint-4-task-1": 2,
-      "sprint-5-task-1": 1,
+      "sprint-5-task-1": 2,
       "sprint-5-task-2": 3
     },
     "run": {
-      "status": "running",
+      "status": "done",
       "requestedBoundary": "sprint",
       "maxParallelSprints": 2,
       "maxAttempts": 3,
-      "lastHeartbeatAt": "2026-08-10T00:54:16Z",
+      "lastHeartbeatAt": "2026-08-10T01:12:13Z",
       "blocker": {},
       "repositoryBaselines": {
         "rayx-signalr": "4f23eee0dd8e2a2b1c4e718e35d33da34a13a6fb"
@@ -123,7 +93,7 @@
         }
       }
     },
-    "lastResumeAt": "2026-08-10T00:54:34Z",
+    "lastResumeAt": "2026-08-10T01:13:20Z",
     "lastResumeSpecHashes": {
       "requirements": "f2b54c9fd08734912af1948adb555043e4e492e23f5ce2e1df1e3fd2c51d1c1c",
       "design": "10e8c5d8a3535948765d372914c0b4cc5661294cd629dafd10559595001865ea",
@@ -131,8 +101,8 @@
       "contracts": "2c454b611465e98694baebfe90ef43bf892c681d002ea590d85ee2be01151e8d"
     }
   },
-  "currentTaskId": "sprint-5-task-2",
-  "nextUncheckedTaskId": "sprint-5-task-2",
+  "currentTaskId": "",
+  "nextUncheckedTaskId": "",
   "specHashes": {
     "requirements": "f2b54c9fd08734912af1948adb555043e4e492e23f5ce2e1df1e3fd2c51d1c1c",
     "design": "10e8c5d8a3535948765d372914c0b4cc5661294cd629dafd10559595001865ea",
@@ -202,12 +172,10 @@
     "disposition": "pass"
   },
   "schemaVersion": 5,
-  "resumedAt": "2026-08-10T00:54:34Z",
-  "gitHead": "77dd3f6abed8d8dee368c37c21c4b8ffe900e756",
-  "gitStatusShort": " M .agentx/tasks/resilient-reconnect-and-production-gates/contract-reconciliation.jsonl\n M .agentx/tasks/resilient-reconnect-and-production-gates/evidence.jsonl\n M .agentx/tasks/resilient-reconnect-and-production-gates/implementation-plan.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/preflight.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/resume.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/run-events.jsonl\n M .agentx/tasks/resilient-reconnect-and-production-gates/state.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/task-contracts.json\n",
-  "errors": [
-    "Done task sprint-2-task-1 lacks passing evidence for profiles: ['integration']"
-  ],
+  "resumedAt": "2026-08-10T01:13:20Z",
+  "gitHead": "d5847c41e3e58bdabe82eb94a7798a75bb5b0027",
+  "gitStatusShort": " M .agentx/tasks/resilient-reconnect-and-production-gates/evidence.jsonl\n M .agentx/tasks/resilient-reconnect-and-production-gates/preflight.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/resume.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/run-events.jsonl\n M .agentx/tasks/resilient-reconnect-and-production-gates/state.json\n",
+  "errors": [],
   "warnings": [],
-  "requiredNextAction": "Continue or resolve active task sprint-5-task-2; do not switch tasks without recording a blocker."
+  "requiredNextAction": "Epic tasks appear done. Run the final semantic audit, gitmaster commit, and verify-sprint-checkpoint before claiming completion."
 }
