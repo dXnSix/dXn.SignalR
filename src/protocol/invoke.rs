@@ -1,6 +1,6 @@
-use std::{collections::HashMap, fmt::Debug};
-use serde::{Deserialize, Serialize};
 use super::{messages::MessageParser, negotiate::MessageType};
+use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, fmt::Debug};
 
 /// Indicates a request to invoke a particular method (the Target) with provided Arguments on the remote endpoint.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -13,7 +13,7 @@ pub struct Invocation {
     invocation_id: Option<String>,
     target: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub arguments: Option<Vec::<serde_json::Value>>,
+    pub arguments: Option<Vec<serde_json::Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stream_ids: Option<Vec<String>>,
     /// Raw MessagePack bytes for each argument (array format for .NET StandardResolver compatibility).
@@ -62,23 +62,10 @@ impl Invocation {
             }
         }
 
-        let rson = MessageParser::to_json_value(&data);
-
-        if rson.is_ok() {
-            let json = rson.unwrap();
-            let vec: Vec<serde_json::Value>;
-
-            if let Some(ref mut vec) = self.arguments {
-                vec.push(json);
-            } else {
-                vec = vec![json];
-                self.arguments = Some(vec);
-            }
-
-            Ok(())
-        } else {
-            Err(format!("Serialization error: {}", rson.unwrap_err().to_string()))
-        }
+        let json = MessageParser::to_json_value(&data)
+            .map_err(|error| format!("Serialization error: {error}"))?;
+        self.arguments.get_or_insert_with(Vec::new).push(json);
+        Ok(())
     }
 
     pub fn with_invocation_id(&mut self, invocation_id: impl ToString) -> &mut Self {
@@ -95,11 +82,7 @@ impl Invocation {
     }
 
     pub(crate) fn get_invocation_id(&self) -> Option<String> {
-        if self.invocation_id.is_some() {
-            Some(self.invocation_id.as_ref().unwrap().to_string())
-        } else {
-            None
-        }
+        self.invocation_id.clone()
     }
 
     pub(crate) fn get_target(&self) -> String {
@@ -132,10 +115,10 @@ impl<R> Completion<R> {
     pub fn create_result(invocation_id: String, data: R) -> Self {
         Completion {
             r#type: MessageType::Completion,
-            invocation_id: invocation_id,
+            invocation_id,
             result: Some(data),
             error: None,
-            headers: None,            
+            headers: None,
         }
     }
 
@@ -160,16 +143,6 @@ impl<R> Completion<R> {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 /// Sent by the client to cancel a streaming invocation on the server.
-pub struct CancelInvocation {
-    r#type: MessageType,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    headers: Option<HashMap<String, String>>,
-    pub invocation_id: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-/// Sent by the client to cancel a streaming invocation on the server.
 pub struct PossibleInvocation {
     r#type: MessageType,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -178,4 +151,3 @@ pub struct PossibleInvocation {
     pub invocation_id: Option<String>,
     pub target: Option<String>,
 }
-

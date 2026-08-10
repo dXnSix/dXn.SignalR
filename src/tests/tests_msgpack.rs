@@ -5,6 +5,16 @@ use tokio::time::Instant;
 use crate::{tests::TestEntity, SignalRClient};
 
 #[test_log::test(tokio::test)]
+async fn interop_ordinary_reconnect_messagepack() {
+    tokio::time::timeout(
+        std::time::Duration::from_secs(15),
+        super::tests_tokio::run_ordinary_reconnect(true),
+    )
+    .await
+    .expect("native MessagePack ordinary reconnect scenario timed out");
+}
+
+#[test_log::test(tokio::test)]
 async fn interop_stateful_reconnect_messagepack() {
     tokio::time::timeout(
         std::time::Duration::from_secs(15),
@@ -80,7 +90,7 @@ async fn test_msgpack_service() {
         let mut me = client
             .enumerate::<TestEntity>("MillionEntities".to_string())
             .await;
-        while let Some(_) = me.next().await {}
+        while (me.next().await).is_some() {}
     }
     let elapsed = now.elapsed();
     info!("MsgPack: 1 million entities fetched in: {:.2?}", elapsed);

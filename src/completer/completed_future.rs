@@ -1,5 +1,10 @@
-use std::{cell::RefCell, future::Future, pin::Pin, task::{Context, Poll}};
 use std::marker::Unpin;
+use std::{
+    cell::RefCell,
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 /// A future that is immediately ready with a value.
 ///
@@ -18,7 +23,6 @@ use std::marker::Unpin;
 ///     println!("Result: {}", result);
 /// }
 /// ```
-
 pub struct CompletedFuture<T: Unpin> {
     data: RefCell<Option<T>>,
 }
@@ -34,10 +38,12 @@ impl<T: Unpin> CompletedFuture<T> {
     ///
     /// ```ignore
     /// let future = CompletedFuture::new(42);
-    /// ```    
+    /// ```
     #[allow(dead_code)]
     pub fn new(data: T) -> Self {
-        Self { data: RefCell::new(Some(data)) }
+        Self {
+            data: RefCell::new(Some(data)),
+        }
     }
 }
 
@@ -45,9 +51,8 @@ impl<T: Unpin> Future for CompletedFuture<T> {
     type Output = T;
 
     fn poll(self: Pin<&mut Self>, _: &mut Context) -> Poll<Self::Output> {
-        let data = self.data.borrow_mut().take().unwrap(); 
-        
-        return Poll::Ready(data);
+        let data = self.data.borrow_mut().take().unwrap();
+
+        Poll::Ready(data)
     }
 }
-

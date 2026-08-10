@@ -1,5 +1,7 @@
+#[cfg(test)]
 use serde::{Deserialize, Serialize};
 
+#[cfg(test)]
 #[derive(Serialize, Deserialize, Clone)]
 pub struct TestEntity {
     pub number: i32,

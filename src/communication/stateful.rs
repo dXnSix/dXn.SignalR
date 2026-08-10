@@ -40,6 +40,7 @@ pub(crate) struct StatefulMessageBuffer {
     last_acknowledged: u64,
     next_incoming: u64,
     highest_incoming: u64,
+    last_acknowledgement_sent: u64,
     awaiting_sequence: bool,
     resending: bool,
     disposed: bool,
@@ -58,6 +59,7 @@ impl StatefulMessageBuffer {
             last_acknowledged: 0,
             next_incoming: 1,
             highest_incoming: 0,
+            last_acknowledgement_sent: 0,
             awaiting_sequence: false,
             resending: false,
             disposed: false,
@@ -127,6 +129,9 @@ impl StatefulMessageBuffer {
     pub(crate) fn disconnected(&mut self) -> Result<(), String> {
         self.ensure_active()?;
         self.awaiting_sequence = true;
+        // The final Ack may have been lost with the transport. Allow the
+        // resumed connection to acknowledge the cumulative high-water mark.
+        self.last_acknowledgement_sent = 0;
         Ok(())
     }
 
@@ -170,6 +175,15 @@ impl StatefulMessageBuffer {
         Ok(true)
     }
 
+    pub(crate) fn take_acknowledgement(&mut self) -> Result<Option<u64>, String> {
+        self.ensure_active()?;
+        if self.highest_incoming == 0 || self.highest_incoming <= self.last_acknowledgement_sent {
+            return Ok(None);
+        }
+        self.last_acknowledgement_sent = self.highest_incoming;
+        Ok(Some(self.highest_incoming))
+    }
+
     pub(crate) fn begin_resend(&mut self) -> Result<(u64, Vec<BufferedFrame>), String> {
         self.ensure_active()?;
         self.resending = true;
@@ -190,10 +204,12 @@ impl StatefulMessageBuffer {
         self.disposed = true;
         self.resending = false;
         self.awaiting_sequence = false;
+        self.last_acknowledgement_sent = 0;
         self.frames.clear();
         self.buffered_bytes = 0;
     }
 
+    #[cfg(test)]
     pub(crate) fn buffered_bytes(&self) -> usize {
         self.buffered_bytes
     }
@@ -323,6 +339,22 @@ mod stateful_buffer_tests {
         let mut buffer = StatefulMessageBuffer::new(10).unwrap();
         buffer.next_incoming = u64::MAX;
         assert!(buffer.should_process(MessageType::Invocation).is_err());
+    }
+
+    #[test]
+    fn production_stateful_protocol_repairs_emit_cumulative_ack() {
+        let mut buffer = StatefulMessageBuffer::new(10).unwrap();
+        assert_eq!(buffer.take_acknowledgement().unwrap(), None);
+
+        assert!(buffer.should_process(MessageType::Invocation).unwrap());
+        assert_eq!(buffer.take_acknowledgement().unwrap(), Some(1));
+        assert_eq!(buffer.take_acknowledgement().unwrap(), None);
+
+        assert!(buffer.should_process(MessageType::StreamItem).unwrap());
+        assert_eq!(buffer.take_acknowledgement().unwrap(), Some(2));
+
+        buffer.disconnected().unwrap();
+        assert_eq!(buffer.take_acknowledgement().unwrap(), Some(2));
     }
 
     #[test]

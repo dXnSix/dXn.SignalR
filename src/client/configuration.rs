@@ -1,4 +1,4 @@
-use crate::client::client::DisconnectionHandler;
+use crate::client::DisconnectionHandler;
 use crate::communication::reconnection::ReconnectionConfig;
 use crate::protocol::hub_protocol::HubProtocolKind;
 use crate::StatefulReconnectConfig;
@@ -95,26 +95,6 @@ impl ConnectionRecipe {
             Some(port) => format!("{}:{}", self.domain, port),
             None => self.domain.clone(),
         }
-    }
-}
-
-#[cfg(test)]
-mod stateful_configuration_tests {
-    use super::ConnectionConfiguration;
-    use crate::StatefulReconnectConfig;
-
-    #[test]
-    fn stateful_negotiate_query_is_opt_in_only() {
-        let mut configuration = ConnectionConfiguration::new("localhost".into(), "hub".into());
-        assert!(!configuration
-            .connection_recipe()
-            .negotiate_url()
-            .contains("useStatefulReconnect"));
-        configuration.with_stateful_reconnect(StatefulReconnectConfig::default());
-        assert!(configuration
-            .connection_recipe()
-            .negotiate_url()
-            .ends_with("&useStatefulReconnect=true"));
     }
 }
 
@@ -240,10 +220,7 @@ impl ConnectionConfiguration {
         user: String,
         password: Option<String>,
     ) -> &ConnectionConfiguration {
-        self._authentication = Authentication::Basic {
-            user: user,
-            password: password,
-        };
+        self._authentication = Authentication::Basic { user, password };
 
         self
     }
@@ -266,7 +243,7 @@ impl ConnectionConfiguration {
     /// }).await.unwrap();
     /// ```
     pub fn authenticate_bearer(&mut self, token: String) -> &ConnectionConfiguration {
-        self._authentication = Authentication::Bearer { token: token };
+        self._authentication = Authentication::Bearer { token };
 
         self
     }
@@ -297,63 +274,16 @@ impl ConnectionConfiguration {
         self
     }
 
-    pub(crate) fn get_web_url(&self) -> String {
-        format!(
-            "{}://{}/{}",
-            self.get_http_schema(),
-            self.get_domain(),
-            self._hub
-        )
-    }
-
-    pub(crate) fn get_socket_url(&self) -> String {
-        format!(
-            "{}://{}/{}",
-            self.get_socket_schema(),
-            self.get_domain(),
-            self._hub
-        )
-    }
-
-    pub(crate) fn get_authentication(&self) -> Authentication {
-        self._authentication.clone()
-    }
-
-    fn get_http_schema(&self) -> String {
-        if self._secure {
-            "https".to_string()
-        } else {
-            "http".to_string()
-        }
-    }
-
-    fn get_socket_schema(&self) -> String {
-        if self._secure {
-            "wss".to_string()
-        } else {
-            "ws".to_string()
-        }
-    }
-
-    fn get_domain(&self) -> String {
-        match self._port {
-            Some(port) => format!("{}:{}", self._domain, port),
-            None => self._domain.clone(),
-        }
-    }
-
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn get_disconnection_handler(
         &mut self,
     ) -> Option<Box<dyn DisconnectionHandler + Send + Sync>> {
-        let handler = self._disconnection.take();
-        handler
+        self._disconnection.take()
     }
 
     #[cfg(target_arch = "wasm32")]
     pub(crate) fn get_disconnection_handler(&mut self) -> Option<Box<dyn DisconnectionHandler>> {
-        let handler = self._disconnection.take();
-        handler
+        self._disconnection.take()
     }
 
     pub(crate) fn get_reconnection_config(&self) -> ReconnectionConfig {
@@ -394,10 +324,6 @@ impl ConnectionConfiguration {
         self
     }
 
-    pub(crate) fn get_protocol_kind(&self) -> HubProtocolKind {
-        self._protocol
-    }
-
     pub(crate) fn connection_recipe(&self) -> ConnectionRecipe {
         ConnectionRecipe {
             secure: self._secure,
@@ -408,5 +334,25 @@ impl ConnectionConfiguration {
             protocol: self._protocol,
             stateful_reconnect: self._stateful_reconnect,
         }
+    }
+}
+
+#[cfg(test)]
+mod stateful_configuration_tests {
+    use super::ConnectionConfiguration;
+    use crate::StatefulReconnectConfig;
+
+    #[test]
+    fn stateful_negotiate_query_is_opt_in_only() {
+        let mut configuration = ConnectionConfiguration::new("localhost".into(), "hub".into());
+        assert!(!configuration
+            .connection_recipe()
+            .negotiate_url()
+            .contains("useStatefulReconnect"));
+        configuration.with_stateful_reconnect(StatefulReconnectConfig::default());
+        assert!(configuration
+            .connection_recipe()
+            .negotiate_url()
+            .ends_with("&useStatefulReconnect=true"));
     }
 }

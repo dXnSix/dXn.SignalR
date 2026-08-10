@@ -10,7 +10,7 @@ use crate::execution::{
     UpdatableActionStorage,
 };
 use crate::protocol::hub_protocol::HubProtocolKind;
-use crate::protocol::invoke::Invocation;
+use crate::protocol::invoke::{Completion, Invocation};
 
 use super::{ConnectionConfiguration, InvocationContext};
 
@@ -113,6 +113,7 @@ impl ReconnectionHandler {
 /// The `SignalRClient` can be used to invoke methods on the hub, send messages, and register callbacks.
 /// The client can be cloned and used freely across different parts of your application.
 ///
+/// ```ignore
 /// // Unwrap the result and assert the entity's text
 /// let entity = re.unwrap();
 /// assert_eq!(entity.text, "test".to_string());
@@ -267,8 +268,7 @@ impl SignalRClient {
     {
         let mut config = ConnectionConfiguration::new(domain.to_string(), hub.to_string());
 
-        if options.is_some() {
-            let mut ops = options.unwrap();
+        if let Some(mut ops) = options {
             (ops)(&mut config);
         }
 
@@ -283,43 +283,24 @@ impl SignalRClient {
             return Err("Stateful reconnect buffer size must be greater than zero".to_string());
         }
 
-        let result = HttpClient::negotiate(&recipe).await;
+        let configuration = HttpClient::negotiate(&recipe).await?;
+        info!("Negotiation successful for {}", recipe.display_endpoint());
+        let mut client = CommunicationClient::connect(&configuration).await?;
+        let storage = client.get_storage()?;
 
-        if result.is_ok() {
-            // debug!("Negotiate response returned {:?}", result);
-            let configuration = result.unwrap();
-            info!("Negotiation successful for {}", recipe.display_endpoint());
-            let res = CommunicationClient::connect(&configuration).await;
-
-            if res.is_ok() {
-                let mut client = res.unwrap();
-                let storage = client.get_storage();
-
-                if storage.is_ok() {
-                    client.set_reconnection_config(reconnection_config);
-                    if let Some(handler) = disconnection_handler {
-                        let handler = Arc::new(handler);
-                        let h_clone = handler.clone();
-                        client.set_disconnection_handler(move |context| {
-                            h_clone.on_disconnected(ReconnectionHandler { context });
-                        });
-                    }
-
-                    let ret = SignalRClient {
-                        _actions: storage.unwrap(),
-                        _connection: Some(client),
-                    };
-
-                    Ok(ret)
-                } else {
-                    Err(storage.err().unwrap())
-                }
-            } else {
-                return Err(res.err().unwrap());
-            }
-        } else {
-            Err(result.err().unwrap())
+        client.set_reconnection_config(reconnection_config);
+        if let Some(handler) = disconnection_handler {
+            let handler = Arc::new(handler);
+            let h_clone = handler.clone();
+            client.set_disconnection_handler(move |context| {
+                h_clone.on_disconnected(ReconnectionHandler { context });
+            });
         }
+
+        Ok(SignalRClient {
+            _actions: storage,
+            _connection: Some(client),
+        })
     }
 
     /// Registers a callback that can be called by the SignalR hub.
@@ -465,21 +446,16 @@ impl SignalRClient {
         let mut invocation = Invocation::create_single(target.clone());
         invocation.with_invocation_id(invocation_id);
 
-        if configuration.is_some() {
+        if let Some(mut configuration) = configuration {
             let mut args = ArgumentConfiguration::new(invocation);
-            configuration.unwrap()(&mut args);
+            configuration(&mut args);
 
             invocation = args.build_invocation();
         }
 
         if let Some(ref mut conn) = self._connection {
-            let res = Self::send_invocation(conn, &invocation).await;
-
-            if res.is_ok() {
-                ret.await
-            } else {
-                Err(res.err().unwrap())
-            }
+            Self::send_invocation(conn, &invocation).await?;
+            ret.await
         } else {
             Err("Not connected".to_string())
         }
@@ -564,9 +540,9 @@ impl SignalRClient {
         // debug!("CLIENT creating actual invocation data");
         let mut invocation = Invocation::create_single(target.clone());
 
-        if configuration.is_some() {
+        if let Some(mut configuration) = configuration {
             let mut args = ArgumentConfiguration::new(invocation);
-            configuration.unwrap()(&mut args);
+            configuration(&mut args);
 
             invocation = args.build_invocation();
         }
@@ -578,9 +554,24 @@ impl SignalRClient {
         }
     }
 
-    pub(crate) async fn send_direct<T: Serialize>(&mut self, data: T) -> Result<(), String> {
+    pub(crate) async fn send_completion<T: Serialize>(
+        &mut self,
+        invocation_id: String,
+        result: T,
+    ) -> Result<(), String> {
         if let Some(ref mut conn) = self._connection {
-            conn.send(&data).await
+            match conn.get_protocol_kind() {
+                HubProtocolKind::Json => {
+                    conn.send(Completion::create_result(invocation_id, result))
+                        .await
+                }
+                #[cfg(feature = "messagepack")]
+                HubProtocolKind::MessagePack => {
+                    let completion =
+                        crate::protocol::msgpack::encode_completion(&invocation_id, &result)?;
+                    conn.send_binary(completion).await
+                }
+            }
         } else {
             Err("Not connected".to_string())
         }
@@ -678,9 +669,9 @@ impl SignalRClient {
         let mut invocation = Invocation::create_multiple(target.clone());
         invocation.with_invocation_id(invocation_id);
 
-        if configuration.is_some() {
+        if let Some(mut configuration) = configuration {
             let mut args = ArgumentConfiguration::new(invocation);
-            configuration.unwrap()(&mut args);
+            configuration(&mut args);
 
             invocation = args.build_invocation();
         }

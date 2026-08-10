@@ -150,6 +150,28 @@ pub fn encode_invocation(
     Ok(buf)
 }
 
+/// Encode and frame a non-void Completion (type 3).
+/// Layout: [3, Headers, InvocationId, ResultKind=3, Result]
+pub fn encode_completion<T: serde::Serialize>(
+    invocation_id: &str,
+    result: &T,
+) -> Result<Vec<u8>, String> {
+    let encoded = rmp_serde::to_vec_named(result)
+        .map_err(|error| format!("MessagePack completion serialization failed: {error}"))?;
+    let value = rmpv::decode::read_value(&mut Cursor::new(encoded))
+        .map_err(|error| format!("MessagePack completion value failed: {error}"))?;
+
+    let mut payload = Vec::new();
+    rmp::encode::write_array_len(&mut payload, 5).map_err(|error| error.to_string())?;
+    rmp::encode::write_uint(&mut payload, MessageType::Completion as u8 as u64)
+        .map_err(|error| error.to_string())?;
+    encode_headers(&mut payload, &None)?;
+    rmp::encode::write_str(&mut payload, invocation_id).map_err(|error| error.to_string())?;
+    rmp::encode::write_uint(&mut payload, 3).map_err(|error| error.to_string())?;
+    rmpv::encode::write_value(&mut payload, &value).map_err(|error| error.to_string())?;
+    Ok(frame_message(&payload))
+}
+
 /// Encode Ping (type 6). Layout: [6]
 #[allow(dead_code)]
 pub fn encode_ping() -> Vec<u8> {
@@ -438,6 +460,26 @@ mod tests {
 
         let msg_type = read_message_type(&ping).unwrap();
         assert_eq!(msg_type, MessageType::Ping);
+    }
+
+    #[test]
+    fn production_stateful_protocol_repairs_encode_callback_completion() {
+        let framed = encode_completion("callback-7", &serde_json::json!({"wireName": 42}))
+            .expect("completion should encode");
+        let payloads = split_framed_messages(&framed).expect("completion should be framed");
+        assert_eq!(payloads.len(), 1);
+
+        let items = parse_msgpack_message(&payloads[0]).expect("completion should parse");
+        let completion = parse_completion(&items).expect("completion fields should parse");
+        assert_eq!(completion.invocation_id, "callback-7");
+        assert_eq!(completion.result_kind, 3);
+        assert_eq!(
+            completion.payload,
+            Some(rmpv::Value::Map(vec![(
+                rmpv::Value::from("wireName"),
+                rmpv::Value::from(42),
+            )]))
+        );
     }
 
     #[test]

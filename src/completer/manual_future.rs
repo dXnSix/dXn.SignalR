@@ -1,5 +1,10 @@
-use std::{future::Future, pin::Pin, sync::{Arc, Mutex}, task::{Context, Poll, Waker}};
 use std::marker::Unpin;
+use std::{
+    future::Future,
+    pin::Pin,
+    sync::{Arc, Mutex},
+    task::{Context, Poll, Waker},
+};
 
 use log::{error, warn};
 
@@ -60,7 +65,10 @@ impl<T: Unpin> ManualFuture<T> {
     pub fn new() -> (Self, ManualFutureCompleter<T>) {
         let state: State<T> = State::new(None);
         let a = Arc::new(Mutex::new(state));
-        (Self { state: a.clone() }, ManualFutureCompleter { state: a })
+        (
+            Self { state: a.clone() },
+            ManualFutureCompleter { state: a },
+        )
     }
 
     /// Returns if the `ManualFuture` is completed.
@@ -72,7 +80,7 @@ impl<T: Unpin> ManualFuture<T> {
     /// let mustbefalse = future.is_completed();
     /// completer.complete(42);
     /// let mustbetrue = future.is_completed();
-    /// ```    
+    /// ```
     #[allow(dead_code)]
     pub fn is_completed(&self) -> bool {
         let state = self.state.lock().unwrap();
@@ -87,7 +95,9 @@ impl<T: Unpin> ManualFuture<T> {
 
 impl<T: Unpin> Clone for ManualFuture<T> {
     fn clone(&self) -> Self {
-        Self { state: self.state.clone() }
+        Self {
+            state: self.state.clone(),
+        }
     }
 }
 
@@ -103,7 +113,7 @@ pub struct ManualFutureCompleter<T: Unpin> {
     state: Arc<Mutex<State<T>>>,
 }
 
-impl<T: Unpin> ManualFutureCompleter<T> {             
+impl<T: Unpin> ManualFutureCompleter<T> {
     /// Completes the future with the given value.
     ///
     /// This method triggers the completion of the associated `ManualFuture`.
@@ -142,9 +152,8 @@ impl<T: Unpin> ManualFutureCompleter<T> {
         warn!("Cancelling future...");
         let mut state = self.state.lock().unwrap();
 
-        match std::mem::replace(&mut *state, State::Complete(None)) {
-            State::Waiting(w) => w.wake(),
-            _ => {},
+        if let State::Waiting(w) = std::mem::replace(&mut *state, State::Complete(None)) {
+            w.wake()
         }
     }
 
@@ -172,7 +181,9 @@ impl<T: Unpin> ManualFutureCompleter<T> {
 
 impl<T: Unpin> Clone for ManualFutureCompleter<T> {
     fn clone(&self) -> Self {
-        Self { state: self.state.clone() }
+        Self {
+            state: self.state.clone(),
+        }
     }
 }
 
@@ -187,16 +198,13 @@ impl<T: Unpin> Future for ManualFuture<T> {
             State::Waiting(w) if w.will_wake(cx.waker()) => {}
             s @ State::Waiting(_) => *s = State::Waiting(cx.waker().clone()),
             State::Complete(v) => match v.take() {
-                Some(v) => {
-                    return Poll::Ready(v)
-                },
+                Some(v) => return Poll::Ready(v),
                 None => {
                     error!("Future is cancelled or double polled...");
-                },
+                }
             },
         }
 
         Poll::Pending
     }
 }
-

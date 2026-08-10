@@ -2,6 +2,7 @@
 name = "rayx-signalr"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.92"
 authors = ["RayX UI contributors", "Daniel Leiszen <daniel.leiszen@gmail.com>"]
 description = "RayX SignalR client with JSON and MessagePack support on WASM and native Tokio targets."
 license = "MIT"

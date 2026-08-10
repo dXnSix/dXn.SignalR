@@ -9,47 +9,49 @@
     "planLifecycle": "implementing",
     "integrationStatus": "not-ready",
     "totalSprints": 5,
-    "currentSprint": 4,
+    "currentSprint": 5,
     "currentTask": 1,
     "activeTasks": [
       {
-        "taskId": "sprint-4-task-1",
-        "sprint": 4,
+        "taskId": "sprint-5-task-1",
+        "sprint": 5,
         "workerId": "root",
-        "leaseId": "6e4f6209-8302-4630-8109-480bd73af9a9",
-        "leaseEpoch": 8,
+        "leaseId": "439b7678-55fe-4c15-897e-1c4364535c06",
+        "leaseEpoch": 9,
         "status": "running",
-        "leasedAt": "2026-08-09T23:58:22Z",
-        "heartbeatAt": "2026-08-10T00:00:42Z",
-        "expiresAt": "2026-08-10T00:20:42Z",
-        "attempt": 2,
+        "leasedAt": "2026-08-10T00:09:02Z",
+        "heartbeatAt": "2026-08-10T00:09:02Z",
+        "expiresAt": "2026-08-10T01:09:02Z",
+        "attempt": 1,
         "ownedScope": [
-          "src/communication/client_wasm.rs",
-          "tests/wasm-fixture/**",
-          "tools-node/**",
-          "dotnet/SignalRTestService/TestHub.cs"
+          "Cargo.toml",
+          "rust-toolchain.toml",
+          "src/**/*.rs",
+          "src/lib.rs",
+          "src/client"
         ],
         "repositoryIds": [
           "rayx-signalr"
         ],
         "lastError": "",
-        "lastValidationCommandId": "VAL-SPRINT-4-TASK-1-GREEN-WASM-JSON-01",
+        "lastValidationCommandId": "VAL-SPRINT-5-TASK-1-BASELINE-CLIPPY-01",
         "lastValidationMatched": true
       }
     ],
-    "leaseEpoch": 8,
+    "leaseEpoch": 9,
     "attempts": {
       "sprint-1-task-1": 3,
       "sprint-2-task-1": 1,
       "sprint-3-task-1": 2,
-      "sprint-4-task-1": 2
+      "sprint-4-task-1": 2,
+      "sprint-5-task-1": 1
     },
     "run": {
       "status": "running",
       "requestedBoundary": "sprint",
       "maxParallelSprints": 2,
       "maxAttempts": 3,
-      "lastHeartbeatAt": "2026-08-10T00:00:42Z",
+      "lastHeartbeatAt": "2026-08-10T00:09:02Z",
       "blocker": {},
       "repositoryBaselines": {
         "rayx-signalr": "4f23eee0dd8e2a2b1c4e718e35d33da34a13a6fb"
@@ -66,6 +68,9 @@
         },
         "4": {
           "rayx-signalr": "f944ee17b7d80516d43f9e4d3deb5aa88dbd1c72"
+        },
+        "5": {
+          "rayx-signalr": "2869854cc9b27e2bd5d7ce74f5945c04c8a62b6e"
         }
       },
       "sprintDirtyBaselines": {
@@ -102,10 +107,18 @@
             ".agentx/tasks/resilient-reconnect-and-production-gates/resume.json": "4141c384c56f42c42848395bbb676f2aa7eb0941011457c5384f693b4d37ca00",
             ".agentx/tasks/resilient-reconnect-and-production-gates/state.json": "510072baf173d259646c99e88aec51913b7d9f7580e93e3489baa86ce2151806"
           }
+        },
+        "5": {
+          "rayx-signalr": {
+            ".agentx/tasks/resilient-reconnect-and-production-gates/.agentx-task.lock": "cad8e6792ba2bbe0adc52cd6b1a8d898522e0f56f472360bf6f5eb43427baee1",
+            ".agentx/tasks/resilient-reconnect-and-production-gates/preflight.json": "06f45ab595c9dac26fb74cf60a64994ec97b3541b854de984de980c643f093dc",
+            ".agentx/tasks/resilient-reconnect-and-production-gates/resume.json": "c4b4b2fe07ff084bb2a0fe92af96a0ed16ef4781c868dc502927af7a5ec7614e",
+            ".agentx/tasks/resilient-reconnect-and-production-gates/state.json": "d70f7bc05a876019afc7ef84fa6abe7ded4d94ffb7ac2c0715ef9e0a46eda10d"
+          }
         }
       }
     },
-    "lastResumeAt": "2026-08-10T00:02:48Z",
+    "lastResumeAt": "2026-08-10T00:24:50Z",
     "lastResumeSpecHashes": {
       "requirements": "f2b54c9fd08734912af1948adb555043e4e492e23f5ce2e1df1e3fd2c51d1c1c",
       "design": "10e8c5d8a3535948765d372914c0b4cc5661294cd629dafd10559595001865ea",
@@ -113,8 +126,8 @@
       "contracts": "fe025623a56fc93f2b519c4b7f0e839046c5fe657c550074c89ad295093d5bae"
     }
   },
-  "currentTaskId": "sprint-4-task-1",
-  "nextUncheckedTaskId": "sprint-4-task-1",
+  "currentTaskId": "sprint-5-task-1",
+  "nextUncheckedTaskId": "sprint-5-task-1",
   "specHashes": {
     "requirements": "f2b54c9fd08734912af1948adb555043e4e492e23f5ce2e1df1e3fd2c51d1c1c",
     "design": "10e8c5d8a3535948765d372914c0b4cc5661294cd629dafd10559595001865ea",
@@ -184,18 +197,12 @@
     "disposition": "pass"
   },
   "schemaVersion": 5,
-  "resumedAt": "2026-08-10T00:02:48Z",
-  "gitHead": "f944ee17b7d80516d43f9e4d3deb5aa88dbd1c72",
-  "gitStatusShort": " M .agentx/tasks/resilient-reconnect-and-production-gates/contract-reconciliation.jsonl\n M .agentx/tasks/resilient-reconnect-and-production-gates/evidence.jsonl\n M .agentx/tasks/resilient-reconnect-and-production-gates/implementation-plan.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/preflight.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/resume.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/run-events.jsonl\n M .agentx/tasks/resilient-reconnect-and-production-gates/state.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/task-contracts.json\n M dotnet/SignalRTestService/TestHub.cs\n M src/communication/client_wasm.rs\n M tests/wasm-fixture/Cargo.toml\n M tests/wasm-fixture/src/lib.rs\n M tools-node/tests/signalr-wasm.spec.ts\n M tools-node/wasm-host/index.html\n",
+  "resumedAt": "2026-08-10T00:24:50Z",
+  "gitHead": "2869854cc9b27e2bd5d7ce74f5945c04c8a62b6e",
+  "gitStatusShort": " M .agentx/tasks/resilient-reconnect-and-production-gates/evidence.jsonl\n M .agentx/tasks/resilient-reconnect-and-production-gates/implementation-plan.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/preflight.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/resume.json\n M .agentx/tasks/resilient-reconnect-and-production-gates/run-events.jsonl\n M .agentx/tasks/resilient-reconnect-and-production-gates/state.json\n M Cargo.toml\n M src/client/client.rs\n M src/client/configuration.rs\n M src/client/context.rs\n M src/client/mod.rs\n M src/communication/client_tokio.rs\n M src/communication/client_wasm.rs\n M src/communication/common.rs\n M src/communication/reconnection.rs\n M src/communication/stateful.rs\n M src/completer/completed_future.rs\n M src/completer/manual_future.rs\n M src/completer/manual_stream.rs\n M src/completer/mod.rs\n M src/execution/arguments.rs\n M src/execution/callback.rs\n M src/execution/enumerable.rs\n M src/execution/invocation.rs\n M src/execution/mod.rs\n M src/execution/storage.rs\n M src/execution/storage_tokio.rs\n M src/platform.rs\n M src/protocol/hub_protocol.rs\n M src/protocol/invoke.rs\n M src/protocol/messages.rs\n M src/protocol/mod.rs\n M src/protocol/msgpack.rs\n M src/protocol/negotiate.rs\n M src/protocol/streaming.rs\n M src/tests/mod.rs\n M src/tests/tests_msgpack.rs\n M src/tests/tests_tokio.rs\n?? rust-toolchain.toml\n",
   "errors": [
-    "run-events.jsonl:19 $.event: value 'validation-executed' is not in ['run-started', 'task-leased', 'heartbeat', 'worker-exited', 'task-retry', 'task-blocked', 'boundary-reached', 'run-completed', 'run-paused']",
-    "run-events.jsonl:19 $: unexpected property 'matchedExpectation'",
-    "run-events.jsonl:19 $: unexpected property 'validationCommandId'",
-    "run-events.jsonl:21 $.event: value 'validation-executed' is not in ['run-started', 'task-leased', 'heartbeat', 'worker-exited', 'task-retry', 'task-blocked', 'boundary-reached', 'run-completed', 'run-paused']",
-    "run-events.jsonl:21 $: unexpected property 'matchedExpectation'",
-    "run-events.jsonl:21 $: unexpected property 'validationCommandId'",
     "Done task sprint-2-task-1 lacks passing evidence for profiles: ['integration']"
   ],
   "warnings": [],
-  "requiredNextAction": "Continue or resolve active task sprint-4-task-1; do not switch tasks without recording a blocker."
+  "requiredNextAction": "Continue or resolve active task sprint-5-task-1; do not switch tasks without recording a blocker."
 }

@@ -2,7 +2,6 @@
 ///
 /// On non-WASM targets (tokio), types need `Send` for cross-thread usage.
 /// On WASM targets, everything is single-threaded, so `Send` is not required.
-
 #[cfg(not(target_arch = "wasm32"))]
 pub trait MaybeSend: Send {}
 #[cfg(not(target_arch = "wasm32"))]

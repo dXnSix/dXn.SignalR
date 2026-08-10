@@ -153,13 +153,11 @@ impl HttpClient {
 
     fn basic_auth(username: String, password: Option<String>) -> String {
         let mut ret = String::new();
-
-        if password.is_some() {
-            general_purpose::STANDARD
-                .encode_string(format!("{}:{}", username, password.unwrap()), &mut ret);
-        } else {
-            general_purpose::STANDARD.encode_string(format!("{}:", username), &mut ret);
-        }
+        let credentials = password.map_or_else(
+            || format!("{username}:"),
+            |password| format!("{username}:{password}"),
+        );
+        general_purpose::STANDARD.encode_string(credentials, &mut ret);
 
         format!("Basic {}", &ret)
     }

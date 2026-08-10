@@ -3,7 +3,7 @@ use super::{
     UpdatableAction,
 };
 use crate::{
-    completer::{CompletedFuture, ManualFuture, ManualFutureCompleter, ManualStream},
+    completer::{ManualFuture, ManualStream},
     {
         client::SignalRClient,
         protocol::{
@@ -17,43 +17,6 @@ use crate::{
 };
 use log::{debug, info};
 use serde::de::DeserializeOwned;
-
-#[allow(dead_code)]
-#[derive(Clone)]
-pub struct ManualFutureState {
-    _completer: Option<ManualFutureCompleter<bool>>,
-    _future: Option<ManualFuture<bool>>,
-}
-
-impl ManualFutureState {
-    #[allow(dead_code)]
-    pub fn new() -> Self {
-        let (f, c) = ManualFuture::new();
-
-        ManualFutureState {
-            _completer: Some(c),
-            _future: Some(f),
-        }
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn complete(&mut self, value: bool) {
-        if self._completer.is_some() {
-            let completer = self._completer.take().unwrap();
-
-            completer.complete(value);
-        }
-    }
-
-    #[allow(dead_code)]
-    pub(crate) async fn awaiter(&mut self) -> bool {
-        if self._future.is_some() {
-            self._future.take().unwrap().await
-        } else {
-            CompletedFuture::new(false).await
-        }
-    }
-}
 
 pub trait Storage: Clone {
     fn insert(&mut self, key: String, action: impl UpdatableAction + 'static);

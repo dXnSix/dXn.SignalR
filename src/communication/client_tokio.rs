@@ -48,6 +48,8 @@ trait CommunicationDisconnectionHandler: Send {
 
 type UserDisconnectionHandler = Arc<Box<dyn Fn(ReconnectionContext) + Send + Sync>>;
 type SharedStatefulBuffer = Arc<StdMutex<StatefulMessageBuffer>>;
+type SocketSink = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
+type SharedSocketSink = Arc<Mutex<SocketSink>>;
 
 #[cfg(test)]
 #[derive(Clone)]
@@ -138,7 +140,7 @@ impl ReconnectionContext {
 
                 let mut conn_struct = CommunicationConnection {
                     _receiver: None,
-                    _sink: write,
+                    _sink: Arc::new(Mutex::new(write)),
                     _stateful: self.stateful.clone(),
                     #[cfg(test)]
                     _test_disconnection_handler: None,
@@ -216,7 +218,7 @@ impl ReconnectionContext {
 }
 
 struct CommunicationConnection {
-    _sink: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
+    _sink: SharedSocketSink,
     _receiver: Option<JoinHandle<()>>,
     _stateful: Option<SharedStatefulBuffer>,
     #[cfg(test)]
@@ -232,6 +234,7 @@ impl CommunicationConnection {
         protocol_kind: HubProtocolKind,
     ) {
         let stateful = self._stateful.clone();
+        let sink = self._sink.clone();
         #[cfg(test)]
         {
             self._test_disconnection_handler = Some(disconnection_handler.clone());
@@ -239,15 +242,12 @@ impl CommunicationConnection {
         let handle = tokio::spawn(async move {
             let mut allow_reconnect = true;
             'receive: while let Some(item) = stream.next().await {
-                if item.is_ok() {
-                    let ws_message = item.unwrap();
-                    match protocol_kind {
+                match item {
+                    Ok(ws_message) => match protocol_kind {
                         HubProtocolKind::Json => {
                             for message in CommunicationClient::get_text_messages(&ws_message) {
-                                let ping = MessageParser::parse_message::<Ping>(&message);
-
-                                if ping.is_ok() {
-                                    let message_type = ping.unwrap().message_type();
+                                if let Ok(ping) = MessageParser::parse_message::<Ping>(&message) {
+                                    let message_type = ping.message_type();
                                     if let Some(buffer) = &stateful {
                                         #[cfg(test)]
                                         CommunicationClient::pause_test_trackable(message_type)
@@ -287,18 +287,42 @@ impl CommunicationConnection {
                                         ) {
                                             continue;
                                         }
-                                        match buffer
+                                        let should_process = match buffer
                                             .lock()
                                             .expect("stateful buffer poisoned")
                                             .should_process(message_type)
                                         {
-                                            Ok(true) => {}
-                                            Ok(false) => continue,
+                                            Ok(value) => value,
                                             Err(error) => {
                                                 error!("Stateful protocol error: {}", error);
                                                 allow_reconnect = false;
                                                 break 'receive;
                                             }
+                                        };
+                                        let acknowledgement = match buffer
+                                            .lock()
+                                            .expect("stateful buffer poisoned")
+                                            .take_acknowledgement()
+                                        {
+                                            Ok(value) => value,
+                                            Err(error) => {
+                                                error!("Cannot prepare stateful Ack: {error}");
+                                                allow_reconnect = false;
+                                                break 'receive;
+                                            }
+                                        };
+                                        if let Some(sequence_id) = acknowledgement {
+                                            if let Err(error) =
+                                                Self::send_ack(&sink, protocol_kind, sequence_id)
+                                                    .await
+                                            {
+                                                error!("Cannot send stateful Ack: {error}");
+                                                allow_reconnect = false;
+                                                break 'receive;
+                                            }
+                                        }
+                                        if !should_process {
+                                            continue;
                                         }
                                     }
                                     let payload = MessagePayload::Text(message);
@@ -311,13 +335,10 @@ impl CommunicationConnection {
                                         let _ = storage.process_message(payload, message_type);
                                         break 'receive;
                                     }
-                                    let res = storage.process_message(payload, message_type);
-
-                                    if res.is_err() {
-                                        error!(
-                                            "Error occured parsing message {}",
-                                            res.unwrap_err()
-                                        );
+                                    if let Err(error) =
+                                        storage.process_message(payload, message_type)
+                                    {
+                                        error!("Error occurred parsing message {error}");
                                     }
                                 } else {
                                     error!("Message could not be parsed: {:?}", message);
@@ -368,18 +389,45 @@ impl CommunicationConnection {
                                             ) {
                                                 continue;
                                             }
-                                            match buffer
+                                            let should_process = match buffer
                                                 .lock()
                                                 .expect("stateful buffer poisoned")
                                                 .should_process(msg_type)
                                             {
-                                                Ok(true) => {}
-                                                Ok(false) => continue,
+                                                Ok(value) => value,
                                                 Err(error) => {
                                                     error!("Stateful protocol error: {}", error);
                                                     allow_reconnect = false;
                                                     break 'receive;
                                                 }
+                                            };
+                                            let acknowledgement = match buffer
+                                                .lock()
+                                                .expect("stateful buffer poisoned")
+                                                .take_acknowledgement()
+                                            {
+                                                Ok(value) => value,
+                                                Err(error) => {
+                                                    error!("Cannot prepare stateful Ack: {error}");
+                                                    allow_reconnect = false;
+                                                    break 'receive;
+                                                }
+                                            };
+                                            if let Some(sequence_id) = acknowledgement {
+                                                if let Err(error) = Self::send_ack(
+                                                    &sink,
+                                                    protocol_kind,
+                                                    sequence_id,
+                                                )
+                                                .await
+                                                {
+                                                    error!("Cannot send stateful Ack: {error}");
+                                                    allow_reconnect = false;
+                                                    break 'receive;
+                                                }
+                                            }
+                                            if !should_process {
+                                                continue;
                                             }
                                         }
                                         let payload = MessagePayload::Binary(payload);
@@ -392,18 +440,20 @@ impl CommunicationConnection {
                                             let _ = storage.process_message(payload, msg_type);
                                             break 'receive;
                                         }
-                                        let res = storage.process_message(payload, msg_type);
-                                        if res.is_err() {
-                                            error!(
-                                                "Error processing msgpack message: {}",
-                                                res.unwrap_err()
-                                            );
+                                        if let Err(error) =
+                                            storage.process_message(payload, msg_type)
+                                        {
+                                            error!("Error processing msgpack message: {error}");
                                         }
                                     }
                                     Err(e) => error!("Cannot read msgpack message type: {}", e),
                                 }
                             }
                         }
+                    },
+                    Err(error) => {
+                        error!("WebSocket receive error: {error}");
+                        break 'receive;
                     }
                 }
             }
@@ -423,6 +473,8 @@ impl CommunicationConnection {
             .await?;
 
         self._sink
+            .lock()
+            .await
             .send(Message::text(json))
             .await
             .map_err(|e| e.to_string())
@@ -440,9 +492,36 @@ impl CommunicationConnection {
                 .await?;
         }
         self._sink
+            .lock()
+            .await
             .send(Message::binary(data))
             .await
             .map_err(|e| e.to_string())
+    }
+
+    async fn send_ack(
+        sink: &SharedSocketSink,
+        protocol_kind: HubProtocolKind,
+        sequence_id: u64,
+    ) -> Result<(), String> {
+        let message = match protocol_kind {
+            HubProtocolKind::Json => Message::text(
+                MessageParser::to_json(&Ack::new(sequence_id))
+                    .map_err(|error| error.to_string())?,
+            ),
+            #[cfg(feature = "messagepack")]
+            HubProtocolKind::MessagePack => {
+                Message::binary(crate::protocol::stateful::encode_messagepack_control(
+                    MessageType::Ack,
+                    sequence_id,
+                )?)
+            }
+        };
+        sink.lock()
+            .await
+            .send(message)
+            .await
+            .map_err(|error| error.to_string())
     }
 
     async fn track_outgoing(
@@ -543,9 +622,9 @@ impl Communication for CommunicationClient {
         let res = ret.connect_internal().await;
 
         if res.is_ok() {
-            return Ok(ret);
+            Ok(ret)
         } else {
-            return Err(res.err().unwrap());
+            Err(res.err().unwrap())
         }
     }
 
@@ -628,10 +707,12 @@ impl CommunicationClient {
             "Creating communication client to {}",
             recipe.display_endpoint()
         );
-        let endpoint = Uri::from_str(&configuration.get_endpoint()).expect(&format!(
-            "The endpoint Uri {:?} is invalid",
-            configuration.get_endpoint().as_str()
-        ));
+        let endpoint = Uri::from_str(&configuration.get_endpoint()).unwrap_or_else(|_| {
+            panic!(
+                "The endpoint Uri {:?} is invalid",
+                configuration.get_endpoint().as_str()
+            )
+        });
 
         let state = Arc::new(Mutex::new(ConnectionState::NotConnected(
             DisconnectionReason::NeverOpened,
@@ -723,33 +804,26 @@ impl CommunicationClient {
     async fn connect_socket(
         endpoint: Uri,
     ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, String> {
-        let stream: Result<
-            (
-                WebSocketStream<MaybeTlsStream<TcpStream>>,
-                http::Response<()>,
-            ),
-            tokio_websockets::Error,
-        >;
         info!(
             "Connecting to endpoint {}",
             Self::display_endpoint(&endpoint)
         );
 
-        if Some("wss") == endpoint.scheme_str() {
+        let stream = if Some("wss") == endpoint.scheme_str() {
             info!("Connection to secure endpoint...");
             let Ok(connector) = TlsConnector::new() else {
                 return Err("Cannot create default TLS connector".to_string());
             };
 
             let connector = tokio_websockets::Connector::NativeTls(connector.into());
-            stream = ClientBuilder::from_uri(endpoint.clone())
+            ClientBuilder::from_uri(endpoint.clone())
                 .connector(&connector)
                 .connect()
-                .await;
+                .await
         } else {
             info!("Connection to plain endpoint...");
-            stream = ClientBuilder::from_uri(endpoint.clone()).connect().await;
-        }
+            ClientBuilder::from_uri(endpoint.clone()).connect().await
+        };
 
         let ws = stream
             .map(|(ws, _)| ws)
@@ -861,7 +935,7 @@ impl CommunicationClient {
             Ok((write, read)) => {
                 let mut connection = CommunicationConnection {
                     _receiver: None,
-                    _sink: write,
+                    _sink: Arc::new(Mutex::new(write)),
                     _stateful: self._stateful.clone(),
                     #[cfg(test)]
                     _test_disconnection_handler: None,
@@ -903,7 +977,7 @@ impl CommunicationClient {
                 return txt
                     .split(RECORD_SEPARATOR)
                     .map(|s| MessageParser::strip_record_separator(s).to_string())
-                    .filter(|s| s.len() > 0)
+                    .filter(|s| !s.is_empty())
                     .collect();
             }
         }
@@ -1195,7 +1269,7 @@ impl CommunicationDisconnectionHandler for ClientDisconnectionHandler {
 
                                 let mut conn_struct = CommunicationConnection {
                                     _receiver: None,
-                                    _sink: write,
+                                    _sink: Arc::new(Mutex::new(write)),
                                     _stateful: stateful.clone(),
                                     #[cfg(test)]
                                     _test_disconnection_handler: None,

@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum LifecycleState {
     Disconnected,
@@ -8,6 +9,7 @@ pub(crate) enum LifecycleState {
     LocalClosed,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone, Copy, Debug)]
 struct CoordinatorState {
     lifecycle: LifecycleState,
@@ -15,11 +17,13 @@ struct CoordinatorState {
 }
 
 /// Serializes reconnect ownership and rejects late results from superseded attempts.
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone, Debug)]
 pub(crate) struct ReconnectCoordinator {
     state: std::sync::Arc<std::sync::Mutex<CoordinatorState>>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl ReconnectCoordinator {
     pub(crate) fn connected() -> Self {
         Self {

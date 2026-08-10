@@ -89,10 +89,7 @@ async fn test_service() {
     drop(secondclient);
 
     let c1 = client.register("callback1".to_string(), |ctx| {
-        let result = ctx.argument::<TestEntity>(0);
-
-        if result.is_ok() {
-            let entity = result.unwrap();
+        if let Ok(entity) = ctx.argument::<TestEntity>(0) {
             info!(
                 "Callback results entity: {}, {}",
                 entity.text, entity.number
@@ -101,10 +98,7 @@ async fn test_service() {
     });
 
     let c2 = client.register("callback2".to_string(), |mut ctx| {
-        let result = ctx.argument::<TestEntity>(0);
-
-        if result.is_ok() {
-            let entity = result.unwrap();
+        if let Ok(entity) = ctx.argument::<TestEntity>(0) {
             info!(
                 "Callback2 results entity: {}, {}",
                 entity.text, entity.number
@@ -141,7 +135,7 @@ async fn test_service() {
         let mut me = client
             .enumerate::<TestEntity>("MillionEntities".to_string())
             .await;
-        while let Some(_) = me.next().await {}
+        while (me.next().await).is_some() {}
     }
 
     let elapsed = now.elapsed();
@@ -150,6 +144,76 @@ async fn test_service() {
     c1.unregister();
     c2.unregister();
 
+    client.disconnect();
+}
+
+#[test_log::test(tokio::test)]
+async fn interop_ordinary_reconnect_json() {
+    tokio::time::timeout(Duration::from_secs(15), run_ordinary_reconnect(false))
+        .await
+        .expect("native JSON ordinary reconnect scenario timed out");
+}
+
+pub(crate) async fn run_ordinary_reconnect(messagepack: bool) {
+    let mut client = SignalRClient::connect_with("127.0.0.1", "test", |config| {
+        config.with_port(5220);
+        config.unsecure();
+        config.with_reconnection_policy(ReconnectionConfig {
+            policy: Arc::new(ConstantDelayPolicy::new(
+                Duration::from_millis(25),
+                Some(40),
+            )),
+        });
+        #[cfg(feature = "messagepack")]
+        if messagepack {
+            config.with_messagepack_protocol();
+        }
+        #[cfg(not(feature = "messagepack"))]
+        let _ = messagepack;
+    })
+    .await
+    .unwrap();
+
+    let initial_connection_id = client
+        .invoke::<String>("ConnectionIdentity".to_string())
+        .await
+        .unwrap();
+
+    let callback_count = Arc::new(Mutex::new(0_u32));
+    let callback_capture = callback_count.clone();
+    let registration = client.register("nativeOrdinaryCallback".to_string(), move |_| {
+        *callback_capture.lock().expect("callback count poisoned") += 1;
+    });
+
+    CommunicationClient::force_test_transport_drop()
+        .await
+        .unwrap();
+
+    let reconnected_connection_id = client
+        .invoke::<String>("ConnectionIdentity".to_string())
+        .await
+        .unwrap();
+    assert_ne!(reconnected_connection_id, initial_connection_id);
+
+    client
+        .send_with_args("TriggerCallback".to_string(), |arguments| {
+            arguments.argument("nativeOrdinaryCallback".to_string());
+        })
+        .await
+        .unwrap();
+
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            if *callback_count.lock().expect("callback count poisoned") == 1 {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("timed out waiting for callback after ordinary reconnect");
+
+    registration.unregister();
     client.disconnect();
 }
 

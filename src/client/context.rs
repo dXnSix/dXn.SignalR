@@ -1,10 +1,9 @@
-
 use core::future::Future;
 
-use serde::{de::DeserializeOwned, Serialize};
-use crate::protocol::{messages, invoke::{Completion, Invocation}};
 use self::messages::MessageParser;
 use super::SignalRClient;
+use crate::protocol::{invoke::Invocation, messages};
+use serde::{de::DeserializeOwned, Serialize};
 
 /// The context for an invocation, providing access to arguments, the ability to complete the invocation, and a client for additional hub interactions.
 ///
@@ -48,7 +47,7 @@ use super::SignalRClient;
 ///         }
 ///     }
 /// });
-/// ```ignore
+/// ```
 ///
 /// # Methods
 ///
@@ -82,7 +81,7 @@ use super::SignalRClient;
 ///         error!("Failed to retrieve argument: {}", e);
 ///     }
 /// }
-/// ```ignore
+/// ```
 ///
 /// ## `complete`
 ///
@@ -125,10 +124,7 @@ pub struct InvocationContext {
 
 impl InvocationContext {
     pub(crate) fn create(client: SignalRClient, invocation: Invocation) -> Self {
-        InvocationContext {
-            client: client,
-            invocation: invocation
-        }
+        InvocationContext { client, invocation }
     }
 
     /// Retrieves the argument of the given type from the invocation context.
@@ -159,33 +155,19 @@ impl InvocationContext {
     ///         error!("Failed to retrieve argument: {}", e);
     ///     }
     /// }
-    /// ```    
+    /// ```
     pub fn argument<T: DeserializeOwned + Unpin>(&self, index: usize) -> Result<T, String> {
-        if self.invocation.arguments.is_some() {
-            let arguments = self.invocation.arguments.as_ref().unwrap();
-
-            if arguments.len() > index {
-                let arg = arguments.get(index);
-
-                if arg.is_some() {
-                    let value = arg.unwrap();
-                    let strvalue = value.to_string();
-                    let res = MessageParser::parse_message::<T>(&strvalue);
-
-                    if res.is_ok() {
-                        return Ok(res.unwrap());
-                    } else {
-                        return Err(format!("The argument cannot be deserialized to the requested type {:?}", arg.unwrap().as_str().unwrap()));
-                    }
-                } else {
-                    return Err(format!("The argument does not exist at the given index {}", index));
-                }
-            } else {
-                return Err(format!("The argument count is not greater than the index {}", index));
-            }
-        } else {
-            return Err(format!("There are no arguments for the invocation"));
-        }        
+        let arguments = self
+            .invocation
+            .arguments
+            .as_ref()
+            .ok_or_else(|| "There are no arguments for the invocation".to_string())?;
+        let value = arguments
+            .get(index)
+            .ok_or_else(|| format!("The argument does not exist at the given index {index}"))?;
+        MessageParser::parse_message::<T>(&value.to_string()).map_err(|error| {
+            format!("The argument at index {index} cannot be deserialized: {error}")
+        })
     }
 
     /// Returns a specific result from the callback to the hub.
@@ -219,17 +201,13 @@ impl InvocationContext {
     ///         error!("Failed to complete callback: {}", e);
     ///     }
     /// }
-    /// ```    
+    /// ```
     pub async fn complete<T: Serialize>(&mut self, result: T) -> Result<(), String> {
-        let invocation_id = self.invocation.get_invocation_id();
-
-        if invocation_id.is_some() {
-            let completion = Completion::create_result(invocation_id.unwrap(), result);
-
-            return self.client.send_direct(completion).await;
-        } else {
-            return Err(format!("The completion cannot be sent, because there was no invocation id for the call"));
-        }
+        let invocation_id = self.invocation.get_invocation_id().ok_or_else(|| {
+            "The completion cannot be sent, because there was no invocation id for the call"
+                .to_string()
+        })?;
+        self.client.send_completion(invocation_id, result).await
     }
 
     /// Spawns the given async block into a new thread.
@@ -251,10 +229,11 @@ impl InvocationContext {
     ///     // Your async code here
     ///     info!("Async block executed");
     /// });
-    /// ```    
+    /// ```
     #[cfg(not(target_family = "wasm"))]
     pub fn spawn<F>(future: F)
-        where F: Future<Output = ()> + Send + 'static
+    where
+        F: Future<Output = ()> + Send + 'static,
     {
         tokio::spawn(future);
     }
@@ -281,7 +260,8 @@ impl InvocationContext {
     /// ```
     #[cfg(target_arch = "wasm32")]
     pub fn spawn<F>(future: F)
-        where F: Future<Output = ()> + 'static
+    where
+        F: Future<Output = ()> + 'static,
     {
         wasm_bindgen_futures::spawn_local(future);
     }

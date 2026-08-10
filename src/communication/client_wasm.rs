@@ -613,13 +613,32 @@ impl CommunicationClient {
                                 {
                                     continue;
                                 }
-                                match buffer.borrow_mut().should_process(message_type) {
-                                    Ok(true) => {}
-                                    Ok(false) => continue,
-                                    Err(error) => {
-                                        error!("WASM stateful protocol error: {}", error);
+                                let should_process =
+                                    match buffer.borrow_mut().should_process(message_type) {
+                                        Ok(value) => value,
+                                        Err(error) => {
+                                            error!("WASM stateful protocol error: {}", error);
+                                            return Some(false);
+                                        }
+                                    };
+                                let acknowledgement =
+                                    match buffer.borrow_mut().take_acknowledgement() {
+                                        Ok(value) => value,
+                                        Err(error) => {
+                                            error!("Cannot prepare WASM stateful Ack: {error}");
+                                            return Some(false);
+                                        }
+                                    };
+                                if let Some(sequence_id) = acknowledgement {
+                                    if let Err(error) =
+                                        Self::send_ack(client, protocol_kind, sequence_id)
+                                    {
+                                        error!("Cannot send WASM stateful Ack: {error}");
                                         return Some(false);
                                     }
+                                }
+                                if !should_process {
+                                    continue;
                                 }
                             }
                             let payload = MessagePayload::Text(message);
@@ -681,13 +700,32 @@ impl CommunicationClient {
                                 {
                                     continue;
                                 }
-                                match buffer.borrow_mut().should_process(message_type) {
-                                    Ok(true) => {}
-                                    Ok(false) => continue,
-                                    Err(error) => {
-                                        error!("WASM stateful protocol error: {}", error);
+                                let should_process =
+                                    match buffer.borrow_mut().should_process(message_type) {
+                                        Ok(value) => value,
+                                        Err(error) => {
+                                            error!("WASM stateful protocol error: {}", error);
+                                            return Some(false);
+                                        }
+                                    };
+                                let acknowledgement =
+                                    match buffer.borrow_mut().take_acknowledgement() {
+                                        Ok(value) => value,
+                                        Err(error) => {
+                                            error!("Cannot prepare WASM stateful Ack: {error}");
+                                            return Some(false);
+                                        }
+                                    };
+                                if let Some(sequence_id) = acknowledgement {
+                                    if let Err(error) =
+                                        Self::send_ack(client, protocol_kind, sequence_id)
+                                    {
+                                        error!("Cannot send WASM stateful Ack: {error}");
                                         return Some(false);
                                     }
+                                }
+                                if !should_process {
+                                    continue;
                                 }
                             }
                             let payload = MessagePayload::Binary(payload);
@@ -707,6 +745,28 @@ impl CommunicationClient {
             }
         }
         None
+    }
+
+    fn send_ack(
+        client: &Rc<RefCell<PollingClient>>,
+        protocol_kind: HubProtocolKind,
+        sequence_id: u64,
+    ) -> Result<(), String> {
+        match protocol_kind {
+            HubProtocolKind::Json => {
+                let ack = MessageParser::to_json(&Ack::new(sequence_id))
+                    .map_err(|error| error.to_string())?;
+                client.borrow().send_string(&ack).map_err(Self::js_error)
+            }
+            #[cfg(feature = "messagepack")]
+            HubProtocolKind::MessagePack => {
+                let ack = crate::protocol::stateful::encode_messagepack_control(
+                    MessageType::Ack,
+                    sequence_id,
+                )?;
+                client.borrow().send_binary(ack).map_err(Self::js_error)
+            }
+        }
     }
 
     async fn send_internal<T: serde::Serialize>(&self, data: T) -> Result<(), String> {
