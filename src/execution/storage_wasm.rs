@@ -3,10 +3,12 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use super::{storage::Storage, UpdatableAction};
 
+type SharedAction = Rc<RefCell<Box<dyn UpdatableAction>>>;
+
 #[cfg(target_arch = "wasm32")]
 #[derive(Clone)]
 pub struct UpdatableActionStorage {
-    _data: Rc<RefCell<HashMap<String, (bool, Box<dyn UpdatableAction>)>>>,
+    _data: Rc<RefCell<HashMap<String, (bool, SharedAction)>>>,
     _index: Rc<RefCell<usize>>,
 }
 
@@ -40,16 +42,21 @@ impl Storage for UpdatableActionStorage {
     }
 
     fn update(&mut self, key: String, mut f: impl FnMut(&mut Box<dyn UpdatableAction>)) {
-        let mut data = self._data.borrow_mut();
+        let action = {
+            let data = self._data.borrow();
+            let action = data.get(&key).map(|(_, action)| action.clone());
+            if action.is_none() {
+                error!(
+                    "Key {} is not found in {} registered actions",
+                    key,
+                    data.len()
+                );
+            }
+            action
+        };
 
-        if let Some((_, action)) = data.get_mut(&key) {
-            (f)(action);
-        } else {
-            error!(
-                "Key {} is not found in {} registered actions",
-                key,
-                data.len()
-            );
+        if let Some(action) = action {
+            (f)(&mut action.borrow_mut());
         }
     }
 
@@ -64,6 +71,7 @@ impl Storage for UpdatableActionStorage {
 
                 info!("Dropping item at key {}", key);
                 let (_, action) = removed.take().unwrap();
+                drop(data);
                 drop(action);
             } else {
                 warn!("Data at key {} is an empty action.", key);
@@ -82,16 +90,31 @@ impl Storage for UpdatableActionStorage {
 
         if count == 1 {
             info!("Clearing storage...");
-            let mut data = self._data.borrow_mut();
-
-            data.clear();
+            let actions = self
+                ._data
+                .borrow_mut()
+                .drain()
+                .map(|(_, (_, action))| action)
+                .collect::<Vec<_>>();
+            drop(actions);
         }
     }
 
     fn fail_pending(&mut self, _error: &str) {
-        self._data
-            .borrow_mut()
-            .retain(|_, (persistent, _)| *persistent);
+        let pending_keys = self
+            ._data
+            .borrow()
+            .iter()
+            .filter_map(|(key, (persistent, _))| (!persistent).then_some(key.clone()))
+            .collect::<Vec<_>>();
+        let pending_actions = {
+            let mut data = self._data.borrow_mut();
+            pending_keys
+                .iter()
+                .filter_map(|key| data.remove(key).map(|(_, action)| action))
+                .collect::<Vec<_>>()
+        };
+        drop(pending_actions);
     }
 
     fn increment(&mut self) -> usize {
@@ -114,7 +137,10 @@ impl UpdatableActionStorage {
         if data.contains_key(&key) {
             warn!("The key already exists in storage: {}. Dropping...", &key);
         } else {
-            data.insert(key.clone(), (persistent, Box::new(action)));
+            data.insert(
+                key.clone(),
+                (persistent, Rc::new(RefCell::new(Box::new(action)))),
+            );
             debug!("Inserting key {} into actions, count: {}", key, data.len());
         }
     }

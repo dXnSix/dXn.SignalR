@@ -213,6 +213,24 @@ pub async fn connect_and_probe(protocol: String) -> Result<String, JsValue> {
 }
 
 #[wasm_bindgen]
+pub async fn consume_short_streams(rounds: u32, items_per_round: i32) -> Result<i32, JsValue> {
+    let mut client = fixture_client()?;
+    let mut received = 0;
+    for _ in 0..rounds {
+        let mut stream = client
+            .enumerate_with_args::<i32, _>("OrderedSequence".to_string(), |arguments| {
+                arguments.argument(items_per_round);
+                arguments.argument(0);
+            })
+            .await;
+        while stream.next().await.is_some() {
+            received += 1;
+        }
+    }
+    Ok(received)
+}
+
+#[wasm_bindgen]
 pub async fn trigger_callback_after_reconnect() -> Result<(), JsValue> {
     let mut client = CLIENT
         .with(|slot| slot.borrow().clone())

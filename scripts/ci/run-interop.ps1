@@ -218,7 +218,10 @@ $protocols = Expand-Selector $Protocol
 $scenarios = Expand-Selector $Scenario
 Assert-Selector "target" $targets @("native", "wasm")
 Assert-Selector "protocol" $protocols @("json", "messagepack")
-Assert-Selector "scenario" $scenarios @("ordinary-reconnect", "stateful-reconnect")
+Assert-Selector "scenario" $scenarios @("ordinary-reconnect", "stateful-reconnect", "short-stream-chaining")
+if ($targets -contains "native" -and $scenarios -contains "short-stream-chaining") {
+    throw "The short-stream-chaining scenario is browser-WASM-specific"
+}
 if ($ScenarioTimeoutSeconds -lt 1 -or $ScenarioTimeoutSeconds -gt 60) {
     throw "ScenarioTimeoutSeconds must be between 1 and 60"
 }

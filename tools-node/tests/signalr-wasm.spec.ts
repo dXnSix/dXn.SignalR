@@ -6,6 +6,7 @@ declare global {
       abortPhysicalTransport(): Promise<void>;
       connectAndProbe(protocol: "json" | "messagepack"): Promise<string>;
       connectStateful(protocol: "json" | "messagepack"): Promise<string>;
+      consumeShortStreams(rounds: number, itemsPerRound: number): Promise<number>;
       pendingInvocationResult(): string | undefined;
       pendingInvocationStarted(): boolean;
       probeAfterReconnect(): Promise<string>;
@@ -23,6 +24,26 @@ declare global {
       callbackCount(): number;
     };
   }
+}
+
+for (const protocol of ["json", "messagepack"] as const) {
+  test(`short stream chaining ${protocol === "json" ? "JSON" : "MessagePack"}`, async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+    await page.goto("http://127.0.0.1:7878/");
+    await expect(page.locator("body")).toHaveAttribute("data-rayx-signalr-wasm", "ready");
+    await page.evaluate(
+      (selected) => window.rayxSignalRFixture.connectAndProbe(selected),
+      protocol,
+    );
+
+    const received = await page.evaluate(
+      () => window.rayxSignalRFixture.consumeShortStreams(40, 3),
+    );
+
+    expect(received).toBe(120);
+    expect(pageErrors).toEqual([]);
+  });
 }
 
 for (const protocol of ["json", "messagepack"] as const) {
