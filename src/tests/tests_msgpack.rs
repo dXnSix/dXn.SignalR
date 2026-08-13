@@ -25,6 +25,16 @@ async fn interop_stateful_reconnect_messagepack() {
 }
 
 #[test_log::test(tokio::test)]
+async fn interop_stream_cancellation_messagepack() {
+    tokio::time::timeout(
+        std::time::Duration::from_secs(20),
+        super::tests_tokio::run_stream_cancellation(true),
+    )
+    .await
+    .expect("native MessagePack stream cancellation scenario timed out");
+}
+
+#[test_log::test(tokio::test)]
 async fn test_msgpack_service() {
     let mut client = SignalRClient::connect_with("localhost", "test", |c| {
         c.with_port(5220);

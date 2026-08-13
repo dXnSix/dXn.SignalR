@@ -1,5 +1,5 @@
 use futures::Stream;
-use log::info;
+use log::{info, warn};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::sync::Arc;
@@ -10,7 +10,7 @@ use crate::execution::{
     UpdatableActionStorage,
 };
 use crate::protocol::hub_protocol::HubProtocolKind;
-use crate::protocol::invoke::{Completion, Invocation};
+use crate::protocol::invoke::{CancelInvocation, Completion, Invocation};
 
 use super::{ConnectionConfiguration, InvocationContext};
 
@@ -665,7 +665,36 @@ impl SignalRClient {
         F: FnMut(&mut ArgumentConfiguration),
     {
         let invocation_id = self._actions.create_key(target.clone());
-        let res = self._actions.add_stream::<T>(invocation_id.clone());
+        let mut cancellation_actions = self._actions.clone();
+        let cancellation_invocation_id = invocation_id.clone();
+        let cancellation_connection = self._connection.clone();
+        #[cfg(not(target_arch = "wasm32"))]
+        let cancellation_runtime = tokio::runtime::Handle::current();
+        let drop_handler: crate::completer::StreamDropHandler = Box::new(move || {
+            cancellation_actions.remove(cancellation_invocation_id.clone());
+            let Some(mut connection) = cancellation_connection else {
+                return;
+            };
+            #[cfg(not(target_arch = "wasm32"))]
+            cancellation_runtime.spawn(async move {
+                if let Err(error) =
+                    Self::send_cancel_invocation(&mut connection, cancellation_invocation_id).await
+                {
+                    warn!("Cannot cancel dropped stream invocation: {error}");
+                }
+            });
+            #[cfg(target_arch = "wasm32")]
+            wasm_bindgen_futures::spawn_local(async move {
+                if let Err(error) =
+                    Self::send_cancel_invocation(&mut connection, cancellation_invocation_id).await
+                {
+                    warn!("Cannot cancel dropped stream invocation: {error}");
+                }
+            });
+        });
+        let res = self
+            ._actions
+            .add_stream::<T>(invocation_id.clone(), drop_handler);
         let mut invocation = Invocation::create_multiple(target.clone());
         invocation.with_invocation_id(invocation_id);
 
@@ -681,6 +710,22 @@ impl SignalRClient {
         }
 
         res
+    }
+
+    async fn send_cancel_invocation(
+        conn: &mut CommunicationClient,
+        invocation_id: String,
+    ) -> Result<(), String> {
+        match conn.get_protocol_kind() {
+            HubProtocolKind::Json => conn.send(CancelInvocation::new(invocation_id)).await,
+            #[cfg(feature = "messagepack")]
+            HubProtocolKind::MessagePack => {
+                conn.send_binary(crate::protocol::msgpack::encode_cancel_invocation(
+                    &invocation_id,
+                )?)
+                .await
+            }
+        }
     }
 
     async fn send_invocation(

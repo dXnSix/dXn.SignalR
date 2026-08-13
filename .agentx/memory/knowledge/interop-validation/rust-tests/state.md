@@ -4,7 +4,7 @@ agentx:
   scope: interop-validation/rust-tests
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-08-11T10:20:00+02:00"
+  updated: "2026-08-12T02:15:00+02:00"
   topics:
     - tokio
     - wasm
@@ -21,7 +21,7 @@ Read this file before work in this domain or subdomain and update it when the cu
 
 ## Current Technical Shape
 
-Native Tokio tests cover baseline interop plus ordinary and stateful reconnect in JSON and MessagePack. The WASM fixture remains a `wasm_bindgen(start)` browser program, but Playwright 1.59.1 drives it in real Chromium with dedicated ordinary/stateful JSON/MessagePack assertions plus short stream chaining that repeatedly completes and opens streams while rejecting every page error. Protocol and buffer unit tests cover Ack/Sequence golden frames, bounded replay, backpressure, duplicate suppression, gaps, overflow, disposal, and cumulative acknowledgements.
+Native Tokio tests cover baseline interop plus ordinary reconnect, stateful reconnect, and 64-round dropped-stream cancellation in JSON and MessagePack. The WASM fixture remains a `wasm_bindgen(start)` browser program, but Playwright 1.59.1 drives it in real Chromium with the same reconnect/cancellation matrix plus short stream chaining. Cancellation cells require zero active server enumerators, one observed server cancellation and one type-5 wire frame per drop, a still-usable connection, and no page errors; natural completion requires zero cancellation frames. Protocol and buffer unit tests cover exact JSON/MessagePack CancelInvocation shapes, Ack/Sequence golden frames, bounded replay, backpressure, duplicate suppression, gaps, overflow, disposal, and cumulative acknowledgements.
 
 ## Backlinks
 

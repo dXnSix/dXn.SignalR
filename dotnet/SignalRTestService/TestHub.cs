@@ -1,10 +1,14 @@
 ﻿using Microsoft.AspNetCore.SignalR;
+using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace SignalRTestService
 {
     public class TestHub : Hub
     {
+        static readonly ConcurrentDictionary<string, CancellationProbeState> _cancellationProbes = new();
+
         public async Task<TestEntity> SingleEntity()
         {
             await Task.CompletedTask;
@@ -17,6 +21,44 @@ namespace SignalRTestService
         }
 
         public string ConnectionIdentity() => Context.ConnectionId;
+
+        public bool ResetCancellationProbe()
+        {
+            _cancellationProbes[Context.ConnectionId] = new CancellationProbeState();
+            return true;
+        }
+
+        public CancellationProbeSnapshot CancellationProbeStatus()
+        {
+            return GetCancellationProbe().Snapshot();
+        }
+
+        public async IAsyncEnumerable<int> CancellationProbeStream(
+            int delayMilliseconds = 5,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            CancellationProbeState probe = GetCancellationProbe();
+            Interlocked.Increment(ref probe.Started);
+            Interlocked.Increment(ref probe.Active);
+            int value = 0;
+            try
+            {
+                while (true)
+                {
+                    await Task.Delay(delayMilliseconds, cancellationToken);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    yield return ++value;
+                }
+            }
+            finally
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    Interlocked.Increment(ref probe.Canceled);
+                }
+                Interlocked.Decrement(ref probe.Active);
+            }
+        }
 
         public async Task AbortPhysicalTransport()
         {
@@ -141,6 +183,8 @@ namespace SignalRTestService
         {
             Debug.WriteLine($"Client is disconnected: {Context.ConnectionId}");
 
+            _cancellationProbes.TryRemove(Context.ConnectionId, out _);
+
             return base.OnDisconnectedAsync(exception);
         }
 
@@ -150,6 +194,37 @@ namespace SignalRTestService
 
             return base.OnConnectedAsync();
         }
+
+        CancellationProbeState GetCancellationProbe()
+        {
+            return _cancellationProbes.GetOrAdd(
+                Context.ConnectionId,
+                static _ => new CancellationProbeState());
+        }
+    }
+
+    public sealed class CancellationProbeState
+    {
+        public int Active;
+        public int Started;
+        public int Canceled;
+
+        public CancellationProbeSnapshot Snapshot()
+        {
+            return new CancellationProbeSnapshot
+            {
+                Active = Volatile.Read(ref Active),
+                Started = Volatile.Read(ref Started),
+                Canceled = Volatile.Read(ref Canceled)
+            };
+        }
+    }
+
+    public sealed class CancellationProbeSnapshot
+    {
+        public int Active { get; set; }
+        public int Started { get; set; }
+        public int Canceled { get; set; }
     }
 
     public class TestEntity

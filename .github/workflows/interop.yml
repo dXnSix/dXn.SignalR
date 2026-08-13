@@ -29,7 +29,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         protocol: [json, messagepack]
-        scenario: [ordinary-reconnect, stateful-reconnect]
+        scenario: [ordinary-reconnect, stateful-reconnect, stream-cancellation]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -46,7 +46,7 @@ jobs:
             ~/.cargo/git
             target
           key: interop-native-${{ matrix.os }}-${{ hashFiles('Cargo.toml', 'dotnet/**/*.csproj') }}
-      - name: Run native reconnect cell
+      - name: Run native lifecycle cell
         shell: pwsh
         run: >-
           ./scripts/ci/run-interop.ps1
@@ -71,7 +71,7 @@ jobs:
       fail-fast: false
       matrix:
         protocol: [json, messagepack]
-        scenario: [ordinary-reconnect, stateful-reconnect]
+        scenario: [ordinary-reconnect, stateful-reconnect, short-stream-chaining, stream-cancellation]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -97,7 +97,7 @@ jobs:
           corepack prepare pnpm@10.28.2 --activate
           pnpm --dir tools-node install --frozen-lockfile
           pnpm --dir tools-node exec playwright install --with-deps chromium
-      - name: Run real-Chromium reconnect cell
+      - name: Run real-Chromium lifecycle cell
         shell: pwsh
         run: >-
           ./scripts/ci/run-interop.ps1

@@ -4,7 +4,7 @@ agentx:
   scope: client-runtime/action-execution
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-08-11T10:20:00+02:00"
+  updated: "2026-08-12T02:15:00+02:00"
   topics:
     - storage
     - completion
@@ -14,6 +14,7 @@ agentx:
 # Knowledge
 
 - Completion messages update and then remove the matching action; stream items update without removal until completion.
+- Dropping an open caller stream is a terminal ownership event: local action removal is synchronous, while the matching server invocation is canceled asynchronously with hub message type 5. Completion takes the same one-shot guard without invoking it, preventing spurious cancellation after natural termination.
 - Server invocations route by target to callback actions.
 - Storage is cleared only when the final shared storage owner is dropped.
 - Platform-specific containers share the same `Storage` behavior contract.

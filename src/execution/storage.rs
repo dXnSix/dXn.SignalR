@@ -3,7 +3,7 @@ use super::{
     UpdatableAction,
 };
 use crate::{
-    completer::{ManualFuture, ManualStream},
+    completer::{ManualFuture, ManualStream, StreamDropHandler},
     {
         client::SignalRClient,
         protocol::{
@@ -63,8 +63,9 @@ pub trait Storage: Clone {
     fn add_stream<R: 'static + DeserializeOwned + Unpin + crate::platform::MaybeSend>(
         &mut self,
         invocation_id: String,
+        drop_handler: StreamDropHandler,
     ) -> ManualStream<R> {
-        let (stream, f) = EnumerableAction::<R>::new(invocation_id.clone());
+        let (stream, f) = EnumerableAction::<R>::new(invocation_id.clone(), drop_handler);
 
         self.insert(invocation_id, stream);
 

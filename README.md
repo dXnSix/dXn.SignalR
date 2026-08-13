@@ -63,11 +63,12 @@ pwsh -NoProfile -File scripts/ci/verify-workflows.ps1
 pwsh -NoProfile -File scripts/ci/verify-workflows.ps1 -RunLocalQuality
 ```
 
-Run the complete native and repository-local Playwright/Chromium reconnect
-matrix with:
+Run the complete native lifecycle matrix and repository-local
+Playwright/Chromium lifecycle matrix with:
 
 ```powershell
-pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target native,wasm -Protocol json,messagepack -Scenario ordinary-reconnect,stateful-reconnect
+pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target native -Protocol json,messagepack -Scenario ordinary-reconnect,stateful-reconnect,stream-cancellation
+pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target wasm -Protocol json,messagepack -Scenario ordinary-reconnect,stateful-reconnect,short-stream-chaining,stream-cancellation
 ```
 
 For dependency security, install RustSec's scanner once and run the same route

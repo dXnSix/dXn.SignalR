@@ -4,7 +4,7 @@ agentx:
   scope: interop-validation/dotnet-test-service
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-08-10T03:15:00+02:00"
+  updated: "2026-08-12T02:15:00+02:00"
   topics:
     - aspnet
     - signalr
@@ -21,7 +21,7 @@ Read this file before work in this domain or subdomain and update it when the cu
 
 ## Current Technical Shape
 
-`SignalRTestService` targets .NET 10, enables SignalR stateful reconnect and MessagePack, permits broad CORS for local testing, maps `TestHub` at `/test`, and exposes a health endpoint for deterministic startup. The hub provides unary calls, server streams, callbacks, ordered sequence/replay probes, and a test-only `AbortPhysicalTransport` method used to force real reconnects without a production fault endpoint.
+`SignalRTestService` targets .NET 10, enables SignalR stateful reconnect and MessagePack, permits broad CORS for local testing, maps `TestHub` at `/test`, and exposes a health endpoint for deterministic startup. The hub provides unary calls, server streams, callbacks, ordered sequence/replay probes, a per-connection infinite-stream cancellation counter, and a test-only `AbortPhysicalTransport` method used to force real reconnects without a production fault endpoint.
 
 ## Backlinks
 

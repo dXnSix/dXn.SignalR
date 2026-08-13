@@ -172,6 +172,18 @@ pub fn encode_completion<T: serde::Serialize>(
     Ok(frame_message(&payload))
 }
 
+/// Encode and frame CancelInvocation (type 5).
+/// Layout: [5, Headers, InvocationId]
+pub fn encode_cancel_invocation(invocation_id: &str) -> Result<Vec<u8>, String> {
+    let mut payload = Vec::new();
+    rmp::encode::write_array_len(&mut payload, 3).map_err(|error| error.to_string())?;
+    rmp::encode::write_uint(&mut payload, MessageType::CancelInvocation as u8 as u64)
+        .map_err(|error| error.to_string())?;
+    encode_headers(&mut payload, &None)?;
+    rmp::encode::write_str(&mut payload, invocation_id).map_err(|error| error.to_string())?;
+    Ok(frame_message(&payload))
+}
+
 /// Encode Ping (type 6). Layout: [6]
 #[allow(dead_code)]
 pub fn encode_ping() -> Vec<u8> {
@@ -460,6 +472,22 @@ mod tests {
 
         let msg_type = read_message_type(&ping).unwrap();
         assert_eq!(msg_type, MessageType::Ping);
+    }
+
+    #[test]
+    fn cancel_invocation_uses_the_signalr_messagepack_wire_shape() {
+        let framed = encode_cancel_invocation("stream_42").expect("cancel should encode");
+        let payloads = split_framed_messages(&framed).expect("cancel should be framed");
+        assert_eq!(payloads.len(), 1);
+        assert_eq!(
+            read_message_type(&payloads[0]).unwrap(),
+            MessageType::CancelInvocation
+        );
+
+        let items = parse_msgpack_message(&payloads[0]).expect("cancel should parse");
+        assert_eq!(items.len(), 3);
+        assert!(matches!(&items[1], rmpv::Value::Map(headers) if headers.is_empty()));
+        assert_eq!(items[2].as_str(), Some("stream_42"));
     }
 
     #[test]

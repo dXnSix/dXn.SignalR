@@ -157,4 +157,21 @@ mod reconnect_lifecycle_storage {
         assert!(storage.contains("callback".to_string()));
         assert!(!storage.contains("invocation".to_string()));
     }
+
+    #[test]
+    fn dropping_a_stream_removes_its_action_immediately() {
+        let mut storage = UpdatableActionStorage::new();
+        let key = "stream_1".to_string();
+        let mut cancellation_storage = storage.clone();
+        let cancellation_key = key.clone();
+        let stream = storage.add_stream::<i32>(
+            key.clone(),
+            Box::new(move || cancellation_storage.remove(cancellation_key)),
+        );
+        assert!(storage.contains(key.clone()));
+
+        drop(stream);
+
+        assert!(!storage.contains(key));
+    }
 }

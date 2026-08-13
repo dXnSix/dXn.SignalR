@@ -141,6 +141,26 @@ impl<R> Completion<R> {
     }
 }
 
+/// Requests cancellation of a streaming invocation that the caller no longer consumes.
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CancelInvocation {
+    r#type: MessageType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    headers: Option<HashMap<String, String>>,
+    invocation_id: String,
+}
+
+impl CancelInvocation {
+    pub(crate) fn new(invocation_id: String) -> Self {
+        Self {
+            r#type: MessageType::CancelInvocation,
+            headers: None,
+            invocation_id,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 /// Sent by the client to cancel a streaming invocation on the server.
@@ -151,4 +171,21 @@ pub struct PossibleInvocation {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub invocation_id: Option<String>,
     pub target: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CancelInvocation;
+    use crate::protocol::messages::MessageParser;
+
+    #[test]
+    fn cancel_invocation_uses_the_signalr_json_wire_shape() {
+        let encoded = MessageParser::to_json(&CancelInvocation::new("stream_42".to_string()))
+            .expect("cancel invocation should serialize");
+
+        assert_eq!(
+            encoded,
+            "{\"type\":5,\"invocationId\":\"stream_42\"}\u{001e}"
+        );
+    }
 }

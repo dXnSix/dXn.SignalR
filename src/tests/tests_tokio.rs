@@ -1,5 +1,6 @@
 use futures::StreamExt;
 use log::info;
+use serde::Deserialize;
 use std::{
     sync::{Arc, Mutex},
     time::Duration,
@@ -13,6 +14,13 @@ use crate::{
 };
 
 struct MyDisconnectionHandler {}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct CancellationProbeSnapshot {
+    active: i32,
+    started: i32,
+    canceled: i32,
+}
 
 impl DisconnectionHandler for MyDisconnectionHandler {
     fn on_disconnected(&self, reconnection: ReconnectionHandler) {
@@ -327,5 +335,72 @@ pub(crate) async fn run_stateful_reconnect(messagepack: bool) {
     );
 
     registration.unregister();
+    client.disconnect();
+}
+
+#[test_log::test(tokio::test)]
+async fn interop_stream_cancellation_json() {
+    tokio::time::timeout(Duration::from_secs(20), run_stream_cancellation(false))
+        .await
+        .expect("native JSON stream cancellation scenario timed out");
+}
+
+pub(crate) async fn run_stream_cancellation(messagepack: bool) {
+    const ROUNDS: i32 = 64;
+    let mut client = SignalRClient::connect_with("127.0.0.1", "test", |config| {
+        config.with_port(5220);
+        config.unsecure();
+        #[cfg(feature = "messagepack")]
+        if messagepack {
+            config.with_messagepack_protocol();
+        }
+        #[cfg(not(feature = "messagepack"))]
+        let _ = messagepack;
+    })
+    .await
+    .unwrap();
+
+    assert!(client
+        .invoke::<bool>("ResetCancellationProbe".to_string())
+        .await
+        .unwrap());
+
+    for expected in 1..=ROUNDS {
+        let mut stream = client
+            .enumerate_with_args::<i32, _>("CancellationProbeStream".to_string(), |arguments| {
+                arguments.argument(2);
+            })
+            .await;
+        assert_eq!(stream.next().await, Some(1));
+        drop(stream);
+
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                let status = client
+                    .invoke::<CancellationProbeSnapshot>("CancellationProbeStatus".to_string())
+                    .await
+                    .unwrap();
+                if status.active == 0 && status.started == expected && status.canceled == expected {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("stream cancellation {expected}/{ROUNDS} was not observed"));
+    }
+
+    let status = client
+        .invoke::<CancellationProbeSnapshot>("CancellationProbeStatus".to_string())
+        .await
+        .unwrap();
+    assert_eq!(status.active, 0);
+    assert_eq!(status.started, ROUNDS);
+    assert_eq!(status.canceled, ROUNDS);
+    assert!(!client
+        .invoke::<String>("ConnectionIdentity".to_string())
+        .await
+        .unwrap()
+        .is_empty());
     client.disconnect();
 }

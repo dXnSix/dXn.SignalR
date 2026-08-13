@@ -2,7 +2,7 @@ use log::error;
 use serde::de::DeserializeOwned;
 
 use crate::{
-    completer::{ManualStream, ManualStreamCompleter},
+    completer::{ManualStream, ManualStreamCompleter, StreamDropHandler},
     protocol::{
         hub_protocol::MessagePayload, invoke::Completion, messages::MessageParser,
         negotiate::MessageType, streaming::StreamItem,
@@ -18,8 +18,8 @@ pub(crate) struct EnumerableAction<R: DeserializeOwned + Unpin> {
 }
 
 impl<R: DeserializeOwned + Unpin> EnumerableAction<R> {
-    pub fn new(invocation_id: String) -> (Self, ManualStream<R>) {
-        let (s, c) = ManualStream::create();
+    pub fn new(invocation_id: String, drop_handler: StreamDropHandler) -> (Self, ManualStream<R>) {
+        let (s, c) = ManualStream::create_with_drop_handler(drop_handler);
 
         (
             EnumerableAction {

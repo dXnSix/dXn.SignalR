@@ -172,6 +172,13 @@ struct TestEntity {
     number: i32,
 }
 
+#[derive(Deserialize)]
+struct CancellationProbeSnapshot {
+    active: u32,
+    started: u32,
+    canceled: u32,
+}
+
 #[wasm_bindgen(start)]
 pub fn start() {
     console_error_panic_hook::set_once();
@@ -228,6 +235,60 @@ pub async fn consume_short_streams(rounds: u32, items_per_round: i32) -> Result<
         }
     }
     Ok(received)
+}
+
+#[wasm_bindgen]
+pub async fn cancel_long_streams(rounds: u32) -> Result<u32, JsValue> {
+    let mut client = fixture_client()?;
+    client
+        .invoke::<bool>("ResetCancellationProbe".to_string())
+        .await
+        .map_err(js_error("cancellation probe reset failed"))?;
+
+    for expected in 1..=rounds {
+        let mut stream = client
+            .enumerate_with_args::<i32, _>("CancellationProbeStream".to_string(), |arguments| {
+                arguments.argument(2);
+            })
+            .await;
+        let first = stream
+            .next()
+            .await
+            .ok_or_else(|| JsValue::from_str("cancellation probe ended before its first item"))?;
+        if first != 1 {
+            return Err(JsValue::from_str("cancellation probe returned an invalid first item"));
+        }
+        drop(stream);
+
+        let mut observed = false;
+        for _ in 0..100 {
+            let status = client
+                .invoke::<CancellationProbeSnapshot>("CancellationProbeStatus".to_string())
+                .await
+                .map_err(js_error("cancellation status probe failed"))?;
+            if status.active == 0
+                && status.started == expected
+                && status.canceled == expected
+            {
+                observed = true;
+                break;
+            }
+        }
+        if !observed {
+            return Err(JsValue::from_str(&format!(
+                "stream cancellation {expected}/{rounds} was not observed"
+            )));
+        }
+    }
+
+    let status = client
+        .invoke::<CancellationProbeSnapshot>("CancellationProbeStatus".to_string())
+        .await
+        .map_err(js_error("final cancellation status probe failed"))?;
+    if status.active != 0 || status.started != rounds || status.canceled != rounds {
+        return Err(JsValue::from_str("final cancellation probe counters are inconsistent"));
+    }
+    Ok(status.canceled)
 }
 
 #[wasm_bindgen]

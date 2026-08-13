@@ -4,7 +4,7 @@ agentx:
   scope: client-runtime/hub-protocol
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-08-10T03:15:00+02:00"
+  updated: "2026-08-12T02:15:00+02:00"
   topics:
     - wire-compatibility
     - messagepack
@@ -18,3 +18,4 @@ agentx:
 - Add or update frame-level tests for any wire-format change; do not rely only on round-tripping through the same implementation.
 - Keep Ack cumulative and Sequence nonzero, and validate JSON and MessagePack control frames with the same logical assertions.
 - Encode client-result callbacks with the selected hub protocol; a MessagePack connection must not send JSON Completion payloads.
+- Encode dropped-stream cancellation with the selected hub protocol and keep JSON and MessagePack type-5 frame tests paired.
