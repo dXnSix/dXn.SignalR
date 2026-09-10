@@ -6,6 +6,16 @@ Current source, tests, project files, and generated contracts define current beh
 
 Continue authorized work through implementation, relevant validation, and repair of failures caused by the change. Preserve unrelated work. Report unresolved blockers and validation limits accurately; partial proof does not establish completion.
 
+## Validation
+
+Use the [RayX.SignalR skill's validation list](.codex/skills/rayx-signalr/SKILL.md#validation) for the required commands and gates.
+
+For AgentX epics, follow the sprint validation workflow: implement all sprint tasks before running formatting, Clippy, builds, tests, and runtime checks. Repeat affected validation after complete repair batches. Preserve explicitly required pre-change baselines. Each sprint check selects only that sprint's own new test group and declares its `inputs`; the whole-suite checks stay in `finalCheckIds`.
+
+Every new feature or behavior change gets its own new, separately selectable test group: a new focused test module or `#[test]` group beside the changed protocol/transport surface, and a new native or browser integration test (`tests/`, `tests/wasm-fixture`) when runtime interoperability or reconnect behavior changes. Run only that group until it passes (`cargo test <filter>` on that module, or the single new integration test); repairs rerun only the groups they touched. Run the full suite once, after the scoped groups pass, at the AgentX final boundary or after a completed standalone change (the crate's full tests on native and `wasm32-unknown-unknown`, the .NET interoperability service checks, and every browser integration test); rerun it only when a repair touched shared code or a failure lay outside the scoped groups. Never widen a sprint check with pre-existing regression specs. After a full-suite failure, batch every repair before the next full run.
+
+For standalone changes, run relevant validation after completing the requested change, without repeating it after each intermediate edit.
+
 ## Workflow routing
 
 - For SignalR protocol/transport, native Tokio or browser WASM, dependencies, releases, consumer setup, or upstream imports, use the [RayX.SignalR skill](.codex/skills/rayx-signalr/SKILL.md). It owns fork identity, provenance, patch preservation, remote policy, and validation. For imports, read its [upstream reference](.codex/skills/rayx-signalr/references/update-from-upstream.md) before fetching source commits. Current source and the non-superseded fork-policy decision remain authoritative.
@@ -14,7 +24,7 @@ Continue authorized work through implementation, relevant validation, and repair
 
 ## Memory when useful
 
-Use the [knowledge index](.agentx/memory/knowledge/INDEX.md) when memory can answer a relevant question about rationale, constraints, or behavior. Open the relevant state or rule and expand only as needed; there is no mandatory stack of memory files. Before a durable design or policy decision, check the relevant route in the [decision index](.agentx/memory/decisions/INDEX.md).
+Use the [knowledge index](.agentx/memory/knowledge/INDEX.md) when memory can answer a relevant question about rationale, constraints, or behavior. Open the relevant state or rule and expand only as needed; there is no mandatory stack of memory files. Before a durable design or policy decision, check the relevant route in the [decision index](.agentx/memory/decisions/INDEX.md). Epic planning reads memory at one fixed point: after inspecting source, open `.agentx/memory/decisions/INDEX.md`, the current decisions matching the touched domains, and those domains' `rules.md`, then declare lineage in `design.json` (`memoryDecisionRefs` for decisions built on, `supersedesMemoryDecisions` for decisions replaced, `memoryDecisionsConsidered` for decisions read and set aside); `init` rejects a design that leaves a current decision in a touched domain unacknowledged.
 
 During authorized implementation, correct affected stale memory and record proven durable behavior or guidance in the narrowest existing domain/subdomain. Update affected state files and indexes when their content or routing changes, and record durable decisions through AgentX. Follow the same policy inside a changed referenced repository that already has memory; do not initialize its memory without a request.
 
@@ -22,7 +32,7 @@ Read-only audits and forensic/status requests report memory drift without editin
 
 ## Selected AgentX work
 
-For an epic implementation or resume, follow the active skill's `references/epic-implementation.md`: run resume/preflight and generate the compact context packet for the selected task or audit. Rehydrate this way after interruption or compaction, then inspect mapped current source/tests. Open full canonical files or historical evidence only for a concrete missing or contradictory field. Reconcile discrepancies through supported transitions before dependent implementation.
+For an epic implementation or resume, follow the active skill's `references/epic-implementation.md`: run resume/preflight and generate the compact context packet for the selected task or audit. Rehydrate this way after interruption or compaction, then inspect mapped current source/tests. Open full canonical files or historical evidence only for a concrete missing or contradictory field. Reconcile discrepancies through supported transitions before dependent implementation. Read epic memory once per sprint, never per task: the `memory` pointers in the sprint-entry `next` packet (`sprintEntry`) or `context --sprint` list the cited decisions and the touched domains' `rules.md`/`state.md`; read the decisions and rules, open `state.md` only for a concrete question, and nothing else. Task packets carry no memory. If source contradicts a listed record, follow source and correct that record at the sprint's memory sync; if the epic design contradicts a listed decision it did not declare superseded, surface the conflict instead of choosing silently. After `done`, promote the decisions listed under `promotion` in `context --epic` into `.agentx/memory/decisions/` and mark replaced records superseded.
 
 Use supported helpers for task state, evidence, contracts, leases, audits, checkpoints, and completion. Preserve exact proof requirements, independent sprint/final review, and checkpoint/finalization gates. Never fabricate evidence or hand-edit runtime records. If a helper is unavailable, locate or restore the active runtime and retry; if recovery fails, preserve state and report the exact unavailable gate. Continue independent authorized work where possible.
 
