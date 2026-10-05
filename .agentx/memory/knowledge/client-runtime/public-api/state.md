@@ -4,7 +4,7 @@ agentx:
   scope: client-runtime/public-api
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-08-10T03:15:00+02:00"
+  updated: "2026-10-05T12:00:00+02:00"
   topics:
     - SignalRClient
     - configuration
@@ -25,3 +25,4 @@ Read this file before work in this domain or subdomain and update it when the cu
 ## Backlinks
 
 - Source anchors: [src/client/client.rs](../../../../../src/client/client.rs), [src/client/configuration.rs](../../../../../src/client/configuration.rs), [src/lib.rs](../../../../../src/lib.rs).
+- 2026-06-24 current [AD-009 backend network client decision](../../../decisions/client-runtime/public-api/2026-06-24-client-runtime-public-api-backend-network-client.md).
