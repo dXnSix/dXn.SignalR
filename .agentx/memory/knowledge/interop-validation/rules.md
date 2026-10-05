@@ -4,7 +4,7 @@ agentx:
   scope: interop-validation
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-08-10T03:15:00+02:00"
+  updated: "2026-10-06T00:30:00+02:00"
   topics:
     - validation
     - evidence
@@ -15,5 +15,5 @@ agentx:
 
 - Report which target, protocol feature, service dependency, and runtime environment each validation actually exercised.
 - Do not call a browser or cross-language path runtime-proven from compilation alone.
-- Run selected interop cells through `scripts/ci/run-interop.ps1`; it enforces service health, 60-second scenario bounds, one executed test per cell, and process-tree cleanup.
+- Run service-dependent cells only through the Aspire end-to-end project (`dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E` with `RAYX_SIGNALR_E2E_*` selection); it starts the AppHost on dynamic ports and enforces service health, 60-second cell bounds, exactly one passed test per cell, process-tree cleanup, and redacted diagnostics. Never hand-start the service or use fixed ports.
 - Keep browser runtime validation on repository-local Playwright/Chromium; do not introduce WebDriver, ChromeDriver, or Selenium tooling.

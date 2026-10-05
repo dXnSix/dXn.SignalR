@@ -1,0 +1,528 @@
+{
+  "schemaVersion": 6,
+  "epicId": "cross-platform-support",
+  "scopeMarkdown": "Make `rayx-signalr` build and work on every platform RayX targets (Windows, macOS, Linux, Android, iOS, single-threaded browser WASM on the main thread and in Web Workers, and RayX's multithreaded browser WASM), and replace the script-based test harness with .NET Aspire orchestration that runs a comprehensive end-to-end suite identically on developer machines and in GitHub Actions, across every target.\n\n**Order of work:** (1) Aspire orchestration replaces every test script; (2) a comprehensive functional end-to-end baseline is built before any refactor; (3) manifest hygiene and target gating; (4) rustls TLS on native; (5) negotiation completeness; (6) native runtime ownership; (7) an event-driven browser transport for the main thread, workers and threaded WASM; (8) connection liveness; (9) application lifecycle controls; (10) every target in CI (Firefox, WebKit, Android emulator, iOS simulator) and consumer documentation.\n\n**Audit baseline (current source, 2026-10-05):** service-dependent tests run through `scripts/ci/run-interop.ps1` on fixed ports 5220/7878 (Playwright's `webServer` also starts the service), and `scripts/ci/verify-workflows.ps1` checks workflows; only plaintext `ws://` is tested, on desktop native and Chromium; Android does not build (`native-tls` → `openssl-sys`); iOS has never been built; threaded WASM compiles but was never run; WASI wrongly selects the browser path; the client never sends Pings or detects a silent server; negotiate (ehttp/ureq + webpki roots) and the WebSocket (native-tls + OS roots) use different trust stores; native code panics without an ambient Tokio runtime; the browser transport polls every 50 ms and leaks a closure per sleep; test/debug crates and dead `wasm-timer`/`async-std` are normal dependencies; the fixture pin was bumped on 2026-10-05 to `wasm-bindgen =0.2.129` to match RayX and the machine-wide CLI, while RayX.GameX stays on 0.2.126, so one machine-wide CLI cannot serve every repository.\n\n**Out of scope:** Server-Sent Events and Long Polling transports; HTTP/SOCKS proxies; the typed public error model listed as follow-up in `FORK.md`; falling back to a fresh logical connection when a server has forgotten a stateful connection; RayX-side integration (enabling `rayx_devkit` SignalR on Android); Android/iOS app packaging (tests run as native test binaries on emulator/simulator, so the Android platform-verifier path inside a real APK stays a residual risk); publishing.\n\n**Required follow-up outside this repository:** RayX.GameX's `scripts/quality/run-sports-interop.ps1` calls RayX.SignalR's `scripts/ci/run-interop.ps1` as a dependency-conformance gate (pinned to RayX.SignalR commit `3b1cfb1`). When GameX moves its pin past this epic, its gate must call the Aspire runner instead (`dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E` with `RAYX_SIGNALR_E2E_TARGETS=chromium`, `RAYX_SIGNALR_E2E_SCENARIOS=ordinary-reconnect,stateful-reconnect`). README documents this command.\n\n**Assumptions recorded for review (product decisions taken by this plan):**\n- No PowerShell or Node scripts remain for building, orchestrating or verifying tests; orchestration lives in the Aspire AppHost and checks live in .NET test categories, invoked through `aspire run` (interactive) and `dotnet test` (automated) locally and in CI. Workflow YAML may contain short inline tool-installation commands.\n- Aspire 13.5.x (AppHost SDK, CLI bundle, `Aspire.Hosting.Testing`, all on one minor line, as in RayX.GameX), .NET SDK 10.0.100 pinned by `global.json`, xUnit 2 on VSTest (as in RayX.GameX).\n- Existing workflow job names change because the harness changes; the request to refactor test execution authorizes this governance change. Least-privilege permissions, no secrets, no publishing, failure-only redacted artifacts and the native-OS, pinned/stable Rust, default/all-feature WASM, JSON/MessagePack and ordinary/stateful matrices are preserved.\n- Browser runtime proof extends from Chromium to Playwright Firefox and WebKit; WebDriver tooling stays prohibited.\n- Native TLS becomes rustls-only (`native-tls` removed). New default features `tls-platform-verifier` and `tls-ring`; `--no-default-features` builds a plaintext-only client that rejects secure endpoints with an explicit error.\n- Keep-alive is on by default with the official client defaults (Ping 15 s, server timeout 30 s, handshake timeout 15 s). `ReconnectionConfig::default()` stays `NoReconnectPolicy`; the new `DefaultRetryPolicy` is opt-in.\n- Native-only configuration (`with_runtime_handle`, `with_additional_root_certificates_pem`, `use_webpki_roots`) is `cfg`-gated, consistent with existing platform-conditional bounds.\n- The Rust 1.92 pin is preserved; verified candidate versions support it (tokio-websockets 0.13.3 MSRV 1.89, rustls 0.23.45 MSRV 1.71, rustls-platform-verifier 0.7.1 MSRV 1.85, hyper 1.11 MSRV 1.63, hyper-util 0.1.21 MSRV 1.85, tokio-rustls 0.26 MSRV 1.71). If a required dependency needs a newer compiler, stop and ask before changing the pin.",
+  "constraintsMarkdown": "- Current source and tests are authoritative. Preserve public names and semantics except where a criterion explicitly owns the change.\n- Preserve wire and lifecycle behavior recorded in `client-runtime` rules: JSON handshake even for MessagePack, application-defined Serde names, cumulative Ack and nonzero Sequence, the ordinary/stateful transport split (never reuse a logical token in ordinary mode; never renegotiate or re-handshake during stateful resume), generation-checked reconnect completion, and distinct local-close / remote-close / reconnecting / connected / never-opened states on both targets.\n- Never rely on rustls' process-default `CryptoProvider`; every `ClientConfig` is built with an explicit provider, because consumers such as RayX unify rustls features across crates. Secure endpoints never fall back to plaintext or to certificate-accepting verifiers.\n- Never log or embed bearer/access tokens in errors or diagnostics; end-to-end diagnostics redact `access_token=`, `Authorization` and `Bearer` values.\n- Fault-injection and synthetic controls stay test-only (the .NET test service, the fixture crate, Playwright specs, `#[cfg(test)]` code); production library code exposes no test hooks.\n- Avoid holding native locks or WASM `RefCell` borrows across `.await` points or user callbacks.\n- Service-dependent proof runs only through the Aspire end-to-end project (`dotnet test` + `Aspire.Hosting.Testing`), never against fixed ports or hand-started services; every cell is bounded to 60 s with process-tree cleanup and executes exactly one scenario; compilation never counts as runtime proof. Browser proof uses repository-local Playwright only.\n- End-to-end scenarios use only the public API. New Rust scenarios live in `tests/e2e/<scenario>.rs` as `<scenario>::json` and `messagepack`-gated `<scenario>::messagepack`; Playwright tests are titled `<scenario words> <JSON|MessagePack>`; the C# scenario catalog is the single source of truth for which targets run which scenarios.\n- New unit tests live in new uniquely prefixed test modules beside the code they cover; new .NET checks use xUnit traits (`Category`, and `Case` for platform cases).\n- Workflow governance: `contents: read`, no secrets, no publishing, failure-only redacted artifacts, all actions on their Node 24 majors (checkout v7, setup-node v7, setup-dotnet v6, cache v6, upload-artifact v7, pnpm/action-setup v6), contract-tested by the `WorkflowContract` category.\n- Raw logs and diagnostics go under ignored `artifacts-temp/` (end-to-end diagnostics in `artifacts-temp/e2e/`, epic diagnostics in `artifacts-temp/agentx/cross-platform-support/`).\n- Environment prerequisites on the Windows development host: .NET SDK 10.0.100 (present) and Aspire CLI 13.5.3 (present as a .NET global tool); `rustup target add aarch64-linux-android x86_64-linux-android wasm32-wasip1 --toolchain 1.92.0`; Android NDK and `cargo-ndk` 4.x (present), `platform-tools` (`adb`) and a running x86_64 emulator for Android cells (AVD `Pixel_9_Pro_XL`, android-37, x86_64, present); nightly with `rust-src` (present); `cargo-audit` (present); Node 24, pnpm and Playwright Chromium/Firefox/WebKit browsers. The pinned `wasm-bindgen` CLI is provisioned automatically by the AppHost. iOS cells run only on macOS (CI).",
+  "requirements": [
+    {
+      "id": "R1",
+      "title": "Aspire orchestrates every service-dependent test; no test scripts",
+      "descriptionMarkdown": "Replace the PowerShell/Node harness, fixed ports and Playwright `webServer` with an Aspire AppHost plus one `Aspire.Hosting.Testing` project that is the only entrypoint for service-dependent tests, locally and in GitHub Actions.",
+      "criteria": [
+        {
+          "id": "R1.C1",
+          "descriptionMarkdown": "Repository-root `aspire.config.json` points to `dotnet/RayX.SignalR.AppHost` (Aspire AppHost SDK 13.5.x with `AspireUseCliBundle`; all Aspire packages on the same minor line); `global.json` pins .NET SDK 10.0.100 (`latestPatch`, no prerelease); a root `RayX.SignalR.slnx` contains every .NET project. The AppHost composes `signalr-test-service` (project, HTTP endpoint on a dynamic port, `/health` health check), the browser fixture build (pinned `wasm-bindgen` CLI provisioning → `cargo build` for `wasm32-unknown-unknown` → `wasm-bindgen --target web`, each completion-gated) and `fixture-host` (a small ASP.NET static host project serving the fixture and host pages on its own dynamic-port origin after the build completes). `aspire run` from the repository root starts the graph with the dashboard for local debugging. Verified by the `Orchestration` test category, which starts the AppHost through `Aspire.Hosting.Testing` and asserts that every resource becomes healthy or completes successfully on dynamically allocated ports (no fixed 5220/7878).",
+          "verification": "automated"
+        },
+        {
+          "id": "R1.C2",
+          "descriptionMarkdown": "`dotnet/RayX.SignalR.E2E.Tests` (xUnit 2, VSTest, `Aspire.Hosting.Testing`) is the single entrypoint for service-dependent tests: one AppHost per test run (collection fixture, no parallel collections); a C# scenario catalog (scenario × supported targets × JSON/MessagePack) exposed as theory rows; selection through `RAYX_SIGNALR_E2E_TARGETS`, `RAYX_SIGNALR_E2E_PROTOCOLS` and `RAYX_SIGNALR_E2E_SCENARIOS` (comma lists, `all` allowed; a selection with no cells fails); native cells run the prebuilt `e2e` test binary with `--exact <scenario>::<protocol>`, browser cells run the repository-local Playwright CLI with `--project=<engine>` and an exact title; endpoints, protocol and certificate material reach scenarios only through `RAYX_SIGNALR_E2E_*` environment variables; each cell is bounded to 60 s with process-tree cleanup and must report exactly one passed test; on failure, bounded and token-redacted stdout/stderr plus Aspire resource logs are written to `artifacts-temp/e2e/<cell>.json`. A catalog-consistency test fails when a catalog scenario lacks its Rust test (`e2e --list`) or Playwright title (`playwright test --list`) for a target the catalog claims. Verified by the `Catalog` category and by the migrated cells.",
+          "verification": "automated"
+        },
+        {
+          "id": "R1.C3",
+          "descriptionMarkdown": "The existing scenarios migrate and pass through the Aspire runner for JSON and MessagePack: native `ordinary-reconnect`, `stateful-reconnect` and `stream-cancellation` become black-box tests in a new Rust integration-test target `e2e` (`tests/e2e/main.rs`, `test = false` so plain `cargo test` stays service-independent) that use only the public API and the hub's server-side transport abort; browser `ordinary-reconnect`, `stateful-reconnect`, `short-stream-chaining` and `stream-cancellation` run in Chromium against `fixture-host`, with the fixture reading the service URL from its page configuration instead of `127.0.0.1:5220`. Verified by the Aspire end-to-end cells (native and Chromium).",
+          "verification": "automated"
+        },
+        {
+          "id": "R1.C4",
+          "descriptionMarkdown": "The `scripts/` directory (`run-interop.ps1`, `verify-workflows.ps1`), `tools-node/scripts/*.mjs` and Playwright's `webServer` service start-up are deleted; the in-crate service-dependent tests (`src/tests/tests_tokio.rs`, `src/tests/tests_msgpack.rs`) and the production test hooks they needed in `src/communication/client_tokio.rs` (`TEST_CLIENT`, `TEST_SOCKET`, `force_test_transport_drop`, the trackable-pause hooks) are removed. Workflow-contract and dependency-security verification become the `WorkflowContract` and `DependencySecurity` test categories (the latter runs `cargo audit` and `dotnet list package --vulnerable --include-transitive`). A `Repository` category test asserts that no `*.ps1`/`*.sh`/test `*.mjs` file exists outside `tools-node/node_modules`, that workflows reference no script file, and that library sources contain none of the removed hooks. Verified by the `Repository`, `WorkflowContract` and `DependencySecurity` categories.",
+          "verification": "automated"
+        },
+        {
+          "id": "R1.C5",
+          "descriptionMarkdown": "The AppHost provisions the browser fixture's exact `wasm-bindgen` CLI: it reads the fixture's resolved `wasm-bindgen` version (`cargo metadata` on `tests/wasm-fixture`), reuses `artifacts-temp/tools/wasm-bindgen/<version>/bin/wasm-bindgen` when present, otherwise installs it there with `cargo install wasm-bindgen-cli --version <version> --locked --root <dir>`, and never uses or changes the machine-wide `wasm-bindgen` (the fixture and RayX use 0.2.129, RayX.GameX 0.2.126). A provisioning failure stops the graph with a message naming the version. Verified by the `Toolchain` category (version resolution unit test plus an AppHost run that completes provisioning).",
+          "verification": "automated"
+        },
+        {
+          "id": "R1.C6",
+          "descriptionMarkdown": "GitHub Actions run service-dependent tests only through the Aspire project (`dotnet test` after installing the Aspire CLI 13.5.x global tool): native cells on ubuntu, windows and macos and Chromium cells on ubuntu for every cataloged scenario, plus the preserved quality jobs (rustfmt, Clippy, native check on three OSes with pinned and stable Rust, default/all-feature WASM checks, JSON/MessagePack unit tests, rustdoc, `DependencySecurity`, and the static .NET categories). Workflows contain no script-file references, upload `artifacts-temp/e2e` only on failure, and keep `contents: read`, no secrets and no publishing; the `WorkflowContract` category asserts all of this, including Node 24 action majors. Verified by the `WorkflowContract` category.",
+          "verification": "automated"
+        }
+      ],
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "scripts/ci/run-interop.ps1"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "scripts/ci/verify-workflows.ps1"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/playwright.config.ts"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/scripts/build-wasm-fixture.mjs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/tests/tests_tokio.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/interop.yml"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/quality.yml"
+        }
+      ]
+    },
+    {
+      "id": "R2",
+      "title": "Comprehensive functional end-to-end baseline",
+      "descriptionMarkdown": "Cover every public client capability end to end before any refactor, for JSON and MessagePack, so later sprints change transport, TLS, runtime and lifecycle code behind a full safety net. R2.C1–R2.C10 run as native cells; R2.C11 proves the same scenarios in Chromium. Mobile targets and further engines join in R10.",
+      "criteria": [
+        {
+          "id": "R2.C1",
+          "descriptionMarkdown": "`connect-negotiate`: `connect_with` (port, plaintext) negotiates version 1, the transport `id` is the `connectionToken` (distinct from the `connectionId` the hub reports through `ConnectionIdentity`), the transfer format matches the protocol (Text for JSON, Binary for MessagePack), and connecting to an unknown hub path fails with an error instead of panicking.",
+          "verification": "automated"
+        },
+        {
+          "id": "R2.C2",
+          "descriptionMarkdown": "`authentication`: the test service exposes an authorized hub (`/test-auth`) behind a test-only scheme accepting Basic `e2e-user:e2e-password` and Bearer `e2e-token` (Authorization header on negotiate, `access_token` query on the WebSocket); valid credentials connect and the hub reports the authenticated identity, missing or invalid credentials make `connect` fail with an authorization error, and no token appears in client errors.",
+          "verification": "automated"
+        },
+        {
+          "id": "R2.C3",
+          "descriptionMarkdown": "`invoke`: invocations without arguments, with one and with several arguments (`PushTwoEntities`) and with complex DTOs (Serde-renamed fields preserved on the wire), void hub methods, a hub exception surfacing as `Err` containing the server's detailed message, and an unknown hub method surfacing as `Err`; the connection keeps serving invocations afterwards.",
+          "verification": "automated"
+        },
+        {
+          "id": "R2.C4",
+          "descriptionMarkdown": "`send`: `send` and `send_with_args` deliver fire-and-forget messages that the hub records, and a probe returns them complete and in order.",
+          "verification": "automated"
+        },
+        {
+          "id": "R2.C5",
+          "descriptionMarkdown": "`server-stream`: `enumerate` and `enumerate_with_args` deliver complete ordered streams (`HundredEntities`, `OrderedSequence(10000)`), and a stream whose hub method throws mid-way terminates with an error instead of hanging.",
+          "verification": "automated"
+        },
+        {
+          "id": "R2.C6",
+          "descriptionMarkdown": "`callbacks`: registered callbacks receive typed single- and multi-argument invocations, `unregister` stops delivery, and client results via `InvocationContext::complete` reach the hub's `InvokeAsync` with the expected value.",
+          "verification": "automated"
+        },
+        {
+          "id": "R2.C7",
+          "descriptionMarkdown": "`concurrency-and-clones`: 200 concurrent invocations complete with correctly correlated results; clones share one connection (same connection id), and the hub observes exactly one disconnect, only after the last clone disconnects.",
+          "verification": "automated"
+        },
+        {
+          "id": "R2.C8",
+          "descriptionMarkdown": "`large-payload`: a 1 MiB payload round-trips in both directions (the test hub raises `MaximumReceiveMessageSize` for its route).",
+          "verification": "automated"
+        },
+        {
+          "id": "R2.C9",
+          "descriptionMarkdown": "`server-close`: a server-initiated close without reconnect permission fails pending invocations, invokes the disconnection handler and never reconnects; a close that allows reconnect follows the configured reconnect policy.",
+          "verification": "automated"
+        },
+        {
+          "id": "R2.C10",
+          "descriptionMarkdown": "`reconnect-exhaustion`: with a bounded policy and the test service temporarily rejecting the hub (test-only control endpoint), reconnect attempts stop after the configured count, the client ends disconnected and pending work fails.",
+          "verification": "automated"
+        },
+        {
+          "id": "R2.C11",
+          "descriptionMarkdown": "Every R2 scenario also passes in Chromium against `fixture-host` for JSON and MessagePack (browser Basic/Bearer credentials use the negotiate `Authorization` header and the WebSocket `access_token` query). Verified by the Aspire end-to-end cells (Chromium).",
+          "verification": "automated"
+        }
+      ],
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/SignalRTestService/TestHub.cs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/SignalRTestService/Program.cs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/context.rs"
+        }
+      ]
+    },
+    {
+      "id": "R3",
+      "title": "Manifest hygiene and browser-only WASM gating",
+      "descriptionMarkdown": "Remove test/debug and dead dependencies from the library graph, make the library an `rlib`, and reject non-browser wasm targets explicitly.",
+      "criteria": [
+        {
+          "id": "R3.C1",
+          "descriptionMarkdown": "The normal (non-dev) dependency graph for the host and for `wasm32-unknown-unknown`, with default and with all features, contains none of `test-log`, `env_logger`, `console_log`, `console_error_panic_hook`, `wasm-timer` or `async-std`; these appear only as dev-dependencies, and the never-compiled `src/tests/tests_wasm.rs` is deleted. Verified by the `Platform` category, case `manifest-hygiene`.",
+          "verification": "automated"
+        },
+        {
+          "id": "R3.C2",
+          "descriptionMarkdown": "`[lib] crate-type` is `rlib` only (the browser fixture stays its own `cdylib`), and the normal `tokio` dependency enables at most `rt`, `net`, `time` and `sync` (plus `macros` only if library code needs it), never `full`, `fs`, `process`, `signal`, `io-std` or `parking_lot`; test-only features come from `[dev-dependencies]`. Verified by the same `manifest-hygiene` case.",
+          "verification": "automated"
+        },
+        {
+          "id": "R3.C3",
+          "descriptionMarkdown": "Compiling for a wasm32 target other than `wasm32-unknown-unknown` (checked with `wasm32-wasip1`) fails with an explicit `compile_error!` naming browser WASM as the only supported wasm target, and the native/browser split uses one `cfg` predicate family throughout (`src/client/context.rs` no longer mixes `target_family` and `target_arch`). Verified by the `Platform` category, case `wasi-rejected`.",
+          "verification": "automated"
+        }
+      ],
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "Cargo.toml"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/lib.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/context.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/tests/tests_wasm.rs"
+        }
+      ]
+    },
+    {
+      "id": "R4",
+      "title": "Rustls TLS on native targets",
+      "descriptionMarkdown": "Replace `native-tls` with rustls so Android builds without OpenSSL and negotiate plus WebSocket share one trust configuration, with explicit provider/verifier features, extra trust roots and Android verifier initialization.",
+      "criteria": [
+        {
+          "id": "R4.C1",
+          "descriptionMarkdown": "Native `wss://` WebSockets and `https://` negotiate requests of one connection use the same rustls `ClientConfig`. The AppHost generates an ephemeral CA and leaf certificate (SANs `localhost`, `127.0.0.1`, `10.0.2.2`) into a per-run directory and serves `signalr-test-service` over an additional HTTPS endpoint with it. The `tls` scenario: a native client adding the CA through `with_additional_root_certificates_pem` negotiates, connects and invokes; the same client without the extra root fails during certificate verification with an error identifying a trust failure and never reaches the hub. In Chromium (context with `ignoreHTTPSErrors`), the fixture connects over `https`/`wss` and invokes, proving the browser's secure URL path. Verified by the Aspire end-to-end cells (native and Chromium).",
+          "verification": "automated"
+        },
+        {
+          "id": "R4.C2",
+          "descriptionMarkdown": "Cargo features select TLS: `tls-platform-verifier` (default; OS trust through `rustls-platform-verifier`), `tls-webpki-roots` (bundled Mozilla roots), `tls-ring` (default provider) and `tls-aws-lc-rs` (alternative provider; enables `aws-lc-rs` prebuilt NASM). Precedence: `aws-lc-rs` when enabled, else `ring`; platform verifier when enabled, else webpki roots; with both verifier features compiled, `ConnectionConfiguration::use_webpki_roots()` selects bundled roots per connection. With `--no-default-features` the crate builds, plaintext connections work, and secure endpoints return an explicit error naming the TLS features to enable, without panicking. Unit-tested by the `tls_configuration` tests under all features and under `--no-default-features`.",
+          "verification": "automated"
+        },
+        {
+          "id": "R4.C3",
+          "descriptionMarkdown": "Native-only `with_additional_root_certificates_pem(...)` accepts PEM bytes; invalid PEM or PEM without certificates makes `connect` fail before any I/O. Extra roots are honored by both verifiers; on Android, where `rustls-platform-verifier` cannot add roots, a connection with extra roots uses webpki verification over the extra roots (plus bundled roots with `tls-webpki-roots`), as documented on the method. Unit-tested by the `tls_configuration` tests.",
+          "verification": "automated"
+        },
+        {
+          "id": "R4.C4",
+          "descriptionMarkdown": "For `x86_64-unknown-linux-gnu`, `x86_64-pc-windows-msvc`, `aarch64-apple-darwin`, `aarch64-linux-android`, `x86_64-linux-android` and `aarch64-apple-ios`, the normal graph with default plus `messagepack` features contains none of `openssl`, `openssl-sys`, `native-tls`, `tokio-native-tls` or `ureq`, contains `ring` and not `aws-lc-rs`; `--no-default-features --features tls-aws-lc-rs,tls-platform-verifier` contains `aws-lc-rs`; Android graphs contain `rustls-platform-verifier` by default and `webpki-roots` only with `tls-webpki-roots`. Verified by the `Platform` category, case `tls-graph` (`cargo tree` only).",
+          "verification": "automated"
+        },
+        {
+          "id": "R4.C5",
+          "descriptionMarkdown": "The library compiles for `aarch64-linux-android` and `x86_64-linux-android` through `cargo ndk` at API level 24 with default plus `messagepack` features and with `--no-default-features --features tls-webpki-roots,tls-ring,messagepack`, and on Android re-exports the verifier initialization entry points as `rayx_signalr::tls::android::{init_with_env, init_with_refs, init_with_runtime}`. Verified by the `Platform` category, case `android-build`.",
+          "verification": "automated"
+        },
+        {
+          "id": "R4.C6",
+          "descriptionMarkdown": "The hyper-based negotiate client carries every native connection: all R2 functional scenarios pass as native cells for JSON and MessagePack after the replacement. Verified by the Aspire end-to-end cells (native).",
+          "verification": "automated"
+        }
+      ],
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/common.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "Cargo.toml"
+        }
+      ]
+    },
+    {
+      "id": "R5",
+      "title": "Negotiation completeness and skip negotiation",
+      "descriptionMarkdown": "Handle every negotiate response shape ASP.NET Core and Azure SignalR send, and support WebSocket-only connections without negotiation, on both targets.",
+      "criteria": [
+        {
+          "id": "R5.C1",
+          "descriptionMarkdown": "A negotiate response is parsed into exactly one of: connection (version 0 `connectionId`, or version 1 with `connectionToken` as transport `id`), redirect (`url` plus optional `accessToken`) or error (`error`). An error response fails `connect` with the server text; an unrecognized body fails with a parse error naming the endpoint, without panicking; transport and transfer-format selection are unchanged. Unit-tested by the `negotiation_` tests, including an Azure SignalR redirect body.",
+          "verification": "automated"
+        },
+        {
+          "id": "R5.C2",
+          "descriptionMarkdown": "Redirects re-negotiate at `<url>/negotiate?negotiateVersion=1` (keeping the stateful flag) for at most 100 redirects, after which `connect` fails with a 'too many negotiate redirects' error; a redirect `accessToken` replaces the configured authentication for the next negotiate (`Authorization: Bearer`) and the WebSocket `access_token`; the WebSocket URL derives from the final URL (`http`→`ws`, `https`→`wss`); ordinary reconnect renegotiates from the configured endpoint and stateful resume reuses the negotiated transport URL. Unit-tested by the `negotiation_` tests through an injected request function.",
+          "verification": "automated"
+        },
+        {
+          "id": "R5.C3",
+          "descriptionMarkdown": "`negotiate-redirect`: against the test service's `POST /redirect/negotiate` (answering the test hub URL and `accessToken` `redirect-token`), native and browser clients connect, the hub observes `redirect-token` through a probe, and an invocation succeeds, for JSON and MessagePack. Verified by the Aspire end-to-end cells (native and Chromium).",
+          "verification": "automated"
+        },
+        {
+          "id": "R5.C4",
+          "descriptionMarkdown": "`ConnectionConfiguration::skip_negotiation()` connects directly to `ws(s)://host[:port]/hub` without a negotiate request, appending a bearer token as `access_token`; combining it with `with_stateful_reconnect` fails `connect` with a configuration error before I/O; ordinary reconnect reconnects directly. Unit-tested by the `skip_negotiation` tests.",
+          "verification": "automated"
+        },
+        {
+          "id": "R5.C5",
+          "descriptionMarkdown": "`skip-negotiation`: native and browser clients connect and invoke, reconnect after a server-side transport abort under a reconnect policy and invoke again, while the service's negotiate counter for that hub stays at zero, for JSON and MessagePack. Verified by the Aspire end-to-end cells (native and Chromium).",
+          "verification": "automated"
+        }
+      ],
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/common.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/negotiate.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs"
+        }
+      ]
+    },
+    {
+      "id": "R6",
+      "title": "Native runtime ownership",
+      "descriptionMarkdown": "Bind each native connection to a Tokio runtime handle so the client never panics without an ambient runtime and its futures can be awaited from any executor (for example GPUI's).",
+      "criteria": [
+        {
+          "id": "R6.C1",
+          "descriptionMarkdown": "Each native connection is bound to the runtime handle passed through native-only `ConnectionConfiguration::with_runtime_handle(tokio::runtime::Handle)`, otherwise to the ambient runtime captured at `connect`; with neither, `connect` returns an error explaining both options before any I/O and without panicking. Unit-tested by the `runtime_ownership` tests driven by `futures::executor::block_on` on a thread without a runtime.",
+          "verification": "automated"
+        },
+        {
+          "id": "R6.C2",
+          "descriptionMarkdown": "`executor-independence`: with `with_runtime_handle`, `connect_with`, `invoke`, `invoke_with_args`, `send`, `send_with_args`, `enumerate` (including a mid-stream drop that still sends exactly one CancelInvocation), callback delivery and the `ReconnectionHandler` methods complete when awaited through `futures::executor::block_on` on a plain `std::thread`, and `disconnect` returns without deadlock, for JSON and MessagePack. Verified by the Aspire end-to-end cells (native).",
+          "verification": "automated"
+        },
+        {
+          "id": "R6.C3",
+          "descriptionMarkdown": "No Tokio resource is created outside runtime-owned tasks: socket I/O, timers (reconnect delays, stateful backpressure waits, keep-alive) and spawns run on the connection's runtime, the physical connection's writer and receiver are runtime tasks, and public futures use only runtime-agnostic primitives. Proven by `executor-independence` (any violation panics on the foreign thread) together with all R2 functional scenarios and the migrated reconnect and cancellation scenarios as native cells. Verified by the Aspire end-to-end cells (native).",
+          "verification": "automated"
+        }
+      ],
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/context.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs"
+        }
+      ]
+    },
+    {
+      "id": "R7",
+      "title": "Event-driven browser transport for the main thread, workers and threaded WASM",
+      "descriptionMarkdown": "Replace the polling `wasm-sockets` transport with an event-driven single-owner transport without leaked closures, proven on the main thread, in a dedicated worker and in a cross-origin-isolated threaded build.",
+      "criteria": [
+        {
+          "id": "R7.C1",
+          "descriptionMarkdown": "`message-burst`: 1000 server-to-client callbacks triggered by one hub call (`TriggerOrderedCallbacks`) arrive completely and in order, and a following invocation succeeds, for JSON and MessagePack. Verified by the Aspire end-to-end cells (Chromium).",
+          "verification": "automated"
+        },
+        {
+          "id": "R7.C2",
+          "descriptionMarkdown": "`src/communication` contains no `setInterval` binding and no `Closure::forget`/`.forget()`; browser sleeps and timeouts are cancellable (dropping the future cancels its timer); the browser graph (default and all features) contains none of `wasm-sockets`, `wasm-timer`, `async-std` or `ehttp`. Verified by the `Platform` category, case `wasm-transport`.",
+          "verification": "automated"
+        },
+        {
+          "id": "R7.C3",
+          "descriptionMarkdown": "`worker-transport`: inside a dedicated module Web Worker (no `window`), the fixture connects, invokes, consumes a server stream and completes an ordinary reconnect after a server-side transport abort, for JSON and MessagePack; the client stays `!Send` and documents single-owner use per thread or worker. Verified by the Aspire end-to-end cells (Chromium).",
+          "verification": "automated"
+        },
+        {
+          "id": "R7.C4",
+          "descriptionMarkdown": "The library compiles for `wasm32-unknown-unknown` with atomics using RayX's threaded flags (`-C target-feature=+atomics,+bulk-memory,+mutable-globals` with shared/imported memory link arguments as in RayX `xtask/src/wasm.rs`, `-Z build-std=std,panic_abort`, nightly with `rust-src`), with default and all features. Verified by the `Platform` category, case `threaded-wasm-build`.",
+          "verification": "automated"
+        },
+        {
+          "id": "R7.C5",
+          "descriptionMarkdown": "`threaded-wasm`: the AppHost builds a threaded fixture variant (opt-in configuration, pinned nightly) and `fixture-host` serves it on a cross-origin-isolated endpoint (COOP `same-origin`, COEP `require-corp`); with `crossOriginIsolated === true` and `SharedArrayBuffer` available, the fixture connects, invokes, consumes a stream and completes an ordinary reconnect, for JSON and MessagePack. Verified by the Aspire end-to-end cells (Chromium).",
+          "verification": "automated"
+        },
+        {
+          "id": "R7.C6",
+          "descriptionMarkdown": "Every browser scenario cataloged before this change (R1.C3 and R2 scenarios) passes on the new transport in Chromium for JSON and MessagePack. Verified by the Aspire end-to-end cells (Chromium).",
+          "verification": "automated"
+        }
+      ],
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/storage_wasm.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/lib.rs"
+        }
+      ]
+    },
+    {
+      "id": "R8",
+      "title": "Connection liveness",
+      "descriptionMarkdown": "Send keep-alive Pings, detect a silent server, and bound and validate the handshake on both targets, matching the official clients' defaults.",
+      "criteria": [
+        {
+          "id": "R8.C1",
+          "descriptionMarkdown": "`ConnectionConfiguration` gains `with_keep_alive_interval` (default 15 s), `with_server_timeout` (default 30 s) and `with_handshake_timeout` (default 15 s) on both targets; zero durations or a server timeout not greater than the keep-alive interval fail `connect` before I/O. A target-independent scheduler (deterministic clock in tests) requests a Ping after `keep_alive_interval` without outbound frames, reports a timeout after `server_timeout` without inbound frames, and resets the server timer on every inbound frame. Unit-tested by the `liveness_` tests.",
+          "verification": "automated"
+        },
+        {
+          "id": "R8.C2",
+          "descriptionMarkdown": "One shared handshake parser validates the response on both targets (an `error` field fails `connect` with the server message; a missing or malformed response fails with a handshake error, whereas native currently accepts any first frame); Ping encoding is protocol-aware (JSON `{\"type\":6}` record, MessagePack framed `[6]`) and Pings stay non-trackable for the stateful buffer. Unit-tested by the `liveness_` tests.",
+          "verification": "automated"
+        },
+        {
+          "id": "R8.C3",
+          "descriptionMarkdown": "Native, JSON and MessagePack: `keepalive-idle` (1 s keep-alive against a hub with a 3 s `ClientTimeoutInterval`; after 8 s idle the same connection id serves an invocation), `server-timeout` (2 s server timeout against a hub that never pings; the reconnect path starts within 5 s — an automatic policy reconnects, a manual handler is invoked) and `handshake-timeout` (an endpoint that accepts the WebSocket but never answers makes `connect` fail with a handshake-timeout error within 1 s plus a 2 s margin). Verified by the Aspire end-to-end cells (native).",
+          "verification": "automated"
+        },
+        {
+          "id": "R8.C4",
+          "descriptionMarkdown": "The same three liveness scenarios pass in Chromium for JSON and MessagePack. Verified by the Aspire end-to-end cells (Chromium).",
+          "verification": "automated"
+        }
+      ],
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/negotiate.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/stateful.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/SignalRTestService/Program.cs"
+        }
+      ]
+    },
+    {
+      "id": "R9",
+      "title": "Application lifecycle controls",
+      "descriptionMarkdown": "Let mobile and browser hosts pause and resume connections around backgrounding or network changes, observe status, and opt into the official retry delays.",
+      "criteria": [
+        {
+          "id": "R9.C1",
+          "descriptionMarkdown": "Both targets expose `SignalRClient::status()` returning public `ConnectionStatus { Connected, Reconnecting, Paused, Disconnected, Closed }`. The lifecycle gains `Paused`: pausing from Connected, Reconnecting or Disconnected invalidates any in-flight reconnect generation; resume is accepted from Paused or Disconnected; pausing a paused client and resuming a connected client are no-ops; `Closed` (local disconnect) is terminal and rejects both; a stale reconnect completion never leaves Paused. Unit-tested by the `lifecycle_controls` tests.",
+          "verification": "automated"
+        },
+        {
+          "id": "R9.C2",
+          "descriptionMarkdown": "Native `pause-resume` and `pause-resume-stateful`: `pause()` closes the transport gracefully, stops keep-alive and automatic reconnect and reports `Paused`; in ordinary mode pending work fails with 'connection paused' and `invoke`/`send` while paused fail without queuing; `resume()` reconnects immediately (later attempts follow the policy) and new invocations succeed; in stateful mode a server stream started before `pause` completes after `resume` in order without gaps or duplicates. Verified for JSON and MessagePack by the Aspire end-to-end cells (native).",
+          "verification": "automated"
+        },
+        {
+          "id": "R9.C3",
+          "descriptionMarkdown": "The same two scenarios pass in Chromium for JSON and MessagePack. Verified by the Aspire end-to-end cells (Chromium).",
+          "verification": "automated"
+        },
+        {
+          "id": "R9.C4",
+          "descriptionMarkdown": "Public `DefaultRetryPolicy` on both targets yields 0, 2, 10 and 30 s for retries 0–3 and then stops (matching the official JavaScript and Swift clients); `ReconnectionConfig::default()` stays `NoReconnectPolicy`. Unit-tested by the `lifecycle_controls` tests.",
+          "verification": "automated"
+        }
+      ],
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/reconnection.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs"
+        }
+      ]
+    },
+    {
+      "id": "R10",
+      "title": "Every target in CI, and consumer documentation",
+      "descriptionMarkdown": "Run the full end-to-end catalog on every target through Aspire in GitHub Actions — native Windows/Linux/macOS, Chromium/Firefox/WebKit, an Android emulator and an iOS simulator — and document platform and test setup.",
+      "criteria": [
+        {
+          "id": "R10.C1",
+          "descriptionMarkdown": "The runner supports Playwright `firefox` and `webkit` targets; every browser scenario passes on both for JSON and MessagePack, except catalog entries excluded for a documented engine limitation (reason recorded in the catalog and README; at most `threaded-wasm` on an engine without cross-origin isolation support). Verified by the Aspire end-to-end cells (Firefox and WebKit).",
+          "verification": "automated"
+        },
+        {
+          "id": "R10.C2",
+          "descriptionMarkdown": "The runner supports an `android` target: it builds the `e2e` binary with `cargo ndk` for `x86_64` (API 24), pushes it with `adb` to the device named by `RAYX_SIGNALR_E2E_ANDROID_SERIAL` (default: the single running emulator), runs each selected cell with service endpoints rewritten to `10.0.2.2:<port>` and the CA passed base64-encoded, and enforces the same 60 s bound and diagnostics. Every native-capable scenario passes on an x86_64 emulator for JSON and MessagePack. Verified by the Aspire end-to-end cells (Android, local emulator).",
+          "verification": "automated"
+        },
+        {
+          "id": "R10.C3",
+          "descriptionMarkdown": "The runner supports an `ios` target on macOS: it builds the `e2e` binary for `aarch64-apple-ios-sim`, boots (or reuses) the simulator named by `RAYX_SIGNALR_E2E_IOS_DEVICE`, runs cells with `xcrun simctl spawn` and `SIMCTL_CHILD_*` environment variables, and every native-capable scenario passes for JSON and MessagePack. Proven by the CI `e2e / ios` job (the Windows development host cannot run it); the run URL is recorded in the sprint review.",
+          "verification": "manual"
+        },
+        {
+          "id": "R10.C4",
+          "descriptionMarkdown": "Workflows run the full catalog through Aspire on every target: `e2e / native (<os>)` on ubuntu, windows and macos; `e2e / browser (<engine>)` for chromium, firefox and webkit on ubuntu; `e2e / android` on ubuntu with KVM through `reactivecircus/android-emulator-runner@v2` (≥ 2.38, Node 24); `e2e / ios` on macos-latest; quality jobs add Android (`cargo ndk` check), iOS (`cargo check` for `aarch64-apple-ios` and `aarch64-apple-ios-sim`), threaded-WASM and `Platform`-category jobs. The `WorkflowContract` category asserts every job, target and governance rule. Verified by the `WorkflowContract` category.",
+          "verification": "automated"
+        },
+        {
+          "id": "R10.C5",
+          "descriptionMarkdown": "A GitHub Actions run of every workflow on the epic branch is green, including all native, browser, Android and iOS end-to-end jobs; the run URL is recorded in the sprint review.",
+          "verification": "manual"
+        },
+        {
+          "id": "R10.C6",
+          "descriptionMarkdown": "README documents the platform support matrix (proof level per target), TLS features and precedence, Android setup (Gradle maven repository and `rustls:rustls-platform-verifier` dependency, ProGuard keep rule, `rayx_signalr::tls::android::init_with_env`, or `tls-webpki-roots`), iOS ATS/`wss` guidance, the runtime-handle requirement, liveness and lifecycle APIs, `skip_negotiation`, worker/threaded-WASM guidance and WASI being unsupported, plus the Aspire test workflow (prerequisites, `aspire run`, `dotnet test` categories and `RAYX_SIGNALR_E2E_*` selection, mobile targets, the GameX conformance-gate replacement command). `FORK.md` states what the epic proved and the residual risks; the RayX.SignalR skill's validation and consumer sections use the Aspire commands.",
+          "verification": "manual"
+        }
+      ],
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/quality.yml"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/interop.yml"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "README.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "FORK.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".codex/skills/rayx-signalr/SKILL.md"
+        }
+      ]
+    }
+  ]
+}

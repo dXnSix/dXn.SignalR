@@ -24,4 +24,4 @@ agentx:
 
 ### Supersedes: None.
 
-### Source anchors: [Playwright package](../../../../../tools-node/package.json), [Playwright tests](../../../../../tools-node/tests/signalr-wasm.spec.ts), [interop harness](../../../../../scripts/ci/run-interop.ps1), and [interop workflow](../../../../../.github/workflows/interop.yml).
+### Source anchors: [Playwright package](../../../../../tools-node/package.json), [Playwright tests](../../../../../tools-node/tests), [browser cell runner](../../../../../dotnet/RayX.SignalR.E2E.Tests/Scenarios/CellRunners.cs), and [end-to-end workflow](../../../../../.github/workflows/e2e.yml).
