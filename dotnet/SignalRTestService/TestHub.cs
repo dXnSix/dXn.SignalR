@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.SignalR;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -8,6 +8,7 @@ namespace SignalRTestService
     public class TestHub : Hub
     {
         static readonly ConcurrentDictionary<string, CancellationProbeState> _cancellationProbes = new();
+        static readonly ConcurrentDictionary<string, int> _transportAborts = new();
 
         public async Task<TestEntity> SingleEntity()
         {
@@ -38,8 +39,7 @@ namespace SignalRTestService
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             CancellationProbeState probe = GetCancellationProbe();
-            Interlocked.Increment(ref probe.Started);
-            Interlocked.Increment(ref probe.Active);
+            probe.Start();
             int value = 0;
             try
             {
@@ -52,11 +52,7 @@ namespace SignalRTestService
             }
             finally
             {
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    Interlocked.Increment(ref probe.Canceled);
-                }
-                Interlocked.Decrement(ref probe.Active);
+                probe.Finish(cancellationToken.IsCancellationRequested);
             }
         }
 
@@ -68,7 +64,17 @@ namespace SignalRTestService
             // Let the stateful protocol acknowledge the test command before severing only the
             // underlying HTTP transport. The logical SignalR connection remains resumable.
             await Task.Delay(1200, Context.ConnectionAborted);
+            _transportAborts.AddOrUpdate(Context.ConnectionId, 1, static (_, count) => count + 1);
             httpContext.Abort();
+        }
+
+        public int TransportAbortCount() =>
+            _transportAborts.TryGetValue(Context.ConnectionId, out var count) ? count : 0;
+
+        public async Task<string> DelayedConnectionIdentity(int delayMilliseconds)
+        {
+            await Task.Delay(delayMilliseconds, Context.ConnectionAborted);
+            return Context.ConnectionId;
         }
 
         public async IAsyncEnumerable<int> OrderedSequence(int count, int delayMilliseconds = 1)
@@ -184,6 +190,7 @@ namespace SignalRTestService
             Debug.WriteLine($"Client is disconnected: {Context.ConnectionId}");
 
             _cancellationProbes.TryRemove(Context.ConnectionId, out _);
+            _transportAborts.TryRemove(Context.ConnectionId, out _);
 
             return base.OnDisconnectedAsync(exception);
         }
@@ -205,17 +212,32 @@ namespace SignalRTestService
 
     public sealed class CancellationProbeState
     {
-        public int Active;
-        public int Started;
-        public int Canceled;
+        int _active;
+        int _started;
+        int _canceled;
+
+        public void Start()
+        {
+            Interlocked.Increment(ref _started);
+            Interlocked.Increment(ref _active);
+        }
+
+        public void Finish(bool canceled)
+        {
+            if (canceled)
+            {
+                Interlocked.Increment(ref _canceled);
+            }
+            Interlocked.Decrement(ref _active);
+        }
 
         public CancellationProbeSnapshot Snapshot()
         {
             return new CancellationProbeSnapshot
             {
-                Active = Volatile.Read(ref Active),
-                Started = Volatile.Read(ref Started),
-                Canceled = Volatile.Read(ref Canceled)
+                Active = Volatile.Read(ref _active),
+                Started = Volatile.Read(ref _started),
+                Canceled = Volatile.Read(ref _canceled)
             };
         }
     }

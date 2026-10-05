@@ -1,86 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { openFixture, protocols } from "./fixture";
 
-declare global {
-  interface Window {
-    rayxSignalRFixture: {
-      abortPhysicalTransport(): Promise<void>;
-      cancelLongStreams(rounds: number): Promise<number>;
-      connectAndProbe(protocol: "json" | "messagepack"): Promise<string>;
-      connectStateful(protocol: "json" | "messagepack"): Promise<string>;
-      consumeShortStreams(rounds: number, itemsPerRound: number): Promise<number>;
-      pendingInvocationResult(): string | undefined;
-      pendingInvocationStarted(): boolean;
-      probeAfterReconnect(): Promise<string>;
-      probeStatefulIdentity(): Promise<string>;
-      scenarioError(): string | undefined;
-      startPendingInvocation(): void;
-      startStatefulStream(): void;
-      statefulCallbackCount(): number;
-      statefulCallbackValue(index: number): number;
-      statefulStreamCount(): number;
-      statefulStreamDone(): boolean;
-      statefulStreamValue(index: number): number;
-      triggerCallbackAfterReconnect(): Promise<void>;
-      triggerStatefulCallbacks(count: number): Promise<void>;
-      callbackCount(): number;
-    };
-  }
-}
-
-for (const protocol of ["json", "messagepack"] as const) {
-  test(`short stream chaining ${protocol === "json" ? "JSON" : "MessagePack"}`, async ({ page }) => {
-    const pageErrors: string[] = [];
-    let cancellationFrames = 0;
-    page.on("pageerror", (error) => pageErrors.push(error.message));
-    page.on("websocket", (socket) => {
-      socket.on("framesent", ({ payload }) => cancellationFrames += countCancelInvocations(payload));
-    });
-    await page.goto("http://127.0.0.1:7878/");
-    await expect(page.locator("body")).toHaveAttribute("data-rayx-signalr-wasm", "ready");
-    await page.evaluate(
-      (selected) => window.rayxSignalRFixture.connectAndProbe(selected),
-      protocol,
-    );
-
-    const received = await page.evaluate(
-      () => window.rayxSignalRFixture.consumeShortStreams(40, 3),
-    );
-
-    expect(received).toBe(120);
-    expect(cancellationFrames, "naturally completed streams must not be canceled").toBe(0);
-    expect(pageErrors).toEqual([]);
-  });
-}
-
-for (const protocol of ["json", "messagepack"] as const) {
-  test(`stream cancellation ${protocol === "json" ? "JSON" : "MessagePack"}`, async ({ page }) => {
-    const pageErrors: string[] = [];
-    let cancellationFrames = 0;
-    page.on("pageerror", (error) => pageErrors.push(error.message));
-    page.on("websocket", (socket) => {
-      socket.on("framesent", ({ payload }) => cancellationFrames += countCancelInvocations(payload));
-    });
-
-    await page.goto("http://127.0.0.1:7878/");
-    await expect(page.locator("body")).toHaveAttribute("data-rayx-signalr-wasm", "ready");
-    await page.evaluate(
-      (selected) => window.rayxSignalRFixture.connectAndProbe(selected),
-      protocol,
-    );
-
-    const canceled = await page.evaluate(
-      () => window.rayxSignalRFixture.cancelLongStreams(64),
-    );
-
-    expect(canceled).toBe(64);
-    expect(cancellationFrames, "each dropped stream emits exactly one type-5 frame").toBe(64);
-    expect(await page.evaluate(() => window.rayxSignalRFixture.probeAfterReconnect())).toBe("reconnected");
-    expect(pageErrors).toEqual([]);
-  });
-}
-
-for (const protocol of ["json", "messagepack"] as const) {
-  test(`ordinary reconnect ${protocol === "json" ? "JSON" : "MessagePack"}`, async ({ page }) => {
+for (const { protocol, title } of protocols) {
+  test(`ordinary reconnect ${title}`, async ({ page }) => {
     page.on("console", (message) => console.log(`[browser:${message.type()}] ${message.text()}`));
     page.on("pageerror", (error) => console.error(`[browser:pageerror] ${error.message}`));
     let activeSocket: import("@playwright/test").WebSocket | undefined;
@@ -93,8 +15,7 @@ for (const protocol of ["json", "messagepack"] as const) {
       socket.connectToServer();
     });
 
-    await page.goto("http://127.0.0.1:7878/");
-    await expect(page.locator("body")).toHaveAttribute("data-rayx-signalr-wasm", "ready");
+    await openFixture(page);
     const initial = await page.evaluate(
       (selected) => window.rayxSignalRFixture.connectAndProbe(selected),
       protocol,
@@ -126,8 +47,8 @@ for (const protocol of ["json", "messagepack"] as const) {
   });
 }
 
-for (const protocol of ["json", "messagepack"] as const) {
-  test(`stateful reconnect ${protocol === "json" ? "JSON" : "MessagePack"}`, async ({ page }) => {
+for (const { protocol, title } of protocols) {
+  test(`stateful reconnect ${title}`, async ({ page }) => {
     page.on("console", (message) => console.log(`[browser:${message.type()}] ${message.text()}`));
     page.on("pageerror", (error) => console.error(`[browser:pageerror] ${error.message}`));
     let activeSocket: import("@playwright/test").WebSocketRoute | undefined;
@@ -142,8 +63,7 @@ for (const protocol of ["json", "messagepack"] as const) {
       socketGeneration += 1;
     });
 
-    await page.goto("http://127.0.0.1:7878/");
-    await expect(page.locator("body")).toHaveAttribute("data-rayx-signalr-wasm", "ready");
+    await openFixture(page);
     const connectionId = await page.evaluate(
       (selected) => window.rayxSignalRFixture.connectStateful(selected),
       protocol,
@@ -210,39 +130,3 @@ for (const protocol of ["json", "messagepack"] as const) {
     expect(negotiateRequests, "stateful resume must not negotiate again").toBe(initialNegotiateRequests);
   });
 }
-
-function countCancelInvocations(payload: string | Buffer) {
-  if (typeof payload === "string") {
-    return payload
-      .split("\u001e")
-      .filter(Boolean)
-      .reduce((count, message) => {
-        try {
-          return count + (JSON.parse(message).type === 5 ? 1 : 0);
-        } catch {
-          return count;
-        }
-      }, 0);
-  }
-
-  let count = 0;
-  let offset = 0;
-  while (offset < payload.length) {
-    let length = 0;
-    let shift = 0;
-    let byte = 0;
-    do {
-      byte = payload[offset++];
-      length |= (byte & 0x7f) << shift;
-      shift += 7;
-    } while ((byte & 0x80) !== 0 && offset < payload.length);
-    const messageOffset = offset;
-    if (length >= 2 && payload[messageOffset] === 0x93 && payload[messageOffset + 1] === 0x05) {
-      count += 1;
-    }
-    offset += length;
-  }
-  return count;
-}
-
-export {};

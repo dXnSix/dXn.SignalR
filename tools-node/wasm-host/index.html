@@ -10,6 +10,7 @@
         abort_physical_transport,
         cancel_long_streams,
         callback_count,
+        configure_service,
         connect_and_probe,
         connect_stateful,
         consume_short_streams,
@@ -30,6 +31,9 @@
       } from "./rayx_signalr_fixture.js";
 
       await init();
+      const service = new URL(location.href).searchParams.get("service");
+      if (!service) throw new Error("the fixture page requires ?service=<SignalR test service URL>");
+      configure_service(service);
       globalThis.rayxSignalRFixture = {
         abortPhysicalTransport: abort_physical_transport,
         cancelLongStreams: cancel_long_streams,

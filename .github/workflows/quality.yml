@@ -50,7 +50,7 @@ jobs:
             target
           key: clippy-${{ runner.os }}-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
       - name: Deny compiler and Clippy warnings
-        run: cargo +1.92.0 clippy --all-targets --all-features -- -D warnings
+        run: cargo +1.92.0 clippy --all-targets --test e2e --all-features -- -D warnings
 
   native:
     name: quality / native (${{ matrix.os }}, Rust ${{ matrix.toolchain }})
@@ -75,7 +75,7 @@ jobs:
             target
           key: native-${{ matrix.os }}-${{ matrix.toolchain }}-${{ hashFiles('Cargo.toml') }}
       - name: Check native targets and features
-        run: cargo +${{ matrix.toolchain }} check --all-targets --all-features
+        run: cargo +${{ matrix.toolchain }} check --all-targets --test e2e --all-features
 
   wasm:
     name: quality / wasm (${{ matrix.mode }})
@@ -131,14 +131,7 @@ jobs:
             target
           key: tests-${{ matrix.protocol }}-${{ hashFiles('Cargo.toml') }}
       - name: Run service-independent unit and contract tests
-        run: >-
-          cargo +1.92.0 test --lib ${{ matrix.feature_args }} --
-          --skip tests::tests_tokio::test_service
-          --skip tests::tests_tokio::interop_ordinary_reconnect_json
-          --skip tests::tests_tokio::interop_stateful_reconnect_json
-          --skip tests::tests_msgpack::test_msgpack_service
-          --skip tests::tests_msgpack::interop_ordinary_reconnect_messagepack
-          --skip tests::tests_msgpack::interop_stateful_reconnect_messagepack
+        run: cargo +1.92.0 test ${{ matrix.feature_args }}
 
   rustdoc:
     name: quality / rustdoc
@@ -165,9 +158,55 @@ jobs:
         run: rustup toolchain install 1.92.0 --profile minimal
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 10.0.x
+          global-json-file: global.json
       - name: Install RustSec scanner
         run: cargo install cargo-audit --locked
       - name: Scan Rust and NuGet dependency graphs
-        shell: pwsh
-        run: ./scripts/ci/verify-workflows.ps1 -Security
+        run: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=DependencySecurity
+
+  contracts:
+    name: quality / contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DOTNET_NOLOGO: true
+      PLAYWRIGHT_BROWSERS_PATH: "0"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Install Aspire CLI
+        run: dotnet tool install --global Aspire.Cli --version 13.5.3
+      - name: Install pinned Rust with the browser target
+        run: rustup toolchain install 1.92.0 --profile minimal --target wasm32-unknown-unknown
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            artifacts-temp/tools
+          key: contracts-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml', 'tests/wasm-fixture/Cargo.toml') }}
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: tools-node/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: tools-node/pnpm-lock.yaml
+      - name: Install repository-local Playwright
+        run: pnpm --dir tools-node install --frozen-lockfile
+      - name: Verify workflow, repository, catalog and toolchain contracts
+        run: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter "Category=WorkflowContract|Category=Repository|Category=Catalog|Category=Toolchain"
+      - name: Upload redacted contract diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: quality-contracts
+          path: artifacts-temp/e2e
+          if-no-files-found: ignore
+          retention-days: 7

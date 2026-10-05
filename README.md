@@ -36,10 +36,60 @@ A .NET test backend is also provided for testing purposes (see the /dotnet folde
 
 ## Production validation
 
-The repository has two least-privilege GitHub Actions workflows. They run on
-pull requests to `master` and pushes to `master`; interoperability can also be
-started manually. They do not publish packages, require pull-request secrets,
-or change repository settings.
+Service-dependent tests run only through .NET Aspire. The AppHost
+(`dotnet/RayX.SignalR.AppHost`, selected by the root `aspire.config.json`)
+composes the ASP.NET Core SignalR test service, the pinned `wasm-bindgen` CLI
+provisioning, the browser fixture build and the `fixture-host` static host, all
+on dynamically allocated ports. The end-to-end project
+(`dotnet/RayX.SignalR.E2E.Tests`, xUnit through `dotnet test`) starts the same
+AppHost through `Aspire.Hosting.Testing` and is the single entry point for those
+tests, locally and in GitHub Actions. No test scripts remain.
+
+Prerequisites: .NET SDK 10.0.100 (pinned by `global.json`), the Aspire CLI
+(`dotnet tool install --global Aspire.Cli --version 13.5.3`), Rust 1.92.0 with
+the `wasm32-unknown-unknown` target, and for browser cells Node 24 with pnpm and
+the repository-local Playwright browsers
+(`pnpm --dir tools-node install --frozen-lockfile`, then
+`pnpm --dir tools-node exec playwright install chromium`). The AppHost installs
+the fixture's exact `wasm-bindgen` CLI under `artifacts-temp/tools/wasm-bindgen/<version>`
+and never uses the machine-wide CLI.
+
+Start the graph with the Aspire dashboard for interactive debugging:
+
+```shell
+aspire run
+```
+
+Run end-to-end cells. `RAYX_SIGNALR_E2E_TARGETS` (default `native`),
+`RAYX_SIGNALR_E2E_PROTOCOLS` and `RAYX_SIGNALR_E2E_SCENARIOS` (default `all`)
+take comma lists or `all`; a selection that matches no cataloged cell fails.
+The C# scenario catalog (`dotnet/RayX.SignalR.E2E.Tests/Scenarios/ScenarioCatalog.cs`)
+decides which targets run which scenarios.
+
+```shell
+dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+RAYX_SIGNALR_E2E_TARGETS=chromium dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+```
+
+Each cell runs exactly one scenario (the Rust `e2e` test binary with
+`--exact <scenario>::<protocol>`, or Playwright with one exact title), is bounded
+to 60 seconds with process-tree cleanup, and on failure writes bounded,
+token-redacted output plus Aspire resource logs to `artifacts-temp/e2e/<cell>.json`.
+The Rust scenarios live in `tests/e2e` (`test = false`, so plain `cargo test`
+never needs the service).
+
+Static checks are .NET test categories, run the same way locally and in CI:
+
+```shell
+dotnet test dotnet/RayX.SignalR.E2E.Tests --filter "Category=WorkflowContract|Category=Repository|Category=Catalog|Category=Toolchain"
+dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=Orchestration
+cargo install cargo-audit --locked
+dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=DependencySecurity
+```
+
+The least-privilege GitHub Actions workflows run on pull requests to `master`
+and pushes to `master` (end-to-end can also be started manually). They do not
+publish packages, require secrets, or change repository settings.
 
 Stable quality check names are:
 
@@ -50,39 +100,19 @@ Stable quality check names are:
 - `quality / unit-contract (<protocol>)`
 - `quality / rustdoc`
 - `quality / dependency-security`
+- `quality / contracts`
 
-Stable interoperability check names are:
+Stable end-to-end check names are:
 
-- `interop / native (<os>, <protocol>, <scenario>)`
-- `interop / Chromium WASM (<protocol>, <scenario>)`
+- `e2e / native (<os>)`
+- `e2e / browser (<engine>)`
 
-Run the structural and local quality gates from the repository root:
+RayX.GameX's dependency-conformance gate replaces its former
+`scripts/ci/run-interop.ps1` call with:
 
-```powershell
-pwsh -NoProfile -File scripts/ci/verify-workflows.ps1
-pwsh -NoProfile -File scripts/ci/verify-workflows.ps1 -RunLocalQuality
+```shell
+RAYX_SIGNALR_E2E_TARGETS=chromium RAYX_SIGNALR_E2E_SCENARIOS=ordinary-reconnect,stateful-reconnect dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
 ```
-
-Run the complete native lifecycle matrix and repository-local
-Playwright/Chromium lifecycle matrix with:
-
-```powershell
-pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target native -Protocol json,messagepack -Scenario ordinary-reconnect,stateful-reconnect,stream-cancellation
-pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target wasm -Protocol json,messagepack -Scenario ordinary-reconnect,stateful-reconnect,short-stream-chaining,stream-cancellation
-```
-
-For dependency security, install RustSec's scanner once and run the same route
-used by CI:
-
-```powershell
-cargo install cargo-audit --locked
-pwsh -NoProfile -File scripts/ci/verify-workflows.ps1 -Security
-```
-
-Each interop scenario is bounded to 60 seconds. The harness health-checks and
-terminates the .NET fixture, requires one real selected test per matrix cell,
-and writes bounded redacted diagnostics only after failure under
-`artifacts-temp/interop/`.
 
 ## Package Overview
 `rayx-signalr` is a Rust library designed to call SignalR hubs from cross-platform Rust applications. It supports Tokio-based native runtimes and browser WASM clients.

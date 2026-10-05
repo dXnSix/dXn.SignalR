@@ -1,0 +1,115 @@
+name: End-to-end
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+  DOTNET_NOLOGO: true
+  PLAYWRIGHT_BROWSERS_PATH: "0"
+  RAYX_SIGNALR_E2E_PROTOCOLS: json,messagepack
+  RAYX_SIGNALR_E2E_SCENARIOS: all
+
+jobs:
+  native:
+    name: e2e / native (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    env:
+      RAYX_SIGNALR_E2E_TARGETS: native
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Install Aspire CLI
+        run: dotnet tool install --global Aspire.Cli --version 13.5.3
+      - name: Install pinned Rust
+        run: rustup toolchain install 1.92.0 --profile minimal
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: e2e-native-${{ matrix.os }}-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
+      - name: Run native end-to-end cells through Aspire
+        run: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+      - name: Upload redacted end-to-end diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-native-${{ matrix.os }}
+          path: artifacts-temp/e2e
+          if-no-files-found: ignore
+          retention-days: 7
+
+  browser:
+    name: e2e / browser (${{ matrix.engine }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [chromium]
+    env:
+      RAYX_SIGNALR_E2E_TARGETS: ${{ matrix.engine }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Install Aspire CLI
+        run: dotnet tool install --global Aspire.Cli --version 13.5.3
+      - name: Install pinned Rust with the browser target
+        run: rustup toolchain install 1.92.0 --profile minimal --target wasm32-unknown-unknown
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            artifacts-temp/tools
+            artifacts-temp/wasm-fixture-target
+          key: e2e-browser-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml', 'tests/wasm-fixture/Cargo.toml') }}
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: tools-node/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: tools-node/pnpm-lock.yaml
+      - name: Install repository-local Playwright
+        run: |
+          pnpm --dir tools-node install --frozen-lockfile
+          pnpm --dir tools-node exec playwright install --with-deps ${{ matrix.engine }}
+      - name: Run browser end-to-end cells through Aspire
+        run: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+      - name: Upload redacted end-to-end diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-browser-${{ matrix.engine }}
+          path: artifacts-temp/e2e
+          if-no-files-found: ignore
+          retention-days: 7

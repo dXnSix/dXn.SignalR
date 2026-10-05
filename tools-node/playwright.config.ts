@@ -2,32 +2,21 @@ import { defineConfig, devices } from "@playwright/test";
 
 process.env.PLAYWRIGHT_BROWSERS_PATH ??= "0";
 
+// Run only through the Aspire runner (`dotnet test dotnet/RayX.SignalR.E2E.Tests`), which starts
+// `fixture-host` and `signalr-test-service` and passes their dynamically allocated URLs.
 export default defineConfig({
   testDir: "./tests",
-  testMatch: ["signalr-wasm.spec.ts"],
-  timeout: 60_000,
+  testMatch: ["signalr-*.spec.ts"],
+  timeout: 55_000,
   expect: { timeout: 15_000 },
-  reporter: [["list"], ["html", { outputFolder: "playwright-report", open: "never" }]],
+  outputDir: "../artifacts-temp/e2e/playwright-results",
+  reporter: [["list"]],
   use: {
-    browserName: "chromium",
+    baseURL: process.env.RAYX_SIGNALR_E2E_FIXTURE_URL,
     trace: "retain-on-failure",
     video: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  webServer: [
-    {
-      command: "pnpm run build:wasm && pnpm run serve:wasm",
-      url: "http://127.0.0.1:7878/",
-      timeout: 120_000,
-      reuseExistingServer: false,
-    },
-    {
-      command: "dotnet run --no-launch-profile --project ../dotnet/SignalRTestService/SignalRTestService.csproj --urls http://127.0.0.1:5220",
-      url: "http://127.0.0.1:5220/",
-      timeout: 120_000,
-      reuseExistingServer: true,
-    },
-  ],
   projects: [
     {
       name: "chromium",
