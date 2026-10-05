@@ -106,41 +106,31 @@ impl HttpClient {
         super::negotiate_http::post(&endpoint, authorization, recipe.tls()).await
     }
 
-    /// Browser negotiate: the browser's own HTTP stack.
+    /// Browser negotiate: `fetch` on the global scope, so it also works in Web Workers.
     #[cfg(target_arch = "wasm32")]
     async fn post_text(
         endpoint: String,
         authorization: Option<String>,
         _recipe: &ConnectionRecipe,
     ) -> Result<String, String> {
-        let (s, r) = futures::channel::oneshot::channel::<Result<String, String>>();
-
-        let mut request = ehttp::Request::post(endpoint, vec![]);
-
+        let mut request = gloo_net::http::Request::post(&endpoint);
         if let Some(value) = authorization {
-            request.headers.insert("Authorization", value);
+            request = request.header("Authorization", &value);
         }
-
-        ehttp::fetch(request, move |result| match result {
-            Ok(response) if !response.ok => {
-                _ = s.send(Err(format!(
-                    "the server returned {} {}",
-                    response.status, response.status_text
-                )));
-            }
-            Ok(response) => {
-                if let Some(text) = response.text() {
-                    _ = s.send(Ok(text.to_string()));
-                } else {
-                    _ = s.send(Err("The returned response has no text body".to_string()));
-                }
-            }
-            Err(e) => {
-                _ = s.send(Err(format!("The call failed: {e}")));
-            }
-        });
-
-        r.await
-            .unwrap_or(Err("The request is cancelled.".to_string()))
+        let response = request
+            .send()
+            .await
+            .map_err(|error| format!("The call failed: {error}"))?;
+        if !response.ok() {
+            return Err(format!(
+                "the server returned {} {}",
+                response.status(),
+                response.status_text()
+            ));
+        }
+        response
+            .text()
+            .await
+            .map_err(|error| format!("The returned response has no text body: {error}"))
     }
 }

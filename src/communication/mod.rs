@@ -1,3 +1,5 @@
+#[cfg(target_arch = "wasm32")]
+mod browser_socket;
 mod common;
 #[cfg(not(target_arch = "wasm32"))]
 mod negotiate_http;

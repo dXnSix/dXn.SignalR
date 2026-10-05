@@ -132,6 +132,11 @@ impl ReconnectionHandler {
 /// The `SignalRClient` can be used to invoke methods on the hub, send messages, and register callbacks.
 /// The client can be cloned and used freely across different parts of your application.
 ///
+/// In the browser the client is `!Send`: each client belongs to the thread or Web Worker that
+/// created it (it runs on that thread's event loop). Use one client per thread or worker; in
+/// threaded (atomics) builds, keep it on the thread that connected. Natively the client is `Send`
+/// and its tasks run on the connection's Tokio runtime.
+///
 /// ```ignore
 /// // Unwrap the result and assert the entity's text
 /// let entity = re.unwrap();
