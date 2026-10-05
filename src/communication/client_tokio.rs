@@ -576,7 +576,7 @@ impl Clone for CommunicationClient {
 
 impl Communication for CommunicationClient {
     async fn connect(configuration: &super::ConnectionData) -> Result<Self, String> {
-        let mut ret = CommunicationClient::create(configuration);
+        let mut ret = CommunicationClient::create(configuration)?;
 
         let res = ret.connect_internal().await;
 
@@ -661,25 +661,26 @@ impl Communication for CommunicationClient {
 }
 
 impl CommunicationClient {
-    fn create(configuration: &super::ConnectionData) -> Self {
+    fn create(configuration: &super::ConnectionData) -> Result<Self, String> {
         let recipe = configuration.get_recipe();
         info!(
             "Creating communication client to {}",
             recipe.display_endpoint()
         );
-        let endpoint = Uri::from_str(&configuration.get_endpoint()).unwrap_or_else(|_| {
-            panic!(
-                "The endpoint Uri {:?} is invalid",
-                configuration.get_endpoint().as_str()
+        // The transport URL can carry an access token, so the error never repeats it.
+        let endpoint = Uri::from_str(&configuration.get_endpoint()).map_err(|_| {
+            format!(
+                "The WebSocket endpoint for {} is not a valid URI",
+                recipe.display_endpoint()
             )
-        });
+        })?;
 
         let state = Arc::new(Mutex::new(ConnectionState::NotConnected(
             DisconnectionReason::NeverOpened,
         )));
         let coordinator = ReconnectCoordinator::connected();
 
-        CommunicationClient {
+        Ok(CommunicationClient {
             _endpoint: endpoint,
             _recipe: recipe,
             _state: state,
@@ -694,7 +695,7 @@ impl CommunicationClient {
             _disconnection_handler: Arc::new(RwLock::new(None)),
             _coordinator: coordinator,
             _protocol_kind: configuration.get_protocol_kind(),
-        }
+        })
     }
 
     pub fn set_reconnection_config(&mut self, config: ReconnectionConfig) {
@@ -762,7 +763,7 @@ impl CommunicationClient {
         );
         // Native clients authenticate the upgrade with the same header as negotiate.
         let mut builder = ClientBuilder::from_uri(endpoint.clone());
-        if let Some(value) = recipe.authentication().header_value() {
+        if let Some(value) = recipe.transport_authorization() {
             let value = http::HeaderValue::from_str(&value).map_err(|_| {
                 "The configured credentials are not a valid header value".to_string()
             })?;
@@ -866,7 +867,8 @@ impl CommunicationClient {
         let configuration = HttpClient::negotiate(recipe).await?;
         let endpoint = Uri::from_str(&configuration.get_endpoint())
             .map_err(|error| format!("Negotiated WebSocket endpoint is invalid: {error}"))?;
-        Self::connect_to_server(endpoint, protocol_kind, false, recipe).await
+        // The negotiated recipe carries any credentials a redirect issued for the transport.
+        Self::connect_to_server(endpoint, protocol_kind, false, &configuration.get_recipe()).await
     }
 
     async fn connect_internal(&mut self) -> Result<(), String> {

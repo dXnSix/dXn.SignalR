@@ -28,6 +28,7 @@ pub struct ConnectionConfiguration {
     _reconnection: ReconnectionConfig,
     _protocol: HubProtocolKind,
     _stateful_reconnect: Option<StatefulReconnectConfig>,
+    _skip_negotiation: bool,
     #[cfg(not(target_arch = "wasm32"))]
     _tls: crate::communication::tls::TlsSettings,
 }
@@ -62,11 +63,32 @@ pub(crate) struct ConnectionRecipe {
     authentication: Authentication,
     protocol: HubProtocolKind,
     stateful_reconnect: Option<StatefulReconnectConfig>,
+    skip_negotiation: bool,
+    /// Credentials for the transport when negotiation replaced them (a redirect access token).
+    transport_authentication: Option<Authentication>,
     #[cfg(not(target_arch = "wasm32"))]
     tls: crate::communication::tls::TlsContext,
 }
 
 impl ConnectionRecipe {
+    pub(crate) fn skips_negotiation(&self) -> bool {
+        self.skip_negotiation
+    }
+
+    pub(crate) fn with_transport_authentication(mut self, authentication: Authentication) -> Self {
+        self.transport_authentication = Some(authentication);
+        self
+    }
+
+    /// The `Authorization` value for the WebSocket: negotiated credentials, else configured ones.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn transport_authorization(&self) -> Option<String> {
+        self.transport_authentication
+            .as_ref()
+            .unwrap_or(&self.authentication)
+            .header_value()
+    }
+
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn is_secure(&self) -> bool {
         self.secure
@@ -88,6 +110,7 @@ impl ConnectionRecipe {
         format!("{}://{}/{}", self.http_schema(), self.domain(), self.hub)
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn socket_url(&self) -> String {
         format!("{}://{}/{}", self.socket_schema(), self.domain(), self.hub)
     }
@@ -104,12 +127,12 @@ impl ConnectionRecipe {
         self.stateful_reconnect
     }
 
+    #[cfg(test)]
     pub(crate) fn negotiate_url(&self) -> String {
-        let mut endpoint = format!("{}/negotiate?negotiateVersion=1", self.web_url());
-        if self.stateful_reconnect.is_some() {
-            endpoint.push_str("&useStatefulReconnect=true");
-        }
-        endpoint
+        crate::communication::negotiation::negotiate_url(
+            &self.web_url(),
+            self.stateful_reconnect.is_some(),
+        )
     }
 
     pub(crate) fn display_endpoint(&self) -> String {
@@ -124,6 +147,7 @@ impl ConnectionRecipe {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn socket_schema(&self) -> &'static str {
         if self.secure {
             "wss"
@@ -152,6 +176,7 @@ impl ConnectionConfiguration {
             _reconnection: ReconnectionConfig::default(),
             _protocol: HubProtocolKind::default(),
             _stateful_reconnect: None,
+            _skip_negotiation: false,
             #[cfg(not(target_arch = "wasm32"))]
             _tls: Default::default(),
         }
@@ -351,6 +376,16 @@ impl ConnectionConfiguration {
         self
     }
 
+    /// Connects the WebSocket directly to `ws(s)://host[:port]/hub` without a negotiate request,
+    /// as the official clients' `skipNegotiation` does; a bearer token is sent as `access_token`.
+    /// The server must allow WebSockets-only connections. Ordinary reconnects connect directly
+    /// too. Cannot be combined with [`with_stateful_reconnect`](Self::with_stateful_reconnect),
+    /// which needs the connection token negotiation issues: `connect` then fails before any I/O.
+    pub fn skip_negotiation(&mut self) -> &ConnectionConfiguration {
+        self._skip_negotiation = true;
+        self
+    }
+
     /// Enables ASP.NET Core stateful reconnect for this connection.
     pub fn with_stateful_reconnect(
         &mut self,
@@ -377,6 +412,8 @@ impl ConnectionConfiguration {
             authentication: self._authentication.clone(),
             protocol: self._protocol,
             stateful_reconnect: self._stateful_reconnect,
+            skip_negotiation: self._skip_negotiation,
+            transport_authentication: None,
             #[cfg(not(target_arch = "wasm32"))]
             tls: Default::default(),
         }

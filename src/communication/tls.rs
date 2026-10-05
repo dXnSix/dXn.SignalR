@@ -104,11 +104,22 @@ impl CompiledTls {
     }
 }
 
-/// The TLS state of one connection; empty for plaintext endpoints.
+/// TLS options of one connection, validated at `connect`.
+#[cfg(rayx_tls)]
+struct PreparedTls {
+    use_webpki_roots: bool,
+    extra_roots: Vec<rustls_pki_types::CertificateDer<'static>>,
+}
+
+/// The TLS state of one connection. Secure endpoints build the rustls config at `connect`; a
+/// plaintext endpoint builds it on first secure use (a negotiate redirect to an `https` service).
+/// Either way the connection keeps exactly one config for all of its requests and reconnects.
 #[derive(Clone, Default)]
 pub(crate) struct TlsContext {
     #[cfg(rayx_tls)]
-    config: Option<Arc<rustls::ClientConfig>>,
+    prepared: Option<Arc<PreparedTls>>,
+    #[cfg(rayx_tls)]
+    config: Arc<std::sync::Mutex<Option<Arc<rustls::ClientConfig>>>>,
 }
 
 impl TlsContext {
@@ -121,15 +132,17 @@ impl TlsContext {
                 Some(pem) => parse_certificates(pem)?,
                 None => Vec::new(),
             };
-            if !secure {
-                return Ok(Self::default());
+            let context = Self {
+                prepared: Some(Arc::new(PreparedTls {
+                    use_webpki_roots: settings.use_webpki_roots,
+                    extra_roots,
+                })),
+                config: Arc::default(),
+            };
+            if secure {
+                context.config()?;
             }
-            let compiled = CompiledTls::CURRENT;
-            let verifier = compiled.verifier(settings.use_webpki_roots, !extra_roots.is_empty())?;
-            let config = build_config(compiled.provider()?, verifier, extra_roots)?;
-            Ok(Self {
-                config: Some(Arc::new(config)),
-            })
+            Ok(context)
         }
         #[cfg(not(rayx_tls))]
         {
@@ -142,12 +155,36 @@ impl TlsContext {
         }
     }
 
-    /// The connection's rustls config; only secure connections have one.
+    /// The connection's rustls config, built once on first use.
     #[cfg(rayx_tls)]
     pub(crate) fn config(&self) -> Result<Arc<rustls::ClientConfig>, String> {
+        let mut slot = self.config.lock().expect("TLS config slot poisoned");
+        if let Some(config) = slot.as_ref() {
+            return Ok(config.clone());
+        }
+        let prepared = self
+            .prepared
+            .as_ref()
+            .ok_or_else(|| "The connection was not configured for TLS".to_string())?;
+        let compiled = CompiledTls::CURRENT;
+        let verifier =
+            compiled.verifier(prepared.use_webpki_roots, !prepared.extra_roots.is_empty())?;
+        let config = Arc::new(build_config(
+            compiled.provider()?,
+            verifier,
+            prepared.extra_roots.clone(),
+        )?);
+        *slot = Some(config.clone());
+        Ok(config)
+    }
+
+    /// Whether the connection has built its rustls config yet.
+    #[cfg(all(rayx_tls, test))]
+    pub(crate) fn is_built(&self) -> bool {
         self.config
-            .clone()
-            .ok_or_else(|| "The connection was not configured for TLS".to_string())
+            .lock()
+            .expect("TLS config slot poisoned")
+            .is_some()
     }
 
     /// The WebSocket connector for a `wss` endpoint.
@@ -351,9 +388,18 @@ NQ==
         }
 
         #[test]
-        fn plaintext_connections_have_no_tls_config() {
+        fn plaintext_connections_build_one_config_only_on_first_secure_use() {
             let context = TlsContext::for_connection(false, &settings(None, false)).unwrap();
-            assert!(context.config().is_err());
+            assert!(!context.is_built());
+            let first = context.config().unwrap();
+            let shared = context.clone();
+            assert!(std::sync::Arc::ptr_eq(&first, &shared.config().unwrap()));
+        }
+
+        #[test]
+        fn secure_connections_build_their_config_at_connect() {
+            let context = TlsContext::for_connection(true, &settings(None, false)).unwrap();
+            assert!(context.is_built());
         }
 
         #[test]

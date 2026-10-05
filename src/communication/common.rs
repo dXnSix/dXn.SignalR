@@ -1,11 +1,8 @@
-use crate::client::{Authentication, ConnectionRecipe};
+use crate::client::ConnectionRecipe;
 use crate::execution::UpdatableActionStorage;
 use crate::protocol::hub_protocol::HubProtocolKind;
-use crate::protocol::negotiate::NegotiateResponse;
 use serde::Deserialize;
 use serde::Serialize;
-
-const WEB_SOCKET_TRANSPORT: &str = "WebSockets";
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -40,6 +37,22 @@ pub struct ConnectionData {
 }
 
 impl ConnectionData {
+    pub(crate) fn new(
+        endpoint: String,
+        connection_id: String,
+        protocol_kind: HubProtocolKind,
+        recipe: ConnectionRecipe,
+        stateful_reconnect: Option<crate::StatefulReconnectConfig>,
+    ) -> Self {
+        Self {
+            endpoint,
+            connection_id,
+            protocol_kind,
+            recipe,
+            stateful_reconnect,
+        }
+    }
+
     pub fn get_endpoint(&self) -> String {
         self.endpoint.clone()
     }
@@ -75,101 +88,36 @@ pub trait Communication: Clone {
 pub struct HttpClient {}
 
 impl HttpClient {
+    /// Negotiates (following redirects) or connects directly when negotiation is skipped.
     pub(crate) async fn negotiate(recipe: &ConnectionRecipe) -> Result<ConnectionData, String> {
-        let negotiate_endpoint = recipe.negotiate_url();
-        let protocol_kind = recipe.protocol();
-        let authentication = recipe.authentication();
-        let json_text = HttpClient::post_text(negotiate_endpoint.clone(), recipe).await;
-
-        match json_text {
-            Ok(text) => {
-                let negotiate = NegotiateResponse::from_json(&text)
-                    .map_err(|e| format!("Failed to parse negotiate response: {e}"))?;
-
-                HttpClient::create_configuration(recipe.socket_url(), negotiate, protocol_kind, &authentication, recipe.clone())
-                    .ok_or_else(|| format!(
-                        "The negotiation concluded no matching communication protocols for {:?} transfer format",
-                        protocol_kind.transfer_format()
-                    ))
-            }
-            Err(e) => Err(format!(
-                "HTTP negotiation with endpoint {} failed: {}",
-                recipe.display_endpoint(),
-                e
-            )),
-        }
-    }
-
-    fn create_configuration(
-        endpoint: String,
-        negotiate: NegotiateResponse,
-        protocol_kind: HubProtocolKind,
-        authentication: &Authentication,
-        recipe: ConnectionRecipe,
-    ) -> Option<ConnectionData> {
-        let required_format = protocol_kind.transfer_format();
-        let fit = negotiate
-            .available_transports()
-            .iter()
-            .find(|i| i.transport == WEB_SOCKET_TRANSPORT)
-            .and_then(|i| {
-                i.transfer_formats
-                    .iter()
-                    .find(|j| j.as_str() == required_format)
-            })
-            .is_some();
-
-        if fit {
-            let stateful_reconnect = if negotiate.use_stateful_reconnect() {
-                recipe.stateful_reconnect()
-            } else {
-                None
-            };
-            let mut full_endpoint = format!("{}{}", endpoint, negotiate.endpoint_query());
-
-            // Browsers cannot set custom headers on WebSocket connections.
-            // Append the bearer token as a query parameter per the SignalR convention.
-            if let Authentication::Bearer { ref token } = authentication {
-                let separator = if full_endpoint.contains('?') {
-                    "&"
-                } else {
-                    "?"
-                };
-                full_endpoint = format!("{}{}access_token={}", full_endpoint, separator, token);
-            }
-
-            Some(ConnectionData {
-                endpoint: full_endpoint,
-                connection_id: negotiate.connection_id().to_string(),
-                protocol_kind,
-                recipe,
-                stateful_reconnect,
-            })
-        } else {
-            None
-        }
+        super::negotiation::negotiate_with(recipe, |url, authorization| {
+            Self::post_text(url, authorization, recipe)
+        })
+        .await
     }
 
     /// Native negotiate: hyper over the connection's TCP or rustls stream.
     #[cfg(not(target_arch = "wasm32"))]
-    async fn post_text(endpoint: String, recipe: &ConnectionRecipe) -> Result<String, String> {
-        super::negotiate_http::post(
-            &endpoint,
-            recipe.authentication().header_value(),
-            recipe.tls(),
-        )
-        .await
+    async fn post_text(
+        endpoint: String,
+        authorization: Option<String>,
+        recipe: &ConnectionRecipe,
+    ) -> Result<String, String> {
+        super::negotiate_http::post(&endpoint, authorization, recipe.tls()).await
     }
 
     /// Browser negotiate: the browser's own HTTP stack.
     #[cfg(target_arch = "wasm32")]
-    async fn post_text(endpoint: String, recipe: &ConnectionRecipe) -> Result<String, String> {
-        let authentication = recipe.authentication();
+    async fn post_text(
+        endpoint: String,
+        authorization: Option<String>,
+        _recipe: &ConnectionRecipe,
+    ) -> Result<String, String> {
         let (s, r) = futures::channel::oneshot::channel::<Result<String, String>>();
 
         let mut request = ehttp::Request::post(endpoint, vec![]);
 
-        if let Some(value) = authentication.header_value() {
+        if let Some(value) = authorization {
             request.headers.insert("Authorization", value);
         }
 

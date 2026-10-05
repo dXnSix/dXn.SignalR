@@ -67,12 +67,11 @@ impl NegotiateResponse {
         }
     }
 
-    /// The query string to append to the transport URL (`?id=<token>`).
-    /// V0 uses `connection_id`; V1 uses `connection_token`.
-    pub fn endpoint_query(&self) -> String {
+    /// The id the transport connects with: the v1 connection token, else the v0 connection id.
+    pub fn transport_id(&self) -> &str {
         match self {
-            NegotiateResponse::V0(v) => format!("?id={}", v.connection_id),
-            NegotiateResponse::V1(v) => format!("?id={}", v.connection_token),
+            NegotiateResponse::V0(v) => &v.connection_id,
+            NegotiateResponse::V1(v) => &v.connection_token,
         }
     }
 
