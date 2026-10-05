@@ -48,6 +48,10 @@ status/remotes, and recent history before changing the fork.
   the .NET test service when its packages change.
 - For GameX consumption, use a relative path dependency and keep the transport
   behind a GameX-owned adapter.
+- RayX consumes the crate through the workspace path dependency
+  `rayx-signalr = { path = "../RayX.SignalR" }`; `rayx_devkit::SignalRService`
+  is its desktop-native and browser-WASM adapter (not Android). Compile and test `rayx_devkit` after public API
+  changes.
 
 ## Validation
 

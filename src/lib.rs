@@ -6,7 +6,10 @@ pub(crate) mod platform;
 mod protocol;
 mod tests;
 
-pub use client::{DisconnectionHandler, InvocationContext, ReconnectionHandler, SignalRClient};
+pub use client::{
+    ConnectionConfiguration, DisconnectionHandler, InvocationContext, ReconnectionHandler,
+    SignalRClient,
+};
 pub use communication::reconnection::{
     ConstantDelayPolicy, ExponentialBackoffPolicy, LinearBackoffPolicy, NoReconnectPolicy,
     ReconnectionConfig, ReconnectionPolicy,
