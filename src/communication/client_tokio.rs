@@ -20,12 +20,14 @@ use super::{
     Communication, HttpClient,
 };
 use futures::{
+    channel::{mpsc, oneshot},
+    future::Either,
     stream::{SplitSink, SplitStream},
     SinkExt, StreamExt,
 };
 use http::Uri;
 use log::{error, info};
-use tokio::{net::TcpStream, sync::Mutex, task::JoinHandle};
+use tokio::{net::TcpStream, runtime::Handle, sync::Mutex, task::JoinHandle};
 use tokio_websockets::{ClientBuilder, MaybeTlsStream, Message, WebSocketStream};
 
 trait CommunicationDisconnectionHandler: Send {
@@ -35,7 +37,70 @@ trait CommunicationDisconnectionHandler: Send {
 type UserDisconnectionHandler = Arc<Box<dyn Fn(ReconnectionContext) + Send + Sync>>;
 type SharedStatefulBuffer = Arc<StdMutex<StatefulMessageBuffer>>;
 type SocketSink = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
-type SharedSocketSink = Arc<Mutex<SocketSink>>;
+type SocketStream = SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>;
+
+/// Frames waiting for the writer task; bounded so callers feel backpressure.
+const OUTBOUND_CAPACITY: usize = 64;
+
+/// One outbound application frame and the channel its sender awaits.
+struct OutboundFrame {
+    message: Message,
+    /// The message type and serialized frame for the stateful replay buffer.
+    tracking: Option<(MessageType, SerializedFrame)>,
+    done: oneshot::Sender<Result<(), String>>,
+}
+
+/// Sends frames through a physical connection's runtime-owned writer task. Awaiting a send only
+/// uses runtime-agnostic channels, so callers may run on any executor.
+#[derive(Clone)]
+struct ConnectionWriter {
+    /// Control frames (stateful Ack) that never wait behind application backpressure.
+    control: mpsc::UnboundedSender<Message>,
+    data: mpsc::Sender<OutboundFrame>,
+}
+
+impl ConnectionWriter {
+    async fn send(
+        &self,
+        message: Message,
+        tracking: Option<(MessageType, SerializedFrame)>,
+    ) -> Result<(), String> {
+        let (done, completed) = oneshot::channel();
+        self.data
+            .clone()
+            .send(OutboundFrame {
+                message,
+                tracking,
+                done,
+            })
+            .await
+            .map_err(|_| "The connection is closed".to_string())?;
+        completed
+            .await
+            .map_err(|_| "The connection closed before the message was sent".to_string())?
+    }
+
+    fn send_control(&self, message: Message) -> Result<(), String> {
+        self.control
+            .unbounded_send(message)
+            .map_err(|_| "The connection is closed".to_string())
+    }
+}
+
+/// Runs `future` on the connection's runtime (when one is bound) and awaits its result, so the
+/// caller's executor never polls Tokio I/O or timers itself.
+async fn on_runtime<T: Send + 'static>(
+    runtime: Option<Handle>,
+    future: impl std::future::Future<Output = Result<T, String>> + Send + 'static,
+) -> Result<T, String> {
+    match runtime {
+        Some(runtime) => runtime
+            .spawn(future)
+            .await
+            .map_err(|error| format!("The connection task failed: {error}"))?,
+        None => future.await,
+    }
+}
 
 /// Context for manual reconnection, passed to user's disconnection handler.
 /// Allows the user to manually trigger reconnection attempts.
@@ -60,8 +125,17 @@ impl ReconnectionContext {
         self.server_allows_reconnect
     }
 
-    /// Attempt to reconnect once. Returns Ok(()) on success.
+    /// Attempt to reconnect once. Returns Ok(()) on success. The attempt runs on the
+    /// connection's runtime, so this future may be awaited from any executor.
     pub async fn reconnect(&self) -> Result<(), String> {
+        let context = self.clone();
+        on_runtime(self.recipe.runtime(), async move {
+            context.reconnect_once().await
+        })
+        .await
+    }
+
+    async fn reconnect_once(&self) -> Result<(), String> {
         if !self.server_allows_reconnect {
             return Err("The server closed the connection without allowing reconnect".to_string());
         }
@@ -111,18 +185,15 @@ impl ReconnectionContext {
                     stateful: self.stateful.clone(),
                 };
 
-                let mut conn_struct = CommunicationConnection {
-                    _receiver: None,
-                    _sink: Arc::new(Mutex::new(write)),
-                    _stateful: self.stateful.clone(),
-                };
-                conn_struct.start_receiving(
+                let connection = CommunicationConnection::start(
+                    write,
                     read,
                     self.actions.clone(),
                     new_handler,
                     self.protocol_kind,
+                    self.stateful.clone(),
                 );
-                *guard = ConnectionState::Connected(Arc::new(Mutex::new(conn_struct)));
+                *guard = ConnectionState::Connected(Arc::new(Mutex::new(connection)));
                 info!("Manual reconnection successful");
                 Ok(())
             }
@@ -137,8 +208,17 @@ impl ReconnectionContext {
     }
 
     /// Attempt reconnection with automatic retries using the configured policy.
-    /// Returns Ok(()) on success, Err if all attempts are exhausted.
+    /// Returns Ok(()) on success, Err if all attempts are exhausted. The attempts and the policy
+    /// delays run on the connection's runtime, so this future may be awaited from any executor.
     pub async fn reconnect_with_policy(&self) -> Result<(), String> {
+        let context = self.clone();
+        on_runtime(self.recipe.runtime(), async move {
+            context.reconnect_with_policy_on_runtime().await
+        })
+        .await
+    }
+
+    async fn reconnect_with_policy_on_runtime(&self) -> Result<(), String> {
         let mut retry_count = 0u32;
         let start_time = std::time::Instant::now();
         let policy = self
@@ -157,7 +237,7 @@ impl ReconnectionContext {
                     tokio::time::sleep(d).await;
                 }
 
-                match self.reconnect().await {
+                match self.reconnect_once().await {
                     Ok(()) => return Ok(()),
                     Err(e) => {
                         if e.contains("locally disconnected") || !self.server_allows_reconnect {
@@ -188,23 +268,149 @@ impl ReconnectionContext {
     }
 }
 
+/// One physical WebSocket: a runtime-owned writer task that owns the sink and a runtime-owned
+/// receiver task that dispatches inbound frames.
 struct CommunicationConnection {
-    _sink: SharedSocketSink,
+    writer: ConnectionWriter,
     _receiver: Option<JoinHandle<()>>,
-    _stateful: Option<SharedStatefulBuffer>,
+    _writer_task: Option<JoinHandle<()>>,
 }
 
 impl CommunicationConnection {
-    fn start_receiving(
-        &mut self,
-        mut stream: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
+    /// Spawns the writer and receiver tasks on the connection's runtime.
+    fn start(
+        sink: SocketSink,
+        stream: SocketStream,
+        storage: impl Storage + Send + 'static,
+        disconnection_handler: ClientDisconnectionHandler,
+        protocol_kind: HubProtocolKind,
+        stateful: Option<SharedStatefulBuffer>,
+    ) -> Self {
+        let runtime = disconnection_handler
+            .recipe
+            .runtime()
+            .unwrap_or_else(Handle::current);
+        let (control, control_receiver) = mpsc::unbounded();
+        let (data, data_receiver) = mpsc::channel(OUTBOUND_CAPACITY);
+        let writer = ConnectionWriter { control, data };
+        // The writer only tracks frames for the transport it owns.
+        let tracking = stateful.clone().map(|buffer| {
+            let generation = buffer
+                .lock()
+                .expect("stateful buffer poisoned")
+                .transport_generation();
+            (buffer, generation)
+        });
+        let writer_task = runtime.spawn(Self::run_writer(
+            sink,
+            control_receiver,
+            data_receiver,
+            tracking,
+        ));
+        let receiver = runtime.spawn(Self::run_receiver(
+            stream,
+            storage,
+            disconnection_handler,
+            protocol_kind,
+            stateful,
+            writer.clone(),
+        ));
+        Self {
+            writer,
+            _receiver: Some(receiver),
+            _writer_task: Some(writer_task),
+        }
+    }
+
+    /// Owns the sink: sends control frames first, applies stateful tracking and backpressure to
+    /// application frames, and closes the socket once every sender is gone.
+    async fn run_writer(
+        mut sink: SocketSink,
+        mut control: mpsc::UnboundedReceiver<Message>,
+        mut data: mpsc::Receiver<OutboundFrame>,
+        stateful: Option<(SharedStatefulBuffer, u64)>,
+    ) {
+        loop {
+            match futures::future::select(control.next(), data.next()).await {
+                Either::Left((Some(message), _)) => {
+                    if sink.send(message).await.is_err() {
+                        break;
+                    }
+                }
+                Either::Right((Some(frame), _)) => {
+                    let (result, socket_failed) = Self::write_frame(
+                        &mut sink,
+                        &mut control,
+                        stateful.as_ref(),
+                        frame.message,
+                        frame.tracking,
+                    )
+                    .await;
+                    let _ = frame.done.send(result);
+                    if socket_failed {
+                        break;
+                    }
+                }
+                Either::Left((None, _)) | Either::Right((None, _)) => break,
+            }
+        }
+        let _ = sink.close().await;
+    }
+
+    /// Tracks (with backpressure) and sends one application frame. Returns the caller's result
+    /// and whether the socket failed. A frame that entered the replay buffer is delivered by the
+    /// stateful resume even when this socket fails, so its caller succeeds.
+    async fn write_frame(
+        sink: &mut SocketSink,
+        control: &mut mpsc::UnboundedReceiver<Message>,
+        stateful: Option<&(SharedStatefulBuffer, u64)>,
+        message: Message,
+        tracking: Option<(MessageType, SerializedFrame)>,
+    ) -> (Result<(), String>, bool) {
+        let mut buffered = false;
+        if let (Some((buffer, generation)), Some((message_type, payload))) = (stateful, tracking) {
+            loop {
+                let result = buffer.lock().expect("stateful buffer poisoned").track_for(
+                    *generation,
+                    message_type,
+                    payload.clone(),
+                );
+                match result {
+                    Ok(TrackResult::Buffered(_)) => {
+                        buffered = true;
+                        break;
+                    }
+                    Ok(TrackResult::Bypass) => break,
+                    Ok(TrackResult::Backpressured) => {
+                        // Keep acknowledging inbound frames while the replay buffer is full.
+                        while let Ok(ack) = control.try_recv() {
+                            if let Err(error) = sink.send(ack).await {
+                                return (Err(error.to_string()), true);
+                            }
+                        }
+                        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+                    }
+                    // A stale transport or disposed buffer: never send or track this frame.
+                    Err(error) => return (Err(error), false),
+                }
+            }
+        }
+        match sink.send(message).await {
+            Ok(()) => (Ok(()), false),
+            Err(_) if buffered => (Ok(()), true),
+            Err(error) => (Err(error.to_string()), true),
+        }
+    }
+
+    async fn run_receiver(
+        mut stream: SocketStream,
         mut storage: impl Storage + Send + 'static,
         disconnection_handler: ClientDisconnectionHandler,
         protocol_kind: HubProtocolKind,
+        stateful: Option<SharedStatefulBuffer>,
+        writer: ConnectionWriter,
     ) {
-        let stateful = self._stateful.clone();
-        let sink = self._sink.clone();
-        let handle = tokio::spawn(async move {
+        {
             let mut allow_reconnect = true;
             'receive: while let Some(item) = stream.next().await {
                 match item {
@@ -275,8 +481,8 @@ impl CommunicationConnection {
                                         };
                                         if let Some(sequence_id) = acknowledgement {
                                             if let Err(error) =
-                                                Self::send_ack(&sink, protocol_kind, sequence_id)
-                                                    .await
+                                                Self::ack_message(protocol_kind, sequence_id)
+                                                    .and_then(|ack| writer.send_control(ack))
                                             {
                                                 error!("Cannot send stateful Ack: {error}");
                                                 allow_reconnect = false;
@@ -373,12 +579,9 @@ impl CommunicationConnection {
                                                 }
                                             };
                                             if let Some(sequence_id) = acknowledgement {
-                                                if let Err(error) = Self::send_ack(
-                                                    &sink,
-                                                    protocol_kind,
-                                                    sequence_id,
-                                                )
-                                                .await
+                                                if let Err(error) =
+                                                    Self::ack_message(protocol_kind, sequence_id)
+                                                        .and_then(|ack| writer.send_control(ack))
                                                 {
                                                     error!("Cannot send stateful Ack: {error}");
                                                     allow_reconnect = false;
@@ -418,51 +621,40 @@ impl CommunicationConnection {
             }
 
             disconnection_handler.on_connection_dropped(allow_reconnect);
-        });
-
-        self._receiver = Some(handle);
+        }
     }
 
-    async fn send<T: serde::Serialize>(&mut self, data: T) -> Result<(), String> {
+    /// Serializes a JSON message and its replay-buffer tracking data.
+    fn json_frame<T: serde::Serialize>(
+        data: T,
+    ) -> Result<(Message, Option<(MessageType, SerializedFrame)>), String> {
         let json = MessageParser::to_json(&data).map_err(|error| error.to_string())?;
         let message_type =
             MessageParser::parse_message::<Ping>(MessageParser::strip_record_separator(&json))?
                 .message_type();
-        self.track_outgoing(message_type, SerializedFrame::Text(json.clone()))
-            .await?;
-
-        self._sink
-            .lock()
-            .await
-            .send(Message::text(json))
-            .await
-            .map_err(|e| e.to_string())
+        Ok((
+            Message::text(json.clone()),
+            Some((message_type, SerializedFrame::Text(json))),
+        ))
     }
 
+    /// Frames a MessagePack payload and its replay-buffer tracking data.
     #[cfg(feature = "messagepack")]
-    async fn send_binary(&mut self, data: Vec<u8>) -> Result<(), String> {
-        if self._stateful.is_some() {
-            let frames = crate::protocol::msgpack::split_framed_messages(&data)?;
-            let first = frames
-                .first()
-                .ok_or_else(|| "Cannot send an empty MessagePack frame".to_string())?;
-            let message_type = crate::protocol::msgpack::read_message_type(first)?;
-            self.track_outgoing(message_type, SerializedFrame::Binary(data.clone()))
-                .await?;
-        }
-        self._sink
-            .lock()
-            .await
-            .send(Message::binary(data))
-            .await
-            .map_err(|e| e.to_string())
+    fn binary_frame(
+        data: Vec<u8>,
+    ) -> Result<(Message, Option<(MessageType, SerializedFrame)>), String> {
+        let frames = crate::protocol::msgpack::split_framed_messages(&data)?;
+        let first = frames
+            .first()
+            .ok_or_else(|| "Cannot send an empty MessagePack frame".to_string())?;
+        let message_type = crate::protocol::msgpack::read_message_type(first)?;
+        Ok((
+            Message::binary(data.clone()),
+            Some((message_type, SerializedFrame::Binary(data))),
+        ))
     }
 
-    async fn send_ack(
-        sink: &SharedSocketSink,
-        protocol_kind: HubProtocolKind,
-        sequence_id: u64,
-    ) -> Result<(), String> {
+    fn ack_message(protocol_kind: HubProtocolKind, sequence_id: u64) -> Result<Message, String> {
         let message = match protocol_kind {
             HubProtocolKind::Json => Message::text(
                 MessageParser::to_json(&Ack::new(sequence_id))
@@ -476,33 +668,7 @@ impl CommunicationConnection {
                 )?)
             }
         };
-        sink.lock()
-            .await
-            .send(message)
-            .await
-            .map_err(|error| error.to_string())
-    }
-
-    async fn track_outgoing(
-        &self,
-        message_type: MessageType,
-        payload: SerializedFrame,
-    ) -> Result<(), String> {
-        let Some(buffer) = &self._stateful else {
-            return Ok(());
-        };
-        loop {
-            let result = buffer
-                .lock()
-                .expect("stateful buffer poisoned")
-                .track(message_type, payload.clone())?;
-            match result {
-                TrackResult::Buffered(_) | TrackResult::Bypass => return Ok(()),
-                TrackResult::Backpressured => {
-                    tokio::time::sleep(std::time::Duration::from_millis(5)).await;
-                }
-            }
-        }
+        Ok(message)
     }
 
     fn stop_receiving(&mut self) {
@@ -596,33 +762,14 @@ impl Communication for CommunicationClient {
     }
 
     async fn send<T: serde::Serialize>(&mut self, data: T) -> Result<(), String> {
-        let state = self._state.lock().await;
-        match &*state {
-            ConnectionState::NotConnected(reason) => Err(format!(
-                "Client is not connected, cannot send: {:?}",
-                reason
-            )),
-            ConnectionState::Connected(mutex) => {
-                let mut connection = mutex.lock().await;
-
-                connection.send(data).await
-            }
-        }
+        let (message, tracking) = CommunicationConnection::json_frame(data)?;
+        self.writer().await?.send(message, tracking).await
     }
 
     #[cfg(feature = "messagepack")]
     async fn send_binary(&mut self, data: Vec<u8>) -> Result<(), String> {
-        let state = self._state.lock().await;
-        match &*state {
-            ConnectionState::NotConnected(reason) => Err(format!(
-                "Client is not connected, cannot send: {:?}",
-                reason
-            )),
-            ConnectionState::Connected(mutex) => {
-                let mut connection = mutex.lock().await;
-                connection.send_binary(data).await
-            }
-        }
+        let (message, tracking) = CommunicationConnection::binary_frame(data)?;
+        self.writer().await?.send(message, tracking).await
     }
 
     async fn disconnect(&mut self) {
@@ -661,6 +808,27 @@ impl Communication for CommunicationClient {
 }
 
 impl CommunicationClient {
+    /// The current physical connection's writer. The state lock is released before sending, so a
+    /// waiting send never blocks `disconnect` or a reconnect.
+    async fn writer(&self) -> Result<ConnectionWriter, String> {
+        let connection = match &*self._state.lock().await {
+            ConnectionState::NotConnected(reason) => {
+                return Err(format!(
+                    "Client is not connected, cannot send: {:?}",
+                    reason
+                ));
+            }
+            ConnectionState::Connected(connection) => connection.clone(),
+        };
+        let writer = connection.lock().await.writer.clone();
+        Ok(writer)
+    }
+
+    /// The Tokio runtime this connection's tasks run on.
+    pub(crate) fn runtime(&self) -> Option<Handle> {
+        self._recipe.runtime()
+    }
+
     fn create(configuration: &super::ConnectionData) -> Result<Self, String> {
         let recipe = configuration.get_recipe();
         info!(
@@ -882,12 +1050,6 @@ impl CommunicationClient {
 
         match res {
             Ok((write, read)) => {
-                let mut connection = CommunicationConnection {
-                    _receiver: None,
-                    _sink: Arc::new(Mutex::new(write)),
-                    _stateful: self._stateful.clone(),
-                };
-
                 let handler = ClientDisconnectionHandler {
                     state: Arc::downgrade(&self._state),
                     endpoint: Uri::from_str(&self._recipe.socket_url())
@@ -902,11 +1064,13 @@ impl CommunicationClient {
                     stateful: self._stateful.clone(),
                 };
 
-                connection.start_receiving(
+                let connection = CommunicationConnection::start(
+                    write,
                     read,
                     self._actions.clone(),
                     handler,
                     self._protocol_kind,
+                    self._stateful.clone(),
                 );
 
                 let mut state = self._state.lock().await;
@@ -986,8 +1150,9 @@ impl CommunicationDisconnectionHandler for ClientDisconnectionHandler {
         let coordinator = self.coordinator.clone();
         let protocol_kind = self.protocol_kind;
         let stateful = self.stateful.clone();
+        let runtime = self.recipe.runtime().unwrap_or_else(Handle::current);
 
-        tokio::spawn(async move {
+        runtime.spawn(async move {
             if coordinator.lifecycle() == LifecycleState::LocalClosed {
                 return;
             }
@@ -1146,19 +1311,16 @@ impl CommunicationDisconnectionHandler for ClientDisconnectionHandler {
                                     stateful: stateful.clone(),
                                 };
 
-                                let mut conn_struct = CommunicationConnection {
-                                    _receiver: None,
-                                    _sink: Arc::new(Mutex::new(write)),
-                                    _stateful: stateful.clone(),
-                                };
-                                conn_struct.start_receiving(
+                                let connection = CommunicationConnection::start(
+                                    write,
                                     read,
                                     actions.clone(),
                                     new_handler,
                                     protocol_kind,
+                                    stateful.clone(),
                                 );
                                 *guard =
-                                    ConnectionState::Connected(Arc::new(Mutex::new(conn_struct)));
+                                    ConnectionState::Connected(Arc::new(Mutex::new(connection)));
                                 info!("Reconnected successfully (automatic mode)");
                                 return;
                             } else {

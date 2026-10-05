@@ -46,7 +46,14 @@ pub(crate) struct StatefulMessageBuffer {
     awaiting_sequence: bool,
     resending: bool,
     disposed: bool,
+    /// Incremented when the physical transport is lost or the buffer is disposed; a writer of an
+    /// older transport can no longer track frames.
+    transport_generation: u64,
 }
+
+/// Returned when a writer of a lost transport tries to track a frame.
+#[cfg(any(not(target_arch = "wasm32"), test))]
+pub(crate) const STALE_TRANSPORT: &str = "The connection was lost before the message was sent";
 
 impl StatefulMessageBuffer {
     pub(crate) fn new(capacity: usize) -> Result<Self, String> {
@@ -65,7 +72,29 @@ impl StatefulMessageBuffer {
             awaiting_sequence: false,
             resending: false,
             disposed: false,
+            transport_generation: 0,
         })
+    }
+
+    /// The generation of the current physical transport.
+    #[cfg(any(not(target_arch = "wasm32"), test))]
+    pub(crate) fn transport_generation(&self) -> u64 {
+        self.transport_generation
+    }
+
+    /// Tracks a frame for the transport of `generation`; frames of a lost transport are rejected
+    /// so they never take a sequence number the resumed connection did not send.
+    #[cfg(any(not(target_arch = "wasm32"), test))]
+    pub(crate) fn track_for(
+        &mut self,
+        generation: u64,
+        message_type: MessageType,
+        payload: SerializedFrame,
+    ) -> Result<TrackResult, String> {
+        if generation != self.transport_generation {
+            return Err(STALE_TRANSPORT.to_string());
+        }
+        self.track(message_type, payload)
     }
 
     pub(crate) fn track(
@@ -130,6 +159,7 @@ impl StatefulMessageBuffer {
 
     pub(crate) fn disconnected(&mut self) -> Result<(), String> {
         self.ensure_active()?;
+        self.transport_generation = self.transport_generation.wrapping_add(1);
         self.awaiting_sequence = true;
         // The final Ack may have been lost with the transport. Allow the
         // resumed connection to acknowledge the cumulative high-water mark.
@@ -203,6 +233,7 @@ impl StatefulMessageBuffer {
     }
 
     pub(crate) fn dispose(&mut self) {
+        self.transport_generation = self.transport_generation.wrapping_add(1);
         self.disposed = true;
         self.resending = false;
         self.awaiting_sequence = false;
@@ -366,5 +397,70 @@ mod stateful_buffer_tests {
             100_000
         );
         assert!(crate::StatefulReconnectConfig::new(0).is_err());
+    }
+}
+
+#[cfg(test)]
+mod stateful_transport_generation {
+    use super::{SerializedFrame, StatefulMessageBuffer, TrackResult, STALE_TRANSPORT};
+    use crate::protocol::negotiate::MessageType;
+
+    fn frame() -> SerializedFrame {
+        SerializedFrame::Text("{\"type\":1}\u{1e}".to_string())
+    }
+
+    #[test]
+    fn writers_of_a_lost_transport_cannot_track_frames() {
+        let mut buffer = StatefulMessageBuffer::new(1_000).unwrap();
+        let first = buffer.transport_generation();
+        assert!(matches!(
+            buffer.track_for(first, MessageType::Invocation, frame()),
+            Ok(TrackResult::Buffered(1))
+        ));
+        buffer.disconnected().unwrap();
+        let before = buffer.buffered_bytes();
+        assert_eq!(
+            buffer
+                .track_for(first, MessageType::Invocation, frame())
+                .unwrap_err(),
+            STALE_TRANSPORT
+        );
+        assert_eq!(
+            buffer.buffered_bytes(),
+            before,
+            "a stale frame is never buffered"
+        );
+    }
+
+    #[test]
+    fn the_resumed_transport_tracks_the_next_sequence_while_the_old_one_stays_rejected() {
+        let mut buffer = StatefulMessageBuffer::new(1_000).unwrap();
+        let first = buffer.transport_generation();
+        buffer
+            .track_for(first, MessageType::Invocation, frame())
+            .unwrap();
+        buffer.disconnected().unwrap();
+        let (_, replay) = buffer.begin_resend().unwrap();
+        assert_eq!(replay.len(), 1);
+        buffer.finish_resend().unwrap();
+        let resumed = buffer.transport_generation();
+        assert_ne!(resumed, first);
+        assert!(matches!(
+            buffer.track_for(resumed, MessageType::Invocation, frame()),
+            Ok(TrackResult::Buffered(2))
+        ));
+        assert!(buffer
+            .track_for(first, MessageType::Invocation, frame())
+            .is_err());
+    }
+
+    #[test]
+    fn disposing_invalidates_every_writer() {
+        let mut buffer = StatefulMessageBuffer::new(1_000).unwrap();
+        let generation = buffer.transport_generation();
+        buffer.dispose();
+        assert!(buffer
+            .track_for(generation, MessageType::Invocation, frame())
+            .is_err());
     }
 }

@@ -3,6 +3,12 @@ use crate::communication::reconnection::ReconnectionConfig;
 use crate::protocol::hub_protocol::HubProtocolKind;
 use crate::StatefulReconnectConfig;
 
+/// Returned by native `connect` when neither a runtime handle nor an ambient runtime exists.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) const NO_RUNTIME: &str = "rayx-signalr needs a Tokio runtime for native connections: \
+call connect from within a Tokio runtime, or pass one with \
+ConnectionConfiguration::with_runtime_handle(tokio::runtime::Handle)";
+
 #[derive(Clone)]
 pub(crate) enum Authentication {
     None,
@@ -31,6 +37,8 @@ pub struct ConnectionConfiguration {
     _skip_negotiation: bool,
     #[cfg(not(target_arch = "wasm32"))]
     _tls: crate::communication::tls::TlsSettings,
+    #[cfg(not(target_arch = "wasm32"))]
+    _runtime: Option<tokio::runtime::Handle>,
 }
 
 impl Authentication {
@@ -68,9 +76,23 @@ pub(crate) struct ConnectionRecipe {
     transport_authentication: Option<Authentication>,
     #[cfg(not(target_arch = "wasm32"))]
     tls: crate::communication::tls::TlsContext,
+    /// The Tokio runtime that owns this connection's I/O, timers and tasks.
+    #[cfg(not(target_arch = "wasm32"))]
+    runtime: Option<tokio::runtime::Handle>,
 }
 
 impl ConnectionRecipe {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn runtime(&self) -> Option<tokio::runtime::Handle> {
+        self.runtime.clone()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn with_runtime(mut self, runtime: tokio::runtime::Handle) -> Self {
+        self.runtime = Some(runtime);
+        self
+    }
+
     pub(crate) fn skips_negotiation(&self) -> bool {
         self.skip_negotiation
     }
@@ -179,6 +201,8 @@ impl ConnectionConfiguration {
             _skip_negotiation: false,
             #[cfg(not(target_arch = "wasm32"))]
             _tls: Default::default(),
+            #[cfg(not(target_arch = "wasm32"))]
+            _runtime: None,
         }
     }
 
@@ -416,12 +440,40 @@ impl ConnectionConfiguration {
             transport_authentication: None,
             #[cfg(not(target_arch = "wasm32"))]
             tls: Default::default(),
+            #[cfg(not(target_arch = "wasm32"))]
+            runtime: None,
         }
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn tls_settings(&self) -> &crate::communication::tls::TlsSettings {
         &self._tls
+    }
+
+    /// The runtime for this connection: the configured handle, else the ambient runtime at
+    /// `connect`, else an error that explains both options. Native only.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn resolve_runtime(&self) -> Result<tokio::runtime::Handle, String> {
+        self._runtime
+            .clone()
+            .or_else(|| tokio::runtime::Handle::try_current().ok())
+            .ok_or_else(|| NO_RUNTIME.to_string())
+    }
+
+    /// Binds this connection to a Tokio runtime. Native only.
+    ///
+    /// Socket I/O, timers (reconnect delays, stateful backpressure) and the connection's tasks
+    /// run on this runtime, and the client's futures only wait on runtime-agnostic primitives, so
+    /// they can be awaited from any executor (for example a UI framework's executor or
+    /// `futures::executor::block_on` on a plain thread). Without this, `connect` binds the
+    /// connection to the ambient Tokio runtime it is called from.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_runtime_handle(
+        &mut self,
+        runtime: tokio::runtime::Handle,
+    ) -> &ConnectionConfiguration {
+        self._runtime = Some(runtime);
+        self
     }
 
     /// Trusts additional root certificates (PEM, one or more `CERTIFICATE` blocks) for secure

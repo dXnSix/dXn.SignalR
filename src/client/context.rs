@@ -210,9 +210,12 @@ impl InvocationContext {
         self.client.send_completion(invocation_id, result).await
     }
 
-    /// Spawns the given async block into a new thread.
+    /// Spawns the given async block on the ambient Tokio runtime.
     ///
     /// This method is a convenience method for writing cross-platform code, as the package supports both Tokio and WASM.
+    /// Callbacks run on the connection's runtime-owned receiver task, so calling this from a
+    /// callback (for example to [`complete`](Self::complete) a client result) spawns onto the
+    /// connection's runtime. Outside a Tokio runtime context it panics like `tokio::spawn`.
     ///
     /// # Arguments
     ///

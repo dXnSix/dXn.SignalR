@@ -12,7 +12,7 @@ use crate::execution::{
 use crate::protocol::hub_protocol::HubProtocolKind;
 use crate::protocol::invoke::{CancelInvocation, Completion, Invocation};
 
-use super::{ConnectionConfiguration, InvocationContext};
+use super::{ConnectionConfiguration, ConnectionRecipe, InvocationContext};
 
 #[cfg(not(target_arch = "wasm32"))]
 use crate::communication::ReconnectionContext;
@@ -294,6 +294,9 @@ impl SignalRClient {
         let disconnection_handler = config.get_disconnection_handler();
         let reconnection_config = config.get_reconnection_config();
         let recipe = config.connection_recipe();
+        // Every native connection is owned by one Tokio runtime, resolved before any I/O.
+        #[cfg(not(target_arch = "wasm32"))]
+        let recipe = recipe.with_runtime(config.resolve_runtime()?);
         // One TLS configuration per connection, validated before any I/O.
         #[cfg(not(target_arch = "wasm32"))]
         let recipe = {
@@ -311,9 +314,7 @@ impl SignalRClient {
             return Err("Stateful reconnect buffer size must be greater than zero".to_string());
         }
 
-        let configuration = HttpClient::negotiate(&recipe).await?;
-        info!("Negotiation successful for {}", recipe.display_endpoint());
-        let mut client = CommunicationClient::connect(&configuration).await?;
+        let mut client = Self::open(recipe).await?;
         let storage = client.get_storage()?;
 
         client.set_reconnection_config(reconnection_config);
@@ -329,6 +330,33 @@ impl SignalRClient {
             _actions: storage,
             _connection: Some(client),
         })
+    }
+
+    /// Negotiates and opens the connection; natively on the connection's runtime, so the caller's
+    /// executor never polls Tokio I/O or timers.
+    async fn open(recipe: ConnectionRecipe) -> Result<CommunicationClient, String> {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let runtime = recipe
+                .runtime()
+                .ok_or_else(|| crate::client::configuration::NO_RUNTIME.to_string())?;
+            runtime
+                .spawn(Self::negotiate_and_connect(recipe))
+                .await
+                .map_err(|error| format!("The connection task failed: {error}"))?
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            Self::negotiate_and_connect(recipe).await
+        }
+    }
+
+    async fn negotiate_and_connect(
+        recipe: ConnectionRecipe,
+    ) -> Result<CommunicationClient, String> {
+        let configuration = HttpClient::negotiate(&recipe).await?;
+        info!("Negotiation successful for {}", recipe.display_endpoint());
+        CommunicationClient::connect(&configuration).await
     }
 
     /// Registers a callback that can be called by the SignalR hub.
@@ -699,20 +727,28 @@ impl SignalRClient {
         let cancellation_invocation_id = invocation_id.clone();
         let cancellation_connection = self._connection.clone();
         #[cfg(not(target_arch = "wasm32"))]
-        let cancellation_runtime = tokio::runtime::Handle::current();
+        let cancellation_runtime = self
+            ._connection
+            .as_ref()
+            .and_then(CommunicationClient::runtime)
+            .or_else(|| tokio::runtime::Handle::try_current().ok());
         let drop_handler: crate::completer::StreamDropHandler = Box::new(move || {
             cancellation_actions.remove(cancellation_invocation_id.clone());
             let Some(mut connection) = cancellation_connection else {
                 return;
             };
+            // Dropping the stream sends CancelInvocation from the connection's runtime.
             #[cfg(not(target_arch = "wasm32"))]
-            cancellation_runtime.spawn(async move {
-                if let Err(error) =
-                    Self::send_cancel_invocation(&mut connection, cancellation_invocation_id).await
-                {
-                    warn!("Cannot cancel dropped stream invocation: {error}");
-                }
-            });
+            if let Some(runtime) = cancellation_runtime {
+                runtime.spawn(async move {
+                    if let Err(error) =
+                        Self::send_cancel_invocation(&mut connection, cancellation_invocation_id)
+                            .await
+                    {
+                        warn!("Cannot cancel dropped stream invocation: {error}");
+                    }
+                });
+            }
             #[cfg(target_arch = "wasm32")]
             wasm_bindgen_futures::spawn_local(async move {
                 if let Err(error) =
@@ -818,5 +854,84 @@ impl Clone for SignalRClient {
             _actions: self._actions.clone(),
             _connection: self._connection.clone(),
         }
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod runtime_ownership {
+    use super::SignalRClient;
+    use crate::client::ConnectionConfiguration;
+
+    /// A loopback port with nothing listening on it.
+    fn closed_port() -> i32 {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        i32::from(listener.local_addr().unwrap().port())
+    }
+
+    /// Runs `future` with `futures::executor::block_on` on a thread that has no Tokio runtime.
+    fn on_plain_thread<T: Send + 'static>(future: impl FnOnce() -> T + Send + 'static) -> T {
+        std::thread::spawn(move || {
+            assert!(tokio::runtime::Handle::try_current().is_err());
+            future()
+        })
+        .join()
+        .expect("the plain thread must not panic")
+    }
+
+    #[test]
+    fn connect_without_a_runtime_explains_both_options_before_any_io() {
+        let port = closed_port();
+        let error = on_plain_thread(move || {
+            futures::executor::block_on(SignalRClient::connect_with("127.0.0.1", "hub", |c| {
+                c.unsecure();
+                c.with_port(port);
+            }))
+            .err()
+            .expect("connect must fail without a runtime")
+        });
+        assert!(error.contains("needs a Tokio runtime"), "{error}");
+        assert!(error.contains("with_runtime_handle"), "{error}");
+    }
+
+    #[test]
+    fn a_configured_runtime_runs_connect_awaited_from_a_foreign_executor() {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .build()
+            .unwrap();
+        let handle = runtime.handle().clone();
+        let port = closed_port();
+        let error = on_plain_thread(move || {
+            futures::executor::block_on(SignalRClient::connect_with("127.0.0.1", "hub", |c| {
+                c.unsecure();
+                c.with_port(port);
+                c.with_runtime_handle(handle.clone());
+            }))
+            .err()
+            .expect("nothing listens on the port")
+        });
+        assert!(
+            !error.contains("needs a Tokio runtime"),
+            "the configured runtime was not used: {error}"
+        );
+        assert!(error.contains("Cannot connect"), "{error}");
+    }
+
+    #[test]
+    fn the_configured_runtime_wins_and_the_ambient_runtime_is_the_fallback() {
+        let configured = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let mut configuration = ConnectionConfiguration::new("host".into(), "hub".into());
+        assert!(configuration.resolve_runtime().is_err());
+        configuration.with_runtime_handle(configured.handle().clone());
+        assert!(configuration.resolve_runtime().is_ok());
+
+        let ambient = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let unconfigured = ConnectionConfiguration::new("host".into(), "hub".into());
+        ambient.block_on(async { assert!(unconfigured.resolve_runtime().is_ok()) });
     }
 }
