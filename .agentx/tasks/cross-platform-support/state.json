@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "cross-platform-support",
-  "revision": 25,
+  "revision": 33,
   "planRevision": 4,
   "specHashes": {
     "requirements": "7eb9cbe1721e8eb99d4c5705831832ccae1fd86cc2fa0eedd8d134f82a4c97a8",
@@ -52,10 +52,16 @@
       ]
     },
     "S3.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S3.T2": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S4.T1": {
       "status": "pending"
@@ -160,6 +166,15 @@
         }
       },
       "recordedAt": "2026-10-05T21:54:50Z"
+    },
+    "ba011307c85bae50769638aa8866a5da4132a79cc13e0fce902cb23d8d440447": {
+      "snapshot": {
+        "specHash": "54584a096a51b1c70e4686edb3d6c8ceda3ab29eee04f10f0e7105bb7f420274",
+        "repositories": {
+          "rayx-signalr": "41e2d63793ed480fb250e3d6c377b3bce73822a5c4adbec06f2b9468b0a80439"
+        }
+      },
+      "recordedAt": "2026-10-05T22:02:38Z"
     }
   },
   "checkResults": {
@@ -315,6 +330,40 @@
       "logPath": "artifacts-temp/agentx/cross-platform-support/S2-final-999239daf91b.log",
       "logSha256": "4d1fc7109e3325b9f05184bae79afbb79ca2ff7c6310555525e2146d714926c2",
       "inputsHash": "30635286853d1103e99a6ed2530ba66b018f9ddecbaced3ccc32b047d823b94c"
+    },
+    "S3/s3-manifest-hygiene/final": {
+      "checkId": "s3-manifest-hygiene",
+      "boundaryId": "S3",
+      "phase": "final",
+      "batchId": "ba011307c85bae50769638aa8866a5da4132a79cc13e0fce902cb23d8d440447",
+      "definitionHash": "8e581aebfe2f49b075d10bcfbe96e95e24208b7407c09e7f1ccf2fc44f79dbf3",
+      "basisHash": "96ede7d29532a9bcfceb60d40fe4e26af1989d766879c591f29adeae86fcb3a4",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 7,
+      "durationSeconds": 4.6513,
+      "recordedAt": "2026-10-05T22:02:33Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S3-final-1eaa68480f22.log",
+      "logSha256": "65d987dd10a4b355d46deb9a2999fd62b7a862d54a496fc36fee4ee4d04aa204",
+      "inputsHash": "7e22e4a25ebe8a06bb35bfaeeb7d839993849b97a35ab065267eafe6c59e4dd1"
+    },
+    "S3/s3-wasi-rejected/final": {
+      "checkId": "s3-wasi-rejected",
+      "boundaryId": "S3",
+      "phase": "final",
+      "batchId": "ba011307c85bae50769638aa8866a5da4132a79cc13e0fce902cb23d8d440447",
+      "definitionHash": "6c6062456e4ed62289490bc3d8cf197c26cbe1dd843f2756245fb5b40708e5e9",
+      "basisHash": "f3b1c2a6fe29fe6654409d7c3e30b343d9ff172b5a84cd45b6f29f2e5297a1ba",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 3,
+      "durationSeconds": 4.8908,
+      "recordedAt": "2026-10-05T22:02:38Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S3-final-8aa63241a695.log",
+      "logSha256": "d1d1438544f455ac67ce5a920d1898b8369eaef83d16c31017c9d040a3a6a506",
+      "inputsHash": "16133dbea70f64cd3a6196795b91a6179d770e21b16cd7b4a076d82956c7be13"
     }
   },
   "reviews": {
@@ -1008,6 +1057,92 @@
         "S2-F2"
       ],
       "recordedAt": "2026-10-05T21:55:47Z"
+    },
+    "S3": {
+      "reviewerId": "s3-reviewer-independent-c64f10b9",
+      "snapshotId": "ba011307c85bae50769638aa8866a5da4132a79cc13e0fce902cb23d8d440447",
+      "criterionIds": [
+        "R3.C1",
+        "R3.C2",
+        "R3.C3"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "Cargo.toml",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C1",
+            "R3.C2",
+            "R3.C3"
+          ],
+          "sha256": "db375ca8c2436e5dfa0fe2e2045bbc89201b3de46750e2e0b01f1e86dce0c753"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/lib.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C3"
+          ],
+          "sha256": "da305f0c06fd37a2cdefdf1ce99e7e3d8c5373fe7ea38c321be82db006ea762b"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/context.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C3"
+          ],
+          "sha256": "11811f71c6fd328ddca9b3dc8b2e293bc1e49f00ffda9a932d9cb925ce2e63a5"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/Cargo.toml",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C2"
+          ],
+          "sha256": "c5ccfae0b6d0efe6cc4c5dd6e2439f38a3a9d5aa057e90601922a8bf389c43cf"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/ManifestHygieneTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R3.C1",
+            "R3.C2"
+          ],
+          "sha256": "7c4a365effa95a78b11b37ac81d21e466b7570b78ee7cca79236f0348a625dfb"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/Cargo.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R3.C1",
+            "R3.C2",
+            "R3.C3"
+          ],
+          "sha256": "f0a5073fb7ac0cf752bb490a0137468d17ea7e3a43548a2cdc5c53a5125cff08"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/WasmGatingTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R3.C3"
+          ],
+          "sha256": "6bb825cb40b41068c1936aa543a5c6cb46a16d01dae08c4380424637aa523275"
+        }
+      ],
+      "summaryMarkdown": "R3.C1-R3.C3 hold. Normal deps exclude test-log, console_log, console_error_panic_hook, wasm-timer and async-std (none used by library code; env_logger is dev-only), the crate type is rlib only and the fixture is its own cdylib, and the normal tokio dependency is default-features=false with rt/net/time/sync, with no prohibited resolved features. The dev tokio provides macros/rt-multi-thread. One target_arch predicate family is used, and the lib.rs compile_error! is the only wasm32-wasip1 error (reviewer rerun). Reviewer cargo check --lib passes on the host and on wasm32-unknown-unknown. Repairs verified: S3-F1 (NeverCompiledWasmTestsAreDeleted) and S3-F2 (the dev tokio entry must exist with macros and rt-multi-thread) are both meaningful; rerun evidence: manifest-hygiene 7/7, wasi-rejected 3/3. Note: D6 said to move the debug crates to dev-dependencies; they were removed instead, consistent with the D6 invariant.",
+      "findingIds": [
+        "S3-F1",
+        "S3-F2"
+      ],
+      "recordedAt": "2026-10-05T22:03:01Z"
     }
   },
   "checkpoints": {
@@ -1026,6 +1161,14 @@
       },
       "reviewHash": "bc2aad7ef49bd2b20263c638ff1e34efa7b60dc6398275f8f599bfc7749f7fac",
       "recordedAt": "2026-10-05T21:56:09Z"
+    },
+    "S3": {
+      "snapshotId": "ba011307c85bae50769638aa8866a5da4132a79cc13e0fce902cb23d8d440447",
+      "commits": {
+        "rayx-signalr": "9bcba964d200c5e2e649204c1a5f13070994784e"
+      },
+      "reviewHash": "2dc80ff32d628be9011a29681de73642f41bbd0ed7646bc29fdee0f863c19d74",
+      "recordedAt": "2026-10-05T22:03:13Z"
     }
   },
   "findings": [
@@ -1128,6 +1271,40 @@
         {
           "repositoryId": "rayx-signalr",
           "path": "src/communication/client_wasm.rs"
+        }
+      ]
+    },
+    {
+      "id": "S3-F1",
+      "boundaryId": "S3",
+      "criterionIds": [
+        "R3.C1"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Deletion of `src/tests/tests_wasm.rs` is not verified by `manifest-hygiene`.** Expected: R3.C1 states the deletion is verified by the `Platform`/`manifest-hygiene` case. Observed: the file is deleted (staged `D`), but no `manifest-hygiene` test (nor any other test) asserts its absence; `RepositoryTests.LibrarySourcesContainNoRemovedTestHooks` checks only `tests_tokio.rs`/`tests_msgpack.rs`, so re-adding the orphaned file would pass every check. Repair: in `ManifestHygieneTests` add an assertion (e.g. a `[Fact]` with the `manifest-hygiene` traits, or inside `LibraryIsRlibAndTheFixtureIsItsOwnCdylib`) that `src/tests/tests_wasm.rs` does not exist, then rerun `s3-manifest-hygiene`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/ManifestHygieneTests.cs",
+          "symbol": "ManifestHygieneTests.NeverCompiledWasmTestsAreDeleted"
+        }
+      ]
+    },
+    {
+      "id": "S3-F2",
+      "boundaryId": "S3",
+      "criterionIds": [
+        "R3.C2"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Tautological dev-dependency assertion in `TokioDependencyEnablesOnlyRuntimeFeatures`.** Expected: the part of R3.C2 saying test-only tokio features come from `[dev-dependencies]` is either asserted meaningfully or not claimed. Observed: `Assert.All(tokio.Where(kind == \"dev\"), d => Assert.Equal(\"dev\", kind))` filters on `kind == \"dev\"` and then asserts the same value, so it can never fail (it also passes when no dev `tokio` exists). Repair: replace it with an assertion that a `kind == \"dev\"` `tokio` entry exists and its `features` include `macros` and `rt-multi-thread` (or delete the no-op line); rerun `s3-manifest-hygiene`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/ManifestHygieneTests.cs",
+          "symbol": "ManifestHygieneTests.TokioDependencyEnablesOnlyRuntimeFeatures"
         }
       ]
     }
