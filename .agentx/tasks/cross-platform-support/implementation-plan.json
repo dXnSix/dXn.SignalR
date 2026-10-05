@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "cross-platform-support",
-  "revision": 5,
+  "revision": 6,
   "title": "Cross-platform rayx-signalr with Aspire-orchestrated end-to-end testing on every target",
   "validationMode": "sprint",
   "repositories": [
@@ -1575,6 +1575,31 @@
         "src/communication/**"
       ],
       "timeoutSeconds": 900
+    },
+    {
+      "id": "s6-stateful-generation",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R6.C3"
+      ],
+      "descriptionMarkdown": "New `stateful_transport_generation` unit group: a writer of a lost transport cannot track frames; the resumed transport continues the sequence.",
+      "argv": [
+        "cargo",
+        "test",
+        "--lib",
+        "--all-features",
+        "stateful_transport_generation"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 3
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/communication/**"
+      ],
+      "timeoutSeconds": 900
     }
   ],
   "finalCheckIds": [
@@ -2271,7 +2296,8 @@
           ],
           "checkIds": [
             "s6-executor-e2e",
-            "s6-native-regression"
+            "s6-native-regression",
+            "s6-stateful-generation"
           ],
           "sourceRefs": [
             {

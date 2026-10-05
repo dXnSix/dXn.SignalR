@@ -1,12 +1,12 @@
 {
   "schemaVersion": 6,
   "epicId": "cross-platform-support",
-  "revision": 55,
-  "planRevision": 5,
+  "revision": 64,
+  "planRevision": 6,
   "specHashes": {
     "requirements": "7eb9cbe1721e8eb99d4c5705831832ccae1fd86cc2fa0eedd8d134f82a4c97a8",
     "design": "4b35d6e40f5712d063705d8a28f5c93e1be15bf8a322f62d9fb08296fefa14e5",
-    "plan": "9de1cfbe7f2613b95b1611d0fa460e87baa25e166f2fa775cf0e05e1fcdf65d9"
+    "plan": "a15f71c0bd565e73a0f23e818c475e123592d490777b24c0721b14a425967149"
   },
   "tasks": {
     "S1.T1": {
@@ -106,10 +106,16 @@
       ]
     },
     "S6.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S6.T2": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S7.T1": {
       "status": "pending"
@@ -214,6 +220,15 @@
         }
       },
       "recordedAt": "2026-10-05T22:53:51Z"
+    },
+    "e162eaa6faa5c79bb42ebb9455127027164863f977cbcbc5e40ad743ff8c1b4a": {
+      "snapshot": {
+        "specHash": "3394019c6434ca907fffcaa6d846d7ca1661c553492752dad3b9a075a6311a6b",
+        "repositories": {
+          "rayx-signalr": "e0bb358edaaa0e6d021fe8973a6d1374c3e54f887df88c2d86a9a5aa154794eb"
+        }
+      },
+      "recordedAt": "2026-10-05T23:10:51Z"
     }
   },
   "checkResults": {
@@ -556,6 +571,74 @@
       "logPath": "artifacts-temp/agentx/cross-platform-support/S5-final-34aa6d672445.log",
       "logSha256": "8ff3fbdbb7ccd3c000fbc9eed5659bb4d38b26b4655f1e126a74c1b99a7853ad",
       "inputsHash": "ea7826f930417d3e7672044e438313f434472b28013f5e69da0bfbade9fa6967"
+    },
+    "S6/s6-runtime-unit/final": {
+      "checkId": "s6-runtime-unit",
+      "boundaryId": "S6",
+      "phase": "final",
+      "batchId": "e162eaa6faa5c79bb42ebb9455127027164863f977cbcbc5e40ad743ff8c1b4a",
+      "definitionHash": "fec0649495cc962a389e4a12ee6821fdf5d66679b011b9fc85dc85b0436be07d",
+      "basisHash": "a4390a855d5b57763953f49d6c98e90aae8f9d7d9ae6b8ef837dd892fdfbe3d7",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 3,
+      "durationSeconds": 4.3447,
+      "recordedAt": "2026-10-05T23:09:05Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S6-final-ccd9f326cfb1.log",
+      "logSha256": "c41007426a0690e3965843fa7aab78029543a0a2ae9fc7fba01e692a6456aaac",
+      "inputsHash": "2e0d36be79beed66381e51ddc1c120d8b804e24bc5611b6083e957ac2f78cb71"
+    },
+    "S6/s6-executor-e2e/final": {
+      "checkId": "s6-executor-e2e",
+      "boundaryId": "S6",
+      "phase": "final",
+      "batchId": "e162eaa6faa5c79bb42ebb9455127027164863f977cbcbc5e40ad743ff8c1b4a",
+      "definitionHash": "738e51f10570dfbe12e09b86406246d92b937a5a178e2ef8ba466d6462a5ea2a",
+      "basisHash": "1f718110fda7a9e8368d7c3dc6ef74edf39de419747b7ed682ba53fe2b890929",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 28.4627,
+      "recordedAt": "2026-10-05T23:09:33Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S6-final-96cbdd45f71e.log",
+      "logSha256": "20a1bc79fd29614f4ee8d9b79bc710bfca4c372d295890028c51eebbfcc45798",
+      "inputsHash": "738b7b6051c123e4155360307332e8094ed7df0d9e251f617b6559968f099c04"
+    },
+    "S6/s6-native-regression/final": {
+      "checkId": "s6-native-regression",
+      "boundaryId": "S6",
+      "phase": "final",
+      "batchId": "e162eaa6faa5c79bb42ebb9455127027164863f977cbcbc5e40ad743ff8c1b4a",
+      "definitionHash": "b59d0a3b70a2591e3481fcffac470dfe5b7d4daf37e7de0703000d35e36136cd",
+      "basisHash": "944c793a8aec96e1fc284f7ac934406f04bc77da6bb16f842d02d98dbf3ea3e6",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 26,
+      "durationSeconds": 76.0234,
+      "recordedAt": "2026-10-05T23:10:49Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S6-final-c12d890d2cf6.log",
+      "logSha256": "76cf6489b948837240154b52b9b8d6ab2a062e765aa8c43911a99a4d52a1f3bf",
+      "inputsHash": "738b7b6051c123e4155360307332e8094ed7df0d9e251f617b6559968f099c04"
+    },
+    "S6/s6-stateful-generation/final": {
+      "checkId": "s6-stateful-generation",
+      "boundaryId": "S6",
+      "phase": "final",
+      "batchId": "e162eaa6faa5c79bb42ebb9455127027164863f977cbcbc5e40ad743ff8c1b4a",
+      "definitionHash": "6e42c8ba66ee7af176121510913e653f14db513d15e1dec36b18263b5e2722e0",
+      "basisHash": "ddf9b78f271738919a4817c4dd4189a52e49c62fb4e815ef1d7b7ecba2d38108",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 3,
+      "durationSeconds": 1.1471,
+      "recordedAt": "2026-10-05T23:10:50Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S6-final-7ef8dc62ddb5.log",
+      "logSha256": "38974c9ef9ab6c3a4c3f1e9f68c1fde30bd3a6b8ade0c6e29ce4120db7f23056",
+      "inputsHash": "a8a7c096addb373ee4631adb9fced8b76437a1d100546779bbd4885450105416"
     }
   },
   "reviews": {
@@ -1745,6 +1828,109 @@
         "S5-F1"
       ],
       "recordedAt": "2026-10-05T22:54:27Z"
+    },
+    "S6": {
+      "reviewerId": "s6-reviewer-independent-2e96a2c2",
+      "snapshotId": "e162eaa6faa5c79bb42ebb9455127027164863f977cbcbc5e40ad743ff8c1b4a",
+      "criterionIds": [
+        "R6.C1",
+        "R6.C2",
+        "R6.C3"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R6.C1"
+          ],
+          "sha256": "c6a1ce9a45dcbcb241230cbd4b139cf8ad0cb96b003c0bee975528a595266f26"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R6.C1",
+            "R6.C2",
+            "R6.C3"
+          ],
+          "sha256": "6c102960b18297434734e9fba54423e5c794f9fd4f34b2debe120751d5803efa"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R6.C1"
+          ],
+          "sha256": "6c102960b18297434734e9fba54423e5c794f9fd4f34b2debe120751d5803efa"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R6.C2",
+            "R6.C3"
+          ],
+          "sha256": "bb604d22e068d27c6b0e47b2e4ea619d407a2d3ec49c71f7d90eb92c38398082"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/context.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R6.C2"
+          ],
+          "sha256": "1067c1bea2d405093ad259e45f6f77d91226c256a0f5dbc5fa6e6b9909ef43a5"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/executor_independence.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R6.C2",
+            "R6.C3"
+          ],
+          "sha256": "1f795b49da25aef0ba14d71897b9f30a7979bff54b69b881545f5f997b3e958b"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Scenarios/ScenarioCatalog.cs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R6.C2",
+            "R6.C3"
+          ],
+          "sha256": "3c44c2eeb8a84d8b77b4fc4ccb9bc5fbcfab1b1362e3be261d58ab5290dd7d87"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/stateful.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R6.C3"
+          ],
+          "sha256": "1feb5ee2e4eff2c40d1b1c1b4e947ff885dc40eb90af887df07f7fdb64726e62"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/stateful.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R6.C3"
+          ],
+          "sha256": "1feb5ee2e4eff2c40d1b1c1b4e947ff885dc40eb90af887df07f7fdb64726e62"
+        }
+      ],
+      "summaryMarkdown": "All S6 criteria are met. R6.C1: `resolve_runtime` uses the configured handle, then `try_current`, then the explanatory `NO_RUNTIME` error, before TLS setup or negotiation. R6.C2/R6.C3: connect, reconnect, policy delays, backpressure sleeps and dropped-stream cancellation run on the stored handle. Public futures await only executor-independent channels, tokio `Mutex` and `JoinHandle`. The state lock is never held across a send, and `disconnect` returns without awaiting runtime tasks. S6-F1 is resolved. `StatefulMessageBuffer::transport_generation` is advanced by `disconnected()` and `dispose()` under the buffer mutex. Each writer captures the generation at `CommunicationConnection::start`, which runs after `disconnected()` on every resume path. `write_frame` calls `track_for` on every backpressure retry, so a writer of a lost transport can no longer take a sequence id. The `stateful_transport_generation` group (3 tests) passed on rerun. Evidence: all 4 S6 checks passed at revision 62, including 26 native regression cells and 2 executor-independence cells. Notes, not findings: a buffered frame whose socket send fails now reports success, which matches the official client's buffered semantics, but a fire-and-forget `send` is silently lost if the resume later exhausts. No writer-level test parks a real frame across a resume; the guarantee rests on the unit-tested generation check that every retry passes through. Dropping a `reconnect` future no longer cancels the detached attempt. `block_on(ctx.complete(..))` inside a callback on a current-thread runtime would deadlock.",
+      "findingIds": [
+        "S6-F1"
+      ],
+      "recordedAt": "2026-10-05T23:11:37Z"
     }
   },
   "checkpoints": {
@@ -1787,6 +1973,14 @@
       },
       "reviewHash": "9c421b9d858ec04ea2721cec9c701a1177c08f30aadd73d140813319a9355c93",
       "recordedAt": "2026-10-05T22:54:44Z"
+    },
+    "S6": {
+      "snapshotId": "e162eaa6faa5c79bb42ebb9455127027164863f977cbcbc5e40ad743ff8c1b4a",
+      "commits": {
+        "rayx-signalr": "cc99d2fd4a228b452b2ea91d0c5ea80a7e46c7be"
+      },
+      "reviewHash": "b81757900642d1ce005898081cf46dd0a7436feab2a3d47166f112b1bbf1a296",
+      "recordedAt": "2026-10-05T23:11:56Z"
     }
   },
   "findings": [
@@ -1997,6 +2191,26 @@
           "repositoryId": "rayx-signalr",
           "path": "src/communication/client_tokio.rs",
           "symbol": "CommunicationClient::create"
+        }
+      ]
+    },
+    {
+      "id": "S6-F1",
+      "boundaryId": "S6",
+      "criterionIds": [
+        "R6.C3"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**A retired physical connection's writer can still track a frame into the shared stateful replay buffer after a resume, desynchronising stateful sequence numbering.**\n\n*Expected:* stateful tracking order equals the order frames reach the server on the current physical connection; once a transport is lost, only frames tracked before `begin_resend` are replayed, and a stale writer can never mutate the shared buffer for the newer connection (the same guarantee generation-checked reconnect gives for stale attempts; D10 invariant 'ordinary/stateful split preserved', `connection-lifecycle` rules).\n\n*Observed:* `CommunicationClient::writer()` now releases the state lock before sending (previously the in-flight send held it, so the swap waited). `CommunicationConnection::write_frame` loops on `TrackResult::Backpressured` with no check that its connection is still current, and `StatefulMessageBuffer::track` only rejects `disposed`/`resending`. Sequence: stateful buffer full -> writer W1 parked in the backpressure loop -> socket drops -> `on_connection_dropped` -> `resume_to_server` replays the buffer on the new socket and installs W2 -> the server Acks the replayed frames -> W1's next `track` succeeds and assigns the next outgoing sequence id N+1 -> `sink.send` on the dead old sink fails -> the caller gets an error, but the phantom frame stays buffered while the server never received it. W2's next frame is numbered N+2 by the client and N+1 by the server, so later Acks release the wrong entries and the next resume's `Sequence`/replay re-delivers (duplicates) or mis-releases application frames. The pre-change code hung in this situation instead; the new lock release turns it into silent wire corruption. No test covers a stale writer after resume.\n\n*Repair:* make tracking generation-checked under the buffer mutex: give `StatefulMessageBuffer` a transport generation that `disconnected()` (and `dispose`) advances, capture it when `CommunicationConnection::start` spawns the writer, and have `write_frame` call a `track_for(generation, ..)` that returns an error (fail the frame untracked, e.g. 'The connection was lost before the message was sent') when the generation is stale, re-checked on every backpressure iteration. Add a focused `stateful_buffer` unit test that a stale-generation track is rejected after `disconnected()`/resume, and a writer-level unit test (or extend `stateful-reconnect`) that a frame parked in backpressure across a resume is failed and never buffered.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/stateful.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs"
         }
       ]
     }
