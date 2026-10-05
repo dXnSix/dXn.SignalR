@@ -1,11 +1,15 @@
+using MessagePack;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.SignalR;
 using System.Collections.Concurrent;
+using System.Text.Json.Serialization;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
 namespace SignalRTestService
 {
-    public class TestHub : Hub
+    public class TestHub(IHubContext<TestHub> hubContext) : Hub
     {
         static readonly ConcurrentDictionary<string, CancellationProbeState> _cancellationProbes = new();
         static readonly ConcurrentDictionary<string, int> _transportAborts = new();
@@ -22,6 +26,91 @@ namespace SignalRTestService
         }
 
         public string ConnectionIdentity() => Context.ConnectionId;
+
+        public TransportDetails TransportDetails() => new()
+        {
+            ConnectionId = Context.ConnectionId,
+            TransportId = Context.GetHttpContext()?.Request.Query["id"].ToString() ?? string.Empty,
+            TransferFormat = Context.Features.Get<ITransferFormatFeature>()?.ActiveFormat.ToString() ?? string.Empty
+        };
+
+        public int Echo(int value) => value;
+
+        public Task VoidCall()
+        {
+            TestControls.Record(Context.ConnectionId, "void-call");
+            return Task.CompletedTask;
+        }
+
+        public int Fail(string message) => throw new InvalidOperationException(message);
+
+        public ComplexEntity EchoComplex(ComplexEntity entity) => new()
+        {
+            EntityId = entity.EntityId + 1,
+            DisplayName = entity.DisplayName.ToUpperInvariant(),
+            Tags = [.. entity.Tags, "server"],
+            Nested = entity.Nested is null ? null : new TestEntity { Text = entity.Nested.Text, Number = entity.Nested.Number * 2 },
+            OptionalNote = entity.OptionalNote
+        };
+
+        public string DescribeComplex(ComplexEntity entity) =>
+            $"{entity.EntityId}|{entity.DisplayName}|{string.Join(',', entity.Tags)}|{entity.Nested?.Text}:{entity.Nested?.Number}|{entity.OptionalNote ?? "null"}";
+
+        public void Record(string value) => TestControls.Record(Context.ConnectionId, value);
+
+        public void RecordPair(string text, int number) => TestControls.Record(Context.ConnectionId, $"{text}:{number}");
+
+        public string[] RecordedSends() => TestControls.Recorded(Context.ConnectionId);
+
+        public async IAsyncEnumerable<int> FailingSequence(int count, int failAfter)
+        {
+            for (var value = 1; value <= count; value++)
+            {
+                if (value > failAfter)
+                {
+                    throw new InvalidOperationException($"FailingSequence failed after {failAfter} items");
+                }
+
+                await Task.Yield();
+                yield return value;
+            }
+        }
+
+        public Task TriggerMultiArgumentCallback(string callback) =>
+            Clients.Caller.SendAsync(callback, "alpha", 42, new TestEntity { Text = "multi", Number = 7 });
+
+        /// <summary>
+        /// Asks the caller for a client result outside this invocation (the hub processes one
+        /// invocation per connection at a time) and records the value for <see cref="ClientResult"/>.
+        /// </summary>
+        public void RequestClientResult(string callback, int value)
+        {
+            string connectionId = Context.ConnectionId;
+            _ = Task.Run(async () =>
+            {
+                using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(20));
+                int result = await hubContext.Clients.Client(connectionId).InvokeAsync<int>(callback, value, timeout.Token);
+                TestControls.RecordClientResult(connectionId, result);
+            });
+        }
+
+        public int? ClientResult() => TestControls.ClientResult(Context.ConnectionId);
+
+        public int DisconnectCount(string connectionId) => TestControls.DisconnectCount(connectionId);
+
+        public string EchoText(string payload) => payload;
+
+        public int TextLength(string payload) => payload.Length;
+
+        public string LargeText(int length) => new('x', length);
+
+        public void ScheduleServerClose(bool allowReconnect, int delayMilliseconds) =>
+            TestControls.ScheduleClose(Context.ConnectionId, allowReconnect, TimeSpan.FromMilliseconds(delayMilliseconds));
+
+        public void RejectNegotiation(string hubPath, int milliseconds) =>
+            TestControls.RejectNegotiation(hubPath, TimeSpan.FromMilliseconds(milliseconds));
+
+        public int NegotiateCount(string hubPath) => TestControls.NegotiateCount(hubPath);
 
         public bool ResetCancellationProbe()
         {
@@ -249,9 +338,58 @@ namespace SignalRTestService
         public int Canceled { get; set; }
     }
 
+    /// <summary>Requires the test authentication scheme; reports the authenticated identity.</summary>
+    [Authorize]
+    public class AuthHub : Hub
+    {
+        public string AuthenticatedIdentity() =>
+            $"{Context.User?.Identity?.AuthenticationType}:{Context.User?.Identity?.Name}";
+
+        /// <summary>How the WebSocket request was authenticated: header, access_token or token-binding.</summary>
+        public string AuthenticationSource() =>
+            Context.User?.FindFirst(TestAuthenticationHandler.SourceClaim)?.Value ?? "none";
+    }
+
+    public sealed class TransportDetails
+    {
+        public string ConnectionId { get; set; } = string.Empty;
+        public string TransportId { get; set; } = string.Empty;
+        public string TransferFormat { get; set; } = string.Empty;
+    }
+
+    /// <summary>A DTO whose wire names are snake_case on both protocols, matching Serde renames.</summary>
+    [MessagePackObject]
+    public sealed class ComplexEntity
+    {
+        [Key("entity_id")]
+        [JsonPropertyName("entity_id")]
+        public int EntityId { get; set; }
+
+        [Key("display_name")]
+        [JsonPropertyName("display_name")]
+        public string DisplayName { get; set; } = string.Empty;
+
+        [Key("tags")]
+        [JsonPropertyName("tags")]
+        public List<string> Tags { get; set; } = [];
+
+        [Key("nested")]
+        [JsonPropertyName("nested")]
+        public TestEntity? Nested { get; set; }
+
+        [Key("optional_note")]
+        [JsonPropertyName("optional_note")]
+        public string? OptionalNote { get; set; }
+    }
+
+    /// <summary>Wire names match the Rust scenarios' Serde names on both protocols.</summary>
+    [MessagePackObject]
     public class TestEntity
     {
+        [Key("number")]
         public int Number { get; set; }
+
+        [Key("text")]
         public string Text { get; set; } = string.Empty;
     }
 }

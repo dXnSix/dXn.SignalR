@@ -8,6 +8,16 @@
 
 mod support;
 
+mod authentication;
+mod callbacks;
+mod concurrency_and_clones;
+mod connect_negotiate;
+mod invoke;
+mod large_payload;
 mod ordinary_reconnect;
+mod reconnect_exhaustion;
+mod send;
+mod server_close;
+mod server_stream;
 mod stateful_reconnect;
 mod stream_cancellation;

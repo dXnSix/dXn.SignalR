@@ -1,45 +1,96 @@
-using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.SignalR;
 using SignalRTestService;
 
+// Test-only ASP.NET Core SignalR service for RayX.SignalR end-to-end scenarios. The Aspire AppHost
+// allocates its port; every fault control and probe below exists only in this service.
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllersWithViews();
-builder.Services.AddSignalR().AddMessagePackProtocol();
-
-builder.Services.AddCors(a =>
-{ 
-    //a.AddPolicy(name: "restricted",
-    //    policy =>
-    //    {
-    //        policy.WithOrigins("http://example.com");
-    //        policy.AllowAnyHeader();
-    //        policy.WithMethods("GET", "POST");
-    //        policy.AllowCredentials();
-    //    });
-
-    a.AddDefaultPolicy(builder =>
-    {
-        builder.AllowAnyOrigin()
-        .AllowAnyHeader()        
-        .AllowAnyMethod();
-    });
-});
-
-var webSocketOptions = new WebSocketOptions
-{
-    KeepAliveInterval = TimeSpan.FromMinutes(2)
-};
-
-//webSocketOptions.AllowedOrigins.Add("http://localhost:8089");
+builder.Services.AddCors(cors => cors.AddDefaultPolicy(policy =>
+    policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
+builder.Services
+    .AddAuthentication(TestAuthenticationHandler.SchemeName)
+    .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(TestAuthenticationHandler.SchemeName, null);
+builder.Services.AddAuthorization();
+builder.Services.AddSingleton(typeof(HubLifetimeManager<>), typeof(TrackingHubLifetimeManager<>));
+builder.Services
+    .AddSignalR(options => options.EnableDetailedErrors = true)
+    .AddHubOptions<TestHub>(options => options.MaximumReceiveMessageSize = 4 * 1024 * 1024)
+    .AddMessagePackProtocol();
 
 var app = builder.Build();
 
 app.UseCors();
-app.UseWebSockets(webSocketOptions);
+app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromMinutes(2) });
+
+// Count every negotiate per hub path and reject negotiation while a test window is active.
+app.Use(async (context, next) =>
+{
+    if (HttpMethods.IsPost(context.Request.Method)
+        && context.Request.Path.Value is { } path
+        && path.EndsWith("/negotiate", StringComparison.OrdinalIgnoreCase))
+    {
+        string hubPath = path[..^"/negotiate".Length];
+        TestControls.CountNegotiate(hubPath);
+        if (TestControls.IsRejected(hubPath))
+        {
+            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            await context.Response.WriteAsync("negotiation temporarily rejected by the test control");
+            return;
+        }
+    }
+
+    await next();
+});
+
+app.UseAuthentication();
+
+// Remember which user negotiated each /test-auth connection token (see TestAuthenticationHandler).
+app.Use(async (context, next) =>
+{
+    if (!context.Request.Path.Equals("/test-auth/negotiate", StringComparison.OrdinalIgnoreCase)
+        || context.User.Identity?.IsAuthenticated != true)
+    {
+        await next();
+        return;
+    }
+
+    Stream original = context.Response.Body;
+    using MemoryStream buffer = new();
+    context.Response.Body = buffer;
+    try
+    {
+        await next();
+    }
+    finally
+    {
+        context.Response.Body = original;
+    }
+
+    byte[] body = buffer.ToArray();
+    if (TestControls.ConnectionToken(body) is { } token)
+    {
+        TestControls.RememberToken(
+            token,
+            context.User.Identity.Name ?? string.Empty,
+            context.User.Identity.AuthenticationType ?? string.Empty);
+    }
+
+    await original.WriteAsync(body);
+});
+
+app.UseAuthorization();
 
 app.MapGet("/", () => "Hello World!");
 app.MapGet("/health", () => Results.Ok(new { status = "ready" }));
+app.MapPost("/e2e/reset", () =>
+{
+    TestControls.Reset();
+    return Results.Ok(new { status = "reset" });
+});
 app.MapHub<TestHub>("/test");
+app.MapHub<TestHub>("/test-exhaust");
 app.MapHub<TestHub>("/test-stateful", options => options.AllowStatefulReconnects = true);
+app.MapHub<AuthHub>("/test-auth");
 
 app.Run();

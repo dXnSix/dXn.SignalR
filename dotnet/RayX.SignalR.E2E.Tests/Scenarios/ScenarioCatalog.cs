@@ -60,6 +60,16 @@ public static class ScenarioCatalog
   /// <summary>Every scenario, in run order.</summary>
   public static readonly IReadOnlyList<Scenario> Scenarios =
   [
+    new("connect-negotiate", Set(_native, _chromium)),
+    new("authentication", Set(_native, _chromium)),
+    new("invoke", Set(_native, _chromium)),
+    new("send", Set(_native, _chromium)),
+    new("server-stream", Set(_native, _chromium)),
+    new("callbacks", Set(_native, _chromium)),
+    new("concurrency-and-clones", Set(_native, _chromium)),
+    new("large-payload", Set(_native, _chromium)),
+    new("server-close", Set(_native, _chromium)),
+    new("reconnect-exhaustion", Set(_native, _chromium)),
     new("ordinary-reconnect", Set(_native, _chromium)),
     new("stateful-reconnect", Set(_native, _chromium)),
     new("stream-cancellation", Set(_native, _chromium)),

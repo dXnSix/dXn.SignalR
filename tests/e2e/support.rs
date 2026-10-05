@@ -5,6 +5,14 @@ use std::{future::Future, sync::Arc, time::Duration};
 use rayx_signalr::{
     ConnectionConfiguration, ConstantDelayPolicy, ReconnectionConfig, SignalRClient,
 };
+use serde::{Deserialize, Serialize};
+
+/// The test hub's simple entity (`TestEntity` in `SignalRTestService`).
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct TestEntity {
+    pub number: i32,
+    pub text: String,
+}
 
 /// Upper bound for one scenario; the runner kills the process after 60 seconds.
 pub const SCENARIO_TIMEOUT: Duration = Duration::from_secs(50);
@@ -107,6 +115,24 @@ pub fn fast_reconnect() -> ReconnectionConfig {
     }
 }
 
+/// Connects without unwrapping, for scenarios that expect `connect_with` to fail.
+pub async fn try_connect<F>(
+    hub: &str,
+    protocol: Protocol,
+    mut configure: F,
+) -> Result<SignalRClient, String>
+where
+    F: FnMut(&mut ConnectionConfiguration),
+{
+    let endpoint = service();
+    SignalRClient::connect_with(&endpoint.host, hub, |configuration| {
+        endpoint.apply(configuration);
+        apply_protocol(configuration, protocol);
+        configure(configuration);
+    })
+    .await
+}
+
 /// Connects to `hub` on the test service with the selected protocol and extra configuration.
 pub async fn connect<F>(hub: &str, protocol: Protocol, mut configure: F) -> SignalRClient
 where
@@ -147,6 +173,31 @@ where
     })
     .await
     .unwrap_or_else(|_| panic!("timed out after {limit:?} waiting for {what}"))
+}
+
+/// Declares the `json` and `messagepack` tests of a scenario module.
+#[macro_export]
+macro_rules! protocol_tests {
+    ($name:literal) => {
+        #[tokio::test]
+        async fn json() {
+            $crate::support::bounded(
+                concat!($name, " json"),
+                scenario($crate::support::Protocol::Json),
+            )
+            .await;
+        }
+
+        #[cfg(feature = "messagepack")]
+        #[tokio::test]
+        async fn messagepack() {
+            $crate::support::bounded(
+                concat!($name, " messagepack"),
+                scenario($crate::support::Protocol::MessagePack),
+            )
+            .await;
+        }
+    };
 }
 
 /// Returns the hub-side connection id of the current logical connection.

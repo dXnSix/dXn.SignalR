@@ -63,6 +63,8 @@ impl ServiceEndpoint {
     }
 }
 
+mod functional;
+
 thread_local! {
     static SERVICE: RefCell<Option<ServiceEndpoint>> = const { RefCell::new(None) };
     static CLIENT: RefCell<Option<SignalRClient>> = const { RefCell::new(None) };
@@ -322,7 +324,9 @@ pub async fn cancel_long_streams(rounds: u32) -> Result<u32, JsValue> {
             .await
             .ok_or_else(|| JsValue::from_str("cancellation probe ended before its first item"))?;
         if first != 1 {
-            return Err(JsValue::from_str("cancellation probe returned an invalid first item"));
+            return Err(JsValue::from_str(
+                "cancellation probe returned an invalid first item",
+            ));
         }
         drop(stream);
 
@@ -332,10 +336,7 @@ pub async fn cancel_long_streams(rounds: u32) -> Result<u32, JsValue> {
                 .invoke::<CancellationProbeSnapshot>("CancellationProbeStatus".to_string())
                 .await
                 .map_err(js_error("cancellation status probe failed"))?;
-            if status.active == 0
-                && status.started == expected
-                && status.canceled == expected
-            {
+            if status.active == 0 && status.started == expected && status.canceled == expected {
                 observed = true;
                 break;
             }
@@ -352,7 +353,9 @@ pub async fn cancel_long_streams(rounds: u32) -> Result<u32, JsValue> {
         .await
         .map_err(js_error("final cancellation status probe failed"))?;
     if status.active != 0 || status.started != rounds || status.canceled != rounds {
-        return Err(JsValue::from_str("final cancellation probe counters are inconsistent"));
+        return Err(JsValue::from_str(
+            "final cancellation probe counters are inconsistent",
+        ));
     }
     Ok(status.canceled)
 }

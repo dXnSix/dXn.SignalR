@@ -84,6 +84,7 @@ declare global {
       triggerStatefulCallbacks(count: number): Promise<void>;
       callbackCount(): number;
       configureService(url: string): void;
+      runFunctionalScenario(scenario: string, protocol: "json" | "messagepack"): Promise<string>;
     };
   }
 }

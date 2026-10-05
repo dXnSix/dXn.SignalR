@@ -48,7 +48,11 @@ public sealed class E2ECellTests(AspireEnvironment environment)
     CellReport report = await CellRun.ExecuteAsync(
                           environment,
                           selected,
-                          () => environment.EnsureStartedAsync(E2ESelection.FromEnvironment().RequiresBrowserFixture),
+                          async () =>
+                          {
+                            await environment.EnsureStartedAsync(E2ESelection.FromEnvironment().RequiresBrowserFixture);
+                            await environment.ResetServiceAsync();
+                          },
                           () => _runners[selected.Target.Kind].RunAsync(selected, environment, CancellationToken.None));
     Assert.True(report.Passed, report.Message);
   }

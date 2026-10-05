@@ -111,6 +111,14 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
     }
   }
 
+  /// <summary>Clears the test service's probes and controls before a cell.</summary>
+  public async Task ResetServiceAsync()
+  {
+    using HttpClient client = new() { Timeout = TimeSpan.FromSeconds(30) };
+    using HttpResponseMessage response = await client.PostAsync(new Uri(ServiceUrl, "/e2e/reset"), content: null);
+    response.EnsureSuccessStatusCode();
+  }
+
   /// <summary>Waits until a resource is healthy, failing fast when it stops first.</summary>
   /// <param name="resource">The resource name.</param>
   /// <param name="cancellationToken">Cancels the wait.</param>
