@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "cross-platform-support",
-  "revision": 46,
+  "revision": 55,
   "planRevision": 5,
   "specHashes": {
     "requirements": "7eb9cbe1721e8eb99d4c5705831832ccae1fd86cc2fa0eedd8d134f82a4c97a8",
@@ -88,13 +88,22 @@
       ]
     },
     "S5.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S5.T2": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S5.T3": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S6.T1": {
       "status": "pending"
@@ -196,6 +205,15 @@
         }
       },
       "recordedAt": "2026-10-05T22:41:42Z"
+    },
+    "bf858e85a52d12ccad4ad4cebe5991628b1ab8ef892402c79daf395339300e4f": {
+      "snapshot": {
+        "specHash": "78736474ff26a871f14515e301058ab53d72629e6a23e5a1bdba2d60d08c79bc",
+        "repositories": {
+          "rayx-signalr": "0300089888e98ddf19eca2af34f4d9a7584efefb2c794bc5f51da5a5bcc2cda4"
+        }
+      },
+      "recordedAt": "2026-10-05T22:53:51Z"
     }
   },
   "checkResults": {
@@ -487,6 +505,57 @@
       "logPath": "artifacts-temp/agentx/cross-platform-support/S4-final-98aca7da9ae9.log",
       "logSha256": "1504a4ec9d4acf9bf922f3cd13aa33c4e17aef01a4c39af740f6c13b76cccb23",
       "inputsHash": "6e3e87750c98139dea85985b220f68c9417149e201c0ce37de632b09b3971c36"
+    },
+    "S5/s5-negotiation-unit/final": {
+      "checkId": "s5-negotiation-unit",
+      "boundaryId": "S5",
+      "phase": "final",
+      "batchId": "bf858e85a52d12ccad4ad4cebe5991628b1ab8ef892402c79daf395339300e4f",
+      "definitionHash": "885ca0c9d29ed8438bfd81ceecad13604ab2a99bd76b38e7761e8e8a3db0a8cb",
+      "basisHash": "c8baaf907b56904c6c8428d7f3977a52aa06f3d1e2e2e278afd8e9267764098d",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 14,
+      "durationSeconds": 0.341,
+      "recordedAt": "2026-10-05T22:53:11Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S5-final-c696fd4e0573.log",
+      "logSha256": "81da80552e166a103c64e577474a98ebc6bc91b158a886729faf526d60132783",
+      "inputsHash": "5e6135448fe213c507d8782995af6300ea68bd94ae106594e97142bd908fdc10"
+    },
+    "S5/s5-skip-unit/final": {
+      "checkId": "s5-skip-unit",
+      "boundaryId": "S5",
+      "phase": "final",
+      "batchId": "bf858e85a52d12ccad4ad4cebe5991628b1ab8ef892402c79daf395339300e4f",
+      "definitionHash": "340d35d3bae3432ba144fb9139ae48c279781a7ce3c576ff59c521fc9a7f240a",
+      "basisHash": "2c3cbad4c3557e40d2b760e9e96f3adcb31339eae5444feb0a74430fe9d68ebb",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 0.3479,
+      "recordedAt": "2026-10-05T22:53:12Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S5-final-dbdd5e3b1763.log",
+      "logSha256": "5cd8a49dc3ae1aa025e50ec94b072ed243c0cd2959d5f52c7307381e905445d7",
+      "inputsHash": "6a28a5f1909c16660fdec823d8923e2951dbd6d6f02deac88fe6c0443efe2c1e"
+    },
+    "S5/s5-negotiation-e2e/final": {
+      "checkId": "s5-negotiation-e2e",
+      "boundaryId": "S5",
+      "phase": "final",
+      "batchId": "bf858e85a52d12ccad4ad4cebe5991628b1ab8ef892402c79daf395339300e4f",
+      "definitionHash": "427e34bd5007fbcf454e546afb8ee90159d5d43bfc36ed4a9de9516cd2fce543",
+      "basisHash": "5ab3f8ecc13c0195f2a561150305240cbb9109a1ec2019962db06a4b56a0d917",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 8,
+      "durationSeconds": 38.8966,
+      "recordedAt": "2026-10-05T22:53:51Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S5-final-34aa6d672445.log",
+      "logSha256": "8ff3fbdbb7ccd3c000fbc9eed5659bb4d38b26b4655f1e126a74c1b99a7853ad",
+      "inputsHash": "ea7826f930417d3e7672044e438313f434472b28013f5e69da0bfbade9fa6967"
     }
   },
   "reviews": {
@@ -1472,6 +1541,210 @@
         "S4-F3"
       ],
       "recordedAt": "2026-10-05T22:42:22Z"
+    },
+    "S5": {
+      "reviewerId": "s5-reviewer-independent-690d85fa",
+      "snapshotId": "bf858e85a52d12ccad4ad4cebe5991628b1ab8ef892402c79daf395339300e4f",
+      "criterionIds": [
+        "R5.C1",
+        "R5.C2",
+        "R5.C3",
+        "R5.C4",
+        "R5.C5"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C1",
+            "R5.C2",
+            "R5.C4"
+          ],
+          "sha256": "870c236fd90b176ef6b3d5070ef53ddc94d72eda7bd7557bfc95e8a5ecb632ce"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R5.C1",
+            "R5.C2",
+            "R5.C4"
+          ],
+          "sha256": "870c236fd90b176ef6b3d5070ef53ddc94d72eda7bd7557bfc95e8a5ecb632ce"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/negotiate.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C1"
+          ],
+          "sha256": "c7d7bc2f67f95f58e6fae2fd38303cac96b1b71a2bae8a7433fb86d0fd21c8fb"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/common.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C1",
+            "R5.C2"
+          ],
+          "sha256": "79f5bd5a5592fe34a035327d6e9d5bdcda00c8898e076a14dcf360f7a81240ce"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C2",
+            "R5.C4"
+          ],
+          "sha256": "645bf62cbaf6043e29efb21121eaf373fd48063529fad6762b0b42c8fbb8d765"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C2",
+            "R5.C4"
+          ],
+          "sha256": "c8fa0d81e3d0ffa92bfb43e76382a66384aa2688f3eeec1711f17998757aa586"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C2",
+            "R5.C4"
+          ],
+          "sha256": "8a15d59c102fdd8890156bc61ec5cbf0893f6c00acc544317a5af22fe5743d7e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/tls.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C2"
+          ],
+          "sha256": "3ea2c7f4e82fa3dab09ed9b676e89e07658d04197db6cea6c4edadd65e0d1fe6"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C4"
+          ],
+          "sha256": "14d70c99fdd776ef7de42603341b7d6a4cd4f8deb3aa5d1f1d9848edecec9df2"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/SignalRTestService/Program.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C3",
+            "R5.C5"
+          ],
+          "sha256": "41555d44e8c6ea8aa7e9ec86f39bfe1133996fb3197baeab10205827feafde91"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/SignalRTestService/TestHub.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C3"
+          ],
+          "sha256": "88f1b9236d288a269e0194f086e728bd199bf535d0ba09e6242355608e918a99"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/negotiate_redirect.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R5.C3"
+          ],
+          "sha256": "7d71120ef5827c320d27b42787ed30c9b57003c7366cdbc8071db7a769b55c64"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/skip_negotiation.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R5.C5"
+          ],
+          "sha256": "0ed82a4267b8985b52ed4a041177bed6538df5fc11eceec825e33dcadcbbf648"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R5.C3",
+            "R5.C5"
+          ],
+          "sha256": "27b00b00c6891987ef85ebf44741cc0d60c9c0411b4694262e60ee0d0521f1a3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/tests/signalr-functional.spec.ts",
+          "kind": "test",
+          "criterionIds": [
+            "R5.C3",
+            "R5.C5"
+          ],
+          "sha256": "794f29a8423bae3d3fb87240b4f455ae93cf429457e3c209f5dbadd58634c18c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Scenarios/ScenarioCatalog.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R5.C3",
+            "R5.C5"
+          ],
+          "sha256": "d0ed589ee02d61853aa70eaec5c246b838e83e8ec00edb4f80614346eb124233"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/cross-platform-support/S5-final-c696fd4e0573.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R5.C1",
+            "R5.C2"
+          ],
+          "sha256": "81da80552e166a103c64e577474a98ebc6bc91b158a886729faf526d60132783"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/cross-platform-support/S5-final-dbdd5e3b1763.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R5.C4"
+          ],
+          "sha256": "5cd8a49dc3ae1aa025e50ec94b072ed243c0cd2959d5f52c7307381e905445d7"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/cross-platform-support/S5-final-34aa6d672445.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R5.C3",
+            "R5.C5"
+          ],
+          "sha256": "8ff3fbdbb7ccd3c000fbc9eed5659bb4d38b26b4655f1e126a74c1b99a7853ad"
+        }
+      ],
+      "summaryMarkdown": "S5 meets R5.C1–R5.C5 on both targets. All three S5 checks passed again at revision 53: 14 `negotiation_` unit tests, 4 `skip_negotiation` unit tests and 8 of 8 e2e cells.\n\n**S5-F1 is resolved.** I checked the repair in the source:\n- `socket_url` percent-encodes every query value with `encode_query_value`, which keeps the RFC 3986 unreserved set (as `encodeURIComponent` does). This covers `id` and `access_token`, whether the token is configured, issued by a redirect, or used for skip negotiation.\n- `CommunicationClient::create` returns an error naming only the display endpoint instead of panicking.\n- Two new unit cases cover redirect and skip-negotiation tokens that contain `+ / = space \" <`. They also check that the resulting URL parses as `http::Uri`.\n\n**Other behaviour checked:**\n- Outcome parsing covers v0/v1 responses, Azure redirect bodies, `error` text, and endpoint-named parse errors without panics.\n- Redirects keep the query and the stateful flag, stop after 100, and send the redirect token on the next negotiate and on the WebSocket.\n- Ordinary reconnect renegotiates from the configured endpoint and credentials. Stateful resume reuses the negotiated transport URL and credentials.\n- `skip_negotiation` connects directly, rejects stateful mode before any I/O, and reconnects directly on both targets.\n- The e2e cells prove the hub observes `redirect-token` and that the `/test-direct` negotiate count stays 0.",
+      "findingIds": [
+        "S5-F1"
+      ],
+      "recordedAt": "2026-10-05T22:54:27Z"
     }
   },
   "checkpoints": {
@@ -1506,6 +1779,14 @@
       },
       "reviewHash": "a0c86b6968b7934ec4b1babb3a566c65cf5ba487e32eb5ab81988723211896a1",
       "recordedAt": "2026-10-05T22:42:37Z"
+    },
+    "S5": {
+      "snapshotId": "bf858e85a52d12ccad4ad4cebe5991628b1ab8ef892402c79daf395339300e4f",
+      "commits": {
+        "rayx-signalr": "7843f0ac24b0a9504fcbc9e7b39c585982330d1a"
+      },
+      "reviewHash": "9c421b9d858ec04ea2721cec9c701a1177c08f30aadd73d140813319a9355c93",
+      "recordedAt": "2026-10-05T22:54:44Z"
     }
   },
   "findings": [
@@ -1693,6 +1974,29 @@
           "repositoryId": "rayx-signalr",
           "path": "src/communication/negotiate_http.rs",
           "symbol": "negotiate_http_errors::redaction_never_splits_multi_byte_text"
+        }
+      ]
+    },
+    {
+      "id": "S5-F1",
+      "boundaryId": "S5",
+      "criterionIds": [
+        "R5.C2",
+        "R5.C4"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Token query values are not percent-encoded, and a token with URI-invalid characters panics native connect and puts the token in the panic message.**\n\n*Expected:* the WebSocket URL's query values (`access_token`, and `id`) are percent-encoded, as the official clients do (`encodeURIComponent` in JS, `Uri.EscapeDataString` in .NET). A transport URL that cannot be parsed fails `connect` with an error that does not include the URL or the token. This follows D9 and the constraint that access tokens never appear in errors or diagnostics.\n\n*Observed:* `socket_url` (`src/communication/negotiation.rs`) appends the raw token through `connection_data` (redirect `accessToken` or configured bearer) and `direct_connection` (skip negotiation). With S5 the token can come from the redirecting server.\n- (a) A token containing a space, `\"` or `<` gives a URL that `http::Uri` rejects (`InvalidUriChar`; checked with http 1.x). The initial native connect then reaches `CommunicationClient::create` (`src/communication/client_tokio.rs`, `Uri::from_str(..).unwrap_or_else(|_| panic!(\"The endpoint Uri {:?} is invalid\", configuration.get_endpoint()))`), which panics and prints the full endpoint, including `access_token=<token>`.\n- (b) An opaque base64 token with `+`, `/` or `=` is sent unencoded. ASP.NET Core decodes `+` in a query as a space, so in the browser, where `access_token` is the only channel, the redirect, skip-negotiation and configured-bearer paths fail authentication. The e2e cells pass only because `redirect-token` and `e2e-token` are URL-safe.\n\n*Repair:*\n- In `socket_url`, percent-encode each parameter value (RFC 3986 unreserved set, matching `encodeURIComponent`).\n- Make `CommunicationClient::create`/`connect` return `Err` (for example `Negotiated WebSocket endpoint is invalid: <uri error>`) instead of panicking, without echoing the endpoint.\n- Add `negotiation_`/`skip_negotiation` unit cases: a redirect token with `+/=` is encoded in the socket URL, and a token with a space gives an encoded URL or an error without a panic and without the token in the message.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs",
+          "symbol": "encode_query_value"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "CommunicationClient::create"
         }
       ]
     }
