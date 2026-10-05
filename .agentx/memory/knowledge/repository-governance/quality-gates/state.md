@@ -4,7 +4,7 @@ agentx:
   scope: repository-governance/quality-gates
   status: current
   created: "2026-08-10T03:15:00+02:00"
-  updated: "2026-10-06T00:30:00+02:00"
+  updated: "2026-10-06T04:00:00+02:00"
   topics:
     - github-actions
     - toolchain
@@ -20,7 +20,7 @@ Read this file before changing production validation or required-check contracts
 
 ## Current Technical Shape
 
-`.github/workflows/quality.yml` and `.github/workflows/e2e.yml` run on pull requests and pushes to `master`; e2e also supports manual dispatch. Quality pins Rust 1.92 while checking stable Rust, Windows/Linux/macOS native targets (including the `e2e` test target in Clippy and native checks), default/all-feature WASM, JSON/MessagePack unit contracts, rustdoc, `DependencySecurity` (RustSec and NuGet) and the `quality / contracts` job (`WorkflowContract`, `Repository`, `Catalog`, `Toolchain`). E2e runs every cataloged cell through Aspire (`dotnet test` after installing the Aspire CLI) as `e2e / native (<os>)` and `e2e / browser (<engine>)`. Workflows reference no script files; the `WorkflowContract` category is the verifier. Both workflows use `contents: read`, cancellation concurrency, no secrets or publishing, bounded timeouts, and failure-only artifacts.
+`.github/workflows/quality.yml` and `.github/workflows/e2e.yml` run on pull requests and pushes to `master`; e2e also supports manual dispatch. Quality pins Rust 1.92 while checking stable Rust, Windows/Linux/macOS native targets (including the `e2e` test target in Clippy and native checks), default/all-feature WASM, JSON/MessagePack unit contracts, rustdoc, `DependencySecurity` (RustSec and NuGet) and the `quality / contracts` job (`WorkflowContract`, `Repository`, `Catalog`, `Toolchain`). E2e runs every cataloged cell through Aspire (`dotnet test` after installing the Aspire CLI) as `e2e / native (<os>)` and `e2e / browser (<engine>)`. Workflows reference no script files; the `WorkflowContract` category is the verifier. The `Platform` category holds static target cases (trait `Case`): `manifest-hygiene` (no test/debug/dead crates in normal graphs, `rlib` only, minimal normal tokio features) and `wasi-rejected` (non-browser wasm32 targets fail with the browser-only `compile_error!`). Both workflows use `contents: read`, cancellation concurrency, no secrets or publishing, bounded timeouts, and failure-only artifacts.
 
 ## Backlinks
 

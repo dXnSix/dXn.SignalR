@@ -1,12 +1,12 @@
 {
   "schemaVersion": 6,
   "epicId": "cross-platform-support",
-  "revision": 33,
-  "planRevision": 4,
+  "revision": 46,
+  "planRevision": 5,
   "specHashes": {
     "requirements": "7eb9cbe1721e8eb99d4c5705831832ccae1fd86cc2fa0eedd8d134f82a4c97a8",
     "design": "4b35d6e40f5712d063705d8a28f5c93e1be15bf8a322f62d9fb08296fefa14e5",
-    "plan": "43dcda8b7fcb09d5e3654f9d20b64bcf4c0aa2419019f996589a6207229ded30"
+    "plan": "9de1cfbe7f2613b95b1611d0fa460e87baa25e166f2fa775cf0e05e1fcdf65d9"
   },
   "tasks": {
     "S1.T1": {
@@ -64,16 +64,28 @@
       ]
     },
     "S4.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S4.T2": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S4.T3": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S4.T4": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S5.T1": {
       "status": "pending"
@@ -175,6 +187,15 @@
         }
       },
       "recordedAt": "2026-10-05T22:02:38Z"
+    },
+    "2b68a9e52cff8276778678a2af0b30d367e464820f0d25b9b6d6d1a964967db1": {
+      "snapshot": {
+        "specHash": "78736474ff26a871f14515e301058ab53d72629e6a23e5a1bdba2d60d08c79bc",
+        "repositories": {
+          "rayx-signalr": "c535cbb023b09390ab26addab156f5747ae43157d99a1768cd1711e7846f9feb"
+        }
+      },
+      "recordedAt": "2026-10-05T22:41:42Z"
     }
   },
   "checkResults": {
@@ -364,6 +385,108 @@
       "logPath": "artifacts-temp/agentx/cross-platform-support/S3-final-8aa63241a695.log",
       "logSha256": "d1d1438544f455ac67ce5a920d1898b8369eaef83d16c31017c9d040a3a6a506",
       "inputsHash": "16133dbea70f64cd3a6196795b91a6179d770e21b16cd7b4a076d82956c7be13"
+    },
+    "S4/s4-tls-unit/final": {
+      "checkId": "s4-tls-unit",
+      "boundaryId": "S4",
+      "phase": "final",
+      "batchId": "2b68a9e52cff8276778678a2af0b30d367e464820f0d25b9b6d6d1a964967db1",
+      "definitionHash": "50d157a4bb39796f25c0279e6320112bcc23f40bee52338046d55869b94a5dce",
+      "basisHash": "1f571c8f9ef416b6a7da8db321230fb68941c100a393ce8b11196f6c97cd68a2",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 10,
+      "durationSeconds": 0.4371,
+      "recordedAt": "2026-10-05T22:40:36Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S4-final-ab2126f65d8f.log",
+      "logSha256": "8b45b0d5e48fe450e6fee4c35971a9596212321e5b5edea3e2f54082f9740b42",
+      "inputsHash": "d8260bc4cff7a2b71ce77ebb3c1985d27fca0daf614a642a87938311a0ffe534"
+    },
+    "S4/s4-tls-disabled/final": {
+      "checkId": "s4-tls-disabled",
+      "boundaryId": "S4",
+      "phase": "final",
+      "batchId": "2b68a9e52cff8276778678a2af0b30d367e464820f0d25b9b6d6d1a964967db1",
+      "definitionHash": "b04f337f5ce37c4f6b77d29a413de329a99246ad3f5b84021fcd3b8c90c951a0",
+      "basisHash": "7f986b6c4d66775df0e13a62bf1b93dc9bf8815c9e72538dc8efec537049a7f4",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 5,
+      "durationSeconds": 1.4528,
+      "recordedAt": "2026-10-05T22:40:38Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S4-final-d7debe64374b.log",
+      "logSha256": "56c48a34c0140a4309b07f4e54215cb7da826d6fe53cda781373ba20a7031b19",
+      "inputsHash": "d8260bc4cff7a2b71ce77ebb3c1985d27fca0daf614a642a87938311a0ffe534"
+    },
+    "S4/s4-tls-e2e/final": {
+      "checkId": "s4-tls-e2e",
+      "boundaryId": "S4",
+      "phase": "final",
+      "batchId": "2b68a9e52cff8276778678a2af0b30d367e464820f0d25b9b6d6d1a964967db1",
+      "definitionHash": "c09beb9c7bbcd2f4b4d1500b78638cf3bbca663ea5b870b6e64a4a6052c0a8a5",
+      "basisHash": "97319617b90ba5b09cb17da0987be62539d950a73dd9e2aa748233a4d4ba2616",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 21.4747,
+      "recordedAt": "2026-10-05T22:40:59Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S4-final-eacb3e068fa8.log",
+      "logSha256": "5ab6e89f49eb0d16c5a43044e5ed7f03ffd150f1d5a342be5cfdcd0c9e92d81e",
+      "inputsHash": "ffc17b7fe20aa5b58cbb1eca1935b5b798d17f99b832bb10e4f177a7d3d621c9"
+    },
+    "S4/s4-native-functional/final": {
+      "checkId": "s4-native-functional",
+      "boundaryId": "S4",
+      "phase": "final",
+      "batchId": "2b68a9e52cff8276778678a2af0b30d367e464820f0d25b9b6d6d1a964967db1",
+      "definitionHash": "7a1e1f2a3b1bc1451ca776688582c75352226c7ad098918b831461dc2a30f29e",
+      "basisHash": "f42633190367fff8cceb905b7bb2efceef753980cdd927a2ab21251679385020",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 20,
+      "durationSeconds": 33.0054,
+      "recordedAt": "2026-10-05T22:41:32Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S4-final-a67fa8f1e66d.log",
+      "logSha256": "7a241692effd1df0f8d2092a2ef6e9bf1156235138e63c370a206eca36b9ecb1",
+      "inputsHash": "87c705b57dc7dd19a6c856b5d3ab2262eff55b503f8af37fd821dcdbfde956e4"
+    },
+    "S4/s4-mobile-platform/final": {
+      "checkId": "s4-mobile-platform",
+      "boundaryId": "S4",
+      "phase": "final",
+      "batchId": "2b68a9e52cff8276778678a2af0b30d367e464820f0d25b9b6d6d1a964967db1",
+      "definitionHash": "450056c47bd5c7b9d39948b6c897c0be49d3f44292857fdaad123ce029fa4057",
+      "basisHash": "061a7170370879b9bfe696e61ba922196bb9f4449d8fe6efbc9925f9f445b03c",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 11,
+      "durationSeconds": 8.7024,
+      "recordedAt": "2026-10-05T22:41:41Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S4-final-91b461530fcf.log",
+      "logSha256": "5de76af295a5a77afb5991d10eadcd4d63b2f74fd475f3dffe38977145fd55ac",
+      "inputsHash": "05fd04e6739fea7831eb75a16cc602c3f95c23d5539e6e5e3cc4d5b33b75bf55"
+    },
+    "S4/s4-negotiate-errors/final": {
+      "checkId": "s4-negotiate-errors",
+      "boundaryId": "S4",
+      "phase": "final",
+      "batchId": "2b68a9e52cff8276778678a2af0b30d367e464820f0d25b9b6d6d1a964967db1",
+      "definitionHash": "e4663fe4a10b9e48bc24d684a0dc0883075226bfa6a69b9a4e4c7debb161d5c8",
+      "basisHash": "a9faaee5896e67eb2a234cf76f16853dde42cbc54a63839f6db143203f1e53b7",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 5,
+      "durationSeconds": 0.5372,
+      "recordedAt": "2026-10-05T22:41:41Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S4-final-98aca7da9ae9.log",
+      "logSha256": "1504a4ec9d4acf9bf922f3cd13aa33c4e17aef01a4c39af740f6c13b76cccb23",
+      "inputsHash": "6e3e87750c98139dea85985b220f68c9417149e201c0ce37de632b09b3971c36"
     }
   },
   "reviews": {
@@ -1143,6 +1266,212 @@
         "S3-F2"
       ],
       "recordedAt": "2026-10-05T22:03:01Z"
+    },
+    "S4": {
+      "reviewerId": "s4-reviewer-independent-d7cad853",
+      "snapshotId": "2b68a9e52cff8276778678a2af0b30d367e464820f0d25b9b6d6d1a964967db1",
+      "criterionIds": [
+        "R4.C1",
+        "R4.C2",
+        "R4.C3",
+        "R4.C4",
+        "R4.C5",
+        "R4.C6"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/tls.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R4.C1",
+            "R4.C2",
+            "R4.C3"
+          ],
+          "sha256": "09aeb3b7bbf172d52318fcc8a1ac34f67f2dbd6a6b4bc7a953a88a79e7fe2f6e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/tls.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R4.C2",
+            "R4.C3"
+          ],
+          "sha256": "09aeb3b7bbf172d52318fcc8a1ac34f67f2dbd6a6b4bc7a953a88a79e7fe2f6e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "build.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R4.C2"
+          ],
+          "sha256": "121117d22328f6afbf6bdee2310e124cb764ecb0f64b86c691f85b43ac4997fb"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "Cargo.toml",
+          "kind": "source",
+          "criterionIds": [
+            "R4.C2",
+            "R4.C4",
+            "R4.C5",
+            "R4.C6"
+          ],
+          "sha256": "47755c208044d19894072131d26822cbd031ae35131e0d8106206ba73301f70d"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R4.C1",
+            "R4.C3"
+          ],
+          "sha256": "dda7998aecbf0e14ec3badb4ce2973de0bdf1ffa1e53259fe75213b094022b60"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R4.C1",
+            "R4.C3"
+          ],
+          "sha256": "14d70c99fdd776ef7de42603341b7d6a4cd4f8deb3aa5d1f1d9848edecec9df2"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R4.C1",
+            "R4.C6"
+          ],
+          "sha256": "a39569d299ecf3ecbae8c82ec347af6e7ea82ddbe6913f46c42acba1a916ead6"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/common.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R4.C1",
+            "R4.C6"
+          ],
+          "sha256": "dc856dde4094587e9ac40620efe2f32f6b99f7552723339cd85c7a15d9faaad9"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R4.C1",
+            "R4.C6"
+          ],
+          "sha256": "9604b1625b327eb188612134dc8caa7c0003465572e9757d491987251d5171fc"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/lib.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R4.C5"
+          ],
+          "sha256": "2a2b50598904e163ba313f30a677978938324d5b53e1a019182ae4a39a51f6f1"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.AppHost/TestCertificates.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R4.C1"
+          ],
+          "sha256": "c4184fc71432f41fe18f70aa866c6dd42b44155b6e5c83a6608a15f2a83af9b5"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.AppHost/AppHost.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R4.C1"
+          ],
+          "sha256": "06599d09ff77c1d8dfa5323b0baa3a2dc5fcc4e61baa8b5f2c7ebad669c7b8d3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/SignalRTestService/Program.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R4.C1"
+          ],
+          "sha256": "1ce6cc51ffdd0ca22259955f74f9489f441ba8496b260996da52b481e6535260"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/tls.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R4.C1"
+          ],
+          "sha256": "c8b59c4493e3d92d6e1cc45a27c9eba76dedfe12b1171ffe4b8f7c1dcf08945f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/tests/signalr-tls.spec.ts",
+          "kind": "runtime",
+          "criterionIds": [
+            "R4.C1"
+          ],
+          "sha256": "2eac55932484c54d37f6708ffbdade9a8427ab0539279af4d2f959851d26d7cc"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R4.C1"
+          ],
+          "sha256": "226c6fb8dc787c60bb61969eaaf3eb9da678ebc4df5ab765fc0fb8c7670b2f7a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Scenarios/ScenarioCatalog.cs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R4.C1",
+            "R4.C6"
+          ],
+          "sha256": "eead25c45bfe4e6ea1b43c6e019e89a5dd264d556022ce45936ea3d7c14e3bcc"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/MobileTlsTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R4.C4",
+            "R4.C5"
+          ],
+          "sha256": "ce292b033e700ca7f42a7e052f98de1d50410645f4658229c5c9d395f37eac8d"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R4.C6"
+          ],
+          "sha256": "a39569d299ecf3ecbae8c82ec347af6e7ea82ddbe6913f46c42acba1a916ead6"
+        }
+      ],
+      "summaryMarkdown": "Re-review at snapshot 2b68a9e5: all S4 criteria pass. S4-F1 is resolved (no-default-features Clippy -D warnings clean). S4-F2 is resolved (non-2xx negotiate errors carry a bounded, redacted body excerpt). S4-F3 is resolved: `redact` is a forward scan that slices only at ASCII marker ends or `find` results and skips only spaces/tabs after a marker; the reported panic input, 20k randomized multi-byte/marker inputs against a verbatim copy, and the 5 `negotiate_http_errors` tests run without panics. TLS semantics remain as verified: one explicit-provider `ClientConfig` per secure connection, shared by negotiate, the WebSocket, reconnect and stateful resume, with no plaintext or accept-all fallback.",
+      "findingIds": [
+        "S4-F1",
+        "S4-F2",
+        "S4-F3"
+      ],
+      "recordedAt": "2026-10-05T22:42:22Z"
     }
   },
   "checkpoints": {
@@ -1169,6 +1498,14 @@
       },
       "reviewHash": "2dc80ff32d628be9011a29681de73642f41bbd0ed7646bc29fdee0f863c19d74",
       "recordedAt": "2026-10-05T22:03:13Z"
+    },
+    "S4": {
+      "snapshotId": "2b68a9e52cff8276778678a2af0b30d367e464820f0d25b9b6d6d1a964967db1",
+      "commits": {
+        "rayx-signalr": "03f0ca1012051df0c780ecd37356e3f9c2d14ea4"
+      },
+      "reviewHash": "a0c86b6968b7934ec4b1babb3a566c65cf5ba487e32eb5ab81988723211896a1",
+      "recordedAt": "2026-10-05T22:42:37Z"
     }
   },
   "findings": [
@@ -1305,6 +1642,57 @@
           "repositoryId": "rayx-signalr",
           "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/ManifestHygieneTests.cs",
           "symbol": "ManifestHygieneTests.TokioDependencyEnablesOnlyRuntimeFeatures"
+        }
+      ]
+    },
+    {
+      "id": "S4-F1",
+      "boundaryId": "S4",
+      "criterionIds": [
+        "R4.C2"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Expected:** the new `tls_configuration` tests compile warning-free in every feature mode they are required to run in (quality-gates rule: resolve warnings through source or precise feature gating). **Observed:** `cargo test --lib --no-default-features tls_configuration` (the s4-tls-disabled log) emits two `dead_code` warnings, and `cargo clippy --lib --tests --no-default-features -- -D warnings` fails: `CompiledTls::CURRENT` (src/communication/tls.rs:57, gated `cfg(any(rayx_tls, test))` but only used under `rayx_tls`) and `TEST_CA_PEM` (tls.rs:254, only used by the `#[cfg(rayx_tls)] mod with_tls`). **Repair:** gate `CURRENT` with `#[cfg(rayx_tls)]` (or use it from the no-TLS test) and move `TEST_CA_PEM` into `mod with_tls` (or gate it `#[cfg(rayx_tls)]`); rerun s4-tls-disabled and confirm the no-default-features test/clippy build is warning-free.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/tls.rs",
+          "symbol": "tls_configuration::with_tls"
+        }
+      ]
+    },
+    {
+      "id": "S4-F2",
+      "boundaryId": "S4",
+      "criterionIds": [
+        "R4.C6"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Expected (D8):** the native hyper negotiate returns, for a non-2xx status, an error with the status *and a short token-redacted body excerpt*. **Observed:** `negotiate_http::send` (src/communication/negotiate_http.rs:99-101) returns only `the server returned {status}` and discards the body, so server-side rejection reasons (e.g. 401/403/400 detail) are lost. No token leaks today, but the designed diagnostic is missing. **Repair:** on non-2xx, collect at most a small bounded prefix of the body (e.g. 256 bytes, lossy UTF-8), redact `access_token=` / `Bearer` / `Authorization` values, and append it to the status error; add a focused unit test of the excerpt/redaction helper in a new uniquely prefixed test module beside `negotiate_http.rs` (or update D8 through AgentX if the excerpt is deliberately dropped).",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs",
+          "symbol": "negotiate_http_errors"
+        }
+      ]
+    },
+    {
+      "id": "S4-F3",
+      "boundaryId": "S4",
+      "criterionIds": [
+        "R4.C6"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "Introduced by the S4-F2 repair. **Expected:** formatting a non-2xx negotiate error never panics on a server-controlled body. **Observed:** `redact` in src/communication/negotiate_http.rs advances `searched = (value_start + \"[REDACTED]\".len())` even when nothing was replaced (empty value, e.g. `access_token=&...`), and then slices `redacted[searched..]` at a byte offset that can fall inside a multi-byte character. Reproduced with a verbatim copy of `redact`: input `access_token=&üüüüüü` panics with 'byte index 23 is not a char boundary'. A server or proxy returning such a 4xx/5xx body panics the caller's `connect` future in production library code. (Secondary, non-blocking: `trim_start` lets an `Authorization:` value skip past a newline and redact the following line.) **Repair:** when no replacement happens, continue from `value_start` (or `value_end`/the marker end, always a char boundary) instead of adding the placeholder length, or rewrite the scan on `char_indices`; restrict leading-space skipping to spaces/tabs. Add a `negotiate_http_errors` test covering an empty value followed by multi-byte text (and non-ASCII / U+FFFD truncation at the 256-byte boundary) asserting no panic.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs",
+          "symbol": "negotiate_http_errors::redaction_never_splits_multi_byte_text"
         }
       ]
     }

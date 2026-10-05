@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "cross-platform-support",
-  "revision": 4,
+  "revision": 5,
   "title": "Cross-platform rayx-signalr with Aspire-orchestrated end-to-end testing on every target",
   "validationMode": "sprint",
   "repositories": [
@@ -1550,6 +1550,31 @@
         "src/**"
       ],
       "timeoutSeconds": 900
+    },
+    {
+      "id": "s4-negotiate-errors",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R4.C6"
+      ],
+      "descriptionMarkdown": "New `negotiate_http_errors` unit group: status plus bounded, credential-redacted body excerpt.",
+      "argv": [
+        "cargo",
+        "test",
+        "--lib",
+        "--all-features",
+        "negotiate_http_errors"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 3
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/communication/**"
+      ],
+      "timeoutSeconds": 900
     }
   ],
   "finalCheckIds": [
@@ -2042,7 +2067,8 @@
           ],
           "checkIds": [
             "s4-tls-e2e",
-            "s4-native-functional"
+            "s4-native-functional",
+            "s4-negotiate-errors"
           ],
           "sourceRefs": [
             {
