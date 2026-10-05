@@ -2,7 +2,6 @@ use crate::client::{Authentication, ConnectionRecipe};
 use crate::execution::UpdatableActionStorage;
 use crate::protocol::hub_protocol::HubProtocolKind;
 use crate::protocol::negotiate::NegotiateResponse;
-use base64::{engine::general_purpose, Engine};
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -95,7 +94,7 @@ impl HttpClient {
                     ))
             }
             Err(e) => Err(format!(
-                "HTTP negotiation with endpoint {} failed {}",
+                "HTTP negotiation with endpoint {} failed: {}",
                 recipe.display_endpoint(),
                 e
             )),
@@ -152,17 +151,6 @@ impl HttpClient {
         }
     }
 
-    fn basic_auth(username: String, password: Option<String>) -> String {
-        let mut ret = String::new();
-        let credentials = password.map_or_else(
-            || format!("{username}:"),
-            |password| format!("{username}:{password}"),
-        );
-        general_purpose::STANDARD.encode_string(credentials, &mut ret);
-
-        format!("Basic {}", &ret)
-    }
-
     pub async fn post_text(
         endpoint: String,
         authentication: Authentication,
@@ -171,25 +159,17 @@ impl HttpClient {
 
         let mut request = ehttp::Request::post(endpoint, vec![]);
 
-        match authentication {
-            Authentication::None => {}
-            Authentication::Basic {
-                ref user,
-                ref password,
-            } => {
-                request.headers.insert(
-                    "Authorization",
-                    HttpClient::basic_auth(user.clone(), password.clone()),
-                );
-            }
-            Authentication::Bearer { ref token } => {
-                request
-                    .headers
-                    .insert("Authorization", format!("Bearer {}", token));
-            }
+        if let Some(value) = authentication.header_value() {
+            request.headers.insert("Authorization", value);
         }
 
         ehttp::fetch(request, move |result| match result {
+            Ok(response) if !response.ok => {
+                _ = s.send(Err(format!(
+                    "the server returned {} {}",
+                    response.status, response.status_text
+                )));
+            }
             Ok(response) => {
                 if let Some(text) = response.text() {
                     _ = s.send(Ok(text.to_string()));

@@ -52,11 +52,20 @@ pub struct ReconnectionContext {
     coordinator: ReconnectCoordinator,
     protocol_kind: HubProtocolKind,
     stateful: Option<SharedStatefulBuffer>,
+    server_allows_reconnect: bool,
 }
 
 impl ReconnectionContext {
+    /// Whether the server allowed reconnecting; `false` after a Close without permission.
+    pub fn server_allows_reconnect(&self) -> bool {
+        self.server_allows_reconnect
+    }
+
     /// Attempt to reconnect once. Returns Ok(()) on success.
     pub async fn reconnect(&self) -> Result<(), String> {
+        if !self.server_allows_reconnect {
+            return Err("The server closed the connection without allowing reconnect".to_string());
+        }
         let state = self.state.upgrade().ok_or("Client has been dropped")?;
         let generation = self.coordinator.begin().map_err(str::to_string)?;
         {
@@ -75,6 +84,7 @@ impl ReconnectionContext {
                 self.transport_endpoint.clone(),
                 self.protocol_kind,
                 buffer.clone(),
+                self.recipe.authentication().header_value().as_deref(),
             )
             .await
         } else {
@@ -151,7 +161,7 @@ impl ReconnectionContext {
                 match self.reconnect().await {
                     Ok(()) => return Ok(()),
                     Err(e) => {
-                        if e.contains("locally disconnected") {
+                        if e.contains("locally disconnected") || !self.server_allows_reconnect {
                             return Err(e);
                         }
                         retry_count += 1;
@@ -709,6 +719,7 @@ impl CommunicationClient {
         endpoint: Uri,
         protocol_kind: HubProtocolKind,
         stateful_reconnect: bool,
+        authorization: Option<&str>,
     ) -> Result<
         (
             SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
@@ -716,7 +727,7 @@ impl CommunicationClient {
         ),
         String,
     > {
-        let ws = Self::connect_socket(endpoint).await?;
+        let ws = Self::connect_socket(endpoint, authorization).await?;
         let (mut write, mut read) = ws.split();
 
         info!("Initiating handshake...");
@@ -744,11 +755,24 @@ impl CommunicationClient {
 
     async fn connect_socket(
         endpoint: Uri,
+        authorization: Option<&str>,
     ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, String> {
         info!(
             "Connecting to endpoint {}",
             Self::display_endpoint(&endpoint)
         );
+        // Native clients authenticate the upgrade with the same header as negotiate.
+        let mut builder = ClientBuilder::from_uri(endpoint.clone());
+        if let Some(value) = authorization {
+            let value = http::HeaderValue::from_str(value).map_err(|_| {
+                "The configured credentials are not a valid header value".to_string()
+            })?;
+            builder = builder
+                .add_header(http::header::AUTHORIZATION, value)
+                .map_err(|_| {
+                    "Cannot add the Authorization header to the WebSocket upgrade".to_string()
+                })?;
+        }
 
         let stream = if Some("wss") == endpoint.scheme_str() {
             info!("Connection to secure endpoint...");
@@ -757,13 +781,10 @@ impl CommunicationClient {
             };
 
             let connector = tokio_websockets::Connector::NativeTls(connector.into());
-            ClientBuilder::from_uri(endpoint.clone())
-                .connector(&connector)
-                .connect()
-                .await
+            builder.connector(&connector).connect().await
         } else {
             info!("Connection to plain endpoint...");
-            ClientBuilder::from_uri(endpoint.clone()).connect().await
+            builder.connect().await
         };
 
         stream.map(|(ws, _)| ws).map_err(|error| error.to_string())
@@ -773,6 +794,7 @@ impl CommunicationClient {
         endpoint: Uri,
         protocol_kind: HubProtocolKind,
         buffer: SharedStatefulBuffer,
+        authorization: Option<&str>,
     ) -> Result<
         (
             SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
@@ -780,7 +802,7 @@ impl CommunicationClient {
         ),
         String,
     > {
-        let ws = Self::connect_socket(endpoint).await?;
+        let ws = Self::connect_socket(endpoint, authorization).await?;
         let (mut write, read) = ws.split();
         let (sequence_id, frames) = buffer
             .lock()
@@ -848,14 +870,17 @@ impl CommunicationClient {
         let configuration = HttpClient::negotiate(recipe).await?;
         let endpoint = Uri::from_str(&configuration.get_endpoint())
             .map_err(|error| format!("Negotiated WebSocket endpoint is invalid: {error}"))?;
-        Self::connect_to_server(endpoint, protocol_kind, false).await
+        let authorization = recipe.authentication().header_value();
+        Self::connect_to_server(endpoint, protocol_kind, false, authorization.as_deref()).await
     }
 
     async fn connect_internal(&mut self) -> Result<(), String> {
+        let authorization = self._recipe.authentication().header_value();
         let res = CommunicationClient::connect_to_server(
             self._endpoint.clone(),
             self._protocol_kind,
             self._stateful.is_some(),
+            authorization.as_deref(),
         )
         .await;
 
@@ -971,6 +996,7 @@ impl CommunicationDisconnectionHandler for ClientDisconnectionHandler {
                 return;
             }
             if !allow_reconnect {
+                coordinator.remote_close();
                 if let Some(shared_state) = state.upgrade() {
                     *shared_state.lock().await =
                         ConnectionState::NotConnected(DisconnectionReason::RemoteClosed);
@@ -980,6 +1006,27 @@ impl CommunicationDisconnectionHandler for ClientDisconnectionHandler {
                     .fail_pending("Server closed the connection without allowing reconnect");
                 if let Some(buffer) = &stateful {
                     buffer.lock().expect("stateful buffer poisoned").dispose();
+                }
+                // Tell a manual-mode application about the terminal close; nothing reconnects
+                // automatically.
+                let user_handler = user_handler_slot
+                    .read()
+                    .expect("disconnection handler poisoned")
+                    .clone();
+                if let Some(handler) = user_handler {
+                    handler(ReconnectionContext {
+                        state: state.clone(),
+                        endpoint: endpoint.clone(),
+                        transport_endpoint: transport_endpoint.clone(),
+                        recipe: recipe.clone(),
+                        actions: actions.clone(),
+                        reconnection_config: config_slot.clone(),
+                        user_handler: user_handler_slot.clone(),
+                        coordinator: coordinator.clone(),
+                        protocol_kind,
+                        stateful: stateful.clone(),
+                        server_allows_reconnect: false,
+                    });
                 }
                 return;
             }
@@ -1011,6 +1058,11 @@ impl CommunicationDisconnectionHandler for ClientDisconnectionHandler {
                     let mut guard = s.lock().await;
                     *guard = ConnectionState::NotConnected(DisconnectionReason::RemoteClosed);
                 }
+                if stateful.is_none() {
+                    // Ordinary pending work can never complete on a new logical connection.
+                    let mut pending_actions = actions.clone();
+                    pending_actions.fail_pending("The connection was lost");
+                }
 
                 // Create context for manual reconnection
                 let context = ReconnectionContext {
@@ -1024,6 +1076,7 @@ impl CommunicationDisconnectionHandler for ClientDisconnectionHandler {
                     coordinator: coordinator.clone(),
                     protocol_kind,
                     stateful: stateful.clone(),
+                    server_allows_reconnect: true,
                 };
 
                 info!("Connection dropped. Calling user's disconnection handler (manual mode).");
@@ -1069,6 +1122,7 @@ impl CommunicationDisconnectionHandler for ClientDisconnectionHandler {
                             transport_endpoint.clone(),
                             protocol_kind,
                             buffer.clone(),
+                            recipe.authentication().header_value().as_deref(),
                         )
                         .await
                     } else {

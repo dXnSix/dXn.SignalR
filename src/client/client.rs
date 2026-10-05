@@ -1,4 +1,4 @@
-use futures::Stream;
+use crate::completer::ManualStream;
 use log::{info, warn};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -22,7 +22,9 @@ use crate::communication::WasmReconnectionContext;
 /// Trait for handling disconnection events.
 ///
 /// When a connection drops, the `on_disconnected` method is called with a
-/// `ReconnectionHandler` that allows manual reconnection.
+/// `ReconnectionHandler` that allows manual reconnection. It is also called when the
+/// server closes the connection without allowing reconnect; then
+/// [`ReconnectionHandler::server_allows_reconnect`] is `false` and reconnecting fails.
 ///
 /// **Important**: When you provide a `DisconnectionHandler`, automatic reconnection
 /// is disabled. You have full control over when and if to reconnect.
@@ -33,6 +35,11 @@ use crate::communication::WasmReconnectionContext;
 ///
 /// impl DisconnectionHandler for MyHandler {
 ///     fn on_disconnected(&self, handler: ReconnectionHandler) {
+///         // The server ended the connection for good; do not reconnect.
+///         if !handler.server_allows_reconnect() {
+///             return;
+///         }
+///
 ///         // Option 1: Reconnect immediately
 ///         tokio::spawn(async move {
 ///             if let Err(e) = handler.reconnect().await {
@@ -62,6 +69,12 @@ pub struct ReconnectionHandler {
 
 #[cfg(not(target_arch = "wasm32"))]
 impl ReconnectionHandler {
+    /// Whether the server allowed reconnecting. `false` when the server sent a Close without
+    /// reconnect permission; `reconnect` and `reconnect_with_policy` then return an error.
+    pub fn server_allows_reconnect(&self) -> bool {
+        self.context.server_allows_reconnect()
+    }
+
     /// Attempt to reconnect once. Returns Ok(()) on success.
     pub async fn reconnect(&self) -> Result<(), String> {
         self.context.reconnect().await
@@ -91,6 +104,12 @@ pub struct ReconnectionHandler {
 
 #[cfg(target_arch = "wasm32")]
 impl ReconnectionHandler {
+    /// Whether the server allowed reconnecting. `false` when the server sent a Close without
+    /// reconnect permission; `reconnect` and `reconnect_with_policy` then return an error.
+    pub fn server_allows_reconnect(&self) -> bool {
+        self.context.server_allows_reconnect()
+    }
+
     pub async fn reconnect(&self) -> Result<(), String> {
         self.context.reconnect().await
     }
@@ -587,7 +606,8 @@ impl SignalRClient {
     ///
     /// # Returns
     ///
-    /// * `impl Stream<Item = T>` - Returns a stream of items of type `T`.
+    /// * `ManualStream<T>` - A stream of items of type `T`; after it ends, [`ManualStream::error`] reports
+    ///   a server or connection error that ended it.
     ///
     /// # Type Parameters
     ///
@@ -605,7 +625,7 @@ impl SignalRClient {
     pub async fn enumerate<T: 'static + DeserializeOwned + Unpin + crate::platform::MaybeSend>(
         &mut self,
         target: String,
-    ) -> impl Stream<Item = T> {
+    ) -> ManualStream<T> {
         return self
             .enumerate_internal(target, None::<fn(&mut ArgumentConfiguration)>)
             .await;
@@ -622,7 +642,8 @@ impl SignalRClient {
     ///
     /// # Returns
     ///
-    /// * `impl Stream<Item = T>` - Returns a stream of items of type `T`.
+    /// * `ManualStream<T>` - A stream of items of type `T`; after it ends, [`ManualStream::error`] reports
+    ///   a server or connection error that ended it.
     ///
     /// # Type Parameters
     ///
@@ -646,7 +667,7 @@ impl SignalRClient {
         &mut self,
         target: String,
         configuration: F,
-    ) -> impl Stream<Item = T>
+    ) -> ManualStream<T>
     where
         F: FnMut(&mut ArgumentConfiguration),
     {
@@ -660,7 +681,7 @@ impl SignalRClient {
         &mut self,
         target: String,
         configuration: Option<F>,
-    ) -> impl Stream<Item = T>
+    ) -> ManualStream<T>
     where
         F: FnMut(&mut ArgumentConfiguration),
     {

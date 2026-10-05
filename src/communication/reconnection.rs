@@ -63,6 +63,15 @@ impl ReconnectCoordinator {
         }
     }
 
+    /// Records a terminal server close; a later manual reconnect may still begin a new generation.
+    pub(crate) fn remote_close(&self) {
+        let mut state = self.state.lock().expect("reconnect coordinator poisoned");
+        if state.lifecycle != LifecycleState::LocalClosed {
+            state.generation = state.generation.wrapping_add(1);
+            state.lifecycle = LifecycleState::Disconnected;
+        }
+    }
+
     pub(crate) fn local_close(&self) {
         let mut state = self.state.lock().expect("reconnect coordinator poisoned");
         state.generation = state.generation.wrapping_add(1);
@@ -256,5 +265,31 @@ mod reconnect_lifecycle {
         coordinator.fail(generation);
         assert_eq!(coordinator.lifecycle(), LifecycleState::Disconnected);
         assert!(coordinator.begin().is_ok());
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod functional_baseline_remote_close {
+    use super::{LifecycleState, ReconnectCoordinator};
+
+    #[test]
+    fn remote_close_disconnects_and_invalidates_in_flight_reconnects() {
+        let coordinator = ReconnectCoordinator::connected();
+        let generation = coordinator.begin().unwrap();
+        coordinator.remote_close();
+        assert_eq!(coordinator.lifecycle(), LifecycleState::Disconnected);
+        assert!(!coordinator.complete(generation));
+        assert!(
+            coordinator.begin().is_ok(),
+            "a manual reconnect may still begin"
+        );
+    }
+
+    #[test]
+    fn remote_close_never_reopens_a_local_close() {
+        let coordinator = ReconnectCoordinator::connected();
+        coordinator.local_close();
+        coordinator.remote_close();
+        assert_eq!(coordinator.lifecycle(), LifecycleState::LocalClosed);
     }
 }

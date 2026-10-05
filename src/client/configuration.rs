@@ -30,6 +30,27 @@ pub struct ConnectionConfiguration {
     _stateful_reconnect: Option<StatefulReconnectConfig>,
 }
 
+impl Authentication {
+    /// The `Authorization` header value for negotiate requests and native WebSocket upgrades.
+    pub(crate) fn header_value(&self) -> Option<String> {
+        use base64::{engine::general_purpose, Engine};
+        match self {
+            Authentication::None => None,
+            Authentication::Basic { user, password } => {
+                let credentials = match password {
+                    Some(password) => format!("{user}:{password}"),
+                    None => format!("{user}:"),
+                };
+                Some(format!(
+                    "Basic {}",
+                    general_purpose::STANDARD.encode(credentials)
+                ))
+            }
+            Authentication::Bearer { token } => Some(format!("Bearer {token}")),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct ConnectionRecipe {
     secure: bool,

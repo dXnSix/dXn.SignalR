@@ -63,10 +63,25 @@ pub struct WasmReconnectionContext {
     lifecycle: Rc<Cell<LifecycleState>>,
     attempt_in_progress: Rc<Cell<bool>>,
     generation: Rc<Cell<u64>>,
+    server_allows_reconnect: bool,
 }
 
 impl WasmReconnectionContext {
+    /// Whether the server allowed reconnecting; `false` after a Close without permission.
+    pub fn server_allows_reconnect(&self) -> bool {
+        self.server_allows_reconnect
+    }
+
+    fn refuse_terminal_close(&self) -> Result<(), String> {
+        if self.server_allows_reconnect {
+            Ok(())
+        } else {
+            Err("The server closed the connection without allowing reconnect".to_string())
+        }
+    }
+
     pub async fn reconnect(&self) -> Result<(), String> {
+        self.refuse_terminal_close()?;
         if self.attempt_in_progress.replace(true) {
             return Err("A reconnect attempt is already running".to_string());
         }
@@ -82,6 +97,7 @@ impl WasmReconnectionContext {
     }
 
     pub async fn reconnect_with_policy(&self) -> Result<(), String> {
+        self.refuse_terminal_close()?;
         if self.attempt_in_progress.replace(true) {
             return Err("A reconnect attempt is already running".to_string());
         }
@@ -520,18 +536,44 @@ impl CommunicationClient {
                 {
                     let _ = client.borrow().close();
                     if !allow_reconnect {
-                        lifecycle.set(LifecycleState::Disconnected);
-                        storage.fail_pending(
-                            "Server closed the connection without allowing reconnect",
+                        Self::terminal_close(
+                            client_slot,
+                            &storage,
+                            recipe,
+                            transport_endpoint,
+                            protocol_kind,
+                            stateful,
+                            reconnection_config,
+                            disconnection_handler,
+                            lifecycle,
+                            attempt_in_progress,
+                            generation,
                         );
-                        if let Some(buffer) = stateful {
-                            buffer.borrow_mut().dispose();
-                        }
                     }
                 }
             }
             ConnectionStatus::Disconnected | ConnectionStatus::Error => {
                 if lifecycle.get() != LifecycleState::Connected {
+                    return;
+                }
+                // Frames received before the socket closed (such as a Close message) still count.
+                let mut drained = storage.clone();
+                if Self::process_messages(&client, &mut drained, protocol_kind, stateful.as_ref())
+                    == Some(false)
+                {
+                    Self::terminal_close(
+                        client_slot,
+                        storage,
+                        recipe,
+                        transport_endpoint,
+                        protocol_kind,
+                        stateful,
+                        reconnection_config,
+                        disconnection_handler,
+                        lifecycle,
+                        attempt_in_progress,
+                        generation,
+                    );
                     return;
                 }
                 lifecycle.set(LifecycleState::Reconnecting);
@@ -555,10 +597,18 @@ impl CommunicationClient {
                     lifecycle: lifecycle.clone(),
                     attempt_in_progress: attempt_in_progress.clone(),
                     generation: generation.clone(),
+                    server_allows_reconnect: true,
                 };
 
-                if let Some(handler) = disconnection_handler.borrow().clone() {
+                // Release the handler slot borrow before running user code.
+                let handler = disconnection_handler.borrow().clone();
+                if let Some(handler) = handler {
                     lifecycle.set(LifecycleState::Disconnected);
+                    if stateful.is_none() {
+                        // Ordinary pending work can never complete on a new logical connection.
+                        let mut storage = storage.clone();
+                        storage.fail_pending("The connection was lost");
+                    }
                     handler(context);
                 } else {
                     spawn_local(async move {
@@ -569,6 +619,47 @@ impl CommunicationClient {
                 }
             }
             ConnectionStatus::Connecting => debug!("SignalR WebSocket is connecting"),
+        }
+    }
+
+    /// Handles a server Close that forbids reconnecting: fails pending work and notifies a
+    /// manual-mode application; nothing reconnects automatically.
+    #[allow(clippy::too_many_arguments)]
+    fn terminal_close(
+        client_slot: &Rc<RefCell<Option<Rc<RefCell<PollingClient>>>>>,
+        storage: &UpdatableActionStorage,
+        recipe: &ConnectionRecipe,
+        transport_endpoint: &str,
+        protocol_kind: HubProtocolKind,
+        stateful: &Option<SharedStatefulBuffer>,
+        reconnection_config: &Rc<RefCell<ReconnectionConfig>>,
+        disconnection_handler: &Rc<RefCell<Option<Rc<DisconnectionCallback>>>>,
+        lifecycle: &Rc<Cell<LifecycleState>>,
+        attempt_in_progress: &Rc<Cell<bool>>,
+        generation: &Rc<Cell<u64>>,
+    ) {
+        lifecycle.set(LifecycleState::Disconnected);
+        generation.set(generation.get().wrapping_add(1));
+        let mut pending = storage.clone();
+        pending.fail_pending("Server closed the connection without allowing reconnect");
+        if let Some(buffer) = stateful {
+            buffer.borrow_mut().dispose();
+        }
+        let handler = disconnection_handler.borrow().clone();
+        if let Some(handler) = handler {
+            handler(WasmReconnectionContext {
+                client: client_slot.clone(),
+                storage: storage.clone(),
+                recipe: recipe.clone(),
+                transport_endpoint: transport_endpoint.to_string(),
+                protocol_kind,
+                stateful: stateful.clone(),
+                reconnection_config: reconnection_config.clone(),
+                lifecycle: lifecycle.clone(),
+                attempt_in_progress: attempt_in_progress.clone(),
+                generation: generation.clone(),
+                server_allows_reconnect: false,
+            });
         }
     }
 
