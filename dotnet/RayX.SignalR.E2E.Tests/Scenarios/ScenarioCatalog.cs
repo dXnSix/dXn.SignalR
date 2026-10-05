@@ -73,6 +73,7 @@ public static class ScenarioCatalog
     new("tls", Set(_native, _chromium)),
     new("negotiate-redirect", Set(_native, _chromium)),
     new("skip-negotiation", Set(_native, _chromium)),
+    new("executor-independence", Set(_native)),
     new("ordinary-reconnect", Set(_native, _chromium)),
     new("stateful-reconnect", Set(_native, _chromium)),
     new("stream-cancellation", Set(_native, _chromium)),

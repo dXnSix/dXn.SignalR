@@ -12,6 +12,7 @@ mod authentication;
 mod callbacks;
 mod concurrency_and_clones;
 mod connect_negotiate;
+mod executor_independence;
 mod invoke;
 mod large_payload;
 mod negotiate_redirect;
