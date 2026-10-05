@@ -47,3 +47,13 @@ tokio = { version = "1.49.0", features = ["full"] }
 tokio-websockets = { version = "0.13.1", features = ["sha1_smol", "fastrand", "client", "native-tls"] }
 tokio-native-tls = "0.3.1"
 http = { version = "1.4.0", default-features = false, features = ["std"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread", "time"] }
+env_logger = "0.11"
+
+# Black-box end-to-end scenarios; run only through the Aspire runner (`dotnet test`).
+[[test]]
+name = "e2e"
+path = "tests/e2e/main.rs"
+test = false

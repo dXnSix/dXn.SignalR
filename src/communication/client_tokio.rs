@@ -1,16 +1,3 @@
-#[cfg(all(test, unix))]
-use std::os::fd::{AsRawFd, FromRawFd, RawFd};
-#[cfg(all(test, windows))]
-use std::os::windows::io::{AsRawSocket, FromRawSocket, RawSocket};
-#[cfg(test)]
-use std::{
-    mem::ManuallyDrop,
-    net::Shutdown,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        OnceLock,
-    },
-};
 use std::{
     str::FromStr,
     sync::{Arc, Mutex as StdMutex, RwLock, Weak},
@@ -50,29 +37,6 @@ type UserDisconnectionHandler = Arc<Box<dyn Fn(ReconnectionContext) + Send + Syn
 type SharedStatefulBuffer = Arc<StdMutex<StatefulMessageBuffer>>;
 type SocketSink = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
 type SharedSocketSink = Arc<Mutex<SocketSink>>;
-
-#[cfg(test)]
-#[derive(Clone)]
-struct TestClientHandle {
-    state: Weak<Mutex<ConnectionState>>,
-    coordinator: ReconnectCoordinator,
-}
-
-#[cfg(test)]
-static TEST_CLIENT: OnceLock<StdMutex<Option<TestClientHandle>>> = OnceLock::new();
-
-#[cfg(all(test, unix))]
-type TestSocketHandle = RawFd;
-#[cfg(all(test, windows))]
-type TestSocketHandle = RawSocket;
-
-#[cfg(test)]
-static TEST_SOCKET: OnceLock<StdMutex<Option<TestSocketHandle>>> = OnceLock::new();
-
-#[cfg(test)]
-static TEST_PAUSE_NEXT_TRACKABLE: AtomicBool = AtomicBool::new(false);
-#[cfg(test)]
-static TEST_TRACKABLE_PAUSED: OnceLock<tokio::sync::Notify> = OnceLock::new();
 
 /// Context for manual reconnection, passed to user's disconnection handler.
 /// Allows the user to manually trigger reconnection attempts.
@@ -142,8 +106,6 @@ impl ReconnectionContext {
                     _receiver: None,
                     _sink: Arc::new(Mutex::new(write)),
                     _stateful: self.stateful.clone(),
-                    #[cfg(test)]
-                    _test_disconnection_handler: None,
                 };
                 conn_struct.start_receiving(
                     read,
@@ -221,8 +183,6 @@ struct CommunicationConnection {
     _sink: SharedSocketSink,
     _receiver: Option<JoinHandle<()>>,
     _stateful: Option<SharedStatefulBuffer>,
-    #[cfg(test)]
-    _test_disconnection_handler: Option<ClientDisconnectionHandler>,
 }
 
 impl CommunicationConnection {
@@ -235,10 +195,6 @@ impl CommunicationConnection {
     ) {
         let stateful = self._stateful.clone();
         let sink = self._sink.clone();
-        #[cfg(test)]
-        {
-            self._test_disconnection_handler = Some(disconnection_handler.clone());
-        }
         let handle = tokio::spawn(async move {
             let mut allow_reconnect = true;
             'receive: while let Some(item) = stream.next().await {
@@ -249,9 +205,6 @@ impl CommunicationConnection {
                                 if let Ok(ping) = MessageParser::parse_message::<Ping>(&message) {
                                     let message_type = ping.message_type();
                                     if let Some(buffer) = &stateful {
-                                        #[cfg(test)]
-                                        CommunicationClient::pause_test_trackable(message_type)
-                                            .await;
                                         let control_result = match message_type {
                                             MessageType::Ack => {
                                                 MessageParser::parse_message::<Ack>(&message)
@@ -351,9 +304,6 @@ impl CommunicationConnection {
                                 match crate::protocol::msgpack::read_message_type(&payload) {
                                     Ok(msg_type) => {
                                         if let Some(buffer) = &stateful {
-                                            #[cfg(test)]
-                                            CommunicationClient::pause_test_trackable(msg_type)
-                                                .await;
                                             let control_result = match msg_type {
                                                 MessageType::Ack => crate::protocol::stateful::decode_messagepack_control(
                                                     &payload,
@@ -719,16 +669,6 @@ impl CommunicationClient {
             DisconnectionReason::NeverOpened,
         )));
         let coordinator = ReconnectCoordinator::connected();
-        #[cfg(test)]
-        {
-            *TEST_CLIENT
-                .get_or_init(|| StdMutex::new(None))
-                .lock()
-                .expect("test client handle poisoned") = Some(TestClientHandle {
-                state: Arc::downgrade(&state),
-                coordinator: coordinator.clone(),
-            });
-        }
 
         CommunicationClient {
             _endpoint: endpoint,
@@ -826,21 +766,7 @@ impl CommunicationClient {
             ClientBuilder::from_uri(endpoint.clone()).connect().await
         };
 
-        let ws = stream
-            .map(|(ws, _)| ws)
-            .map_err(|error| error.to_string())?;
-        #[cfg(test)]
-        if let MaybeTlsStream::Plain(socket) = ws.get_ref() {
-            #[cfg(unix)]
-            let handle = socket.as_raw_fd();
-            #[cfg(windows)]
-            let handle = socket.as_raw_socket();
-            *TEST_SOCKET
-                .get_or_init(|| StdMutex::new(None))
-                .lock()
-                .expect("test socket handle poisoned") = Some(handle);
-        }
-        Ok(ws)
+        stream.map(|(ws, _)| ws).map_err(|error| error.to_string())
     }
 
     async fn resume_to_server(
@@ -939,8 +865,6 @@ impl CommunicationClient {
                     _receiver: None,
                     _sink: Arc::new(Mutex::new(write)),
                     _stateful: self._stateful.clone(),
-                    #[cfg(test)]
-                    _test_disconnection_handler: None,
                 };
 
                 let handler = ClientDisconnectionHandler {
@@ -1009,103 +933,6 @@ impl CommunicationClient {
             }
         } else {
             Vec::new()
-        }
-    }
-
-    #[cfg(test)]
-    pub(crate) async fn force_test_transport_drop() -> Result<(), String> {
-        let handle = TEST_CLIENT
-            .get_or_init(|| StdMutex::new(None))
-            .lock()
-            .expect("test client handle poisoned")
-            .clone()
-            .ok_or_else(|| "No native test client is connected".to_string())?;
-        let state = handle
-            .state
-            .upgrade()
-            .ok_or_else(|| "Native test client has been dropped".to_string())?;
-        let connection = {
-            let guard = state.lock().await;
-            match &*guard {
-                ConnectionState::Connected(connection) => connection.clone(),
-                ConnectionState::NotConnected(reason) => {
-                    return Err(format!("Native test client is not connected: {reason:?}"));
-                }
-            }
-        };
-        let handler = {
-            let mut connection = connection.lock().await;
-            connection.stop_receiving();
-            connection
-                ._test_disconnection_handler
-                .clone()
-                .ok_or_else(|| "Native test disconnect handler is unavailable".to_string())?
-        };
-        let socket_handle = TEST_SOCKET
-            .get_or_init(|| StdMutex::new(None))
-            .lock()
-            .expect("test socket handle poisoned")
-            .ok_or_else(|| "Native test socket handle is unavailable".to_string())?;
-        #[cfg(unix)]
-        let socket = unsafe {
-            // The wrapper borrows the live Tokio socket handle and must not close it.
-            ManuallyDrop::new(std::net::TcpStream::from_raw_fd(socket_handle))
-        };
-        #[cfg(windows)]
-        let socket = unsafe {
-            // The wrapper borrows the live Tokio socket handle and must not close it.
-            ManuallyDrop::new(std::net::TcpStream::from_raw_socket(socket_handle))
-        };
-        socket
-            .shutdown(Shutdown::Both)
-            .map_err(|error| error.to_string())?;
-        handler.on_connection_dropped(true);
-
-        tokio::time::timeout(std::time::Duration::from_secs(10), async {
-            let mut observed_reconnect = false;
-            loop {
-                match handle.coordinator.lifecycle() {
-                    LifecycleState::Reconnecting => observed_reconnect = true,
-                    LifecycleState::Connected if observed_reconnect => return Ok(()),
-                    LifecycleState::Disconnected | LifecycleState::LocalClosed => {
-                        return Err("Native test client reconnect terminated".to_string());
-                    }
-                    _ => {}
-                }
-                tokio::task::yield_now().await;
-                tokio::time::sleep(std::time::Duration::from_millis(2)).await;
-            }
-        })
-        .await
-        .map_err(|_| "Timed out waiting for native stateful reconnect".to_string())?
-    }
-
-    #[cfg(test)]
-    pub(crate) fn pause_next_test_trackable() {
-        TEST_PAUSE_NEXT_TRACKABLE.store(true, Ordering::Release);
-    }
-
-    #[cfg(test)]
-    pub(crate) async fn wait_for_test_trackable_pause() -> Result<(), String> {
-        tokio::time::timeout(
-            std::time::Duration::from_secs(5),
-            TEST_TRACKABLE_PAUSED
-                .get_or_init(tokio::sync::Notify::new)
-                .notified(),
-        )
-        .await
-        .map_err(|_| "Timed out waiting for a paused native trackable frame".to_string())
-    }
-
-    #[cfg(test)]
-    async fn pause_test_trackable(message_type: MessageType) {
-        if super::stateful::is_trackable(message_type)
-            && TEST_PAUSE_NEXT_TRACKABLE.swap(false, Ordering::AcqRel)
-        {
-            TEST_TRACKABLE_PAUSED
-                .get_or_init(tokio::sync::Notify::new)
-                .notify_one();
-            std::future::pending::<()>().await;
         }
     }
 }
@@ -1273,8 +1100,6 @@ impl CommunicationDisconnectionHandler for ClientDisconnectionHandler {
                                     _receiver: None,
                                     _sink: Arc::new(Mutex::new(write)),
                                     _stateful: stateful.clone(),
-                                    #[cfg(test)]
-                                    _test_disconnection_handler: None,
                                 };
                                 conn_struct.start_receiving(
                                     read,

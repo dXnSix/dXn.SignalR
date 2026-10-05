@@ -4,7 +4,6 @@ mod completer;
 mod execution;
 pub(crate) mod platform;
 mod protocol;
-mod tests;
 
 pub use client::{
     ConnectionConfiguration, DisconnectionHandler, InvocationContext, ReconnectionHandler,
