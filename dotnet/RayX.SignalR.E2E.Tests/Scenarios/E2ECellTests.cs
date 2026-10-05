@@ -50,7 +50,10 @@ public sealed class E2ECellTests(AspireEnvironment environment)
                           selected,
                           async () =>
                           {
-                            await environment.EnsureStartedAsync(E2ESelection.FromEnvironment().RequiresBrowserFixture);
+                            E2ESelection selection = E2ESelection.FromEnvironment();
+                            await environment.EnsureStartedAsync(
+                              selection.RequiresBrowserFixture,
+                              selection.RequiresThreadedFixture);
                             await environment.ResetServiceAsync();
                           },
                           () => _runners[selected.Target.Kind].RunAsync(selected, environment, CancellationToken.None));

@@ -47,6 +47,9 @@ public static class ScenarioCatalog
   const string _native = "native";
   const string _chromium = "chromium";
 
+  /// <summary>The scenario that needs the threaded fixture on the isolated endpoint.</summary>
+  public const string ThreadedScenario = "threaded-wasm";
+
   /// <summary>Every known target.</summary>
   public static readonly IReadOnlyList<E2ETarget> Targets =
   [
@@ -74,6 +77,9 @@ public static class ScenarioCatalog
     new("negotiate-redirect", Set(_native, _chromium)),
     new("skip-negotiation", Set(_native, _chromium)),
     new("executor-independence", Set(_native)),
+    new("message-burst", Set(_chromium)),
+    new("worker-transport", Set(_chromium)),
+    new(ThreadedScenario, Set(_chromium)),
     new("ordinary-reconnect", Set(_native, _chromium)),
     new("stateful-reconnect", Set(_native, _chromium)),
     new("stream-cancellation", Set(_native, _chromium)),

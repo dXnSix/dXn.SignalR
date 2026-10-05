@@ -16,6 +16,7 @@ const scenarios = [
   "reconnect-exhaustion",
   "negotiate-redirect",
   "skip-negotiation",
+  "message-burst",
 ];
 
 for (const scenario of scenarios) {

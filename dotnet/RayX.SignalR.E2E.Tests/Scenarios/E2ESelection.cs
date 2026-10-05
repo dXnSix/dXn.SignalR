@@ -54,6 +54,10 @@ public sealed record E2ESelection(
   public bool RequiresBrowserFixture =>
     Targets.Any(target => ScenarioCatalog.Target(target).Kind == TargetKind.Browser);
 
+  /// <summary>Gets whether a selected browser cell needs the threaded, cross-origin-isolated fixture.</summary>
+  public bool RequiresThreadedFixture =>
+    RequiresBrowserFixture && Scenarios.Contains(ScenarioCatalog.ThreadedScenario);
+
   /// <summary>Reads the selection from the process environment.</summary>
   /// <returns>The selection.</returns>
   public static E2ESelection FromEnvironment() =>

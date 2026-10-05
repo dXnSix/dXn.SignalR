@@ -46,6 +46,11 @@ public static partial class CellExecution
       variables["RAYX_SIGNALR_E2E_FIXTURE_URL"] = Origin(environment.FixtureUrl);
     }
 
+    if(environment.ThreadsEnabled)
+    {
+      variables["RAYX_SIGNALR_E2E_ISOLATED_URL"] = Origin(environment.IsolatedFixtureUrl);
+    }
+
     return variables;
   }
 

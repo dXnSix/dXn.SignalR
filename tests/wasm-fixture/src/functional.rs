@@ -57,6 +57,9 @@ pub async fn run_functional_scenario(
         "tls" => tls(messagepack).await,
         "negotiate-redirect" => negotiate_redirect(messagepack).await,
         "skip-negotiation" => skip_negotiation(messagepack).await,
+        "message-burst" => message_burst(messagepack).await,
+        "worker-transport" => worker_transport(messagepack).await,
+        "threaded-wasm" => threaded_wasm(messagepack).await,
         other => Err(format!("unknown functional scenario {other}")),
     };
     outcome
@@ -974,6 +977,156 @@ async fn skip_negotiation(messagepack: bool) -> Outcome {
         "skip_negotiation sent {negotiates} negotiate requests"
     );
     probe.disconnect();
+    Ok(())
+}
+
+/// 1000 server-to-client callbacks from one hub call arrive completely and in order.
+async fn message_burst(messagepack: bool) -> Outcome {
+    const BURST: i32 = 1_000;
+    let mut client = connect("test", messagepack, |_| {}).await?;
+    let values = Rc::new(RefCell::new(Vec::<i32>::with_capacity(BURST as usize)));
+    let captured = values.clone();
+    let registration = client.register("e2eBurst".to_string(), move |context| {
+        if let Ok(value) = context.argument::<i32>(0) {
+            captured.borrow_mut().push(value);
+        }
+    });
+    client
+        .invoke_with_args::<(), _>("TriggerOrderedCallbacks".to_string(), |arguments| {
+            arguments.argument("e2eBurst".to_string()).argument(BURST);
+        })
+        .await?;
+    eventually("every burst callback", 15_000.0, || {
+        let values = values.clone();
+        async move { (values.borrow().len() >= BURST as usize).then_some(()) }
+    })
+    .await?;
+    ensure!(
+        *values.borrow() == (1..=BURST).collect::<Vec<_>>(),
+        "the burst arrived out of order or incomplete ({} callbacks)",
+        values.borrow().len()
+    );
+    let echoed = client
+        .invoke_with_args::<i32, _>("Echo".to_string(), |arguments| {
+            arguments.argument(1001);
+        })
+        .await?;
+    ensure!(echoed == 1001, "Echo after the burst returned {echoed}");
+    registration.unregister();
+    client.disconnect();
+    Ok(())
+}
+
+/// Runs in the threaded (atomics) fixture on a cross-origin-isolated page: shared memory is
+/// available, and the client connects, invokes, streams and completes an ordinary reconnect.
+async fn threaded_wasm(messagepack: bool) -> Outcome {
+    let global = js_sys::global();
+    let isolated = js_sys::Reflect::get(&global, &"crossOriginIsolated".into())
+        .ok()
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+    ensure!(isolated, "the page is not cross-origin isolated");
+    ensure!(
+        js_sys::Reflect::has(&global, &"SharedArrayBuffer".into()).unwrap_or(false),
+        "SharedArrayBuffer is unavailable"
+    );
+    let memory = wasm_bindgen::memory();
+    let buffer = js_sys::Reflect::get(&memory, &"buffer".into())
+        .map_err(|_| "cannot read the wasm memory buffer".to_string())?;
+    let shared = js_sys::Reflect::get(&global, &"SharedArrayBuffer".into())
+        .map_err(|_| "SharedArrayBuffer is unavailable".to_string())?;
+    ensure!(
+        js_sys::Reflect::get(&buffer, &"constructor".into())
+            .map(|constructor| constructor == shared)
+            .unwrap_or(false),
+        "the fixture was not built with shared (threaded) memory"
+    );
+
+    progress("threaded-wasm: isolation verified");
+    let mut client = connect("test", messagepack, |configuration| {
+        configuration.with_reconnection_policy(fast_reconnect());
+    })
+    .await?;
+    progress("threaded-wasm: connected");
+    let initial = identity(&mut client).await?;
+    progress("threaded-wasm: invoked");
+    let values = client
+        .enumerate_with_args::<i32, _>("OrderedSequence".to_string(), |arguments| {
+            arguments.argument(100).argument(0);
+        })
+        .await
+        .collect::<Vec<_>>()
+        .await;
+    ensure!(
+        values == (1..=100).collect::<Vec<_>>(),
+        "the threaded stream delivered {} values",
+        values.len()
+    );
+    progress("threaded-wasm: streamed");
+    client.send("AbortPhysicalTransport".to_string()).await?;
+    eventually("a reconnect in the threaded build", 20_000.0, || {
+        let mut probe = client.clone();
+        let initial = initial.clone();
+        async move { identity(&mut probe).await.ok().filter(|id| *id != initial) }
+    })
+    .await?;
+    progress("threaded-wasm: reconnected");
+    let echoed = client
+        .invoke_with_args::<i32, _>("Echo".to_string(), |arguments| {
+            arguments.argument(64);
+        })
+        .await?;
+    ensure!(
+        echoed == 64,
+        "Echo after the threaded reconnect returned {echoed}"
+    );
+    client.disconnect();
+    Ok(())
+}
+
+/// Runs inside a dedicated module Worker (no `window`): connect, invoke, stream and an ordinary
+/// reconnect after a server-side transport abort.
+async fn worker_transport(messagepack: bool) -> Outcome {
+    let global = js_sys::global();
+    ensure!(
+        !js_sys::Reflect::has(&global, &"window".into()).unwrap_or(true)
+            && js_sys::Reflect::has(&global, &"importScripts".into()).unwrap_or(false),
+        "the worker-transport scenario must run in a dedicated Worker"
+    );
+    let mut client = connect("test", messagepack, |configuration| {
+        configuration.with_reconnection_policy(fast_reconnect());
+    })
+    .await?;
+    let initial = identity(&mut client).await?;
+    let values = client
+        .enumerate_with_args::<i32, _>("OrderedSequence".to_string(), |arguments| {
+            arguments.argument(100).argument(0);
+        })
+        .await
+        .collect::<Vec<_>>()
+        .await;
+    ensure!(
+        values == (1..=100).collect::<Vec<_>>(),
+        "the worker stream delivered {} values",
+        values.len()
+    );
+    client.send("AbortPhysicalTransport".to_string()).await?;
+    eventually("a reconnect inside the worker", 20_000.0, || {
+        let mut probe = client.clone();
+        let initial = initial.clone();
+        async move { identity(&mut probe).await.ok().filter(|id| *id != initial) }
+    })
+    .await?;
+    let echoed = client
+        .invoke_with_args::<i32, _>("Echo".to_string(), |arguments| {
+            arguments.argument(77);
+        })
+        .await?;
+    ensure!(
+        echoed == 77,
+        "Echo after the worker reconnect returned {echoed}"
+    );
+    client.disconnect();
     Ok(())
 }
 

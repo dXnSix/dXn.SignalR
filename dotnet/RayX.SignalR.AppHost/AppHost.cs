@@ -70,17 +70,53 @@ if(builder.Configuration.GetValue("Fixture:Enabled", true))
     .WaitForCompletion(fixtureBuild);
 
   // Serve the generated fixture and the host pages from their own origin, distinct from the hub's.
-  builder
+  IResourceBuilder<ProjectResource> fixtureHost = builder
     .AddProject<Projects.RayX_SignalR_FixtureHost>(
       "fixture-host",
       options => options.ExcludeLaunchProfile = true)
     .WithHttpEndpoint(name: "http")
-    .WithHttpHealthCheck("/health")
+    .WithHttpHealthCheck("/health", endpointName: "http")
     .WithEnvironment("FixtureHost__FixtureDirectory", fixtureOutput)
     .WithEnvironment(
       "FixtureHost__HostPagesDirectory",
       Path.Combine(repositoryRoot, "tools-node", "wasm-host"))
     .WaitForCompletion(fixtureBindgen);
+
+  // Opt-in threaded (atomics) fixture with RayX's flags, served cross-origin isolated (COOP/COEP)
+  // on the fixture host's `isolated` endpoint.
+  if(builder.Configuration.GetValue("Fixture:Threads", false))
+  {
+    string threadsTarget = Path.Combine(repositoryRoot, "artifacts-temp", "wasm-fixture-threads-target");
+    string threadsOutput = Path.Combine(repositoryRoot, "artifacts-temp", "wasm-fixture-threads");
+    IResourceBuilder<ExecutableResource> threadsBuild = builder
+      .AddExecutable(
+        "wasm-fixture-threads-build",
+        "cargo",
+        repositoryRoot,
+        ThreadedWasm.BuildArguments(WasmBindgenToolchain.FixtureManifest, threadsTarget))
+      .WithEnvironment("RUSTFLAGS", ThreadedWasm.RustFlags)
+      .WaitForCompletion(bindgenCli);
+    IResourceBuilder<ExecutableResource> threadsBindgen = builder
+      .AddExecutable(
+        "wasm-fixture-threads-bindgen",
+        bindgenExecutable,
+        repositoryRoot,
+        Path.Combine(threadsTarget, "wasm32-unknown-unknown", "debug", "rayx_signalr_wasm_fixture.wasm"),
+        "--target",
+        "web",
+        "--out-dir",
+        threadsOutput,
+        "--out-name",
+        "rayx_signalr_fixture")
+      .WaitForCompletion(threadsBuild);
+    fixtureHost
+      .WithHttpEndpoint(name: "isolated")
+      .WithEnvironment("FixtureHost__ThreadedDirectory", threadsOutput)
+      .WithEnvironment(
+        "FixtureHost__IsolatedPort",
+        fixtureHost.GetEndpoint("isolated").Property(EndpointProperty.TargetPort))
+      .WaitForCompletion(threadsBindgen);
+  }
 }
 
 builder.Build().Run();

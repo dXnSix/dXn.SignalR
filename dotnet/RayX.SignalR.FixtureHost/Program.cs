@@ -12,6 +12,35 @@ CompositeFileProvider files = new(
   new PhysicalFileProvider(fixtureDirectory));
 
 app.MapGet("/health", () => Results.Ok(new { status = "ready" }));
+
+// The optional `isolated` endpoint serves the threaded fixture cross-origin isolated, so
+// SharedArrayBuffer and wasm threads are available there.
+if(app.Configuration.GetValue<int?>("FixtureHost:IsolatedPort") is { } isolatedPort)
+{
+  string threadedDirectory = RequiredDirectory(app.Configuration, "FixtureHost:ThreadedDirectory");
+  CompositeFileProvider threadedFiles = new(
+    new PhysicalFileProvider(hostPagesDirectory),
+    new PhysicalFileProvider(threadedDirectory));
+  app.UseWhen(
+    context => context.Connection.LocalPort == isolatedPort,
+    isolated =>
+    {
+      isolated.Use(async (context, next) =>
+      {
+        context.Response.Headers["Cross-Origin-Opener-Policy"] = "same-origin";
+        context.Response.Headers["Cross-Origin-Embedder-Policy"] = "require-corp";
+        await next();
+      });
+      isolated.UseDefaultFiles(new DefaultFilesOptions { FileProvider = threadedFiles });
+      isolated.UseStaticFiles(
+        new StaticFileOptions
+        {
+          FileProvider = threadedFiles,
+          OnPrepareResponse = context => context.Context.Response.Headers.CacheControl = "no-store"
+        });
+    });
+}
+
 app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = files });
 app.UseStaticFiles(
   new StaticFileOptions

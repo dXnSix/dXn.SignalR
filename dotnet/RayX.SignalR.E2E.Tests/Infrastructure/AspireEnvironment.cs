@@ -27,11 +27,16 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
   public static readonly IReadOnlyList<string> FixtureBuildResources =
     ["wasm-bindgen-cli", "wasm-fixture-build", "wasm-fixture-bindgen"];
 
+  /// <summary>The completion-gated resources that produce the threaded fixture.</summary>
+  public static readonly IReadOnlyList<string> ThreadedFixtureBuildResources =
+    ["wasm-fixture-threads-build", "wasm-fixture-threads-bindgen"];
+
   static readonly TimeSpan _startupTimeout = TimeSpan.FromMinutes(20);
 
   readonly SemaphoreSlim _gate = new(1, 1);
   DistributedApplication? _app;
   bool _fixtureEnabled;
+  bool _threadsEnabled;
   Exception? _startupFailure;
   bool _startupFailureWithFixture;
   IReadOnlyDictionary<string, string> _startupLogs = new Dictionary<string, string>();
@@ -63,6 +68,15 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
   /// <summary>Gets the PEM of the CA that issued the HTTPS endpoint's certificate.</summary>
   public string TlsCaPem => File.ReadAllText(new TestCertificateFiles(TlsDirectory).CaCertificate);
 
+  /// <summary>Gets the fixture host's cross-origin-isolated endpoint serving the threaded fixture.</summary>
+  public Uri IsolatedFixtureUrl =>
+    _app is not null && _threadsEnabled
+      ? App.GetEndpoint(FixtureHostResource, "isolated")
+      : throw new InvalidOperationException("The AppHost was started without the threaded fixture.");
+
+  /// <summary>Gets whether the running AppHost includes the threaded fixture.</summary>
+  public bool ThreadsEnabled => _app is not null && _threadsEnabled;
+
   /// <summary>Gets the fixture host's HTTP endpoint.</summary>
   public Uri FixtureUrl =>
     FixtureEnabled
@@ -72,7 +86,11 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
   /// <summary>Starts the AppHost if needed, with the browser fixture when <paramref name="requireFixture"/> is set.</summary>
   /// <param name="requireFixture">Whether the browser fixture resources must run.</param>
   /// <param name="cancellationToken">Cancels startup.</param>
-  public async Task EnsureStartedAsync(bool requireFixture, CancellationToken cancellationToken = default)
+  /// <param name="requireThreads">Whether the threaded fixture and the isolated endpoint must run.</param>
+  public async Task EnsureStartedAsync(
+    bool requireFixture,
+    bool requireThreads = false,
+    CancellationToken cancellationToken = default)
   {
     await _gate.WaitAsync(cancellationToken);
     // A failed start is not retried for every cell; later cells fail fast with the same cause.
@@ -84,7 +102,8 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
 
     try
     {
-      if(_app is not null && (_fixtureEnabled || !requireFixture))
+      requireFixture |= requireThreads;
+      if(_app is not null && (_fixtureEnabled || !requireFixture) && (_threadsEnabled || !requireThreads))
       {
         return;
       }
@@ -94,17 +113,18 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
       startup.CancelAfter(_startupTimeout);
       IDistributedApplicationTestingBuilder builder = await DistributedApplicationTestingBuilder
                                                         .CreateAsync<Projects.RayX_SignalR_AppHost>(
-                                                          [$"--Fixture:Enabled={requireFixture}", $"--Tls:Directory={TlsDirectory}"],
+                                                          [$"--Fixture:Enabled={requireFixture}", $"--Fixture:Threads={requireThreads}", $"--Tls:Directory={TlsDirectory}"],
                                                           startup.Token);
       builder.Configuration["DcpPublisher:WaitForResourceCleanup"] = "false";
       DistributedApplication app = await builder.BuildAsync(startup.Token);
       _app = app;
       _fixtureEnabled = requireFixture;
+      _threadsEnabled = requireThreads;
       await app.StartAsync(startup.Token);
       await WaitForHealthyAsync(ServiceResource, startup.Token);
       if(requireFixture)
       {
-        foreach(string resource in FixtureBuildResources)
+        foreach(string resource in requireThreads ? [.. FixtureBuildResources, .. ThreadedFixtureBuildResources] : FixtureBuildResources)
         {
           await WaitForSuccessfulCompletionAsync(resource, startup.Token);
         }
@@ -231,6 +251,11 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
     if(_fixtureEnabled)
     {
       resources.AddRange(FixtureBuildResources);
+      if(_threadsEnabled)
+      {
+        resources.AddRange(ThreadedFixtureBuildResources);
+      }
+
       resources.Add(FixtureHostResource);
     }
 
@@ -256,6 +281,7 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
     DistributedApplication? app = _app;
     _app = null;
     _fixtureEnabled = false;
+    _threadsEnabled = false;
     if(app is null)
     {
       return;

@@ -116,6 +116,7 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
               @"RAYX_SIGNALR_E2E_PROTOCOLS: json,messagepack",
               @"RAYX_SIGNALR_E2E_SCENARIOS: all",
               @"pnpm --dir tools-node install --frozen-lockfile",
+              @"rustup toolchain install nightly-2026-06-23 --profile minimal --component rust-src --target wasm32-unknown-unknown",
               @"playwright install --with-deps \$\{\{ matrix\.engine \}\}",
               @"node-version: 24"
             })

@@ -83,6 +83,8 @@ jobs:
         run: dotnet tool install --global Aspire.Cli --version 13.5.3
       - name: Install pinned Rust with the browser target
         run: rustup toolchain install 1.92.0 --profile minimal --target wasm32-unknown-unknown
+      - name: Install the pinned nightly for the threaded (atomics) fixture
+        run: rustup toolchain install nightly-2026-06-23 --profile minimal --component rust-src --target wasm32-unknown-unknown
       - uses: actions/cache@v6
         with:
           path: |
@@ -90,6 +92,7 @@ jobs:
             ~/.cargo/git
             artifacts-temp/tools
             artifacts-temp/wasm-fixture-target
+            artifacts-temp/wasm-fixture-threads-target
           key: e2e-browser-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml', 'tests/wasm-fixture/Cargo.toml') }}
       - uses: pnpm/action-setup@v6
         with:
