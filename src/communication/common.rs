@@ -79,8 +79,7 @@ impl HttpClient {
         let negotiate_endpoint = recipe.negotiate_url();
         let protocol_kind = recipe.protocol();
         let authentication = recipe.authentication();
-        let json_text =
-            HttpClient::post_text(negotiate_endpoint.clone(), authentication.clone()).await;
+        let json_text = HttpClient::post_text(negotiate_endpoint.clone(), recipe).await;
 
         match json_text {
             Ok(text) => {
@@ -151,10 +150,21 @@ impl HttpClient {
         }
     }
 
-    pub async fn post_text(
-        endpoint: String,
-        authentication: Authentication,
-    ) -> Result<String, String> {
+    /// Native negotiate: hyper over the connection's TCP or rustls stream.
+    #[cfg(not(target_arch = "wasm32"))]
+    async fn post_text(endpoint: String, recipe: &ConnectionRecipe) -> Result<String, String> {
+        super::negotiate_http::post(
+            &endpoint,
+            recipe.authentication().header_value(),
+            recipe.tls(),
+        )
+        .await
+    }
+
+    /// Browser negotiate: the browser's own HTTP stack.
+    #[cfg(target_arch = "wasm32")]
+    async fn post_text(endpoint: String, recipe: &ConnectionRecipe) -> Result<String, String> {
+        let authentication = recipe.authentication();
         let (s, r) = futures::channel::oneshot::channel::<Result<String, String>>();
 
         let mut request = ehttp::Request::post(endpoint, vec![]);

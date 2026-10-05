@@ -24,6 +24,20 @@ pub use completer::{CompletedFuture, ManualFuture, ManualStream};
 pub use execution::{ArgumentConfiguration, CallbackHandler};
 pub use protocol::hub_protocol::HubProtocolKind;
 
+/// Native TLS integration points.
+#[cfg(not(target_arch = "wasm32"))]
+pub mod tls {
+    /// Android initialization for the platform certificate verifier. Call one of these once
+    /// (for example from `JNI_OnLoad`) before connecting to a secure endpoint; see
+    /// `rustls-platform-verifier` for the Gradle and ProGuard setup.
+    #[cfg(all(target_os = "android", feature = "tls-platform-verifier"))]
+    pub mod android {
+        pub use rustls_platform_verifier::android::{
+            init_with_env, init_with_refs, init_with_runtime,
+        };
+    }
+}
+
 /// Opts a connection into ASP.NET Core stateful reconnect with a bounded replay buffer.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct StatefulReconnectConfig {

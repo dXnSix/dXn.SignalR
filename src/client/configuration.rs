@@ -28,6 +28,8 @@ pub struct ConnectionConfiguration {
     _reconnection: ReconnectionConfig,
     _protocol: HubProtocolKind,
     _stateful_reconnect: Option<StatefulReconnectConfig>,
+    #[cfg(not(target_arch = "wasm32"))]
+    _tls: crate::communication::tls::TlsSettings,
 }
 
 impl Authentication {
@@ -60,9 +62,28 @@ pub(crate) struct ConnectionRecipe {
     authentication: Authentication,
     protocol: HubProtocolKind,
     stateful_reconnect: Option<StatefulReconnectConfig>,
+    #[cfg(not(target_arch = "wasm32"))]
+    tls: crate::communication::tls::TlsContext,
 }
 
 impl ConnectionRecipe {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn is_secure(&self) -> bool {
+        self.secure
+    }
+
+    /// The connection's TLS state, shared by negotiate, the WebSocket and reconnects.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn tls(&self) -> &crate::communication::tls::TlsContext {
+        &self.tls
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn with_tls(mut self, tls: crate::communication::tls::TlsContext) -> Self {
+        self.tls = tls;
+        self
+    }
+
     pub(crate) fn web_url(&self) -> String {
         format!("{}://{}/{}", self.http_schema(), self.domain(), self.hub)
     }
@@ -131,6 +152,8 @@ impl ConnectionConfiguration {
             _reconnection: ReconnectionConfig::default(),
             _protocol: HubProtocolKind::default(),
             _stateful_reconnect: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            _tls: Default::default(),
         }
     }
 
@@ -354,7 +377,39 @@ impl ConnectionConfiguration {
             authentication: self._authentication.clone(),
             protocol: self._protocol,
             stateful_reconnect: self._stateful_reconnect,
+            #[cfg(not(target_arch = "wasm32"))]
+            tls: Default::default(),
         }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn tls_settings(&self) -> &crate::communication::tls::TlsSettings {
+        &self._tls
+    }
+
+    /// Trusts additional root certificates (PEM, one or more `CERTIFICATE` blocks) for secure
+    /// endpoints of this connection, in addition to the selected verifier's roots. Native only.
+    ///
+    /// Invalid PEM, or PEM without a certificate, makes `connect` fail before any I/O. With the
+    /// platform verifier the roots extend the operating system's trust store, except on Android,
+    /// where `rustls-platform-verifier` cannot add roots: a connection with extra roots there uses
+    /// webpki verification over the extra roots (plus the bundled Mozilla roots when the
+    /// `tls-webpki-roots` feature is enabled).
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_additional_root_certificates_pem(
+        &mut self,
+        pem: impl Into<Vec<u8>>,
+    ) -> &ConnectionConfiguration {
+        self._tls.extra_roots_pem = Some(pem.into());
+        self
+    }
+
+    /// Verifies secure endpoints of this connection against the bundled Mozilla roots instead of
+    /// the operating system's trust store. Requires the `tls-webpki-roots` feature. Native only.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn use_webpki_roots(&mut self) -> &ConnectionConfiguration {
+        self._tls.use_webpki_roots = true;
+        self
     }
 }
 

@@ -294,6 +294,15 @@ impl SignalRClient {
         let disconnection_handler = config.get_disconnection_handler();
         let reconnection_config = config.get_reconnection_config();
         let recipe = config.connection_recipe();
+        // One TLS configuration per connection, validated before any I/O.
+        #[cfg(not(target_arch = "wasm32"))]
+        let recipe = {
+            let tls = crate::communication::tls::TlsContext::for_connection(
+                recipe.is_secure(),
+                config.tls_settings(),
+            )?;
+            recipe.with_tls(tls)
+        };
 
         if recipe
             .stateful_reconnect()

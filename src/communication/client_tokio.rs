@@ -26,7 +26,6 @@ use futures::{
 use http::Uri;
 use log::{error, info};
 use tokio::{net::TcpStream, sync::Mutex, task::JoinHandle};
-use tokio_native_tls::native_tls::TlsConnector;
 use tokio_websockets::{ClientBuilder, MaybeTlsStream, Message, WebSocketStream};
 
 trait CommunicationDisconnectionHandler: Send {
@@ -84,7 +83,7 @@ impl ReconnectionContext {
                 self.transport_endpoint.clone(),
                 self.protocol_kind,
                 buffer.clone(),
-                self.recipe.authentication().header_value().as_deref(),
+                &self.recipe,
             )
             .await
         } else {
@@ -719,7 +718,7 @@ impl CommunicationClient {
         endpoint: Uri,
         protocol_kind: HubProtocolKind,
         stateful_reconnect: bool,
-        authorization: Option<&str>,
+        recipe: &ConnectionRecipe,
     ) -> Result<
         (
             SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
@@ -727,7 +726,7 @@ impl CommunicationClient {
         ),
         String,
     > {
-        let ws = Self::connect_socket(endpoint, authorization).await?;
+        let ws = Self::connect_socket(endpoint, recipe).await?;
         let (mut write, mut read) = ws.split();
 
         info!("Initiating handshake...");
@@ -755,7 +754,7 @@ impl CommunicationClient {
 
     async fn connect_socket(
         endpoint: Uri,
-        authorization: Option<&str>,
+        recipe: &ConnectionRecipe,
     ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, String> {
         info!(
             "Connecting to endpoint {}",
@@ -763,8 +762,8 @@ impl CommunicationClient {
         );
         // Native clients authenticate the upgrade with the same header as negotiate.
         let mut builder = ClientBuilder::from_uri(endpoint.clone());
-        if let Some(value) = authorization {
-            let value = http::HeaderValue::from_str(value).map_err(|_| {
+        if let Some(value) = recipe.authentication().header_value() {
+            let value = http::HeaderValue::from_str(&value).map_err(|_| {
                 "The configured credentials are not a valid header value".to_string()
             })?;
             builder = builder
@@ -776,11 +775,8 @@ impl CommunicationClient {
 
         let stream = if Some("wss") == endpoint.scheme_str() {
             info!("Connection to secure endpoint...");
-            let Ok(connector) = TlsConnector::new() else {
-                return Err("Cannot create default TLS connector".to_string());
-            };
-
-            let connector = tokio_websockets::Connector::NativeTls(connector.into());
+            // The same rustls configuration as this connection's negotiate requests.
+            let connector = recipe.tls().websocket_connector()?;
             builder.connector(&connector).connect().await
         } else {
             info!("Connection to plain endpoint...");
@@ -794,7 +790,7 @@ impl CommunicationClient {
         endpoint: Uri,
         protocol_kind: HubProtocolKind,
         buffer: SharedStatefulBuffer,
-        authorization: Option<&str>,
+        recipe: &ConnectionRecipe,
     ) -> Result<
         (
             SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
@@ -802,7 +798,7 @@ impl CommunicationClient {
         ),
         String,
     > {
-        let ws = Self::connect_socket(endpoint, authorization).await?;
+        let ws = Self::connect_socket(endpoint, recipe).await?;
         let (mut write, read) = ws.split();
         let (sequence_id, frames) = buffer
             .lock()
@@ -870,17 +866,15 @@ impl CommunicationClient {
         let configuration = HttpClient::negotiate(recipe).await?;
         let endpoint = Uri::from_str(&configuration.get_endpoint())
             .map_err(|error| format!("Negotiated WebSocket endpoint is invalid: {error}"))?;
-        let authorization = recipe.authentication().header_value();
-        Self::connect_to_server(endpoint, protocol_kind, false, authorization.as_deref()).await
+        Self::connect_to_server(endpoint, protocol_kind, false, recipe).await
     }
 
     async fn connect_internal(&mut self) -> Result<(), String> {
-        let authorization = self._recipe.authentication().header_value();
         let res = CommunicationClient::connect_to_server(
             self._endpoint.clone(),
             self._protocol_kind,
             self._stateful.is_some(),
-            authorization.as_deref(),
+            &self._recipe,
         )
         .await;
 
@@ -1122,7 +1116,7 @@ impl CommunicationDisconnectionHandler for ClientDisconnectionHandler {
                             transport_endpoint.clone(),
                             protocol_kind,
                             buffer.clone(),
-                            recipe.authentication().header_value().as_deref(),
+                            &recipe,
                         )
                         .await
                     } else {
