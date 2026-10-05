@@ -6,13 +6,21 @@ using RayX.SignalR.AppHost;
 IDistributedApplicationBuilder builder = DistributedApplication.CreateBuilder(args);
 string repositoryRoot = RepositoryLayout.FindRoot(builder.AppHostDirectory);
 
-// The ASP.NET Core SignalR test service. Its launch profile is excluded so Aspire owns the port.
+// An ephemeral CA and server certificate for the service's HTTPS endpoint, regenerated per run.
+TestCertificateFiles certificates = TestCertificates.Generate(
+  builder.Configuration["Tls:Directory"]
+  ?? Path.Combine(repositoryRoot, "artifacts-temp", "e2e", "tls", $"{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Environment.ProcessId}"));
+
+// The ASP.NET Core SignalR test service. Its launch profile is excluded so Aspire owns the ports.
 builder
   .AddProject<Projects.SignalRTestService>(
     "signalr-test-service",
     options => options.ExcludeLaunchProfile = true)
   .WithHttpEndpoint(name: "http")
-  .WithHttpHealthCheck("/health");
+  .WithHttpsEndpoint(name: "https")
+  .WithEnvironment("TestTls__CertificatePath", certificates.ServerCertificate)
+  .WithEnvironment("TestTls__KeyPath", certificates.ServerKey)
+  .WithHttpHealthCheck("/health", endpointName: "http");
 
 // Native-only runs disable the browser fixture to skip the WASM build.
 if(builder.Configuration.GetValue("Fixture:Enabled", true))

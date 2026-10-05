@@ -19,9 +19,16 @@ export function serviceUrl(): string {
   return url;
 }
 
+/** The SignalR test service's HTTPS URL passed by the Aspire runner. */
+export function tlsServiceUrl(): string {
+  const url = process.env.RAYX_SIGNALR_E2E_TLS_URL;
+  if (!url) throw new Error("RAYX_SIGNALR_E2E_TLS_URL is not set; run through the Aspire runner");
+  return url;
+}
+
 /** Opens a fixture host page configured for the test service and waits for the WASM module. */
-export async function openFixture(page: Page, path = "/"): Promise<void> {
-  await page.goto(`${path}?service=${encodeURIComponent(serviceUrl())}`);
+export async function openFixture(page: Page, path = "/", service = serviceUrl()): Promise<void> {
+  await page.goto(`${path}?service=${encodeURIComponent(service)}`);
   await expect(page.locator("body")).toHaveAttribute("data-rayx-signalr-wasm", "ready");
 }
 

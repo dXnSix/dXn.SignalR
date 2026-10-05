@@ -70,6 +70,7 @@ public static class ScenarioCatalog
     new("large-payload", Set(_native, _chromium)),
     new("server-close", Set(_native, _chromium)),
     new("reconnect-exhaustion", Set(_native, _chromium)),
+    new("tls", Set(_native, _chromium)),
     new("ordinary-reconnect", Set(_native, _chromium)),
     new("stateful-reconnect", Set(_native, _chromium)),
     new("stream-cancellation", Set(_native, _chromium)),

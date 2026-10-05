@@ -37,6 +37,8 @@ public static partial class CellExecution
     Dictionary<string, string> variables = new(StringComparer.Ordinal)
     {
       ["RAYX_SIGNALR_E2E_SERVICE_URL"] = Origin(environment.ServiceUrl),
+      ["RAYX_SIGNALR_E2E_TLS_URL"] = Origin(environment.TlsServiceUrl),
+      ["RAYX_SIGNALR_E2E_TLS_CA_PEM_BASE64"] = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(environment.TlsCaPem)),
       ["RAYX_SIGNALR_E2E_PROTOCOL"] = cell.Protocol
     };
     if(environment.FixtureEnabled)

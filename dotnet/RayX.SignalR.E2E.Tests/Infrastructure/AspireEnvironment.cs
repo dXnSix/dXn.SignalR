@@ -49,6 +49,20 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
   /// <summary>Gets the SignalR test service's HTTP endpoint.</summary>
   public Uri ServiceUrl => App.GetEndpoint(ServiceResource, "http");
 
+  /// <summary>Gets the SignalR test service's HTTPS endpoint (served with <see cref="TlsCaPem"/>'s CA).</summary>
+  public Uri TlsServiceUrl => App.GetEndpoint(ServiceResource, "https");
+
+  /// <summary>Gets the directory of this run's generated TLS certificates.</summary>
+  public string TlsDirectory { get; } = Path.Combine(
+    RepositoryLayout.FindRoot(AppContext.BaseDirectory),
+    "artifacts-temp",
+    "e2e",
+    "tls",
+    $"{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}");
+
+  /// <summary>Gets the PEM of the CA that issued the HTTPS endpoint's certificate.</summary>
+  public string TlsCaPem => File.ReadAllText(new TestCertificateFiles(TlsDirectory).CaCertificate);
+
   /// <summary>Gets the fixture host's HTTP endpoint.</summary>
   public Uri FixtureUrl =>
     FixtureEnabled
@@ -61,6 +75,13 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
   public async Task EnsureStartedAsync(bool requireFixture, CancellationToken cancellationToken = default)
   {
     await _gate.WaitAsync(cancellationToken);
+    // A failed start is not retried for every cell; later cells fail fast with the same cause.
+    if(_startupFailure is not null && (_startupFailureWithFixture || !requireFixture))
+    {
+      _gate.Release();
+      throw new InvalidOperationException("The AppHost failed to start earlier in this run.", _startupFailure);
+    }
+
     try
     {
       if(_app is not null && (_fixtureEnabled || !requireFixture))
@@ -68,18 +89,12 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
         return;
       }
 
-      // A failed start is not retried for every cell; later cells fail fast with the same cause.
-      if(_startupFailure is not null && (_startupFailureWithFixture || !requireFixture))
-      {
-        throw new InvalidOperationException($"The AppHost failed to start earlier in this run: {_startupFailure.Message}", _startupFailure);
-      }
-
       await StopAsync();
       using CancellationTokenSource startup = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
       startup.CancelAfter(_startupTimeout);
       IDistributedApplicationTestingBuilder builder = await DistributedApplicationTestingBuilder
                                                         .CreateAsync<Projects.RayX_SignalR_AppHost>(
-                                                          [$"--Fixture:Enabled={requireFixture}"],
+                                                          [$"--Fixture:Enabled={requireFixture}", $"--Tls:Directory={TlsDirectory}"],
                                                           startup.Token);
       builder.Configuration["DcpPublisher:WaitForResourceCleanup"] = "false";
       DistributedApplication app = await builder.BuildAsync(startup.Token);

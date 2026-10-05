@@ -21,3 +21,4 @@ mod server_close;
 mod server_stream;
 mod stateful_reconnect;
 mod stream_cancellation;
+mod tls;

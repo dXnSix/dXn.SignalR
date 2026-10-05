@@ -54,6 +54,7 @@ pub async fn run_functional_scenario(
         "large-payload" => large_payload(messagepack).await,
         "server-close" => server_close(messagepack).await,
         "reconnect-exhaustion" => reconnect_exhaustion(messagepack).await,
+        "tls" => tls(messagepack).await,
         other => Err(format!("unknown functional scenario {other}")),
     };
     outcome
@@ -902,6 +903,21 @@ async fn reconnect_exhaustion(messagepack: bool) -> Outcome {
         "the exhausted client reconnected"
     );
     probe.disconnect();
+    Ok(())
+}
+
+/// The page was opened with the HTTPS service URL: negotiate over `https` and connect over `wss`.
+async fn tls(messagepack: bool) -> Outcome {
+    let endpoint = super::service().map_err(|error| format!("{error:?}"))?;
+    ensure!(endpoint.secure, "the tls scenario needs the HTTPS service URL");
+    let mut client = connect("test-tls", messagepack, |_| {}).await?;
+    let echoed = client
+        .invoke_with_args::<i32, _>("Echo".to_string(), |arguments| {
+            arguments.argument(443);
+        })
+        .await?;
+    ensure!(echoed == 443, "Echo over TLS returned {echoed}");
+    client.disconnect();
     Ok(())
 }
 

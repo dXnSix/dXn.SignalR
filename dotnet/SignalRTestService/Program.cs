@@ -1,3 +1,4 @@
+using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.SignalR;
 using SignalRTestService;
@@ -5,6 +6,17 @@ using SignalRTestService;
 // Test-only ASP.NET Core SignalR service for RayX.SignalR end-to-end scenarios. The Aspire AppHost
 // allocates its port; every fault control and probe below exists only in this service.
 var builder = WebApplication.CreateBuilder(args);
+
+// HTTPS endpoints use the run's generated test certificate when the AppHost provides one.
+if (builder.Configuration["TestTls:CertificatePath"] is { } certificatePath
+    && builder.Configuration["TestTls:KeyPath"] is { } keyPath)
+{
+    using var pem = X509Certificate2.CreateFromPemFile(certificatePath, keyPath);
+    // Re-import through PKCS#12 so SslStream can use the key on every platform.
+    var certificate = X509CertificateLoader.LoadPkcs12(pem.Export(X509ContentType.Pkcs12), null);
+    builder.WebHost.ConfigureKestrel(kestrel =>
+        kestrel.ConfigureHttpsDefaults(https => https.ServerCertificate = certificate));
+}
 
 builder.Services.AddCors(cors => cors.AddDefaultPolicy(policy =>
     policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
@@ -90,6 +102,7 @@ app.MapPost("/e2e/reset", () =>
 });
 app.MapHub<TestHub>("/test");
 app.MapHub<TestHub>("/test-exhaust");
+app.MapHub<TestHub>("/test-tls");
 app.MapHub<TestHub>("/test-stateful", options => options.AllowStatefulReconnects = true);
 app.MapHub<AuthHub>("/test-auth");
 
