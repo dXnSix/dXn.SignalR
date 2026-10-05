@@ -55,6 +55,8 @@ pub async fn run_functional_scenario(
         "server-close" => server_close(messagepack).await,
         "reconnect-exhaustion" => reconnect_exhaustion(messagepack).await,
         "tls" => tls(messagepack).await,
+        "negotiate-redirect" => negotiate_redirect(messagepack).await,
+        "skip-negotiation" => skip_negotiation(messagepack).await,
         other => Err(format!("unknown functional scenario {other}")),
     };
     outcome
@@ -906,10 +908,82 @@ async fn reconnect_exhaustion(messagepack: bool) -> Outcome {
     Ok(())
 }
 
+async fn hub_negotiates(probe: &mut SignalRClient, hub_path: &str) -> Result<i32, String> {
+    probe
+        .invoke_with_args::<i32, _>("NegotiateCount".to_string(), |arguments| {
+            arguments.argument(hub_path.to_string());
+        })
+        .await
+}
+
+async fn negotiate_redirect(messagepack: bool) -> Outcome {
+    let mut client = connect("redirect", messagepack, |_| {}).await?;
+    let token = client
+        .invoke::<String>("AccessTokenProbe".to_string())
+        .await?;
+    ensure!(token == "redirect-token", "the transport carried {token:?}");
+    let echoed = client
+        .invoke_with_args::<i32, _>("Echo".to_string(), |arguments| {
+            arguments.argument(307);
+        })
+        .await?;
+    ensure!(echoed == 307, "Echo after the redirect returned {echoed}");
+    client.disconnect();
+    let mut probe = connect("test", messagepack, |_| {}).await?;
+    let counts = (
+        hub_negotiates(&mut probe, "/redirect").await?,
+        hub_negotiates(&mut probe, "/test").await?,
+    );
+    ensure!(counts == (1, 2), "negotiate counts {counts:?}");
+    probe.disconnect();
+    Ok(())
+}
+
+async fn skip_negotiation(messagepack: bool) -> Outcome {
+    let mut client = connect("test-direct", messagepack, |configuration| {
+        configuration.skip_negotiation();
+        configuration.with_reconnection_policy(fast_reconnect());
+    })
+    .await?;
+    let initial = identity(&mut client).await?;
+    client.send("AbortPhysicalTransport".to_string()).await?;
+    eventually(
+        "a direct reconnect after the transport abort",
+        20_000.0,
+        || {
+            let mut probe = client.clone();
+            let initial = initial.clone();
+            async move { identity(&mut probe).await.ok().filter(|id| *id != initial) }
+        },
+    )
+    .await?;
+    let echoed = client
+        .invoke_with_args::<i32, _>("Echo".to_string(), |arguments| {
+            arguments.argument(2);
+        })
+        .await?;
+    ensure!(
+        echoed == 2,
+        "Echo after the direct reconnect returned {echoed}"
+    );
+    client.disconnect();
+    let mut probe = connect("test", messagepack, |_| {}).await?;
+    let negotiates = hub_negotiates(&mut probe, "/test-direct").await?;
+    ensure!(
+        negotiates == 0,
+        "skip_negotiation sent {negotiates} negotiate requests"
+    );
+    probe.disconnect();
+    Ok(())
+}
+
 /// The page was opened with the HTTPS service URL: negotiate over `https` and connect over `wss`.
 async fn tls(messagepack: bool) -> Outcome {
     let endpoint = super::service().map_err(|error| format!("{error:?}"))?;
-    ensure!(endpoint.secure, "the tls scenario needs the HTTPS service URL");
+    ensure!(
+        endpoint.secure,
+        "the tls scenario needs the HTTPS service URL"
+    );
     let mut client = connect("test-tls", messagepack, |_| {}).await?;
     let echoed = client
         .invoke_with_args::<i32, _>("Echo".to_string(), |arguments| {

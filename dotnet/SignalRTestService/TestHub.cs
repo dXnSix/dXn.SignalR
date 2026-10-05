@@ -36,6 +36,19 @@ namespace SignalRTestService
 
         public int Echo(int value) => value;
 
+        /// <summary>The access token the transport request carried (Bearer header, else access_token query).</summary>
+        public string AccessTokenProbe()
+        {
+            var request = Context.GetHttpContext()?.Request;
+            string? header = request?.Headers.Authorization;
+            if (header is not null && header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            {
+                return header["Bearer ".Length..].Trim();
+            }
+
+            return request?.Query["access_token"].ToString() ?? string.Empty;
+        }
+
         public Task VoidCall()
         {
             TestControls.Record(Context.ConnectionId, "void-call");

@@ -95,6 +95,13 @@ app.UseAuthorization();
 
 app.MapGet("/", () => "Hello World!");
 app.MapGet("/health", () => Results.Ok(new { status = "ready" }));
+// Test-only negotiate redirect, shaped like Azure SignalR's: the client renegotiates at the
+// returned hub URL and uses the returned access token for that negotiate and the transport.
+app.MapPost("/redirect/negotiate", (HttpContext context) => Results.Json(new
+{
+    url = $"{context.Request.Scheme}://{context.Request.Host}/test",
+    accessToken = "redirect-token"
+}));
 app.MapPost("/e2e/reset", () =>
 {
     TestControls.Reset();
@@ -103,6 +110,7 @@ app.MapPost("/e2e/reset", () =>
 app.MapHub<TestHub>("/test");
 app.MapHub<TestHub>("/test-exhaust");
 app.MapHub<TestHub>("/test-tls");
+app.MapHub<TestHub>("/test-direct");
 app.MapHub<TestHub>("/test-stateful", options => options.AllowStatefulReconnects = true);
 app.MapHub<AuthHub>("/test-auth");
 

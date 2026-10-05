@@ -14,6 +14,8 @@ const scenarios = [
   "large-payload",
   "server-close",
   "reconnect-exhaustion",
+  "negotiate-redirect",
+  "skip-negotiation",
 ];
 
 for (const scenario of scenarios) {
