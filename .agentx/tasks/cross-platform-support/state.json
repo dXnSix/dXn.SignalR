@@ -1,12 +1,12 @@
 {
   "schemaVersion": 6,
   "epicId": "cross-platform-support",
-  "revision": 15,
-  "planRevision": 3,
+  "revision": 25,
+  "planRevision": 4,
   "specHashes": {
     "requirements": "7eb9cbe1721e8eb99d4c5705831832ccae1fd86cc2fa0eedd8d134f82a4c97a8",
     "design": "4b35d6e40f5712d063705d8a28f5c93e1be15bf8a322f62d9fb08296fefa14e5",
-    "plan": "f9b8289bff864d02b9385aa18c24a236ade4dbeeea8f85a13ce02e1bd0994d10"
+    "plan": "43dcda8b7fcb09d5e3654f9d20b64bcf4c0aa2419019f996589a6207229ded30"
   },
   "tasks": {
     "S1.T1": {
@@ -34,13 +34,22 @@
       ]
     },
     "S2.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S2.T2": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S2.T3": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S3.T1": {
       "status": "pending"
@@ -142,6 +151,15 @@
         }
       },
       "recordedAt": "2026-10-05T21:18:00Z"
+    },
+    "1fd34fe8dceff26f68554c9a0786ffb5a9171ed1870015f6fae594d0560e7430": {
+      "snapshot": {
+        "specHash": "54584a096a51b1c70e4686edb3d6c8ceda3ab29eee04f10f0e7105bb7f420274",
+        "repositories": {
+          "rayx-signalr": "0eda36f22f6349c0be93b3bd5d2764848014aa044a9304794ea54e645c47b836"
+        }
+      },
+      "recordedAt": "2026-10-05T21:54:50Z"
     }
   },
   "checkResults": {
@@ -246,6 +264,57 @@
       "logPath": "artifacts-temp/agentx/cross-platform-support/S1-final-12cfea795fcd.log",
       "logSha256": "49b06b9aa5bb841e9a763b8b4500f8d13ffe0e4964a26b47d94d9729dd7969a9",
       "inputsHash": "d3397b312f3a9556a5d65df7c88c426de10674b0d514c3b569c1916599ca8159"
+    },
+    "S2/s2-native-functional/final": {
+      "checkId": "s2-native-functional",
+      "boundaryId": "S2",
+      "phase": "final",
+      "batchId": "1fd34fe8dceff26f68554c9a0786ffb5a9171ed1870015f6fae594d0560e7430",
+      "definitionHash": "496d78b15ca3dbd7ebd97eea2b02e107f9ffc74d203ca98418ae1585e451d990",
+      "basisHash": "c18a9a05885f5fa587e6e31ac52588857d7bddcaf02a8347e4e9173509c231c4",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 20,
+      "durationSeconds": 33.6465,
+      "recordedAt": "2026-10-05T21:53:26Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S2-final-5606965ad783.log",
+      "logSha256": "7a241692effd1df0f8d2092a2ef6e9bf1156235138e63c370a206eca36b9ecb1",
+      "inputsHash": "234d34ea72e5c1a0583609b46b89b225eab518377c072bd3ea701480a00aacb9"
+    },
+    "S2/s2-chromium-functional/final": {
+      "checkId": "s2-chromium-functional",
+      "boundaryId": "S2",
+      "phase": "final",
+      "batchId": "1fd34fe8dceff26f68554c9a0786ffb5a9171ed1870015f6fae594d0560e7430",
+      "definitionHash": "a4b08faf6efd94737de5fff462dc08abd73667312f0ddf363d8530a0a2fadfde",
+      "basisHash": "2b14d3b3e17871d173f44c4f8fbbc6c4ea1e98d8be4e24d906b5a17616cb192d",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 20,
+      "durationSeconds": 81.205,
+      "recordedAt": "2026-10-05T21:54:47Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S2-final-75277ee3e10a.log",
+      "logSha256": "0ffb50513b6f39f3d96ef53b2f17e11a73f1c3bd09a14222d1e306c508bd808a",
+      "inputsHash": "35df4e0d30a9654b61d2efc6129cb6259678e7e395d7a7a0a3fc8db9961c9fd5"
+    },
+    "S2/s2-client-unit/final": {
+      "checkId": "s2-client-unit",
+      "boundaryId": "S2",
+      "phase": "final",
+      "batchId": "1fd34fe8dceff26f68554c9a0786ffb5a9171ed1870015f6fae594d0560e7430",
+      "definitionHash": "4023a36cb414ca90f707be08fc35de89fa086d1030b4cf1e515e66bc2e042eeb",
+      "basisHash": "65fc17369bc4546db52fbd2d4642932276f2007d212799a41eded4a3102d3efb",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 11,
+      "durationSeconds": 2.5566,
+      "recordedAt": "2026-10-05T21:54:50Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S2-final-999239daf91b.log",
+      "logSha256": "4d1fc7109e3325b9f05184bae79afbb79ca2ff7c6310555525e2146d714926c2",
+      "inputsHash": "30635286853d1103e99a6ed2530ba66b018f9ddecbaced3ccc32b047d823b94c"
     }
   },
   "reviews": {
@@ -638,6 +707,307 @@
         "S1-F2"
       ],
       "recordedAt": "2026-10-05T21:18:46Z"
+    },
+    "S2": {
+      "reviewerId": "s2-reviewer-independent-891369c4",
+      "snapshotId": "1fd34fe8dceff26f68554c9a0786ffb5a9171ed1870015f6fae594d0560e7430",
+      "criterionIds": [
+        "R2.C1",
+        "R2.C2",
+        "R2.C3",
+        "R2.C4",
+        "R2.C5",
+        "R2.C6",
+        "R2.C7",
+        "R2.C8",
+        "R2.C9",
+        "R2.C10",
+        "R2.C11"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/SignalRTestService/Program.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C1",
+            "R2.C2",
+            "R2.C3",
+            "R2.C8",
+            "R2.C10",
+            "R2.C11"
+          ],
+          "sha256": "cffd8c73e7dfd4e595e16d86a71fb5804b5d4645e51627ab1656a99f7bcb1463"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/SignalRTestService/TestHub.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C1",
+            "R2.C2",
+            "R2.C3",
+            "R2.C4",
+            "R2.C5",
+            "R2.C6",
+            "R2.C7",
+            "R2.C8",
+            "R2.C9",
+            "R2.C10",
+            "R2.C11"
+          ],
+          "sha256": "3a1d92adc9b288e27a6be771f76ff30f63888af3b9f49e773431e1c731c197a2"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/SignalRTestService/TestAuthentication.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C2",
+            "R2.C11"
+          ],
+          "sha256": "c5d5ede43dc224d9dd04e572d01a8c1014431b0c0559df19da0d18ef210e5626"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/SignalRTestService/TestControls.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C4",
+            "R2.C6",
+            "R2.C7",
+            "R2.C9",
+            "R2.C10"
+          ],
+          "sha256": "e84d224f110953a2952bea6751efa075c09f619ace952df18a86027108cc43be"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/common.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C1",
+            "R2.C2",
+            "R2.C11"
+          ],
+          "sha256": "615d21a7f088f116f308ab8ec5c97a172834f770d1c5f0d5dc14a70c589c825d"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C2",
+            "R2.C9",
+            "R2.C10"
+          ],
+          "sha256": "75ffb0d3869c5cc1558304741f91e73ff0ecf62496ba21ca633b07a2db2197ff"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C10",
+            "R2.C11",
+            "R2.C9"
+          ],
+          "sha256": "8a15d59c102fdd8890156bc61ec5cbf0893f6c00acc544317a5af22fe5743d7e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/reconnection.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C9"
+          ],
+          "sha256": "246d5d113fd3cbeeee34de1ca3571ed78421a30a5037b84953774df7c0f5c4df"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C11",
+            "R2.C4",
+            "R2.C5",
+            "R2.C6",
+            "R2.C7",
+            "R2.C9"
+          ],
+          "sha256": "d95f634225e9e72ef21dd67964b035228be2139307028c3e54a9d5bccf6623f3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/invocation.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C3",
+            "R2.C8"
+          ],
+          "sha256": "6ee6138ec649341c22bc90b17dd3295ac5ae9f3898c1c63208a6ede4d9d46789"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/invoke.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C3"
+          ],
+          "sha256": "7300eb524893791ae8b7553ac20263b91c2323768b64b9ee34709eb3b68cf3bb"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/enumerable.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C5"
+          ],
+          "sha256": "4da6ba3ae9aaf301eab40c8deaa163d4d2d183f881a4b0a97bc0e19c6d0694aa"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/completer/manual_stream.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C5"
+          ],
+          "sha256": "3d95fbccba048ac59c75400bda68dcc3f21c5dfc3142650a90f8a6b28048d021"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Scenarios/ScenarioCatalog.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C11"
+          ],
+          "sha256": "751512053a52aa9c1df1ef9e7bb440d20fbdc33675d83c38fdc55b16d808b96b"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/connect_negotiate.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R2.C1"
+          ],
+          "sha256": "d9911f598d2f948d951f82a3cc2444eca3b614c3837dc41868c5839ea64937ae"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/authentication.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R2.C2"
+          ],
+          "sha256": "32c02a50e5263c44dc0490592612de06818f75eca2c4d73325049388d60fee52"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/invoke.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R2.C3"
+          ],
+          "sha256": "b1eca6a682685cf5aae3ef651aeaf41caba84320334785093c0c71ce88674e50"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/send.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R2.C4"
+          ],
+          "sha256": "398985fa456af23aa929dbf95a78aad50a8dacbd0a3932b2b8b6bb15ff01e3f4"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/server_stream.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R2.C5"
+          ],
+          "sha256": "a378e2137a50ac84036b2b1f4a00aa931bc960e74cee389af0585d0aa23706f1"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/callbacks.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R2.C6"
+          ],
+          "sha256": "b7d30fc9ec1651f6222c19cbc2fbe3623e88aac4c3a9fa040026edf85dca196f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/concurrency_and_clones.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R2.C7"
+          ],
+          "sha256": "1e0bb8cabd6f897a7146b2515fbc48d79f0d7b92abfda7a6aff87b9941b6b00f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/large_payload.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R2.C8"
+          ],
+          "sha256": "76b31fef1bd8fa51d8492d568f6889ad70bc81531f8e0f9be610629d75fcb07c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/server_close.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R2.C9"
+          ],
+          "sha256": "f4bd73bd54444ca73b15fe840be271fdf318cd8cd96586c536236e5986414f86"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/reconnect_exhaustion.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R2.C10"
+          ],
+          "sha256": "f3be6597168a49cae57bdcba2b14991fc7c25565df707339794806ebfb63d8c8"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R2.C11"
+          ],
+          "sha256": "26fa5ba1222df711f7f9c7208e0f8f8f16117efd2d73bf2c79e4a56a9408f3e9"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/tests/signalr-functional.spec.ts",
+          "kind": "test",
+          "criterionIds": [
+            "R2.C11"
+          ],
+          "sha256": "4a4ea0822080baab04789dfa9d000189de6cf191a58adaf873e2f075c82a26fa"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C2"
+          ],
+          "sha256": "c73e02eb34fcbda7db3123469716604bab17ad71cf18eccc064ade1fda8db98c"
+        }
+      ],
+      "summaryMarkdown": "I re-reviewed only the repair delta against snapshot 1fd34fe8. Both findings are resolved, and fresh evidence passes (11 `functional_baseline` unit tests, 20 native cells, 20 Chromium cells).\n\n**S2-F1 (resolved):**\n- `Authentication::header_value` now feeds both negotiate and the native WebSocket upgrade. Every native connect path passes it to `connect_socket`, which sets the header through `ClientBuilder::add_header`: fresh connect, `connect_internal`, manual and automatic stateful resume.\n- Header-construction errors contain no credentials.\n- The test service records how each request authenticated in the `e2e-auth-source` claim.\n- Native cells assert `header` for both Basic and Bearer. Browser cells assert `token-binding` for Basic and `access_token` for Bearer, so the token binding can no longer satisfy a native cell.\n\n**S2-F2 (resolved):**\n- `ReconnectionHandler::server_allows_reconnect()` exists on both targets. It is false only on the terminal-close path.\n- On both targets, `reconnect` and `reconnect_with_policy` refuse a terminal close before touching lifecycle or pending state; the policy loop stops instead of retrying.\n- The docs example now returns early on a final close.\n- `server-close` uses a recording handler that tries to reconnect, on native and in Chromium. It proves the flag is false and the reconnect is refused for a final close, and true with a successful reconnect for an allowed close in manual mode.\n- The WASM manual-drop path now releases the handler-slot `RefCell` borrow before calling user code.\n\n**Notes, not findings:**\n- R2.C2's text still describes only the negotiate header and the WebSocket `access_token`. The coordinator should amend R2.C2 or D4 to record native upgrade headers and the browser-only token binding.\n- The pre-existing ordinary and stateful reconnect cells now also send the upgrade header; the final full suite covers them.",
+      "findingIds": [
+        "S2-F1",
+        "S2-F2"
+      ],
+      "recordedAt": "2026-10-05T21:55:47Z"
     }
   },
   "checkpoints": {
@@ -648,6 +1018,14 @@
       },
       "reviewHash": "6b17412dc30795013075e4ee2eead190cf18ef1c328cf2385186c200dfeb9ba1",
       "recordedAt": "2026-10-05T21:19:20Z"
+    },
+    "S2": {
+      "snapshotId": "1fd34fe8dceff26f68554c9a0786ffb5a9171ed1870015f6fae594d0560e7430",
+      "commits": {
+        "rayx-signalr": "235be0a2f08ecf9ee472bb519e7f65e94c688313"
+      },
+      "reviewHash": "bc2aad7ef49bd2b20263c638ff1e34efa7b60dc6398275f8f599bfc7749f7fac",
+      "recordedAt": "2026-10-05T21:56:09Z"
     }
   },
   "findings": [
@@ -693,6 +1071,63 @@
         {
           "repositoryId": "rayx-signalr",
           "path": "dotnet/RayX.SignalR.E2E.Tests/Infrastructure/AspireEnvironment.cs"
+        }
+      ]
+    },
+    {
+      "id": "S2-F1",
+      "boundaryId": "S2",
+      "criterionIds": [
+        "R2.C2"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**The test service makes native Basic authentication pass through a server behavior that ASP.NET Core does not have.**\n\n**Expected:** The native `authentication` cell connects with Basic `e2e-user:e2e-password` only if the client presents credentials on every authorized request, including the WebSocket upgrade. A standard ASP.NET Core hub with `[Authorize]` re-authorizes the connect request, so a native upgrade without credentials gets a 401.\n\n**Observed:** The native client sends `Authorization` only on negotiate: `HttpClient::post_text` in `src/communication/common.rs`. `connect_physical` in `client_tokio.rs` uses `ClientBuilder::from_uri(...)` and adds no headers. It appends `access_token` only for Bearer. For a WebSocket request with no credentials, `TestAuthenticationHandler` (`dotnet/SignalRTestService/TestAuthentication.cs`) authenticates the caller as the user who negotiated the `id` connection token, using `TestControls.RememberToken` in `Program.cs`. That binding was written to emulate a browser session, but the native cell uses it too. `AuthenticatedIdentity` returns `Basic:e2e-user` either way, so `tests/e2e/authentication.rs` cannot tell the difference. The baseline therefore reports that native Basic works when it would fail against a real Basic-protected hub.\n\n**Repair:**\n1. Native (tokio) client: send the effective `Authorization` header on the WebSocket upgrade for Basic and Bearer, as the official .NET client does on non-browser platforms. The connect error must stay redacted.\n2. Test service: make the auth probe report how the WebSocket request was authenticated (`header`, `access_token` or `token-binding`).\n3. Scenarios: native Basic must assert `header`. Only the browser Basic cell may assert `token-binding`, documented as test-only emulation of a browser session.\n4. If token binding is kept, restrict it so it cannot satisfy a native cell.\n\nAmend R2.C2/D4 to state this.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/authentication.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/SignalRTestService/TestAuthentication.cs"
+        }
+      ]
+    },
+    {
+      "id": "S2-F2",
+      "boundaryId": "S2",
+      "criterionIds": [
+        "R2.C9",
+        "R2.C11"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**After a server close that forbids reconnecting, the disconnection handler receives a context that reconnects freely.**\n\n**Expected (R2.C9):** A server Close with `allowReconnect: false` notifies the disconnection handler and never reconnects. The handler must be able to tell this terminal close apart from a transient drop, so that it does not retry against the server's instruction.\n\n**Observed:** S2 now calls the manual handler on a terminal close:\n- Native: `ClientDisconnectionHandler::on_connection_dropped` in `src/communication/client_tokio.rs`.\n- Browser: `CommunicationClient::terminal_close` in `src/communication/client_wasm.rs`.\n\nBoth pass the same `ReconnectionHandler` that a transient drop receives. No reason or flag is exposed. `ReconnectCoordinator::remote_close` leaves the lifecycle `Disconnected`, so `begin()` succeeds and `reconnect()` / `reconnect_with_policy()` work. The documented `DisconnectionHandler` example in `src/client/client.rs` (\"Option 1: Reconnect immediately\") therefore reconnects right after a server close that forbade reconnecting. That is a new regression for manual-mode consumers: before this sprint, the handler was not called on a terminal close. The `server-close` scenarios (native and `functional.rs`) only use a passive counting handler, so they cannot catch this.\n\n**Repair:**\n1. Expose the close kind to the handler on both targets, for example `ReconnectionHandler::server_allows_reconnect() -> bool` or a reason enum. It is false for a terminal Close and true for a transient drop. This is additive public API.\n2. Update the `DisconnectionHandler` docs and example to honor it.\n3. Extend `server-close` on native and Chromium so the handler records the flag: false for the terminal close, true for an allowed close or a transport drop in manual mode.\n4. Assert that a handler following the documented pattern does not reconnect after a terminal close.\n\nAlternatively, a terminal-close context could reject `reconnect*` with an explicit error. If you choose that, document it and test it on both targets.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/server_close.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs"
         }
       ]
     }

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "cross-platform-support",
-  "revision": 3,
+  "revision": 4,
   "title": "Cross-platform rayx-signalr with Aspire-orchestrated end-to-end testing on every target",
   "validationMode": "sprint",
   "repositories": [
@@ -1523,6 +1523,33 @@
         "src/**"
       ],
       "timeoutSeconds": 900
+    },
+    {
+      "id": "s2-client-unit",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R2.C3",
+        "R2.C5",
+        "R2.C9"
+      ],
+      "descriptionMarkdown": "New `functional_baseline` unit groups: void completions (JSON/MessagePack), stream error completions, terminal remote close in the reconnect coordinator.",
+      "argv": [
+        "cargo",
+        "test",
+        "--lib",
+        "--all-features",
+        "functional_baseline"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 11
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**"
+      ],
+      "timeoutSeconds": 900
     }
   ],
   "finalCheckIds": [
@@ -1814,7 +1841,8 @@
             "S2.T1"
           ],
           "checkIds": [
-            "s2-native-functional"
+            "s2-native-functional",
+            "s2-client-unit"
           ],
           "sourceRefs": [
             {
