@@ -100,7 +100,7 @@ impl Storage for UpdatableActionStorage {
         }
     }
 
-    fn fail_pending(&mut self, _error: &str) {
+    fn fail_pending(&mut self, error: &str) {
         let pending_keys = self
             ._data
             .borrow()
@@ -114,7 +114,12 @@ impl Storage for UpdatableActionStorage {
                 .filter_map(|key| data.remove(key).map(|(_, action)| action))
                 .collect::<Vec<_>>()
         };
-        drop(pending_actions);
+        // Complete awaiters after the storage borrow ends.
+        for action in pending_actions {
+            if let Ok(mut action) = action.try_borrow_mut() {
+                action.fail(error);
+            }
+        }
     }
 
     fn increment(&mut self) -> usize {

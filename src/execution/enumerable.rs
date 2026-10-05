@@ -98,6 +98,11 @@ impl<R: DeserializeOwned + Unpin + crate::platform::MaybeSend> UpdatableAction
         }
     }
 
+    fn fail(&mut self, error: &str) {
+        error!("Ending stream {}: {}", self.invocation_id, error);
+        self.dispose_internal();
+    }
+
     fn is_completed(&self) -> bool {
         self.completed
     }

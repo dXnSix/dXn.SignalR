@@ -47,7 +47,10 @@ impl<R: DeserializeOwned + Unpin> InvocationAction<R> {
 
     fn dispose_internal(&mut self) {
         if let Some(completer) = self.completer.take() {
-            completer.cancel();
+            completer.complete(Err(format!(
+                "Invocation {} ended before the server completed it",
+                self.invocation_id
+            )));
         }
     }
 }
@@ -133,6 +136,12 @@ impl<R: DeserializeOwned + Unpin + crate::platform::MaybeSend> UpdatableAction
                 "Cannot complete invocation {} with message type {:?}",
                 self.invocation_id, message_type
             ),
+        }
+    }
+
+    fn fail(&mut self, error: &str) {
+        if self.completer.is_some() {
+            self.complete_err(error.to_string());
         }
     }
 
