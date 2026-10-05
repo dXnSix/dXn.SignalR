@@ -1,3 +1,10 @@
+// Browser WASM (`wasm32-unknown-unknown`) is the only supported wasm target; the browser transport
+// and timers do not exist on WASI or other wasm32 operating systems.
+#[cfg(all(target_arch = "wasm32", not(target_os = "unknown")))]
+compile_error!(
+    "rayx-signalr supports browser WASM (wasm32-unknown-unknown) as its only wasm target; WASI and other wasm32 targets are not supported"
+);
+
 mod client;
 mod communication;
 mod completer;

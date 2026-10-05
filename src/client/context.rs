@@ -230,7 +230,7 @@ impl InvocationContext {
     ///     info!("Async block executed");
     /// });
     /// ```
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn spawn<F>(future: F)
     where
         F: Future<Output = ()> + Send + 'static,
