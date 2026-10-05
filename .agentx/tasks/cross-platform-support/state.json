@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "cross-platform-support",
-  "revision": 64,
+  "revision": 71,
   "planRevision": 6,
   "specHashes": {
     "requirements": "7eb9cbe1721e8eb99d4c5705831832ccae1fd86cc2fa0eedd8d134f82a4c97a8",
@@ -118,13 +118,22 @@
       ]
     },
     "S7.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S7.T2": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S7.T3": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S8.T1": {
       "status": "pending"
@@ -229,6 +238,15 @@
         }
       },
       "recordedAt": "2026-10-05T23:10:51Z"
+    },
+    "fccc60832a4b862fcd6bac9a38b1b8ea12f5cf2c0ce3785dcbf904a9a1d78e59": {
+      "snapshot": {
+        "specHash": "3394019c6434ca907fffcaa6d846d7ca1661c553492752dad3b9a075a6311a6b",
+        "repositories": {
+          "rayx-signalr": "5c57bea7feb5b3c0021d1ce17fed6149476d92805e2a5e0d6706592ff989b63f"
+        }
+      },
+      "recordedAt": "2026-10-05T23:32:20Z"
     }
   },
   "checkResults": {
@@ -639,6 +657,108 @@
       "logPath": "artifacts-temp/agentx/cross-platform-support/S6-final-7ef8dc62ddb5.log",
       "logSha256": "38974c9ef9ab6c3a4c3f1e9f68c1fde30bd3a6b8ade0c6e29ce4120db7f23056",
       "inputsHash": "a8a7c096addb373ee4631adb9fced8b76437a1d100546779bbd4885450105416"
+    },
+    "S7/s7-wasm-transport/final": {
+      "checkId": "s7-wasm-transport",
+      "boundaryId": "S7",
+      "phase": "final",
+      "batchId": "fccc60832a4b862fcd6bac9a38b1b8ea12f5cf2c0ce3785dcbf904a9a1d78e59",
+      "definitionHash": "c8a1ad48dcc3c90ab4a451df5a58be556973f32494865f5205ea300fe22b051a",
+      "basisHash": "c16d6cecca3a74a3559a0e1751a5e9731713cc60d835ad1bb1177f6299b2cce9",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 3,
+      "durationSeconds": 3.8156,
+      "recordedAt": "2026-10-05T23:28:44Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S7-final-8158942bb93f.log",
+      "logSha256": "32868d04651f262d04ee6c33c94c31db44dabe53057e0366bc014efde3d4edc1",
+      "inputsHash": "df36fb9fdeb3802317837e5bd716ae3b0548ff76d1806945abb91b0707642f65"
+    },
+    "S7/s7-burst-e2e/final": {
+      "checkId": "s7-burst-e2e",
+      "boundaryId": "S7",
+      "phase": "final",
+      "batchId": "fccc60832a4b862fcd6bac9a38b1b8ea12f5cf2c0ce3785dcbf904a9a1d78e59",
+      "definitionHash": "707c250638633bdacfe2ae435ff713a55cb8bed3070053433c5a8d672d2af65b",
+      "basisHash": "fec3c01dd6513e1b977bc21de163fcaedfb3bc51712b536a2f46324cbf1a9b31",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 14.1169,
+      "recordedAt": "2026-10-05T23:28:59Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S7-final-7d20f0347239.log",
+      "logSha256": "931671497b79304b66aafb4bd85209342bc6a255f0c381e4202724be28c75214",
+      "inputsHash": "afd709401c086af5936e34482337b107c8d48687f4291c9134cce607a3d31c92"
+    },
+    "S7/s7-chromium-regression/final": {
+      "checkId": "s7-chromium-regression",
+      "boundaryId": "S7",
+      "phase": "final",
+      "batchId": "fccc60832a4b862fcd6bac9a38b1b8ea12f5cf2c0ce3785dcbf904a9a1d78e59",
+      "definitionHash": "344d3b2e4bbb24e3f1a0d4108c0ae7a1df725ede0c8d8355a2fec82fd805bea7",
+      "basisHash": "263198109fe38b5cf34c7c911a281a7a3260874747aefa57cb46f0704b75eeda",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 28,
+      "durationSeconds": 128.6799,
+      "recordedAt": "2026-10-05T23:31:07Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S7-final-e363b0102486.log",
+      "logSha256": "98ce5d1fba7b447a434096df1010dbff2a9a5c1305f21410f6721fef23b693e5",
+      "inputsHash": "afd709401c086af5936e34482337b107c8d48687f4291c9134cce607a3d31c92"
+    },
+    "S7/s7-worker-e2e/final": {
+      "checkId": "s7-worker-e2e",
+      "boundaryId": "S7",
+      "phase": "final",
+      "batchId": "fccc60832a4b862fcd6bac9a38b1b8ea12f5cf2c0ce3785dcbf904a9a1d78e59",
+      "definitionHash": "926f8532902b0a71a4fe534a49d08fad41907b7da0899beec3e7c6e5ee11f708",
+      "basisHash": "815bc572b4c6e4c34ecd71b97659cd022d410c4285ffbc39d24835cc0ce2d249",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 24.1619,
+      "recordedAt": "2026-10-05T23:31:31Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S7-final-160fc4c9baea.log",
+      "logSha256": "68c4284f81b24128f3287ac5416c4365b8f848b79cabf833d8b2b99899bf0c7e",
+      "inputsHash": "afd709401c086af5936e34482337b107c8d48687f4291c9134cce607a3d31c92"
+    },
+    "S7/s7-threaded-build/final": {
+      "checkId": "s7-threaded-build",
+      "boundaryId": "S7",
+      "phase": "final",
+      "batchId": "fccc60832a4b862fcd6bac9a38b1b8ea12f5cf2c0ce3785dcbf904a9a1d78e59",
+      "definitionHash": "7c184c55110ffdbf146f53b6766f36de060588d614b41b261006d7f8bac90f72",
+      "basisHash": "a88530d2565e11bc773e70afc55ffbf275f1e53d6eada1ca1fe50135314287c4",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 29.0256,
+      "recordedAt": "2026-10-05T23:32:00Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S7-final-b7ad97880a41.log",
+      "logSha256": "20a1bc79fd29614f4ee8d9b79bc710bfca4c372d295890028c51eebbfcc45798",
+      "inputsHash": "2a6553527cfce38b774dac6492e6acce8c1040fd24e4b3546c0750a18eab9f0d"
+    },
+    "S7/s7-threaded-e2e/final": {
+      "checkId": "s7-threaded-e2e",
+      "boundaryId": "S7",
+      "phase": "final",
+      "batchId": "fccc60832a4b862fcd6bac9a38b1b8ea12f5cf2c0ce3785dcbf904a9a1d78e59",
+      "definitionHash": "c92000e740850b6f508635d650c0f5606e50f203047c0b02d5507bd9c83db7ad",
+      "basisHash": "1de2f97b42f05b2e32c18a5a937f068e939c19f10a7febeadc465a1853051aa7",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 19.2782,
+      "recordedAt": "2026-10-05T23:32:20Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S7-final-f4bded8fd49b.log",
+      "logSha256": "18aeac84cd005223b19b8d310a8516900cc205fbad17f72b5dc311ed15dd270d",
+      "inputsHash": "afd709401c086af5936e34482337b107c8d48687f4291c9134cce607a3d31c92"
     }
   },
   "reviews": {
@@ -1931,6 +2051,224 @@
         "S6-F1"
       ],
       "recordedAt": "2026-10-05T23:11:37Z"
+    },
+    "S7": {
+      "reviewerId": "s7-reviewer-independent-9c294621",
+      "snapshotId": "fccc60832a4b862fcd6bac9a38b1b8ea12f5cf2c0ce3785dcbf904a9a1d78e59",
+      "criterionIds": [
+        "R7.C1",
+        "R7.C2",
+        "R7.C3",
+        "R7.C4",
+        "R7.C5",
+        "R7.C6"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R7.C1",
+            "R7.C2",
+            "R7.C3",
+            "R7.C5",
+            "R7.C6"
+          ],
+          "sha256": "1ec733eb542b161fef7308757ce70cda4270fb16cc8fc2cff5818b8fbd5eda5e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/browser_socket.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R7.C1",
+            "R7.C2",
+            "R7.C3",
+            "R7.C4",
+            "R7.C5",
+            "R7.C6"
+          ],
+          "sha256": "ff4d59220d379832a8f51af6a8ff41411e0613ad50ed2d722ca4731854c23c58"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/common.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R7.C2",
+            "R7.C3",
+            "R7.C6"
+          ],
+          "sha256": "8a9920c9f6ccda87cc1e7041fe51e04fb84352f534a69e971bd5563d243a8a0f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "Cargo.toml",
+          "kind": "source",
+          "criterionIds": [
+            "R7.C2",
+            "R7.C4"
+          ],
+          "sha256": "434732ae2e15f26011c848d50564b2b12a500e75e131af8a01a0d0dca42f1b26"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R7.C3"
+          ],
+          "sha256": "19cb5819d97fd753145192cbd3213425ff03e29c23644334b97863da0dcc32d5"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.AppHost/ThreadedWasm.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R7.C4",
+            "R7.C5"
+          ],
+          "sha256": "e6b753b99e5154579c757f71f33a30920138fe7d1ecad27c2abe984f33ebf8d0"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.AppHost/AppHost.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R7.C5"
+          ],
+          "sha256": "a9ef9995a89518e6aa1ccc77db258fe6475afe072a91a727c3535db25d7051d8"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.FixtureHost/Program.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R7.C5"
+          ],
+          "sha256": "236cd91a0b1361de890483c6f8135893a3c42d3755ed50f269d76301cb7e8d96"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/e2e.yml",
+          "kind": "source",
+          "criterionIds": [
+            "R7.C5"
+          ],
+          "sha256": "402c0d14d66fcc671e70033c63586bfb61c0a0a02efea8b526a8bd38fceb17a1"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/WasmTransportTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R7.C2"
+          ],
+          "sha256": "fded79c0b6d6274b9ccce0744ab1b6936baccc9b8cbece9a9797f6ef53e068c2"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/ThreadedWasmBuildTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R7.C4"
+          ],
+          "sha256": "f4bb190ad5e8333b0aa4f7f32716c6017572b2540b203f850cfb7dc5a14ff982"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R7.C1",
+            "R7.C3",
+            "R7.C5",
+            "R7.C6"
+          ],
+          "sha256": "1ba6cabb7129e6b0d32a0aa5ebf4a2bfb11a8bd6df7e5afd33b7454d0b3f1f75"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/tests/signalr-functional.spec.ts",
+          "kind": "test",
+          "criterionIds": [
+            "R7.C1",
+            "R7.C6"
+          ],
+          "sha256": "ab01261519ca82914172a76904cf2ec4d6ec0204362b93dbfc8f5a74e913cd91"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/tests/signalr-worker.spec.ts",
+          "kind": "test",
+          "criterionIds": [
+            "R7.C3"
+          ],
+          "sha256": "2bfac8e1e691bc84af008a6ca354337b523a752a1310e954cc07b0bd3fd71b52"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/wasm-host/worker.js",
+          "kind": "test",
+          "criterionIds": [
+            "R7.C3"
+          ],
+          "sha256": "75f8e634e046fcfaf13add66375a294874ab5061b3220e70a722e983be69daf4"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/wasm-host/worker.html",
+          "kind": "test",
+          "criterionIds": [
+            "R7.C3"
+          ],
+          "sha256": "875f48686a36c9d7973c27c6e1ee402a9868c4ebe3a279b224ab72db6004116e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/tests/signalr-threads.spec.ts",
+          "kind": "test",
+          "criterionIds": [
+            "R7.C5"
+          ],
+          "sha256": "0e5da3bed185022538083a27213fd66c17b61657f2b8bc7194e8f3608fd4af60"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Infrastructure/AspireEnvironment.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R7.C5"
+          ],
+          "sha256": "a909d50f65e76f9152884ef4550b41855434d16ada2b9337558623a0b2f72810"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Scenarios/E2ESelection.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R7.C5"
+          ],
+          "sha256": "494ad5f9982a5c18d509bb0768bd270784670af0cf088fb95b9fedc98a34d5c0"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Scenarios/ScenarioCatalog.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R7.C1",
+            "R7.C3",
+            "R7.C5",
+            "R7.C6"
+          ],
+          "sha256": "ab160350eedd283b0f1ade0a21bd512cdca2f84b2305f03921049b292fbc7f5e"
+        }
+      ],
+      "summaryMarkdown": "Passed. The browser transport is event-driven: one receiver task per web-sys socket (listeners owned by `BrowserSocket`, detached and the socket closed on drop, nothing forgotten), `gloo-timers` `TimeoutFuture` sleeps/timeouts cancelled on drop, fetch negotiate on the global scope, no `window()`/`setInterval`, and no wasm-sockets/wasm-timer/async-std/ehttp in the browser graph. Lifecycle parity with the old transport holds: distinct Connected/Reconnecting/Disconnected/LocalClosed states, generation-checked install and frame handling, ordinary renegotiate+handshake vs stateful resume (Sequence + replay, no handshake), stateful Ack/Sequence bookkeeping, terminal-close and manual-handler semantics, frames queued before close processed in order, short RefCell borrows released before user callbacks/awaits, previous socket closed on replacement and local disconnect, and errors that never repeat the tokenized URL. The worker scenario asserts no `window`; the threaded scenario asserts `crossOriginIsolated`, `SharedArrayBuffer` and that wasm memory is shared; threaded RUSTFLAGS match RayX `xtask/src/wasm.rs` exactly. All six S7 checks passed (3/2/28/2/2/2).\n\nNotes (not S7 defects): memory `client-runtime/state.md` and `transport/state.md`/`knowledge.md` still describe `wasm-sockets`/`ehttp`/polling and need the sprint memory sync; `E2ESelection.RequiresThreadedFixture` triggers for any browser target (revisit when S10 adds Firefox/WebKit); `BrowserSocket::open` reports an empty reason because a DOMException has no string form (the exception name could be added without the URL); pre-existing `clippy::arc_with_non_send_sync` errors on wasm32 in `client.rs`/`manual_stream.rs` and the `Platform` category not running in CI are outside this sprint.",
+      "findingIds": [],
+      "recordedAt": "2026-10-05T23:37:25Z"
     }
   },
   "checkpoints": {
@@ -1981,6 +2319,14 @@
       },
       "reviewHash": "b81757900642d1ce005898081cf46dd0a7436feab2a3d47166f112b1bbf1a296",
       "recordedAt": "2026-10-05T23:11:56Z"
+    },
+    "S7": {
+      "snapshotId": "fccc60832a4b862fcd6bac9a38b1b8ea12f5cf2c0ce3785dcbf904a9a1d78e59",
+      "commits": {
+        "rayx-signalr": "9894a4f338ef1f5abe190c3ab5a5ce6dc2f8ad77"
+      },
+      "reviewHash": "ce475657b61a5aa08059a86477f957a152124e00ae7e42a3b35e3538f9bf0d13",
+      "recordedAt": "2026-10-05T23:37:50Z"
     }
   },
   "findings": [
