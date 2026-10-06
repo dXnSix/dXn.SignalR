@@ -5,6 +5,9 @@ compile_error!(
     "rayx-signalr supports browser WASM (wasm32-unknown-unknown) as its only wasm target; WASI and other wasm32 targets are not supported"
 );
 
+#[cfg(all(feature = "bench-internals", not(target_arch = "wasm32")))]
+#[doc(hidden)]
+pub mod bench_support;
 mod client;
 mod communication;
 mod completer;

@@ -553,7 +553,7 @@ impl ReconnectionContext {
 
 /// One physical WebSocket: a runtime-owned writer task that owns the sink and a runtime-owned
 /// receiver task that dispatches inbound frames.
-struct CommunicationConnection {
+pub(crate) struct CommunicationConnection {
     writer: ConnectionWriter,
     /// How the writer ends once its channels close (`WRITER_*`).
     stop_mode: Arc<std::sync::atomic::AtomicU8>,
@@ -1007,7 +1007,7 @@ impl CommunicationConnection {
     }
 
     /// Serializes a JSON message and its replay-buffer tracking data.
-    fn json_frame<T: serde::Serialize>(
+    pub(crate) fn json_frame<T: serde::Serialize>(
         data: T,
     ) -> Result<(Message, Option<(MessageType, SerializedFrame)>), String> {
         let json = MessageParser::to_json(&data).map_err(|error| error.to_string())?;
@@ -1022,7 +1022,7 @@ impl CommunicationConnection {
 
     /// Frames a MessagePack payload and its replay-buffer tracking data.
     #[cfg(feature = "messagepack")]
-    fn binary_frame(
+    pub(crate) fn binary_frame(
         data: Vec<u8>,
     ) -> Result<(Message, Option<(MessageType, SerializedFrame)>), String> {
         let frames = crate::protocol::msgpack::split_framed_messages(&data)?;
@@ -1643,7 +1643,7 @@ impl CommunicationClient {
         }
     }
 
-    fn get_text_messages(message: &Message) -> Vec<String> {
+    pub(crate) fn get_text_messages(message: &Message) -> Vec<String> {
         if message.is_text() {
             if let Some(txt) = message.as_text() {
                 return txt
@@ -1667,7 +1667,7 @@ impl CommunicationClient {
     }
 
     #[cfg(feature = "messagepack")]
-    fn get_binary_messages(message: &Message) -> Vec<Vec<u8>> {
+    pub(crate) fn get_binary_messages(message: &Message) -> Vec<Vec<u8>> {
         if message.is_binary() {
             let data = message.as_payload();
             match crate::protocol::msgpack::split_framed_messages(data) {

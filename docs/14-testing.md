@@ -8,6 +8,8 @@
 | End-to-end scenarios (native) | `tests/e2e/<scenario>.rs` | the Aspire runner only |
 | End-to-end scenarios (browser) | `tests/wasm-fixture` (Rust) and `tools-node/tests/*.spec.ts` (Playwright) | the Aspire runner only |
 | Static contracts | `dotnet/RayX.SignalR.E2E.Tests/src/Contracts` | `dotnet test` categories |
+| Micro-benchmarks | `benches/hot_paths.rs` | `cargo bench` (see [Performance](#performance)) |
+| Reference-client workloads | `tests/perf` and `dotnet/RayX.SignalR.PerfReference` | the Aspire `Performance` category only |
 
 Plain `cargo test` never needs a server: the `e2e` test target is declared with `test = false` in
 `Cargo.toml`.
@@ -124,6 +126,60 @@ plus the Aspire resource logs (and an Android logcat excerpt) to `artifacts-temp
 Add it to `ScenarioCatalog.cs`, `tests/e2e/<scenario>.rs` (registered in `tests/e2e/main.rs`) and
 the browser fixture plus Playwright spec in the same change. The `Catalog` category fails on any
 mismatch. Fault controls and probes belong to the test service, never to the library.
+
+## Performance
+
+Two harnesses measure the client; neither is part of the end-to-end selection.
+
+**Micro-benchmarks.** `benches/hot_paths.rs` runs Criterion over the crate's internal codec and
+action storage through the hidden `bench_support` module. The `bench-internals` feature that
+exposes it is unstable and only for these benchmarks; it changes no behavior and applications never
+enable it.
+
+```bash
+cargo bench --bench hot_paths --features messagepack,bench-internals
+cargo bench --bench hot_paths --features messagepack,bench-internals -- --save-baseline <name>
+cargo bench --bench hot_paths --features messagepack,bench-internals -- --baseline <name>
+```
+
+Benchmark ids are stable, `hot_paths/<inbound|outbound|framing>/<json|messagepack>/<message>/<size>`,
+so a named baseline saved on one machine compares a later run on the same machine. `inbound` covers
+decoding one received frame plus its dispatch through the action storage (`invocation`,
+`completion`, `completion-void`, `stream-item`, `ping`), `outbound` building and encoding an
+invocation with framing, and `framing` splitting a frame of eight records (`split-8`), at payload
+sizes of 32 B, 1 KiB and 64 KiB.
+
+**Reference-client workloads.** The `Performance` category runs the same workloads with a release
+build of the Rust client (`tests/perf`, a `test = false` binary) and with the official .NET client
+(`dotnet/RayX.SignalR.PerfReference`, `Microsoft.AspNetCore.SignalR.Client` with its MessagePack
+protocol) against the test service's `/perf` hub in one Aspire run:
+
+| Workload | Timed work (`full` scale; `quick` is a tenth) | Untimed warm-up first | Metrics |
+|---|---|---|---|
+| `invoke-latency` | 2,000 sequential invocations | at least 200 invocations | `p50_us`, `p99_us`, `max_us` |
+| `stream-throughput` | one server stream of 100,000 items | whole streams of 10,000 items | `items_per_second` |
+| `send-throughput` | 50,000 sends acknowledged by a final invocation | sends confirmed by `SinkCount` | `sends_per_second` |
+| `fan-in` | 8 concurrent clients each invoking 1,000 times | invocations on every client | aggregate `calls_per_second` |
+
+Both clients run every warm-up identically, on the measured connections, for at least 2 seconds
+(0.2 seconds at `quick`), so the official client is measured in steady state: .NET's tiered JIT
+(left at its defaults, including dynamic PGO) and first-use initialization settle before the timed
+window. Each result also records its warm-up size (`warmup_calls`, `warmup_items` or
+`warmup_sends`, and `warmup_ms`).
+
+```bash
+RAYX_SIGNALR_PERF_WORKLOADS=all RAYX_SIGNALR_PERF_SCALE=quick dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=Performance
+```
+
+| Variable | Values | Default |
+|---|---|---|
+| `RAYX_SIGNALR_PERF_WORKLOADS` | workload names, or `all` | none: the category requires a selection |
+| `RAYX_SIGNALR_PERF_SCALE` | `quick` (smoke checks) or `full` (budgets) | `quick` |
+
+Each row is one workload and protocol. It runs both clients three times, alternating which goes
+first, and records the median of each metric with the build profile and the machine (OS,
+architecture, processors, .NET and Rust versions, commit) in `artifacts-temp/perf/<run>.json`.
+Budgets are always relative to the .NET client in the same run, never absolute numbers.
 
 ## Static contract categories
 

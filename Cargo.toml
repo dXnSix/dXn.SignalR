@@ -31,6 +31,9 @@ tls-ring = ["rustls?/ring", "_rustls"]
 tls-aws-lc-rs = ["rustls?/aws_lc_rs", "_rustls"]
 # Internal: rustls plumbing shared by the TLS features.
 _rustls = ["dep:rustls", "dep:tokio-rustls", "dep:rustls-pki-types", "tokio-websockets/rustls-bring-your-own-connector"]
+# Unstable, for the crate's own benchmarks only: exposes the hidden `bench_support` module over the
+# internal codec and action storage. Never enable it in applications; it changes no behavior.
+bench-internals = []
 
 [dependencies]
 log = "0.4.29"
@@ -67,9 +70,25 @@ webpki-roots = { version = "1.0.8", optional = true }
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread", "time"] }
 env_logger = "0.11"
+criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
 
 # Black-box end-to-end scenarios; run only through the Aspire runner (`dotnet test`).
 [[test]]
 name = "e2e"
 path = "tests/e2e/main.rs"
 test = false
+
+# Performance workloads against the official .NET client; run only through the Aspire runner's
+# `Performance` category, which builds this binary in release.
+[[test]]
+name = "perf"
+path = "tests/perf/main.rs"
+harness = false
+test = false
+
+# Hot-path micro-benchmarks over the internal codec and action storage:
+# `cargo bench --bench hot_paths --features messagepack,bench-internals`.
+[[bench]]
+name = "hot_paths"
+harness = false
+required-features = ["messagepack", "bench-internals"]

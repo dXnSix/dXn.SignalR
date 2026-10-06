@@ -24,6 +24,8 @@ pub use client_wasm::{CommunicationClient, WasmReconnectionContext};
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use client_tokio::CommunicationClient;
+#[cfg(all(feature = "bench-internals", not(target_arch = "wasm32")))]
+pub(crate) use client_tokio::CommunicationConnection;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use client_tokio::ReconnectionContext;

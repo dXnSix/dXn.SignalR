@@ -115,6 +115,7 @@ app.MapHub<TestHub>("/test-tls");
 app.MapHub<TestHub>("/test-direct");
 app.MapHub<TestHub>("/test-stateful", options => options.AllowStatefulReconnects = true);
 app.MapHub<AuthHub>("/test-auth");
+app.MapHub<PerfHub>("/perf");
 app.MapLivenessEndpoints();
 
 app.Run();

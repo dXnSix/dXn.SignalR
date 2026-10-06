@@ -817,42 +817,57 @@ impl SignalRClient {
             HubProtocolKind::Json => conn.send(invocation).await,
             #[cfg(feature = "messagepack")]
             HubProtocolKind::MessagePack => {
-                // Preserve the serializer-owned wire names. ASP.NET Core can
-                // bind explicitly attributed names, while a transport-level
-                // casing rewrite corrupts compact schemas and serde renames.
-                let msgpack_args: Vec<rmpv::Value> =
-                    if let Some(ref raw_args) = invocation.msgpack_args {
-                        raw_args
-                            .iter()
-                            .map(|bytes| {
-                                rmpv::decode::read_value(&mut std::io::Cursor::new(bytes))
-                                    .unwrap_or(rmpv::Value::Nil)
-                            })
-                            .collect()
-                    } else {
-                        invocation
-                            .arguments
-                            .as_ref()
-                            .map(|args| {
-                                args.iter()
-                                    .map(crate::protocol::msgpack::json_value_to_msgpack)
-                                    .collect()
-                            })
-                            .unwrap_or_default()
-                    };
-
-                let payload = crate::protocol::msgpack::encode_invocation(
-                    invocation.get_message_type(),
-                    &None,
-                    &invocation.get_invocation_id(),
-                    &invocation.get_target(),
-                    &msgpack_args,
-                    &invocation.stream_ids,
-                )?;
-
-                let framed = crate::protocol::msgpack::frame_message(&payload);
+                let framed = Self::messagepack_invocation_frame(invocation)?;
                 conn.send_binary(framed).await
             }
+        }
+    }
+
+    /// Encodes an Invocation or StreamInvocation as a framed MessagePack message.
+    #[cfg(feature = "messagepack")]
+    pub(crate) fn messagepack_invocation_frame(invocation: &Invocation) -> Result<Vec<u8>, String> {
+        // Preserve the serializer-owned wire names. ASP.NET Core can
+        // bind explicitly attributed names, while a transport-level
+        // casing rewrite corrupts compact schemas and serde renames.
+        let msgpack_args: Vec<rmpv::Value> = if let Some(ref raw_args) = invocation.msgpack_args {
+            raw_args
+                .iter()
+                .map(|bytes| {
+                    rmpv::decode::read_value(&mut std::io::Cursor::new(bytes))
+                        .unwrap_or(rmpv::Value::Nil)
+                })
+                .collect()
+        } else {
+            invocation
+                .arguments
+                .as_ref()
+                .map(|args| {
+                    args.iter()
+                        .map(crate::protocol::msgpack::json_value_to_msgpack)
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+
+        let payload = crate::protocol::msgpack::encode_invocation(
+            invocation.get_message_type(),
+            &None,
+            &invocation.get_invocation_id(),
+            &invocation.get_target(),
+            &msgpack_args,
+            &invocation.stream_ids,
+        )?;
+
+        Ok(crate::protocol::msgpack::frame_message(&payload))
+    }
+
+    /// A client without a connection over `actions`, so the benchmarks can dispatch server
+    /// invocations to registered callbacks.
+    #[cfg(all(feature = "bench-internals", not(target_arch = "wasm32")))]
+    pub(crate) fn detached(actions: UpdatableActionStorage) -> Self {
+        Self {
+            _actions: actions,
+            _connection: None,
         }
     }
 

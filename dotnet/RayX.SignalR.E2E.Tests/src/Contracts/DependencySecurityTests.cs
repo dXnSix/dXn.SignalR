@@ -41,9 +41,13 @@ public sealed partial class DependencySecurityTests(AspireEnvironment environmen
       scan.Succeeded,
       $"dotnet list package --vulnerable exited {scan.ExitCode} (timed out: {scan.TimedOut}):\n{Redaction.SafeTail(output)}");
     Assert.DoesNotMatch("(?i)has the following vulnerable packages", output);
-    Assert.Equal(4, NoVulnerablePackages().Count(output));
+    string solution = await File.ReadAllTextAsync(Path.Combine(environment.RepositoryRoot, "RayX.SignalR.slnx"));
+    Assert.Equal(SolutionProject().Count(solution), NoVulnerablePackages().Count(output));
   }
 
   [GeneratedRegex("(?i)has no vulnerable packages")]
   private static partial Regex NoVulnerablePackages();
+
+  [GeneratedRegex(@"<Project\s+Path=""[^""]+\.csproj""")]
+  private static partial Regex SolutionProject();
 }

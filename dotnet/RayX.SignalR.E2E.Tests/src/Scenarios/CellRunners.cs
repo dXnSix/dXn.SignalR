@@ -217,10 +217,11 @@ public static class NativeE2EBinary
     return errors.ToString();
   }
 
-  /// <summary>Finds the <c>e2e</c> test executable in <c>cargo --message-format=json</c> output.</summary>
+  /// <summary>Finds a test target's executable in <c>cargo --message-format=json</c> output.</summary>
   /// <param name="messages">The JSON lines.</param>
+  /// <param name="target">The test target name.</param>
   /// <returns>The executable path.</returns>
-  public static string ParseExecutable(string messages)
+  public static string ParseExecutable(string messages, string target = "e2e")
   {
     foreach(string line in messages.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
     {
@@ -233,7 +234,7 @@ public static class NativeE2EBinary
       JsonElement root = message.RootElement;
       if(root.TryGetProperty("reason", out JsonElement reason)
          && reason.GetString() == "compiler-artifact"
-         && root.GetProperty("target").GetProperty("name").GetString() == "e2e"
+         && root.GetProperty("target").GetProperty("name").GetString() == target
          && root.TryGetProperty("executable", out JsonElement executable)
          && executable.ValueKind == JsonValueKind.String)
       {
@@ -241,7 +242,7 @@ public static class NativeE2EBinary
       }
     }
 
-    throw new InvalidOperationException("cargo did not report an executable for the e2e test target.");
+    throw new InvalidOperationException($"cargo did not report an executable for the {target} test target.");
   }
 }
 
