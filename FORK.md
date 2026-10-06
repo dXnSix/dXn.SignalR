@@ -105,5 +105,8 @@ Residual risks, not claimed by that epic:
   must allow WebSockets.
 - A browser `pause()` cannot keep a stateful logical connection, because browsers
   always send a WebSocket Close (see the README's lifecycle notes).
+- One stateful-resume stall was seen once and never reproduced: after a third resume on
+  the Android emulator, an invocation did not complete although the transport stayed open
+  (recorded as an active hypothesis in `.agentx/memory/knowledge/interop-validation/hypotheses.md`).
 - The inherited untyped `String` errors remain; a typed public error model is
   still follow-up hardening.
