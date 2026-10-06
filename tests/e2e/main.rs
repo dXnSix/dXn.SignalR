@@ -19,6 +19,8 @@ mod keepalive_idle;
 mod large_payload;
 mod negotiate_redirect;
 mod ordinary_reconnect;
+mod pause_resume;
+mod pause_resume_stateful;
 mod reconnect_exhaustion;
 mod send;
 mod server_close;

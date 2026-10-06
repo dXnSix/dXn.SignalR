@@ -86,7 +86,9 @@ public static class ScenarioCatalog
     new("short-stream-chaining", Set(_chromium)),
     new("keepalive-idle", Set(_native, _chromium)),
     new("server-timeout", Set(_native, _chromium)),
-    new("handshake-timeout", Set(_native, _chromium))
+    new("handshake-timeout", Set(_native, _chromium)),
+    new("pause-resume", Set(_native, _chromium)),
+    new("pause-resume-stateful", Set(_native, _chromium))
   ];
 
   /// <summary>Looks up a target by name.</summary>

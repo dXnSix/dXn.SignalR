@@ -63,6 +63,8 @@ pub async fn run_functional_scenario(
         "keepalive-idle" => keepalive_idle(messagepack).await,
         "server-timeout" => server_timeout(messagepack).await,
         "handshake-timeout" => handshake_timeout(messagepack).await,
+        "pause-resume" => pause_resume(messagepack).await,
+        "pause-resume-stateful" => pause_resume_stateful(messagepack).await,
         other => Err(format!("unknown functional scenario {other}")),
     };
     outcome
@@ -1277,4 +1279,262 @@ async fn handshake_timeout(messagepack: bool) -> Outcome {
         }
         Err(_) => Ok(()),
     }
+}
+
+fn default_retry() -> ReconnectionConfig {
+    ReconnectionConfig {
+        policy: Arc::new(rayx_signalr::DefaultRetryPolicy),
+    }
+}
+
+/// Pause and resume (ordinary mode): `pause` closes the socket and stops automatic reconnect,
+/// fails pending work with "connection paused" and makes `invoke`/`send` fail without queuing;
+/// `resume` reconnects at once (a new logical connection) and invocations succeed again.
+async fn pause_resume(messagepack: bool) -> Outcome {
+    use rayx_signalr::ConnectionStatus;
+
+    // The default policy's first attempt is immediate: only pause can keep the client away.
+    let mut client = connect("test", messagepack, |configuration| {
+        configuration.with_reconnection_policy(default_retry());
+    })
+    .await?;
+    ensure!(
+        client.status() == ConnectionStatus::Connected,
+        "status after connect: {:?}",
+        client.status()
+    );
+    let initial = identity(&mut client).await?;
+    let mut pending_client = client.clone();
+    let pending = spawn(async move {
+        pending_client
+            .invoke_with_args::<String, _>("DelayedConnectionIdentity".to_string(), |arguments| {
+                arguments.argument(10_000);
+            })
+            .await
+    });
+    sleep(200).await;
+
+    client.pause().await?;
+    ensure!(
+        client.status() == ConnectionStatus::Paused,
+        "status after pause: {:?}",
+        client.status()
+    );
+    let paused_at = js_sys::Date::now();
+    match pending.await {
+        Ok(Err(error)) if error.contains("paused") => {}
+        other => return Err(format!("pending work after pause: {other:?}")),
+    }
+    ensure!(
+        (js_sys::Date::now() - paused_at)
+            .total_cmp(&2_000.0)
+            .is_lt(),
+        "pending work did not fail promptly on pause"
+    );
+
+    // Calls while paused fail at once instead of queuing.
+    let started = js_sys::Date::now();
+    ensure!(
+        identity(&mut client).await.is_err(),
+        "invoke succeeded while paused"
+    );
+    ensure!(
+        client.send("VoidCall".to_string()).await.is_err(),
+        "send succeeded while paused"
+    );
+    ensure!(
+        (js_sys::Date::now() - started).total_cmp(&1_000.0).is_lt(),
+        "calls while paused did not fail at once"
+    );
+
+    // The server saw the socket close, and nothing reconnects automatically.
+    let probe = connect("test", messagepack, |_| {}).await?;
+    eventually(
+        "the server to see the paused connection close",
+        5_000.0,
+        || {
+            let mut probe = probe.clone();
+            let initial = initial.clone();
+            async move {
+                probe
+                    .invoke_with_args::<i32, _>("DisconnectCount".to_string(), |arguments| {
+                        arguments.argument(initial.clone());
+                    })
+                    .await
+                    .ok()
+                    .filter(|count| *count >= 1)
+            }
+        },
+    )
+    .await?;
+    sleep(1_000).await;
+    ensure!(
+        client.status() == ConnectionStatus::Paused,
+        "the paused client reconnected: {:?}",
+        client.status()
+    );
+    client.pause().await?;
+    ensure!(
+        client.status() == ConnectionStatus::Paused,
+        "a repeated pause changed the status to {:?}",
+        client.status()
+    );
+
+    let started = js_sys::Date::now();
+    client.resume().await?;
+    ensure!(
+        (js_sys::Date::now() - started).total_cmp(&5_000.0).is_lt(),
+        "resume took {} ms",
+        js_sys::Date::now() - started
+    );
+    ensure!(
+        client.status() == ConnectionStatus::Connected,
+        "status after resume: {:?}",
+        client.status()
+    );
+    let resumed = identity(&mut client).await?;
+    ensure!(
+        resumed != initial,
+        "ordinary resume kept the logical connection"
+    );
+    let echoed = client
+        .invoke_with_args::<i32, _>("Echo".to_string(), |arguments| {
+            arguments.argument(7);
+        })
+        .await?;
+    ensure!(echoed == 7, "Echo after resume returned {echoed}");
+    client.resume().await?;
+    ensure!(
+        client.status() == ConnectionStatus::Connected,
+        "resuming a connected client changed the status to {:?}",
+        client.status()
+    );
+    client.disconnect();
+
+    // Pausing during a reconnect delay supersedes the run: no attempt follows the delay.
+    let mut delayed = connect("test", messagepack, |configuration| {
+        configuration.with_reconnection_policy(ReconnectionConfig {
+            policy: Arc::new(ConstantDelayPolicy::new(Duration::from_secs(2), Some(3))),
+        });
+    })
+    .await?;
+    delayed.send("AbortPhysicalTransport".to_string()).await?;
+    eventually(
+        "the automatic reconnect to start its delay",
+        5_000.0,
+        || {
+            let status = delayed.status();
+            async move { (status == ConnectionStatus::Reconnecting).then_some(()) }
+        },
+    )
+    .await?;
+    let mut counter = probe.clone();
+    let negotiates = hub_negotiates(&mut counter, "/test").await?;
+    delayed.pause().await?;
+    sleep(3_000).await;
+    ensure!(
+        delayed.status() == ConnectionStatus::Paused,
+        "the client paused during a delay is {:?}",
+        delayed.status()
+    );
+    let after = hub_negotiates(&mut counter, "/test").await?;
+    ensure!(
+        after == negotiates,
+        "a client paused during a reconnect delay negotiated {} more time(s)",
+        after - negotiates
+    );
+    delayed.disconnect();
+    probe.disconnect();
+    Ok(())
+}
+
+/// Pause and resume (stateful mode) in a browser: a browser cannot drop a socket without the
+/// closing handshake, after which the server disposes the logical connection, so `pause` ends
+/// it (a stream in flight fails with "connection paused") and `resume` negotiates a fresh
+/// stateful connection, which still resumes statefully after a server-side transport abort.
+async fn pause_resume_stateful(messagepack: bool) -> Outcome {
+    use rayx_signalr::{ConnectionStatus, StatefulReconnectConfig};
+
+    let mut client = connect("test-stateful", messagepack, |configuration| {
+        configuration.with_stateful_reconnect(StatefulReconnectConfig::default());
+        configuration.with_reconnection_policy(default_retry());
+    })
+    .await?;
+    let initial = identity(&mut client).await?;
+    let mut stream = client
+        .enumerate_with_args::<i32, _>("OrderedSequence".to_string(), |arguments| {
+            arguments.argument(60);
+            arguments.argument(20);
+        })
+        .await;
+    let mut values = Vec::new();
+    while let Some(value) = stream.next().await {
+        values.push(value);
+        if value == 10 {
+            client.pause().await?;
+            ensure!(
+                client.status() == ConnectionStatus::Paused,
+                "status after pause: {:?}",
+                client.status()
+            );
+            ensure!(
+                client.send("VoidCall".to_string()).await.is_err(),
+                "send succeeded while paused"
+            );
+        }
+    }
+    ensure!(
+        values == (1..=10).collect::<Vec<_>>(),
+        "the stream after a browser pause yielded {values:?}"
+    );
+    match stream.error() {
+        Some(error) if error.contains("paused") => {}
+        other => return Err(format!("the paused stream ended with {other:?}")),
+    }
+
+    client.resume().await?;
+    ensure!(
+        client.status() == ConnectionStatus::Connected,
+        "status after resume: {:?}",
+        client.status()
+    );
+    let fresh = identity(&mut client).await?;
+    ensure!(
+        fresh != initial,
+        "a browser resume must negotiate a fresh logical connection"
+    );
+
+    // The fresh connection is stateful: a transport abort mid-stream resumes without gaps.
+    let mut stream = client
+        .enumerate_with_args::<i32, _>("OrderedSequence".to_string(), |arguments| {
+            arguments.argument(40);
+            arguments.argument(20);
+        })
+        .await;
+    let mut aborter = client.clone();
+    let mut values = Vec::new();
+    while let Some(value) = stream.next().await {
+        values.push(value);
+        if value == 5 {
+            aborter.send("AbortPhysicalTransport".to_string()).await?;
+        }
+    }
+    ensure!(
+        values == (1..=40).collect::<Vec<_>>(),
+        "the stream across a stateful resume was {values:?}"
+    );
+    let resumed = identity(&mut client).await?;
+    ensure!(
+        resumed == fresh,
+        "the fresh connection was replaced instead of resumed"
+    );
+    let aborts = client
+        .invoke::<i32>("TransportAbortCount".to_string())
+        .await?;
+    ensure!(
+        aborts == 1,
+        "the server aborted the fresh connection's transport {aborts} time(s)"
+    );
+    client.disconnect();
+    Ok(())
 }
