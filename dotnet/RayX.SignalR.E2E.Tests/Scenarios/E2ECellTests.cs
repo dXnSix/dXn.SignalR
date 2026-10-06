@@ -12,11 +12,22 @@ public sealed class E2ECellTests(AspireEnvironment environment)
 {
   const string _selectionError = "selection-error: ";
 
-  static readonly Dictionary<TargetKind, ICellRunner> _runners = new()
+  static readonly BrowserCellRunner _browser = new();
+
+  static readonly Dictionary<string, ICellRunner> _runners = new(StringComparer.Ordinal)
   {
-    [TargetKind.Native] = new NativeCellRunner(),
-    [TargetKind.Browser] = new BrowserCellRunner()
+    ["native"] = new NativeCellRunner(),
+    ["chromium"] = _browser,
+    ["firefox"] = _browser,
+    ["webkit"] = _browser,
+    ["android"] = new AndroidCellRunner(),
+    ["ios"] = new IosCellRunner()
   };
+
+  /// <summary>Gets the runner for a target.</summary>
+  /// <param name="target">The target name.</param>
+  /// <returns>The runner.</returns>
+  public static ICellRunner RunnerFor(string target) => _runners[target];
 
   /// <summary>Gets one row per selected cell, or one failing row describing an invalid selection.</summary>
   /// <returns>The rows.</returns>
@@ -56,7 +67,7 @@ public sealed class E2ECellTests(AspireEnvironment environment)
                               selection.RequiresThreadedFixture);
                             await environment.ResetServiceAsync();
                           },
-                          () => _runners[selected.Target.Kind].RunAsync(selected, environment, CancellationToken.None));
+                          () => RunnerFor(selected.Target.Name).RunAsync(selected, environment, CancellationToken.None));
     Assert.True(report.Passed, report.Message);
   }
 }

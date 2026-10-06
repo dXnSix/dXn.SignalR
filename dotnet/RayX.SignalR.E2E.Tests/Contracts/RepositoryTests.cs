@@ -59,13 +59,26 @@ public sealed class RepositoryTests(AspireEnvironment environment)
     string readme = await File.ReadAllTextAsync(Path.Combine(environment.RepositoryRoot, "README.md"));
     foreach(string required in new[]
             {
-              "## Production validation",
+              "## Platform support",
+              "## Testing with Aspire",
               "aspire run",
               "dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E",
               "RAYX_SIGNALR_E2E_TARGETS",
               "quality / contracts",
               "e2e / native (<os>)",
-              "e2e / browser (<engine>)"
+              "e2e / browser (<engine>)",
+              "e2e / android",
+              "e2e / ios",
+              "quality / platform",
+              "RAYX_SIGNALR_E2E_ANDROID_SERIAL",
+              "RAYX_SIGNALR_E2E_IOS_DEVICE",
+              "init_with_env",
+              "tls-webpki-roots",
+              "with_runtime_handle",
+              "with_keep_alive_interval",
+              "pause()",
+              "skip_negotiation()",
+              "WASI"
             })
     {
       Assert.Contains(required, readme, StringComparison.Ordinal);
@@ -75,6 +88,8 @@ public sealed class RepositoryTests(AspireEnvironment environment)
     Assert.DoesNotContain("verify-workflows.ps1", readme, StringComparison.Ordinal);
     string fork = await File.ReadAllTextAsync(Path.Combine(environment.RepositoryRoot, "FORK.md"));
     Assert.Contains("## Production hardening baseline", fork, StringComparison.Ordinal);
+    Assert.Contains("## Cross-platform support", fork, StringComparison.Ordinal);
+    Assert.Contains("Residual risks", fork, StringComparison.Ordinal);
   }
 
   [Fact]

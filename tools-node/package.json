@@ -4,7 +4,7 @@
   "packageManager": "pnpm@10.28.2",
   "type": "module",
   "scripts": {
-    "playwright:install": "playwright install chromium"
+    "playwright:install": "playwright install chromium firefox webkit"
   },
   "devDependencies": {
     "@playwright/test": "1.59.1",

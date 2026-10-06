@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using RayX.SignalR.E2E.Tests.Infrastructure;
+using RayX.SignalR.E2E.Tests.Scenarios;
 
 namespace RayX.SignalR.E2E.Tests.Contracts;
 
@@ -15,7 +16,8 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
     "actions/cache@v6",
     "actions/upload-artifact@v7",
     "actions/setup-node@v7",
-    "pnpm/action-setup@v6"
+    "pnpm/action-setup@v6",
+    "reactivecircus/android-emulator-runner@v2"
   ];
 
   Dictionary<string, string> Workflows()
@@ -89,6 +91,17 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
               @"dotnet test dotnet/RayX\.SignalR\.E2E\.Tests --filter Category=DependencySecurity",
               "quality / contracts",
               @"dotnet tool install --global Aspire\.Cli --version 13\.5\.\d+",
+              @"quality / android \(cargo ndk\)",
+              "cargo install cargo-ndk --locked",
+              @"cargo \+1\.92\.0 ndk -t arm64-v8a -t x86_64 -P 24 check --lib",
+              @"quality / ios \(\$\{\{ matrix\.target \}\}\)",
+              @"target: \[aarch64-apple-ios, aarch64-apple-ios-sim\]",
+              @"cargo \+1\.92\.0 check --lib --test e2e --all-features --target \$\{\{ matrix\.target \}\}",
+              "quality / threaded-wasm",
+              @"-C target-feature=\+atomics,\+bulk-memory,\+mutable-globals",
+              @"cargo \+nightly-2026-06-23 check --lib --target wasm32-unknown-unknown --all-features -Z build-std=std,panic_abort",
+              "quality / platform",
+              @"dotnet test dotnet/RayX\.SignalR\.E2E\.Tests --filter Category=Platform",
               @"--filter ""Category=WorkflowContract\|Category=Repository\|Category=Catalog\|Category=Toolchain"""
             })
     {
@@ -107,7 +120,19 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
               @"e2e / native \(\$\{\{ matrix\.os \}\}\)",
               @"os: \[ubuntu-latest, windows-latest, macos-latest\]",
               @"e2e / browser \(\$\{\{ matrix\.engine \}\}\)",
-              @"engine: \[chromium\]",
+              @"engine: \[chromium, firefox, webkit\]",
+              "e2e / android",
+              @"RAYX_SIGNALR_E2E_TARGETS: android",
+              @"rustup toolchain install 1\.92\.0 --profile minimal --target x86_64-linux-android",
+              @"cargo ndk -t x86_64 -P 24 test --test e2e --all-features --no-run",
+              @"KERNEL==""kvm"", GROUP=""kvm"", MODE=""0666""",
+              @"uses: reactivecircus/android-emulator-runner@v2",
+              @"api-level: 34",
+              @"arch: x86_64",
+              @"script: dotnet test dotnet/RayX\.SignalR\.E2E\.Tests --filter Category=E2E",
+              "e2e / ios",
+              @"RAYX_SIGNALR_E2E_TARGETS: ios",
+              @"rustup toolchain install 1\.92\.0 --profile minimal --target aarch64-apple-ios-sim",
               @"dotnet tool install --global Aspire\.Cli --version 13\.5\.\d+",
               @"global-json-file: global\.json",
               @"dotnet test dotnet/RayX\.SignalR\.E2E\.Tests --filter Category=E2E",
@@ -124,7 +149,52 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
       AssertMatches("e2e.yml", e2e, pattern);
     }
 
-    Assert.Equal(2, Regex.Matches(e2e, @"dotnet test dotnet/RayX\.SignalR\.E2E\.Tests --filter Category=E2E").Count);
+    Assert.Equal(4, Regex.Matches(e2e, @"dotnet test dotnet/RayX\.SignalR\.E2E\.Tests --filter Category=E2E").Count);
+  }
+
+  [Fact]
+  [Trait("Category", "WorkflowContract")]
+  public void EveryCatalogTargetHasAnEndToEndJobOnItsPlatform()
+  {
+    string e2e = Workflows()["e2e.yml"];
+    Dictionary<string, string> jobs = JobBlocks(e2e);
+    foreach(E2ETarget target in ScenarioCatalog.Targets)
+    {
+      string job = target.Name switch
+      {
+        "native" => "native",
+        "android" => "android",
+        "ios" => "ios",
+        _ => "browser"
+      };
+      Assert.True(jobs.ContainsKey(job), $"e2e.yml has no {job} job for the {target.Name} target");
+      string block = jobs[job];
+      if(target.Kind == TargetKind.Browser)
+      {
+        Assert.Matches($@"engine: \[[^\]]*\b{target.Name}\b", block);
+      }
+    }
+
+    Assert.Matches(@"runs-on: ubuntu-latest", jobs["android"]);
+    Assert.Matches(@"runs-on: macos-latest", jobs["ios"]);
+    Assert.Matches(@"runs-on: ubuntu-latest", jobs["browser"]);
+    Assert.Matches(@"os: \[ubuntu-latest, windows-latest, macos-latest\]", jobs["native"]);
+  }
+
+  /// <summary>Splits a workflow's <c>jobs:</c> section into job blocks by job id.</summary>
+  static Dictionary<string, string> JobBlocks(string workflow)
+  {
+    string jobs = workflow[(workflow.IndexOf("\njobs:", StringComparison.Ordinal) + 1)..];
+    Dictionary<string, string> blocks = new(StringComparer.Ordinal);
+    MatchCollection headers = JobHeader().Matches(jobs);
+    for(int index = 0; index < headers.Count; index++)
+    {
+      int start = headers[index].Index;
+      int end = index + 1 < headers.Count ? headers[index + 1].Index : jobs.Length;
+      blocks[headers[index].Groups["id"].Value] = jobs[start..end];
+    }
+
+    return blocks;
   }
 
   static void AssertMatches(string name, string value, string pattern) =>
@@ -135,6 +205,9 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
     Match match = Regex.Match(value, pattern);
     Assert.False(match.Success, $"{name} contains prohibited contract pattern {pattern}: '{match.Value}'");
   }
+
+  [GeneratedRegex(@"(?m)^  (?<id>[A-Za-z0-9_-]+):\s*$")]
+  private static partial Regex JobHeader();
 
   [GeneratedRegex(@"(?m)^\s*-?\s*uses:\s*(?<action>\S+)")]
   private static partial Regex UsesLine();

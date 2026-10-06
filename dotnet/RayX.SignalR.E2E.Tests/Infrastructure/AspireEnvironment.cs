@@ -278,6 +278,9 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
 
   async Task StopAsync()
   {
+    // Device-side artifacts never outlive the run.
+    await Scenarios.AndroidCellRunner.CleanupAsync();
+    await Scenarios.IosCellRunner.CleanupAsync();
     DistributedApplication? app = _app;
     _app = null;
     _fixtureEnabled = false;

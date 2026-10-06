@@ -46,6 +46,10 @@ public static class ScenarioCatalog
 {
   const string _native = "native";
   const string _chromium = "chromium";
+  const string _firefox = "firefox";
+  const string _webkit = "webkit";
+  const string _android = "android";
+  const string _ios = "ios";
 
   /// <summary>The scenario that needs the threaded fixture on the isolated endpoint.</summary>
   public const string ThreadedScenario = "threaded-wasm";
@@ -54,41 +58,51 @@ public static class ScenarioCatalog
   public static readonly IReadOnlyList<E2ETarget> Targets =
   [
     new(_native, TargetKind.Native),
-    new(_chromium, TargetKind.Browser)
+    new(_chromium, TargetKind.Browser),
+    new(_firefox, TargetKind.Browser),
+    new(_webkit, TargetKind.Browser),
+    new(_android, TargetKind.Native),
+    new(_ios, TargetKind.Native)
   ];
 
   /// <summary>Every protocol, in run order.</summary>
   public static readonly IReadOnlyList<string> Protocols = ["json", "messagepack"];
 
+  /// <summary>Targets that run the Rust <c>e2e</c> binary: the desktop host, the Android emulator and the iOS simulator.</summary>
+  static readonly string[] _nativeTargets = [_native, _android, _ios];
+
+  /// <summary>Playwright engines.</summary>
+  static readonly string[] _browsers = [_chromium, _firefox, _webkit];
+
   /// <summary>Every scenario, in run order.</summary>
   public static readonly IReadOnlyList<Scenario> Scenarios =
   [
-    new("connect-negotiate", Set(_native, _chromium)),
-    new("authentication", Set(_native, _chromium)),
-    new("invoke", Set(_native, _chromium)),
-    new("send", Set(_native, _chromium)),
-    new("server-stream", Set(_native, _chromium)),
-    new("callbacks", Set(_native, _chromium)),
-    new("concurrency-and-clones", Set(_native, _chromium)),
-    new("large-payload", Set(_native, _chromium)),
-    new("server-close", Set(_native, _chromium)),
-    new("reconnect-exhaustion", Set(_native, _chromium)),
-    new("tls", Set(_native, _chromium)),
-    new("negotiate-redirect", Set(_native, _chromium)),
-    new("skip-negotiation", Set(_native, _chromium)),
-    new("executor-independence", Set(_native)),
-    new("message-burst", Set(_chromium)),
-    new("worker-transport", Set(_chromium)),
-    new(ThreadedScenario, Set(_chromium)),
-    new("ordinary-reconnect", Set(_native, _chromium)),
-    new("stateful-reconnect", Set(_native, _chromium)),
-    new("stream-cancellation", Set(_native, _chromium)),
-    new("short-stream-chaining", Set(_chromium)),
-    new("keepalive-idle", Set(_native, _chromium)),
-    new("server-timeout", Set(_native, _chromium)),
-    new("handshake-timeout", Set(_native, _chromium)),
-    new("pause-resume", Set(_native, _chromium)),
-    new("pause-resume-stateful", Set(_native, _chromium))
+    Everywhere("connect-negotiate"),
+    Everywhere("authentication"),
+    Everywhere("invoke"),
+    Everywhere("send"),
+    Everywhere("server-stream"),
+    Everywhere("callbacks"),
+    Everywhere("concurrency-and-clones"),
+    Everywhere("large-payload"),
+    Everywhere("server-close"),
+    Everywhere("reconnect-exhaustion"),
+    Everywhere("tls"),
+    Everywhere("negotiate-redirect"),
+    Everywhere("skip-negotiation"),
+    new("executor-independence", Set(_nativeTargets)),
+    new("message-burst", Set(_browsers)),
+    new("worker-transport", Set(_browsers)),
+    new(ThreadedScenario, Set(_browsers)),
+    Everywhere("ordinary-reconnect"),
+    Everywhere("stateful-reconnect"),
+    Everywhere("stream-cancellation"),
+    new("short-stream-chaining", Set(_browsers)),
+    Everywhere("keepalive-idle"),
+    Everywhere("server-timeout"),
+    Everywhere("handshake-timeout"),
+    Everywhere("pause-resume"),
+    Everywhere("pause-resume-stateful")
   ];
 
   /// <summary>Looks up a target by name.</summary>
@@ -126,6 +140,8 @@ public static class ScenarioCatalog
   /// <returns>The browser target names.</returns>
   public static IEnumerable<string> BrowserEngines(Scenario scenario) =>
     scenario.Targets.Where(target => Target(target).Kind == TargetKind.Browser);
+
+  static Scenario Everywhere(string name) => new(name, Set([.. _nativeTargets, .. _browsers]));
 
   static HashSet<string> Set(params string[] targets) => new(targets, StringComparer.Ordinal);
 }

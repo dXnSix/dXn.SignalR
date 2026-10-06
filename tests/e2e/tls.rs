@@ -1,6 +1,10 @@
 //! TLS: over the service's HTTPS endpoint, a client that trusts the run's CA through
 //! `with_additional_root_certificates_pem` negotiates, connects over `wss` and invokes; the same
 //! client without the extra root fails certificate verification and never reaches the hub.
+//!
+//! On Android the untrusted client verifies against the bundled Mozilla roots: the platform
+//! verifier needs the JVM context an app provides (`rayx_signalr::tls::android::init_with_env`),
+//! which a test binary run through `adb shell` does not have.
 
 use base64::{engine::general_purpose, Engine};
 
@@ -37,6 +41,8 @@ async fn scenario(protocol: Protocol) {
         rayx_signalr::SignalRClient::connect_with(&endpoint.host, "test-tls", |configuration| {
             endpoint.apply(configuration);
             support::apply_protocol(configuration, protocol);
+            #[cfg(target_os = "android")]
+            configuration.use_webpki_roots();
         })
         .await
         .err()
