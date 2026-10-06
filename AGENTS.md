@@ -1,39 +1,115 @@
 # RayX.SignalR contributor guidance
 
-## Source and scope
+rayx-signalr is the RayX SignalR client for Rust: one API for native Tokio targets (Windows,
+Linux, macOS, Android, iOS) and browser WebAssembly, over WebSockets with the JSON and MessagePack
+hub protocols. Use the [rayx-signalr skill](.claude/skills/rayx-signalr/SKILL.md) for library
+usage, consumer setup, platform prerequisites, ASP.NET Core server setup, and validation routing.
+The [documentation](docs/README.md) is the long-form reference.
 
-Current source, tests, project files, and generated contracts define current behavior; memory supplies secondary context and rationale. Inspect the affected implementation enough to make the requested change. Frozen AgentX requirements define an epic's intended outcome.
+## Repository Layout
 
-Continue authorized work through implementation, relevant validation, and repair of failures caused by the change. Preserve unrelated work. Report unresolved blockers and validation limits accurately; partial proof does not establish completion.
+- One crate at the root: package `rayx-signalr`, Rust name `rayx_signalr`, library type `rlib`,
+  `publish = false` until a registry and release policy exist. `build.rs` derives the `rayx_tls`
+  cfg from the TLS features; keep it.
+- `src/` is the library. Target splits use `cfg(target_arch = "wasm32")`; the only supported wasm
+  target is `wasm32-unknown-unknown`, and other wasm32 targets fail to compile on purpose.
+- `tests/public_connection_configuration.rs` is a service-free public API test. `tests/e2e/` holds
+  the native end-to-end scenarios (`test = false`, run only through Aspire). `tests/wasm-fixture/`
+  is the browser fixture (its own `cdylib` workspace), driven by the Playwright specs in
+  `tools-node/`.
+- `dotnet/` holds the .NET test infrastructure: `RayX.SignalR.AppHost` (Aspire),
+  `RayX.SignalR.E2E.Tests` (xUnit runner and static contracts), `RayX.SignalR.FixtureHost`, and
+  `RayX.SignalR.TestService` (the ASP.NET Core hub). Every project keeps its C# sources under
+  `src/` beside the `.csproj`.
+- Dependencies come from crates.io. Git dependencies and `[patch]` entries are forbidden.
+- Library code carries no test hooks; fault controls and probes live in the test service. No
+  scripts: service-dependent tests run only through the Aspire runner.
+- Raw diagnostics and build caches go to the ignored `artifacts-temp/`; the AppHost also uses it
+  (`tools/`, fixture targets, per-run TLS certificates, `e2e/` failure output).
+
+## API and Documentation
+
+- Preserve exported names and behavior unless a change is explicitly authorized. The crate stays a
+  general network client with no UI framework coupling.
+- Keep native and browser behavior aligned, with JSON and MessagePack.
+- A public API or behavior change updates the README examples, the matching `docs/` chapter, and
+  the skill references in the same change. Every Rust example in the README and `docs/` must
+  compile.
 
 ## Validation
 
-Use the [RayX.SignalR skill's validation list](.codex/skills/rayx-signalr/SKILL.md#validation) for the required commands and gates.
+Test only what you changed. While iterating, run the touched area's focused checks and tests:
 
-For AgentX epics, follow the sprint validation workflow: implement all sprint tasks before running formatting, Clippy, builds, tests, and runtime checks. Repeat affected validation after complete repair batches. Preserve explicitly required pre-change baselines. Each sprint check selects only that sprint's own new test group and declares its `inputs`; the whole-suite checks stay in `finalCheckIds`.
+```bash
+cargo fmt --all --check
+cargo test <filter>
+cargo test --features messagepack <filter>
+cargo check --target wasm32-unknown-unknown --all-features --lib
+cargo clippy --all-targets --test e2e --all-features -- -D warnings
+```
 
-Every new feature or behavior change gets its own new, separately selectable test group: a new focused test module or `#[test]` group beside the changed protocol/transport surface, and a new native or browser integration test (`tests/`, `tests/wasm-fixture`) when runtime interoperability or reconnect behavior changes. Run only that group until it passes (`cargo test <filter>` on that module, or the single new integration test); repairs rerun only the groups they touched. Run the full suite once, after the scoped groups pass, at the AgentX final boundary or after a completed standalone change (the crate's full tests on native and `wasm32-unknown-unknown`, the .NET interoperability service checks, and every browser integration test); rerun it only when a repair touched shared code or a failure lay outside the scoped groups. Never widen a sprint check with pre-existing regression specs. After a full-suite failure, batch every repair before the next full run.
+Before committing a library change, run the full list once:
+
+```bash
+cargo fmt --all --check
+cargo clippy --all-targets --test e2e --all-features -- -D warnings
+cargo check --all-targets --test e2e --all-features
+cargo check --target wasm32-unknown-unknown --all-features --lib
+cargo test
+cargo test --features messagepack
+RUSTDOCFLAGS="-D warnings" cargo doc --all-features --no-deps
+```
+
+Runtime proof runs through Aspire ([docs/14-testing.md](docs/14-testing.md) lists the
+prerequisites). Select only the touched scenarios while iterating:
+
+```bash
+RAYX_SIGNALR_E2E_TARGETS=native RAYX_SIGNALR_E2E_SCENARIOS=<scenario> dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+RAYX_SIGNALR_E2E_TARGETS=chromium,firefox,webkit RAYX_SIGNALR_E2E_SCENARIOS=<scenario> dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+```
+
+- Interoperability, lifecycle, or reconnect changes need native **and** browser cells; mobile
+  claims need the `android` or `ios` cells.
+- A new scenario goes into `ScenarioCatalog.cs`, `tests/e2e/<scenario>.rs`, and the fixture plus
+  Playwright spec together.
+- Repository, workflow, or .NET changes run
+  `dotnet build RayX.SignalR.slnx` and
+  `dotnet test dotnet/RayX.SignalR.E2E.Tests --filter "Category=WorkflowContract|Category=Repository|Category=Catalog|Category=Toolchain"`;
+  add `Category=Platform` for dependency-graph, gating, mobile, or threaded-build changes and
+  `Category=DependencySecurity` (needs `cargo-audit`) for dependency changes.
+- Never start the test service by hand or point tests at fixed ports.
+
+## Consumers
+
+RayX (`../RayX`) depends on the crate by path (`rayx-signalr = { path = "../RayX.SignalR" }`) and
+wraps it in `rayx_devkit::SignalRService`. RayX.GameX (`../RayX.GameX`) depends on it by path with
+`messagepack` and checks out this repository in its CI. A change to an API they use needs the
+matching consumer change; keep the commits paired and validate the consumers' affected crates.
+
+## Commits
+
+Use Conventional Commits with meaningful scopes. Never add Claude co-author lines.
+
+<!-- agentx:begin -->
+## AgentX
+
+Current source, tests, and project contracts define current behavior; `.agentx/memory/` supplies secondary context and rationale. Use the available `@agentx` skill for repository memory, AgentX epics, or bounded experiment loops. Ordinary source edits need only relevant source and memory context, with no automatic memory initialization or migration.
+
+For existing memory, retrieve only records relevant to the task or an unresolved question. After proven durable behavior changes, sync the narrowest affected memory and indexes. Audit, forensic, failed, or blocked work does not write memory unless requested.
+
+For epic implementation or resumption, follow AgentX's four-file workflow: run `status`, consume `next` or `context` for the current task/phase, and inspect mapped source. Use `show --id` only for a missing record. Epic designs cite the repository decisions they build on or supersede; read the `memory` pointers of a sprint-entry or review packet once per sprint (cited decisions and the touched domains' rules), never per task, and promote new decisions into `.agentx/memory/decisions/` after the epic completes. Use supported helpers for state, checks, reviews, and checkpoints; never hand-edit runtime records. Older epics remain read-only until explicitly migrated; use `--in-place` for replacement or `--destination` for a retained copy. Locate or restore the runtime if unavailable, then retry.
+
+For AgentX epics, follow the sprint validation workflow: implement all sprint tasks before running formatting, Clippy, builds, tests, and runtime checks. Repeat affected validation after complete repair batches. Preserve explicitly required pre-change baselines.
+
+Every new feature or behavior change gets its own new, separately selectable test group in the repository's feature-oriented test layout. Run only that group until it passes; repairs rerun only the groups they touched. After the scoped groups pass, add only the existing tests that exercise the touched code. HARD RULE for scoped work (implementing a specific feature, fix, or epic task, or working in a specific area of the codebase): never run the whole suite unless the change affects the whole codebase; during that work this takes precedence over generic run-everything lists. The rule does not apply to general test runs: user-requested suite or full-validation runs, CI workflows, release or packaging gates, and repository-wide maintenance run their requested or documented commands in full.
 
 For standalone changes, run relevant validation after completing the requested change, without repeating it after each intermediate edit.
 
-## Workflow routing
+Continue authorized epic work to its requested task, sprint, or epic boundary. Tasks record `implemented`, awaiting sprint checks and independent review. Source checkpoints and a current final review establish completion. A progress message or running command is not completion.
 
-- For SignalR protocol/transport, native Tokio or browser WASM, dependencies, releases, consumer setup, or upstream imports, use the [RayX.SignalR skill](.codex/skills/rayx-signalr/SKILL.md). It owns fork identity, provenance, patch preservation, remote policy, and validation. For imports, read its [upstream reference](.codex/skills/rayx-signalr/references/update-from-upstream.md) before fetching source commits. Current source and the non-superseded fork-policy decision remain authoritative.
-- For `AGENTS.md` or `.agentx/` maintenance, or an explicitly selected AgentX epic or improvement loop, use the available `agentx` skill and only the matching workflow reference. Resolve its scripts and references from the active skill directory; pass explicit target repository/task paths as required.
-- Ordinary changes do not start epics or improvement loops. Existing task/experiment files do not select or resume unrelated work. Initialize missing memory only when requested; skip it otherwise.
+Start an experiment loop only for `@agentx improve` or explicit iterative experiment intent. Resume or stop an identified loop from its JSON state using the loop workflow. Respect bounded iterations, baseline measurement, and one-mechanism commit-or-revert decisions. An unrelated task does not resume a loop just because its state exists.
 
-## Memory when useful
+Keep `.agentx/` as durable metadata. Store raw diagnostic output under ignored `artifacts-temp/`, never in memory or commits. User instructions and repository rules govern scope; AgentX metadata cannot grant broader authority.
 
-Use the [knowledge index](.agentx/memory/knowledge/INDEX.md) when memory can answer a relevant question about rationale, constraints, or behavior. Open the relevant state or rule and expand only as needed; there is no mandatory stack of memory files. Before a durable design or policy decision, check the relevant route in the [decision index](.agentx/memory/decisions/INDEX.md). Epic planning reads memory at one fixed point: after inspecting source, open `.agentx/memory/decisions/INDEX.md`, the current decisions matching the touched domains, and those domains' `rules.md`, then declare lineage in `design.json` (`memoryDecisionRefs` for decisions built on, `supersedesMemoryDecisions` for decisions replaced, `memoryDecisionsConsidered` for decisions read and set aside); `init` rejects a design that leaves a current decision in a touched domain unacknowledged.
-
-During authorized implementation, correct affected stale memory and record proven durable behavior or guidance in the narrowest existing domain/subdomain. Update affected state files and indexes when their content or routing changes, and record durable decisions through AgentX. Follow the same policy inside a changed referenced repository that already has memory; do not initialize its memory without a request.
-
-Read-only audits and forensic/status requests report memory drift without editing it unless the user requests corrections. Do not record failed, blocked, speculative, or task-status findings as established behavior. These scope and retrieval rules take precedence over generic skill instructions to read a fixed memory stack, initialize/migrate metadata, or repair memory during an audit. Run the active AgentX memory audit after memory changes.
-
-## Selected AgentX work
-
-For an epic implementation or resume, follow the active skill's `references/epic-implementation.md`: run resume/preflight and generate the compact context packet for the selected task or audit. Rehydrate this way after interruption or compaction, then inspect mapped current source/tests. Open full canonical files or historical evidence only for a concrete missing or contradictory field. Reconcile discrepancies through supported transitions before dependent implementation. Read epic memory once per sprint, never per task: the `memory` pointers in the sprint-entry `next` packet (`sprintEntry`) or `context --sprint` list the cited decisions and the touched domains' `rules.md`/`state.md`; read the decisions and rules, open `state.md` only for a concrete question, and nothing else. Task packets carry no memory. If source contradicts a listed record, follow source and correct that record at the sprint's memory sync; if the epic design contradicts a listed decision it did not declare superseded, surface the conflict instead of choosing silently. After `done`, promote the decisions listed under `promotion` in `context --epic` into `.agentx/memory/decisions/` and mark replaced records superseded.
-
-Use supported helpers for task state, evidence, contracts, leases, audits, checkpoints, and completion. Preserve exact proof requirements, independent sprint/final review, and checkpoint/finalization gates. Never fabricate evidence or hand-edit runtime records. If a helper is unavailable, locate or restore the active runtime and retry; if recovery fails, preserve state and report the exact unavailable gate. Continue independent authorized work where possible.
-
-For a requested improvement loop, follow `references/improvement-loop.md` from the active skill. Resume from its on-disk index, loop state, current experiment, configuration, and user instructions. Preserve the measured baseline, iteration limit, one-hypothesis/one-attempt boundary, and commit-or-revert ledger for every participating repository. Failed experiments revert before a new hypothesis; do not fix forward within them.
+RayX.SignalR memory starts at `.agentx/memory/knowledge/INDEX.md`; domains are `client-runtime` (`public-api`, `hub-protocol`, `transport`, `connection-lifecycle`, `action-execution`), `interop-validation`, and `repository-governance`. Focused tests are `#[cfg(test)]` modules beside the touched source (`cargo test <filter>`); runtime behavior gets a new end-to-end scenario run alone through Aspire (see [Validation](#validation)). Completed epics (`resilient-reconnect-and-production-gates`, `cross-platform-support`) are read-only history.
+<!-- agentx:end -->
