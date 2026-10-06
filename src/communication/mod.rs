@@ -1,6 +1,14 @@
+#[cfg(target_arch = "wasm32")]
+mod browser_socket;
 mod common;
+pub(crate) mod liveness;
+#[cfg(not(target_arch = "wasm32"))]
+mod negotiate_http;
+pub(crate) mod negotiation;
 pub mod reconnection;
 pub(crate) mod stateful;
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) mod tls;
 
 #[cfg(target_arch = "wasm32")]
 mod client_wasm;

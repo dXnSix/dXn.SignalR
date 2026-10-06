@@ -17,6 +17,7 @@ pub(crate) type StreamDropHandler = Box<dyn FnOnce() + 'static>;
 
 struct ManualStreamState<T> {
     queue: Arc<Mutex<VecDeque<Option<T>>>>,
+    error: Arc<Mutex<Option<String>>>,
     waker: Arc<Mutex<Option<Waker>>>,
     closed: Arc<AtomicBool>,
     drop_handler: Arc<Mutex<Option<StreamDropHandler>>>,
@@ -26,6 +27,7 @@ impl<T> Clone for ManualStreamState<T> {
     fn clone(&self) -> Self {
         Self {
             queue: self.queue.clone(),
+            error: self.error.clone(),
             waker: self.waker.clone(),
             closed: self.closed.clone(),
             drop_handler: self.drop_handler.clone(),
@@ -37,6 +39,7 @@ impl<T> ManualStreamState<T> {
     pub fn new(drop_handler: Option<StreamDropHandler>) -> Self {
         ManualStreamState {
             queue: Arc::new(Mutex::new(VecDeque::new())),
+            error: Arc::new(Mutex::new(None)),
             waker: Arc::new(Mutex::new(None)),
             closed: Arc::new(AtomicBool::new(false)),
             drop_handler: Arc::new(Mutex::new(drop_handler)),
@@ -94,6 +97,14 @@ impl<T> ManualStream<T> {
     }
 }
 
+impl<T> ManualStream<T> {
+    /// Returns the error that ended the stream, if the server completed it with an error or the
+    /// connection failed it. `None` while the stream is open or after a normal completion.
+    pub fn error(&self) -> Option<String> {
+        self.state.error.lock().unwrap().clone()
+    }
+}
+
 impl<T> Drop for ManualStream<T> {
     fn drop(&mut self) {
         let handler = { self.state.drop_handler.lock().unwrap().take() };
@@ -113,6 +124,14 @@ impl<T> ManualStreamCompleter<T> {
     }
 
     pub fn close(&self) {
+        self.state.close();
+    }
+
+    /// Ends the stream with an error that [`ManualStream::error`] reports.
+    pub fn fail(&self, error: String) {
+        if !self.state.closed.load(Ordering::Acquire) {
+            *self.state.error.lock().unwrap() = Some(error);
+        }
         self.state.close();
     }
 }

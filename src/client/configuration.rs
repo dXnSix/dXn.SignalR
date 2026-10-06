@@ -1,7 +1,16 @@
+use std::time::Duration;
+
 use crate::client::DisconnectionHandler;
+use crate::communication::liveness::LivenessConfig;
 use crate::communication::reconnection::ReconnectionConfig;
 use crate::protocol::hub_protocol::HubProtocolKind;
 use crate::StatefulReconnectConfig;
+
+/// Returned by native `connect` when neither a runtime handle nor an ambient runtime exists.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) const NO_RUNTIME: &str = "rayx-signalr needs a Tokio runtime for native connections: \
+call connect from within a Tokio runtime, or pass one with \
+ConnectionConfiguration::with_runtime_handle(tokio::runtime::Handle)";
 
 #[derive(Clone)]
 pub(crate) enum Authentication {
@@ -28,6 +37,33 @@ pub struct ConnectionConfiguration {
     _reconnection: ReconnectionConfig,
     _protocol: HubProtocolKind,
     _stateful_reconnect: Option<StatefulReconnectConfig>,
+    _skip_negotiation: bool,
+    _liveness: LivenessConfig,
+    #[cfg(not(target_arch = "wasm32"))]
+    _tls: crate::communication::tls::TlsSettings,
+    #[cfg(not(target_arch = "wasm32"))]
+    _runtime: Option<tokio::runtime::Handle>,
+}
+
+impl Authentication {
+    /// The `Authorization` header value for negotiate requests and native WebSocket upgrades.
+    pub(crate) fn header_value(&self) -> Option<String> {
+        use base64::{engine::general_purpose, Engine};
+        match self {
+            Authentication::None => None,
+            Authentication::Basic { user, password } => {
+                let credentials = match password {
+                    Some(password) => format!("{user}:{password}"),
+                    None => format!("{user}:"),
+                };
+                Some(format!(
+                    "Basic {}",
+                    general_purpose::STANDARD.encode(credentials)
+                ))
+            }
+            Authentication::Bearer { token } => Some(format!("Bearer {token}")),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -39,13 +75,73 @@ pub(crate) struct ConnectionRecipe {
     authentication: Authentication,
     protocol: HubProtocolKind,
     stateful_reconnect: Option<StatefulReconnectConfig>,
+    skip_negotiation: bool,
+    liveness: LivenessConfig,
+    /// Credentials for the transport when negotiation replaced them (a redirect access token).
+    transport_authentication: Option<Authentication>,
+    #[cfg(not(target_arch = "wasm32"))]
+    tls: crate::communication::tls::TlsContext,
+    /// The Tokio runtime that owns this connection's I/O, timers and tasks.
+    #[cfg(not(target_arch = "wasm32"))]
+    runtime: Option<tokio::runtime::Handle>,
 }
 
 impl ConnectionRecipe {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn runtime(&self) -> Option<tokio::runtime::Handle> {
+        self.runtime.clone()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn with_runtime(mut self, runtime: tokio::runtime::Handle) -> Self {
+        self.runtime = Some(runtime);
+        self
+    }
+
+    pub(crate) fn skips_negotiation(&self) -> bool {
+        self.skip_negotiation
+    }
+
+    pub(crate) fn liveness(&self) -> LivenessConfig {
+        self.liveness
+    }
+
+    pub(crate) fn with_transport_authentication(mut self, authentication: Authentication) -> Self {
+        self.transport_authentication = Some(authentication);
+        self
+    }
+
+    /// The `Authorization` value for the WebSocket: negotiated credentials, else configured ones.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn transport_authorization(&self) -> Option<String> {
+        self.transport_authentication
+            .as_ref()
+            .unwrap_or(&self.authentication)
+            .header_value()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn is_secure(&self) -> bool {
+        self.secure
+    }
+
+    /// The connection's TLS state, shared by negotiate, the WebSocket and reconnects.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn tls(&self) -> &crate::communication::tls::TlsContext {
+        &self.tls
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn with_tls(mut self, tls: crate::communication::tls::TlsContext) -> Self {
+        self.tls = tls;
+        self
+    }
+
     pub(crate) fn web_url(&self) -> String {
         format!("{}://{}/{}", self.http_schema(), self.domain(), self.hub)
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn socket_url(&self) -> String {
         format!("{}://{}/{}", self.socket_schema(), self.domain(), self.hub)
     }
@@ -62,12 +158,12 @@ impl ConnectionRecipe {
         self.stateful_reconnect
     }
 
+    #[cfg(test)]
     pub(crate) fn negotiate_url(&self) -> String {
-        let mut endpoint = format!("{}/negotiate?negotiateVersion=1", self.web_url());
-        if self.stateful_reconnect.is_some() {
-            endpoint.push_str("&useStatefulReconnect=true");
-        }
-        endpoint
+        crate::communication::negotiation::negotiate_url(
+            &self.web_url(),
+            self.stateful_reconnect.is_some(),
+        )
     }
 
     pub(crate) fn display_endpoint(&self) -> String {
@@ -82,6 +178,7 @@ impl ConnectionRecipe {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn socket_schema(&self) -> &'static str {
         if self.secure {
             "wss"
@@ -110,6 +207,12 @@ impl ConnectionConfiguration {
             _reconnection: ReconnectionConfig::default(),
             _protocol: HubProtocolKind::default(),
             _stateful_reconnect: None,
+            _skip_negotiation: false,
+            _liveness: LivenessConfig::default(),
+            #[cfg(not(target_arch = "wasm32"))]
+            _tls: Default::default(),
+            #[cfg(not(target_arch = "wasm32"))]
+            _runtime: None,
         }
     }
 
@@ -307,6 +410,40 @@ impl ConnectionConfiguration {
         self
     }
 
+    /// Connects the WebSocket directly to `ws(s)://host[:port]/hub` without a negotiate request,
+    /// as the official clients' `skipNegotiation` does; a bearer token is sent as `access_token`.
+    /// The server must allow WebSockets-only connections. Ordinary reconnects connect directly
+    /// too. Cannot be combined with [`with_stateful_reconnect`](Self::with_stateful_reconnect),
+    /// which needs the connection token negotiation issues: `connect` then fails before any I/O.
+    pub fn skip_negotiation(&mut self) -> &ConnectionConfiguration {
+        self._skip_negotiation = true;
+        self
+    }
+
+    /// Sends a Ping after this long without outbound messages, so the server (whose
+    /// `ClientTimeoutInterval` defaults to 30 s) keeps the connection. Defaults to 15 s.
+    /// Must be greater than zero and less than the server timeout, or `connect` fails before I/O.
+    pub fn with_keep_alive_interval(&mut self, interval: Duration) -> &ConnectionConfiguration {
+        self._liveness.keep_alive_interval = interval;
+        self
+    }
+
+    /// Treats the transport as dropped after this long without any inbound message (the server
+    /// pings every `KeepAliveInterval`, 15 s by default); the reconnect path then runs as for any
+    /// dropped transport. Defaults to 30 s. Must be greater than the keep-alive interval, or
+    /// `connect` fails before I/O.
+    pub fn with_server_timeout(&mut self, timeout: Duration) -> &ConnectionConfiguration {
+        self._liveness.server_timeout = timeout;
+        self
+    }
+
+    /// Fails `connect` (and ends a reconnect attempt) when the server does not answer the
+    /// handshake within this time. Defaults to 15 s. Must be greater than zero.
+    pub fn with_handshake_timeout(&mut self, timeout: Duration) -> &ConnectionConfiguration {
+        self._liveness.handshake_timeout = timeout;
+        self
+    }
+
     /// Enables ASP.NET Core stateful reconnect for this connection.
     pub fn with_stateful_reconnect(
         &mut self,
@@ -333,7 +470,74 @@ impl ConnectionConfiguration {
             authentication: self._authentication.clone(),
             protocol: self._protocol,
             stateful_reconnect: self._stateful_reconnect,
+            skip_negotiation: self._skip_negotiation,
+            liveness: self._liveness,
+            transport_authentication: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            tls: Default::default(),
+            #[cfg(not(target_arch = "wasm32"))]
+            runtime: None,
         }
+    }
+
+    pub(crate) fn liveness(&self) -> LivenessConfig {
+        self._liveness
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn tls_settings(&self) -> &crate::communication::tls::TlsSettings {
+        &self._tls
+    }
+
+    /// The runtime for this connection: the configured handle, else the ambient runtime at
+    /// `connect`, else an error that explains both options. Native only.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn resolve_runtime(&self) -> Result<tokio::runtime::Handle, String> {
+        self._runtime
+            .clone()
+            .or_else(|| tokio::runtime::Handle::try_current().ok())
+            .ok_or_else(|| NO_RUNTIME.to_string())
+    }
+
+    /// Binds this connection to a Tokio runtime. Native only.
+    ///
+    /// Socket I/O, timers (reconnect delays, stateful backpressure) and the connection's tasks
+    /// run on this runtime, and the client's futures only wait on runtime-agnostic primitives, so
+    /// they can be awaited from any executor (for example a UI framework's executor or
+    /// `futures::executor::block_on` on a plain thread). Without this, `connect` binds the
+    /// connection to the ambient Tokio runtime it is called from.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_runtime_handle(
+        &mut self,
+        runtime: tokio::runtime::Handle,
+    ) -> &ConnectionConfiguration {
+        self._runtime = Some(runtime);
+        self
+    }
+
+    /// Trusts additional root certificates (PEM, one or more `CERTIFICATE` blocks) for secure
+    /// endpoints of this connection, in addition to the selected verifier's roots. Native only.
+    ///
+    /// Invalid PEM, or PEM without a certificate, makes `connect` fail before any I/O. With the
+    /// platform verifier the roots extend the operating system's trust store, except on Android,
+    /// where `rustls-platform-verifier` cannot add roots: a connection with extra roots there uses
+    /// webpki verification over the extra roots (plus the bundled Mozilla roots when the
+    /// `tls-webpki-roots` feature is enabled).
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_additional_root_certificates_pem(
+        &mut self,
+        pem: impl Into<Vec<u8>>,
+    ) -> &ConnectionConfiguration {
+        self._tls.extra_roots_pem = Some(pem.into());
+        self
+    }
+
+    /// Verifies secure endpoints of this connection against the bundled Mozilla roots instead of
+    /// the operating system's trust store. Requires the `tls-webpki-roots` feature. Native only.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn use_webpki_roots(&mut self) -> &ConnectionConfiguration {
+        self._tls.use_webpki_roots = true;
+        self
     }
 }
 

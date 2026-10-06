@@ -6,13 +6,67 @@ use std::{
 
 use futures::StreamExt;
 use rayx_signalr::{
-    ConstantDelayPolicy, ReconnectionConfig, SignalRClient, StatefulReconnectConfig,
+    ConnectionConfiguration, ConstantDelayPolicy, ReconnectionConfig, SignalRClient,
+    StatefulReconnectConfig,
 };
 use serde::Deserialize;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
+/// The SignalR test service endpoint supplied by the host page (`?service=<url>`).
+#[derive(Clone)]
+struct ServiceEndpoint {
+    host: String,
+    port: Option<i32>,
+    secure: bool,
+}
+
+impl ServiceEndpoint {
+    fn parse(url: &str) -> Result<Self, String> {
+        let (secure, rest) = if let Some(rest) = url.strip_prefix("https://") {
+            (true, rest)
+        } else if let Some(rest) = url.strip_prefix("http://") {
+            (false, rest)
+        } else {
+            return Err(format!("service URL must be http(s): {url}"));
+        };
+        let authority = rest.split('/').next().unwrap_or_default();
+        let (host, port) = match authority.rsplit_once(':') {
+            Some((host, port)) => (
+                host,
+                Some(
+                    port.parse()
+                        .map_err(|_| format!("invalid port in service URL {url}"))?,
+                ),
+            ),
+            None => (authority, None),
+        };
+        if host.is_empty() {
+            return Err(format!("service URL has no host: {url}"));
+        }
+        Ok(Self {
+            host: host.to_string(),
+            port,
+            secure,
+        })
+    }
+
+    fn apply(&self, configuration: &mut ConnectionConfiguration) {
+        if self.secure {
+            configuration.secure();
+        } else {
+            configuration.unsecure();
+        }
+        if let Some(port) = self.port {
+            configuration.with_port(port);
+        }
+    }
+}
+
+mod functional;
+
 thread_local! {
+    static SERVICE: RefCell<Option<ServiceEndpoint>> = const { RefCell::new(None) };
     static CLIENT: RefCell<Option<SignalRClient>> = const { RefCell::new(None) };
     static CALLBACK_COUNT: Cell<u32> = const { Cell::new(0) };
     static STATEFUL_CALLBACK_VALUES: RefCell<Vec<i32>> = const { RefCell::new(Vec::new()) };
@@ -24,14 +78,28 @@ thread_local! {
     static SCENARIO_ERROR: RefCell<Option<String>> = const { RefCell::new(None) };
 }
 
+/// Selects the SignalR test service every scenario connects to.
+#[wasm_bindgen]
+pub fn configure_service(url: String) -> Result<(), JsValue> {
+    let endpoint = ServiceEndpoint::parse(&url).map_err(|error| JsValue::from_str(&error))?;
+    SERVICE.with(|slot| *slot.borrow_mut() = Some(endpoint));
+    Ok(())
+}
+
+fn service() -> Result<ServiceEndpoint, JsValue> {
+    SERVICE
+        .with(|slot| slot.borrow().clone())
+        .ok_or_else(|| JsValue::from_str("the host page did not configure the service URL"))
+}
+
 #[wasm_bindgen]
 pub async fn connect_stateful(protocol: String) -> Result<String, JsValue> {
     let use_messagepack = protocol_is_messagepack(&protocol)?;
     reset_stateful_observations();
+    let endpoint = service()?;
     let mut client =
-        SignalRClient::connect_with("127.0.0.1", "test-stateful", move |configuration| {
-            configuration.unsecure();
-            configuration.with_port(5220);
+        SignalRClient::connect_with(&endpoint.host, "test-stateful", |configuration| {
+            endpoint.apply(configuration);
             configuration.with_stateful_reconnect(StatefulReconnectConfig::default());
             configuration.with_reconnection_policy(ReconnectionConfig {
                 policy: Arc::new(ConstantDelayPolicy::new(
@@ -188,9 +256,9 @@ pub fn start() {
 pub async fn connect_and_probe(protocol: String) -> Result<String, JsValue> {
     let use_messagepack = protocol_is_messagepack(&protocol)?;
 
-    let mut client = SignalRClient::connect_with("127.0.0.1", "test", move |configuration| {
-        configuration.unsecure();
-        configuration.with_port(5220);
+    let endpoint = service()?;
+    let mut client = SignalRClient::connect_with(&endpoint.host, "test", |configuration| {
+        endpoint.apply(configuration);
         configuration.with_reconnection_policy(ReconnectionConfig {
             policy: Arc::new(ConstantDelayPolicy::new(
                 Duration::from_millis(100),
@@ -256,7 +324,9 @@ pub async fn cancel_long_streams(rounds: u32) -> Result<u32, JsValue> {
             .await
             .ok_or_else(|| JsValue::from_str("cancellation probe ended before its first item"))?;
         if first != 1 {
-            return Err(JsValue::from_str("cancellation probe returned an invalid first item"));
+            return Err(JsValue::from_str(
+                "cancellation probe returned an invalid first item",
+            ));
         }
         drop(stream);
 
@@ -266,10 +336,7 @@ pub async fn cancel_long_streams(rounds: u32) -> Result<u32, JsValue> {
                 .invoke::<CancellationProbeSnapshot>("CancellationProbeStatus".to_string())
                 .await
                 .map_err(js_error("cancellation status probe failed"))?;
-            if status.active == 0
-                && status.started == expected
-                && status.canceled == expected
-            {
+            if status.active == 0 && status.started == expected && status.canceled == expected {
                 observed = true;
                 break;
             }
@@ -286,7 +353,9 @@ pub async fn cancel_long_streams(rounds: u32) -> Result<u32, JsValue> {
         .await
         .map_err(js_error("final cancellation status probe failed"))?;
     if status.active != 0 || status.started != rounds || status.canceled != rounds {
-        return Err(JsValue::from_str("final cancellation probe counters are inconsistent"));
+        return Err(JsValue::from_str(
+            "final cancellation probe counters are inconsistent",
+        ));
     }
     Ok(status.canceled)
 }

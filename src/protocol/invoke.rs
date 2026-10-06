@@ -132,6 +132,11 @@ impl<R> Completion<R> {
         self.result.is_some()
     }
 
+    /// A completion without result or error, sent by void hub methods.
+    pub fn is_void(&self) -> bool {
+        self.result.is_none() && self.error.is_none()
+    }
+
     pub fn unwrap_error(self) -> String {
         self.error.unwrap()
     }

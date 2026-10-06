@@ -1,0 +1,2963 @@
+{
+  "schemaVersion": 6,
+  "epicId": "cross-platform-support",
+  "revision": 11,
+  "title": "Cross-platform rayx-signalr with Aspire-orchestrated end-to-end testing on every target",
+  "validationMode": "sprint",
+  "repositories": [
+    {
+      "id": "rayx-signalr",
+      "path": ".",
+      "role": "execution"
+    },
+    {
+      "id": "rayx",
+      "path": "../RayX",
+      "role": "reference"
+    },
+    {
+      "id": "rayx-gamex",
+      "path": "../RayX.GameX",
+      "role": "reference"
+    }
+  ],
+  "boundaries": {
+    "repositoryIds": [
+      "rayx-signalr"
+    ],
+    "forbiddenPaths": [
+      ".agentx/tasks/resilient-reconnect-and-production-gates/**",
+      "LICENSE",
+      ".codex/skills/rayx-signalr/references/update-from-upstream.md"
+    ]
+  },
+  "checks": [
+    {
+      "id": "s1-orchestration",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R1.C1",
+        "R1.C5"
+      ],
+      "descriptionMarkdown": "New `Orchestration` and `Toolchain` categories: AppHost resources healthy/completed on dynamic ports; pinned wasm-bindgen resolution and provisioning.",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=Orchestration|Category=Toolchain"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 3
+      },
+      "inputs": [
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        "tests/wasm-fixture/Cargo.toml",
+        "tools-node/wasm-host/**"
+      ],
+      "timeoutSeconds": 2400
+    },
+    {
+      "id": "s1-catalog",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R1.C2"
+      ],
+      "descriptionMarkdown": "New `Catalog` category: selection parsing (empty selection fails), cell generation, and catalog consistency against `e2e --list` and `playwright test --list`.",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=Catalog"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 3
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**",
+        "tests/e2e/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        "tests/wasm-fixture/Cargo.toml",
+        "tests/wasm-fixture/src/**",
+        "tools-node/tests/**",
+        "tools-node/wasm-host/**",
+        "tools-node/playwright.config.ts",
+        "tools-node/package.json"
+      ],
+      "timeoutSeconds": 1800
+    },
+    {
+      "id": "s1-native-migrated",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R1.C3"
+      ],
+      "descriptionMarkdown": "Migrated native scenarios as black-box `e2e` tests through the Aspire runner. Selection: targets `native`, scenarios `ordinary-reconnect,stateful-reconnect,stream-cancellation`, JSON and MessagePack (6 cells).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 6
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**",
+        "tests/e2e/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**"
+      ],
+      "timeoutSeconds": 2400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "native",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "ordinary-reconnect,stateful-reconnect,stream-cancellation"
+      }
+    },
+    {
+      "id": "s1-chromium-migrated",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R1.C3"
+      ],
+      "descriptionMarkdown": "Migrated browser scenarios in Chromium against `fixture-host` through the Aspire runner. Selection: targets `chromium`, scenarios `ordinary-reconnect,stateful-reconnect,short-stream-chaining,stream-cancellation`, JSON and MessagePack (8 cells).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 8
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**",
+        "tests/e2e/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        "tests/wasm-fixture/Cargo.toml",
+        "tests/wasm-fixture/src/**",
+        "tools-node/tests/**",
+        "tools-node/wasm-host/**",
+        "tools-node/playwright.config.ts",
+        "tools-node/package.json"
+      ],
+      "timeoutSeconds": 2400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "chromium",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "ordinary-reconnect,stateful-reconnect,short-stream-chaining,stream-cancellation"
+      }
+    },
+    {
+      "id": "s1-repository-contracts",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R1.C4",
+        "R1.C6"
+      ],
+      "descriptionMarkdown": "New `Repository`, `WorkflowContract` and `DependencySecurity` categories replacing `scripts/ci/verify-workflows.ps1` (no scripts or removed hooks, workflow governance and Aspire usage, `cargo audit` and NuGet vulnerability scan).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=Repository|Category=WorkflowContract|Category=DependencySecurity"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 5
+      },
+      "inputs": [
+        ".github/workflows/**",
+        "Cargo.toml",
+        "src/**",
+        "scripts/**",
+        "tools-node/**",
+        "dotnet/**",
+        "RayX.SignalR.slnx"
+      ],
+      "timeoutSeconds": 1800
+    },
+    {
+      "id": "s2-native-functional",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R2.C1",
+        "R2.C2",
+        "R2.C3",
+        "R2.C4",
+        "R2.C5",
+        "R2.C6",
+        "R2.C7",
+        "R2.C8",
+        "R2.C9",
+        "R2.C10"
+      ],
+      "descriptionMarkdown": "New functional scenarios as native cells. Selection: targets `native`, scenarios `connect-negotiate,authentication,invoke,send,server-stream,callbacks,concurrency-and-clones,large-payload,server-close,reconnect-exhaustion`, JSON and MessagePack (20 cells).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 20
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**",
+        "tests/e2e/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**"
+      ],
+      "timeoutSeconds": 2400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "native",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "connect-negotiate,authentication,invoke,send,server-stream,callbacks,concurrency-and-clones,large-payload,server-close,reconnect-exhaustion"
+      }
+    },
+    {
+      "id": "s2-chromium-functional",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R2.C11"
+      ],
+      "descriptionMarkdown": "New functional scenarios in Chromium. Selection: targets `chromium`, scenarios `connect-negotiate,authentication,invoke,send,server-stream,callbacks,concurrency-and-clones,large-payload,server-close,reconnect-exhaustion`, JSON and MessagePack (20 cells).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 20
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**",
+        "tests/e2e/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        "tests/wasm-fixture/Cargo.toml",
+        "tests/wasm-fixture/src/**",
+        "tools-node/tests/**",
+        "tools-node/wasm-host/**",
+        "tools-node/playwright.config.ts",
+        "tools-node/package.json"
+      ],
+      "timeoutSeconds": 2400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "chromium",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "connect-negotiate,authentication,invoke,send,server-stream,callbacks,concurrency-and-clones,large-payload,server-close,reconnect-exhaustion"
+      }
+    },
+    {
+      "id": "s3-manifest-hygiene",
+      "repositoryId": "rayx-signalr",
+      "kind": "static",
+      "criterionIds": [
+        "R3.C1",
+        "R3.C2"
+      ],
+      "descriptionMarkdown": "New `Platform` case `manifest-hygiene` (normal graphs, crate type, tokio features).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=Platform&Case=manifest-hygiene"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 4
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/tests/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**"
+      ],
+      "timeoutSeconds": 1200
+    },
+    {
+      "id": "s3-wasi-rejected",
+      "repositoryId": "rayx-signalr",
+      "kind": "static",
+      "criterionIds": [
+        "R3.C3"
+      ],
+      "descriptionMarkdown": "New `Platform` case `wasi-rejected` (`wasm32-wasip1` build fails with the browser-only message).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=Platform&Case=wasi-rejected"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 1
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**"
+      ],
+      "timeoutSeconds": 1200
+    },
+    {
+      "id": "s4-tls-unit",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R4.C2",
+        "R4.C3"
+      ],
+      "descriptionMarkdown": "New `tls_configuration` unit tests (precedence, `use_webpki_roots`, PEM errors before I/O, Android extra-root verifier selection).",
+      "argv": [
+        "cargo",
+        "test",
+        "--lib",
+        "--all-features",
+        "tls_configuration"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 6
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/lib.rs",
+        "src/communication/**",
+        "src/client/configuration.rs"
+      ],
+      "timeoutSeconds": 1200
+    },
+    {
+      "id": "s4-tls-disabled",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R4.C2"
+      ],
+      "descriptionMarkdown": "`tls_configuration` tests without TLS features: secure endpoints return the explicit 'TLS support is disabled' error.",
+      "argv": [
+        "cargo",
+        "test",
+        "--lib",
+        "--no-default-features",
+        "tls_configuration"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 1
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/lib.rs",
+        "src/communication/**",
+        "src/client/configuration.rs"
+      ],
+      "timeoutSeconds": 1200
+    },
+    {
+      "id": "s4-tls-e2e",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R4.C1"
+      ],
+      "descriptionMarkdown": "New `tls` scenario against the AppHost HTTPS fixture endpoint. Selection: targets `native,chromium`, scenarios `tls`, JSON and MessagePack (4 cells).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 4
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**",
+        "tests/e2e/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        "tests/wasm-fixture/Cargo.toml",
+        "tests/wasm-fixture/src/**",
+        "tools-node/tests/**",
+        "tools-node/wasm-host/**",
+        "tools-node/playwright.config.ts",
+        "tools-node/package.json"
+      ],
+      "timeoutSeconds": 2400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "native,chromium",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "tls"
+      }
+    },
+    {
+      "id": "s4-native-functional",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R4.C6"
+      ],
+      "descriptionMarkdown": "R4.C6's own proof: the functional native cells rerun because the hyper negotiate client replaces the HTTP path of every connection. Selection: targets `native`, scenarios `connect-negotiate,authentication,invoke,send,server-stream,callbacks,concurrency-and-clones,large-payload,server-close,reconnect-exhaustion`, JSON and MessagePack (20 cells).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 20
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**",
+        "tests/e2e/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**"
+      ],
+      "timeoutSeconds": 2400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "native",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "connect-negotiate,authentication,invoke,send,server-stream,callbacks,concurrency-and-clones,large-payload,server-close,reconnect-exhaustion"
+      }
+    },
+    {
+      "id": "s4-mobile-platform",
+      "repositoryId": "rayx-signalr",
+      "kind": "static",
+      "criterionIds": [
+        "R4.C4",
+        "R4.C5"
+      ],
+      "descriptionMarkdown": "New `Platform` cases `tls-graph` (per-target `cargo tree`) and `android-build` (`cargo ndk` checks, default and webpki feature sets, Android re-export).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=Platform&(Case=tls-graph|Case=android-build)"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 10
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**"
+      ],
+      "timeoutSeconds": 3600
+    },
+    {
+      "id": "s5-negotiation-unit",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R5.C1",
+        "R5.C2"
+      ],
+      "descriptionMarkdown": "New `negotiation_` unit tests through an injected request function.",
+      "argv": [
+        "cargo",
+        "test",
+        "--lib",
+        "--all-features",
+        "negotiation_"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 8
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/communication/**",
+        "src/protocol/negotiate.rs",
+        "src/client/configuration.rs"
+      ],
+      "timeoutSeconds": 1200
+    },
+    {
+      "id": "s5-skip-unit",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R5.C4"
+      ],
+      "descriptionMarkdown": "New `skip_negotiation` unit tests.",
+      "argv": [
+        "cargo",
+        "test",
+        "--lib",
+        "--all-features",
+        "skip_negotiation"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 3
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/communication/**",
+        "src/client/configuration.rs"
+      ],
+      "timeoutSeconds": 1200
+    },
+    {
+      "id": "s5-negotiation-e2e",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R5.C3",
+        "R5.C5"
+      ],
+      "descriptionMarkdown": "New `negotiate-redirect` and `skip-negotiation` scenarios. Selection: targets `native,chromium`, scenarios `negotiate-redirect,skip-negotiation`, JSON and MessagePack (8 cells).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 8
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**",
+        "tests/e2e/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        "tests/wasm-fixture/Cargo.toml",
+        "tests/wasm-fixture/src/**",
+        "tools-node/tests/**",
+        "tools-node/wasm-host/**",
+        "tools-node/playwright.config.ts",
+        "tools-node/package.json"
+      ],
+      "timeoutSeconds": 2400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "native,chromium",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "negotiate-redirect,skip-negotiation"
+      }
+    },
+    {
+      "id": "s6-runtime-unit",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R6.C1"
+      ],
+      "descriptionMarkdown": "New `runtime_ownership` unit tests (no runtime â†’ explanatory error, configured handle preferred).",
+      "argv": [
+        "cargo",
+        "test",
+        "--lib",
+        "--all-features",
+        "runtime_ownership"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 2
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/client/**",
+        "src/communication/**"
+      ],
+      "timeoutSeconds": 1200
+    },
+    {
+      "id": "s6-executor-e2e",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R6.C2",
+        "R6.C3"
+      ],
+      "descriptionMarkdown": "New `executor-independence` scenario driven from a non-Tokio thread. Selection: targets `native`, scenarios `executor-independence`, JSON and MessagePack (2 cells).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 2
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**",
+        "tests/e2e/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**"
+      ],
+      "timeoutSeconds": 2400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "native",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "executor-independence"
+      }
+    },
+    {
+      "id": "s6-native-regression",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R6.C3"
+      ],
+      "descriptionMarkdown": "R6.C3's own proof: the runtime-owned writer/receiver tasks carry every native operation, so the functional and migrated native cells rerun. Selection: targets `native`, scenarios `connect-negotiate,authentication,invoke,send,server-stream,callbacks,concurrency-and-clones,large-payload,server-close,reconnect-exhaustion,ordinary-reconnect,stateful-reconnect,stream-cancellation`, JSON and MessagePack (26 cells).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 26
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**",
+        "tests/e2e/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**"
+      ],
+      "timeoutSeconds": 2400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "native",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "connect-negotiate,authentication,invoke,send,server-stream,callbacks,concurrency-and-clones,large-payload,server-close,reconnect-exhaustion,ordinary-reconnect,stateful-reconnect,stream-cancellation"
+      }
+    },
+    {
+      "id": "s7-wasm-transport",
+      "repositoryId": "rayx-signalr",
+      "kind": "static",
+      "criterionIds": [
+        "R7.C2"
+      ],
+      "descriptionMarkdown": "New `Platform` case `wasm-transport` (no `setInterval`/`forget`, browser graph without wasm-sockets/wasm-timer/async-std/ehttp).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=Platform&Case=wasm-transport"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 3
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/communication/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**"
+      ],
+      "timeoutSeconds": 1200
+    },
+    {
+      "id": "s7-burst-e2e",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R7.C1"
+      ],
+      "descriptionMarkdown": "New `message-burst` scenario. Selection: targets `chromium`, scenarios `message-burst`, JSON and MessagePack (2 cells).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 2
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**",
+        "tests/e2e/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        "tests/wasm-fixture/Cargo.toml",
+        "tests/wasm-fixture/src/**",
+        "tools-node/tests/**",
+        "tools-node/wasm-host/**",
+        "tools-node/playwright.config.ts",
+        "tools-node/package.json"
+      ],
+      "timeoutSeconds": 2400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "chromium",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "message-burst"
+      }
+    },
+    {
+      "id": "s7-chromium-regression",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R7.C6"
+      ],
+      "descriptionMarkdown": "R7.C6's own proof: the transport is replaced underneath every browser scenario, so the functional and migrated Chromium cells rerun. Selection: targets `chromium`, scenarios `connect-negotiate,authentication,invoke,send,server-stream,callbacks,concurrency-and-clones,large-payload,server-close,reconnect-exhaustion,ordinary-reconnect,stateful-reconnect,short-stream-chaining,stream-cancellation`, JSON and MessagePack (28 cells).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 28
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**",
+        "tests/e2e/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        "tests/wasm-fixture/Cargo.toml",
+        "tests/wasm-fixture/src/**",
+        "tools-node/tests/**",
+        "tools-node/wasm-host/**",
+        "tools-node/playwright.config.ts",
+        "tools-node/package.json"
+      ],
+      "timeoutSeconds": 3600,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "chromium",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "connect-negotiate,authentication,invoke,send,server-stream,callbacks,concurrency-and-clones,large-payload,server-close,reconnect-exhaustion,ordinary-reconnect,stateful-reconnect,short-stream-chaining,stream-cancellation"
+      }
+    },
+    {
+      "id": "s7-worker-e2e",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R7.C3"
+      ],
+      "descriptionMarkdown": "New `worker-transport` scenario in a dedicated module worker. Selection: targets `chromium`, scenarios `worker-transport`, JSON and MessagePack (2 cells).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 2
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**",
+        "tests/e2e/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        "tests/wasm-fixture/Cargo.toml",
+        "tests/wasm-fixture/src/**",
+        "tools-node/tests/**",
+        "tools-node/wasm-host/**",
+        "tools-node/playwright.config.ts",
+        "tools-node/package.json"
+      ],
+      "timeoutSeconds": 2400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "chromium",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "worker-transport"
+      }
+    },
+    {
+      "id": "s7-threaded-build",
+      "repositoryId": "rayx-signalr",
+      "kind": "static",
+      "criterionIds": [
+        "R7.C4"
+      ],
+      "descriptionMarkdown": "New `Platform` case `threaded-wasm-build` (nightly build-std atomics with RayX's flags, default and all features).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=Platform&Case=threaded-wasm-build"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 2
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**"
+      ],
+      "timeoutSeconds": 3600
+    },
+    {
+      "id": "s7-threaded-e2e",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R7.C5"
+      ],
+      "descriptionMarkdown": "New `threaded-wasm` scenario on the cross-origin-isolated threaded fixture. Selection: targets `chromium`, scenarios `threaded-wasm`, JSON and MessagePack (2 cells).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 2
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**",
+        "tests/e2e/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        "tests/wasm-fixture/Cargo.toml",
+        "tests/wasm-fixture/src/**",
+        "tools-node/tests/**",
+        "tools-node/wasm-host/**",
+        "tools-node/playwright.config.ts",
+        "tools-node/package.json"
+      ],
+      "timeoutSeconds": 3600,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "chromium",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "threaded-wasm"
+      }
+    },
+    {
+      "id": "s8-liveness-unit",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R8.C1",
+        "R8.C2"
+      ],
+      "descriptionMarkdown": "New `liveness_` unit tests (scheduler with deterministic clock, configuration validation, handshake parsing, Ping encoding and classification).",
+      "argv": [
+        "cargo",
+        "test",
+        "--lib",
+        "--all-features",
+        "liveness_"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 8
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/communication/**",
+        "src/protocol/**",
+        "src/client/configuration.rs"
+      ],
+      "timeoutSeconds": 1200
+    },
+    {
+      "id": "s8-native-liveness",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R8.C3"
+      ],
+      "descriptionMarkdown": "New native liveness scenarios. Selection: targets `native`, scenarios `keepalive-idle,server-timeout,handshake-timeout`, JSON and MessagePack (6 cells).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 6
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**",
+        "tests/e2e/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**"
+      ],
+      "timeoutSeconds": 2400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "native",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "keepalive-idle,server-timeout,handshake-timeout"
+      }
+    },
+    {
+      "id": "s8-chromium-liveness",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R8.C4"
+      ],
+      "descriptionMarkdown": "New browser liveness scenarios. Selection: targets `chromium`, scenarios `keepalive-idle,server-timeout,handshake-timeout`, JSON and MessagePack (6 cells).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 6
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**",
+        "tests/e2e/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        "tests/wasm-fixture/Cargo.toml",
+        "tests/wasm-fixture/src/**",
+        "tools-node/tests/**",
+        "tools-node/wasm-host/**",
+        "tools-node/playwright.config.ts",
+        "tools-node/package.json"
+      ],
+      "timeoutSeconds": 2400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "chromium",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "keepalive-idle,server-timeout,handshake-timeout"
+      }
+    },
+    {
+      "id": "s9-lifecycle-unit",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R9.C1",
+        "R9.C4"
+      ],
+      "descriptionMarkdown": "New `lifecycle_controls` unit tests (Paused transitions, no-op/terminal rules, stale generations, status mapping, `DefaultRetryPolicy`).",
+      "argv": [
+        "cargo",
+        "test",
+        "--lib",
+        "--all-features",
+        "lifecycle_controls"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 7
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/communication/reconnection.rs",
+        "src/client/**"
+      ],
+      "timeoutSeconds": 1200
+    },
+    {
+      "id": "s9-native-lifecycle",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R9.C2"
+      ],
+      "descriptionMarkdown": "New native pause/resume scenarios. Selection: targets `native`, scenarios `pause-resume,pause-resume-stateful`, JSON and MessagePack (4 cells).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 4
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**",
+        "tests/e2e/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**"
+      ],
+      "timeoutSeconds": 2400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "native",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "pause-resume,pause-resume-stateful"
+      }
+    },
+    {
+      "id": "s9-chromium-lifecycle",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R9.C3"
+      ],
+      "descriptionMarkdown": "New browser pause/resume scenarios. Selection: targets `chromium`, scenarios `pause-resume,pause-resume-stateful`, JSON and MessagePack (4 cells).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 4
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**",
+        "tests/e2e/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        "tests/wasm-fixture/Cargo.toml",
+        "tests/wasm-fixture/src/**",
+        "tools-node/tests/**",
+        "tools-node/wasm-host/**",
+        "tools-node/playwright.config.ts",
+        "tools-node/package.json"
+      ],
+      "timeoutSeconds": 2400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "chromium",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "pause-resume,pause-resume-stateful"
+      }
+    },
+    {
+      "id": "s10-firefox-webkit",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R10.C1"
+      ],
+      "descriptionMarkdown": "New Firefox and WebKit targets running the whole browser catalog (minimum allows the documented `threaded-wasm` exclusion on one engine). Selection: targets `firefox,webkit`, scenarios `all`, JSON and MessagePack (96 cells).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 96
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**",
+        "tests/e2e/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        "tests/wasm-fixture/Cargo.toml",
+        "tests/wasm-fixture/src/**",
+        "tools-node/tests/**",
+        "tools-node/wasm-host/**",
+        "tools-node/playwright.config.ts",
+        "tools-node/package.json"
+      ],
+      "timeoutSeconds": 5400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "firefox,webkit",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "all"
+      }
+    },
+    {
+      "id": "s10-android",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R10.C2"
+      ],
+      "descriptionMarkdown": "New Android target running every native-capable scenario on a running x86_64 emulator (prerequisite: start AVD `Pixel_9_Pro_XL` or set `RAYX_SIGNALR_E2E_ANDROID_SERIAL`). Selection: targets `android`, scenarios `all`, JSON and MessagePack (44 cells: 22 native-capable scenarios).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 44
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**",
+        "tests/e2e/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**"
+      ],
+      "timeoutSeconds": 5400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "android",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "all"
+      }
+    },
+    {
+      "id": "s10-workflow-contract",
+      "repositoryId": "rayx-signalr",
+      "kind": "static",
+      "criterionIds": [
+        "R10.C4"
+      ],
+      "descriptionMarkdown": "`WorkflowContract` category extended to every target job, the Android emulator runner, the iOS simulator job and the platform quality jobs.",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=WorkflowContract"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 2
+      },
+      "inputs": [
+        ".github/workflows/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**"
+      ],
+      "timeoutSeconds": 1200
+    },
+    {
+      "id": "final-fmt",
+      "repositoryId": "rayx-signalr",
+      "kind": "static",
+      "criterionIds": [],
+      "descriptionMarkdown": "Formatting gate. Whole-crate scope is justified: the epic replaces the test harness, the TLS stack, the negotiate client, the native runtime model and the browser transport, which every public API path uses.",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--check"
+      ],
+      "expected": {
+        "exitCode": 0
+      },
+      "timeoutSeconds": 600
+    },
+    {
+      "id": "final-clippy",
+      "repositoryId": "rayx-signalr",
+      "kind": "static",
+      "criterionIds": [],
+      "descriptionMarkdown": "Native Clippy with all features, including the `e2e` test target and `tls-aws-lc-rs`/`tls-webpki-roots`. Whole-crate scope is justified: the epic replaces the test harness, the TLS stack, the negotiate client, the native runtime model and the browser transport, which every public API path uses.",
+      "argv": [
+        "cargo",
+        "clippy",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "expected": {
+        "exitCode": 0
+      },
+      "timeoutSeconds": 2400
+    },
+    {
+      "id": "final-native-no-default",
+      "repositoryId": "rayx-signalr",
+      "kind": "build",
+      "criterionIds": [],
+      "descriptionMarkdown": "Plaintext-only build without TLS features. Whole-crate scope is justified: the epic replaces the test harness, the TLS stack, the negotiate client, the native runtime model and the browser transport, which every public API path uses.",
+      "argv": [
+        "cargo",
+        "check",
+        "--all-targets",
+        "--no-default-features"
+      ],
+      "expected": {
+        "exitCode": 0
+      },
+      "timeoutSeconds": 1800,
+      "environment": {
+        "RUSTFLAGS": "-D warnings"
+      }
+    },
+    {
+      "id": "final-wasm-default",
+      "repositoryId": "rayx-signalr",
+      "kind": "build",
+      "criterionIds": [],
+      "descriptionMarkdown": "Browser build, default features. Whole-crate scope is justified: the epic replaces the test harness, the TLS stack, the negotiate client, the native runtime model and the browser transport, which every public API path uses.",
+      "argv": [
+        "cargo",
+        "check",
+        "--target",
+        "wasm32-unknown-unknown"
+      ],
+      "expected": {
+        "exitCode": 0
+      },
+      "timeoutSeconds": 1800,
+      "environment": {
+        "RUSTFLAGS": "-D warnings"
+      }
+    },
+    {
+      "id": "final-wasm-all",
+      "repositoryId": "rayx-signalr",
+      "kind": "build",
+      "criterionIds": [],
+      "descriptionMarkdown": "Browser build, all features. Whole-crate scope is justified: the epic replaces the test harness, the TLS stack, the negotiate client, the native runtime model and the browser transport, which every public API path uses.",
+      "argv": [
+        "cargo",
+        "check",
+        "--target",
+        "wasm32-unknown-unknown",
+        "--all-features"
+      ],
+      "expected": {
+        "exitCode": 0
+      },
+      "timeoutSeconds": 1800,
+      "environment": {
+        "RUSTFLAGS": "-D warnings"
+      }
+    },
+    {
+      "id": "final-rustdoc",
+      "repositoryId": "rayx-signalr",
+      "kind": "build",
+      "criterionIds": [],
+      "descriptionMarkdown": "Public documentation with warnings denied. Whole-crate scope is justified: the epic replaces the test harness, the TLS stack, the negotiate client, the native runtime model and the browser transport, which every public API path uses.",
+      "argv": [
+        "cargo",
+        "doc",
+        "--all-features",
+        "--no-deps"
+      ],
+      "expected": {
+        "exitCode": 0
+      },
+      "timeoutSeconds": 1800,
+      "environment": {
+        "RUSTDOCFLAGS": "-D warnings"
+      }
+    },
+    {
+      "id": "final-dotnet-build",
+      "repositoryId": "rayx-signalr",
+      "kind": "build",
+      "criterionIds": [],
+      "descriptionMarkdown": "Every .NET project builds with warnings as errors. Whole-crate scope is justified: the epic replaces the test harness, the TLS stack, the negotiate client, the native runtime model and the browser transport, which every public API path uses.",
+      "argv": [
+        "dotnet",
+        "build",
+        "RayX.SignalR.slnx"
+      ],
+      "expected": {
+        "exitCode": 0
+      },
+      "timeoutSeconds": 1800
+    },
+    {
+      "id": "final-unit-all-features",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [],
+      "descriptionMarkdown": "All service-independent Rust unit, contract and integration tests (`e2e` is `test = false`). Whole-crate scope is justified: the epic replaces the test harness, the TLS stack, the negotiate client, the native runtime model and the browser transport, which every public API path uses.",
+      "argv": [
+        "cargo",
+        "test",
+        "--all-features"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 60
+      },
+      "timeoutSeconds": 2400
+    },
+    {
+      "id": "final-unit-json-only",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [],
+      "descriptionMarkdown": "Service-independent unit tests for the JSON-only, TLS-less build. Whole-crate scope is justified: the epic replaces the test harness, the TLS stack, the negotiate client, the native runtime model and the browser transport, which every public API path uses.",
+      "argv": [
+        "cargo",
+        "test",
+        "--lib",
+        "--no-default-features"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 40
+      },
+      "timeoutSeconds": 2400
+    },
+    {
+      "id": "final-static-categories",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [],
+      "descriptionMarkdown": "Every non-E2E .NET category together: Platform (all cases), Orchestration, Toolchain, Catalog, Repository, WorkflowContract, DependencySecurity. Whole-crate scope is justified: the epic replaces the test harness, the TLS stack, the negotiate client, the native runtime model and the browser transport, which every public API path uses.",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category!=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 25
+      },
+      "timeoutSeconds": 5400
+    },
+    {
+      "id": "final-e2e-native",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [],
+      "descriptionMarkdown": "Whole native catalog (every native-capable scenario, JSON and MessagePack) through Aspire. Whole-crate scope is justified: the epic replaces the test harness, the TLS stack, the negotiate client, the native runtime model and the browser transport, which every public API path uses.",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 44
+      },
+      "timeoutSeconds": 5400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "native",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "all"
+      }
+    },
+    {
+      "id": "final-e2e-chromium",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [],
+      "descriptionMarkdown": "Whole browser catalog in Chromium (JSON and MessagePack) through Aspire. Whole-crate scope is justified: the epic replaces the test harness, the TLS stack, the negotiate client, the native runtime model and the browser transport, which every public API path uses.",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 50
+      },
+      "timeoutSeconds": 5400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "chromium",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "all"
+      }
+    },
+    {
+      "id": "s1-pending-failure-unit",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R1.C3"
+      ],
+      "descriptionMarkdown": "New `pending_failure_completion` unit group: failing or disposing pending work completes awaiting invocations with an error and ends streams.",
+      "argv": [
+        "cargo",
+        "test",
+        "--lib",
+        "--all-features",
+        "pending_failure_completion"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 3
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**"
+      ],
+      "timeoutSeconds": 900
+    },
+    {
+      "id": "s2-client-unit",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R2.C3",
+        "R2.C5",
+        "R2.C9"
+      ],
+      "descriptionMarkdown": "New `functional_baseline` unit groups: void completions (JSON/MessagePack), stream error completions, terminal remote close in the reconnect coordinator.",
+      "argv": [
+        "cargo",
+        "test",
+        "--lib",
+        "--all-features",
+        "functional_baseline"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 11
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/**"
+      ],
+      "timeoutSeconds": 900
+    },
+    {
+      "id": "s4-negotiate-errors",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R4.C6"
+      ],
+      "descriptionMarkdown": "New `negotiate_http_errors` unit group: status plus bounded, credential-redacted body excerpt.",
+      "argv": [
+        "cargo",
+        "test",
+        "--lib",
+        "--all-features",
+        "negotiate_http_errors"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 3
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/communication/**"
+      ],
+      "timeoutSeconds": 900
+    },
+    {
+      "id": "s6-stateful-generation",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R6.C3"
+      ],
+      "descriptionMarkdown": "New `stateful_transport_generation` unit group: a writer of a lost transport cannot track frames; the resumed transport continues the sequence.",
+      "argv": [
+        "cargo",
+        "test",
+        "--lib",
+        "--all-features",
+        "stateful_transport_generation"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 3
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/communication/**"
+      ],
+      "timeoutSeconds": 900
+    },
+    {
+      "id": "s10-mobile-runner-unit",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R10.C2",
+        "R10.C3"
+      ],
+      "descriptionMarkdown": "New `MobileRunnerTests` (Android serial selection, shell quoting, `10.0.2.2` endpoint rewrite, test-binary discovery; iOS simulator selection).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "FullyQualifiedName~MobileRunnerTests"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 5
+      },
+      "inputs": [
+        "global.json",
+        "Directory.Build.props",
+        "dotnet/**"
+      ],
+      "timeoutSeconds": 1200
+    },
+    {
+      "id": "s10-socket-unit",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R10.C3"
+      ],
+      "descriptionMarkdown": "New `negotiate_tcp_connect` tests: native sockets try every resolved address, set TCP_NODELAY (found slowing stateful iOS cells in CI), accept bracketed IPv6 hosts and report refused/unresolvable hosts.",
+      "argv": [
+        "cargo",
+        "test",
+        "--lib",
+        "--all-features",
+        "negotiate_tcp_connect"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 3
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/communication/negotiate_http.rs"
+      ],
+      "timeoutSeconds": 1200
+    },
+    {
+      "id": "s11-native-runs-unit",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R9.C1",
+        "R8.C1"
+      ],
+      "descriptionMarkdown": "New `native_connection_runs` and `connection_setup_bounds` tests (manual exhaustion ends the logical connection, runs stop on local close or dropped clients, bounded upgrade and negotiate).",
+      "argv": [
+        "cargo",
+        "test",
+        "--lib",
+        "--all-features",
+        "--",
+        "native_connection_runs",
+        "connection_setup"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 6
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/communication/**"
+      ],
+      "timeoutSeconds": 1200
+    },
+    {
+      "id": "s11-harness-unit",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R10.C4"
+      ],
+      "descriptionMarkdown": "`MobileRunnerTests` (Android features, redaction of redirect tokens, compiler errors) and the per-job `WorkflowContract` tests.",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "FullyQualifiedName~MobileRunnerTests|Category=WorkflowContract"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 15
+      },
+      "inputs": [
+        ".github/workflows/**",
+        "global.json",
+        "Directory.Build.props",
+        "dotnet/**"
+      ],
+      "timeoutSeconds": 1200
+    }
+  ],
+  "finalCheckIds": [
+    "final-fmt",
+    "final-clippy",
+    "final-native-no-default",
+    "final-wasm-default",
+    "final-wasm-all",
+    "final-rustdoc",
+    "final-dotnet-build",
+    "final-unit-all-features",
+    "final-unit-json-only",
+    "final-static-categories",
+    "final-e2e-native",
+    "final-e2e-chromium"
+  ],
+  "sprints": [
+    {
+      "id": "S1",
+      "title": "Aspire test orchestration replaces every test script",
+      "dependsOn": [],
+      "memoryScopes": [
+        "interop-validation",
+        "interop-validation/rust-tests",
+        "interop-validation/dotnet-test-service",
+        "repository-governance/quality-gates"
+      ],
+      "tasks": [
+        {
+          "id": "S1.T1",
+          "title": "Solution, AppHost, fixture host and pinned wasm-bindgen",
+          "descriptionMarkdown": "Add `RayX.SignalR.slnx`, `global.json`, `aspire.config.json`, `Directory.Build.props`; create `dotnet/RayX.SignalR.AppHost` (service with dynamic HTTP endpoint and `/health`, completion-gated pinned wasm-bindgen provisioning, fixture build and bindgen executables, `fixture-host`), `dotnet/RayX.SignalR.FixtureHost`, and the `dotnet/RayX.SignalR.E2E.Tests` skeleton with the `Orchestration` and `Toolchain` categories; make `SignalRTestService` port-agnostic.",
+          "criterionIds": [
+            "R1.C1",
+            "R1.C5"
+          ],
+          "designIds": [
+            "D1",
+            "D5"
+          ],
+          "dependsOn": [],
+          "checkIds": [
+            "s1-orchestration"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "dotnet/SignalRTestService/Program.cs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "dotnet/SignalRTestService/SignalRTestService.csproj"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "tests/wasm-fixture/Cargo.toml"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "tools-node/wasm-host/index.html"
+            }
+          ]
+        },
+        {
+          "id": "S1.T2",
+          "title": "Scenario catalog and cell runners",
+          "descriptionMarkdown": "Add the `AspireEnvironment` collection fixture, `ScenarioCatalog`, `E2ECells` selection from `RAYX_SIGNALR_E2E_*`, the native runner (prebuilt `e2e` binary, exact test, 60 s bound, process-tree kill), the browser runner (Playwright CLI per engine and exact title), redacted failure diagnostics with resource logs, and the `Catalog` category including catalog consistency.",
+          "criterionIds": [
+            "R1.C2"
+          ],
+          "designIds": [
+            "D2",
+            "D3"
+          ],
+          "dependsOn": [
+            "S1.T1"
+          ],
+          "checkIds": [
+            "s1-catalog"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "tools-node/playwright.config.ts"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "Cargo.toml"
+            }
+          ]
+        },
+        {
+          "id": "S1.T3",
+          "title": "Migrate existing scenarios to black-box end-to-end tests",
+          "descriptionMarkdown": "Create the `e2e` integration-test target (`test = false`) with `ordinary_reconnect`, `stateful_reconnect` and `stream_cancellation` (`json`/`messagepack`) using only the public API and server-side transport abort; parameterize the fixture and Playwright specs by environment/page configuration and drop `webServer`; delete `src/tests/tests_tokio.rs`, `src/tests/tests_msgpack.rs` and the production test hooks in `client_tokio.rs`.",
+          "criterionIds": [
+            "R1.C3"
+          ],
+          "designIds": [
+            "D2",
+            "D3"
+          ],
+          "dependsOn": [
+            "S1.T2"
+          ],
+          "checkIds": [
+            "s1-native-migrated",
+            "s1-chromium-migrated"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/tests/tests_tokio.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/tests/tests_msgpack.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/tests/mod.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/communication/client_tokio.rs",
+              "symbol": "CommunicationClient::force_test_transport_drop"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "tests/wasm-fixture/src/lib.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "tools-node/tests/signalr-wasm.spec.ts"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "tools-node/playwright.config.ts"
+            }
+          ]
+        },
+        {
+          "id": "S1.T4",
+          "title": "Remove scripts, add contract categories, run CI through Aspire",
+          "descriptionMarkdown": "Delete `scripts/` and `tools-node/scripts/`; add the `Repository`, `WorkflowContract` and `DependencySecurity` categories carrying every former `verify-workflows.ps1` assertion; replace `interop.yml` with `e2e.yml` (native on ubuntu/windows/macos, Chromium on ubuntu, Aspire CLI install, pinned-tool cache, failure-only artifacts) and update `quality.yml` to call the categories; rewrite README's validation section for `aspire run`/`dotnet test`.",
+          "criterionIds": [
+            "R1.C4",
+            "R1.C6"
+          ],
+          "designIds": [
+            "D5",
+            "D15"
+          ],
+          "dependsOn": [
+            "S1.T3"
+          ],
+          "checkIds": [
+            "s1-repository-contracts"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "scripts/ci/run-interop.ps1"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "scripts/ci/verify-workflows.ps1"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": ".github/workflows/interop.yml"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": ".github/workflows/quality.yml"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "README.md"
+            }
+          ]
+        },
+        {
+          "id": "S1.T5",
+          "title": "Fail pending work instead of abandoning it on transport replacement",
+          "descriptionMarkdown": "Finding from the migrated black-box `ordinary-reconnect` scenario: an invocation pending while the server aborted the transport never completed, because `fail_pending` dropped the action and `ManualFutureCompleter::cancel` left its awaiter `Pending` forever (the removed in-crate hook bypassed this path). Pending invocations now complete with the failure message on `fail_pending` (both targets) and with an explicit error when their action is disposed; pending streams end. Covered by the new `pending_failure_completion` unit group and the native `ordinary-reconnect` cells.",
+          "criterionIds": [],
+          "supportingCriterionIds": [
+            "R1.C3"
+          ],
+          "designIds": [
+            "D2"
+          ],
+          "dependsOn": [
+            "S1.T3"
+          ],
+          "checkIds": [
+            "s1-pending-failure-unit"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/execution/storage_tokio.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/execution/storage_wasm.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/execution/invocation.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/execution/enumerable.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/execution/actions.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "S2",
+      "title": "Comprehensive functional end-to-end baseline",
+      "dependsOn": [
+        "S1"
+      ],
+      "memoryScopes": [
+        "interop-validation/dotnet-test-service"
+      ],
+      "tasks": [
+        {
+          "id": "S2.T1",
+          "title": "Test-service functional fixtures",
+          "descriptionMarkdown": "Add the D4 functional fixtures to `SignalRTestService`: `/test-auth` with the test authentication scheme and identity probe, void/throwing/recorded-send/throwing-stream methods with probes, detailed errors, large-message route limits, server-close methods, `OnDisconnected` counter, hub-rejection control and per-cell reset endpoint.",
+          "criterionIds": [],
+          "designIds": [
+            "D4"
+          ],
+          "dependsOn": [],
+          "checkIds": [],
+          "supportingCriterionIds": [
+            "R2.C1",
+            "R2.C2",
+            "R2.C3",
+            "R2.C4",
+            "R2.C5",
+            "R2.C6",
+            "R2.C7",
+            "R2.C8",
+            "R2.C9",
+            "R2.C10"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "dotnet/SignalRTestService/Program.cs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "dotnet/SignalRTestService/TestHub.cs"
+            }
+          ]
+        },
+        {
+          "id": "S2.T2",
+          "title": "Native functional scenarios",
+          "descriptionMarkdown": "Add the ten functional scenarios to `tests/e2e` (`connect_negotiate`, `authentication`, `invoke`, `send`, `server_stream`, `callbacks`, `concurrency_and_clones`, `large_payload`, `server_close`, `reconnect_exhaustion`) for JSON and MessagePack and register them in the catalog for every target (native-capable).",
+          "criterionIds": [
+            "R2.C1",
+            "R2.C2",
+            "R2.C3",
+            "R2.C4",
+            "R2.C5",
+            "R2.C6",
+            "R2.C7",
+            "R2.C8",
+            "R2.C9",
+            "R2.C10"
+          ],
+          "designIds": [
+            "D2",
+            "D4"
+          ],
+          "dependsOn": [
+            "S2.T1"
+          ],
+          "checkIds": [
+            "s2-native-functional",
+            "s2-client-unit"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/client/client.rs",
+              "symbol": "SignalRClient"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/client/context.rs",
+              "symbol": "InvocationContext::complete"
+            }
+          ]
+        },
+        {
+          "id": "S2.T3",
+          "title": "Browser functional scenarios",
+          "descriptionMarkdown": "Add fixture exports and `tools-node/tests/signalr-functional.spec.ts` for the same ten scenarios (browser credentials through the negotiate header and WebSocket `access_token`).",
+          "criterionIds": [
+            "R2.C11"
+          ],
+          "designIds": [
+            "D3",
+            "D4"
+          ],
+          "dependsOn": [
+            "S2.T2"
+          ],
+          "checkIds": [
+            "s2-chromium-functional"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "tests/wasm-fixture/src/lib.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "S3",
+      "title": "Manifest hygiene and browser-only WASM gating",
+      "dependsOn": [
+        "S2"
+      ],
+      "tasks": [
+        {
+          "id": "S3.T1",
+          "title": "Dependency and crate-type hygiene",
+          "descriptionMarkdown": "Move test/debug crates to dev-dependencies, delete `wasm-timer`, `async-std` and `src/tests/tests_wasm.rs`, make the library `rlib`, trim `tokio` features, and add the `Platform` case `manifest-hygiene`.",
+          "criterionIds": [
+            "R3.C1",
+            "R3.C2"
+          ],
+          "designIds": [
+            "D6",
+            "D5"
+          ],
+          "dependsOn": [],
+          "checkIds": [
+            "s3-manifest-hygiene"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "Cargo.toml"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/tests/tests_wasm.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/tests/mod.rs"
+            }
+          ]
+        },
+        {
+          "id": "S3.T2",
+          "title": "Browser-only wasm gating",
+          "descriptionMarkdown": "Unify the native/browser `cfg` predicates (`src/client/context.rs`), add the `compile_error!` guard for non-`unknown` wasm32 targets (narrowing browser-only dependencies if needed), and add the `Platform` case `wasi-rejected`.",
+          "criterionIds": [
+            "R3.C3"
+          ],
+          "designIds": [
+            "D6",
+            "D5"
+          ],
+          "dependsOn": [
+            "S3.T1"
+          ],
+          "checkIds": [
+            "s3-wasi-rejected"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/lib.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/client/context.rs",
+              "symbol": "InvocationContext::spawn"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "Cargo.toml"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "S4",
+      "title": "Rustls TLS on native targets",
+      "dependsOn": [
+        "S3"
+      ],
+      "tasks": [
+        {
+          "id": "S4.T1",
+          "title": "TLS configuration module, features and API",
+          "descriptionMarkdown": "Add `src/communication/tls.rs`, the `tls-*` features and defaults, native-only `with_additional_root_certificates_pem` and `use_webpki_roots`, the Android re-export module, and the `tls_configuration` tests (also under `--no-default-features`).",
+          "criterionIds": [
+            "R4.C2",
+            "R4.C3"
+          ],
+          "designIds": [
+            "D7"
+          ],
+          "dependsOn": [],
+          "checkIds": [
+            "s4-tls-unit",
+            "s4-tls-disabled"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "Cargo.toml"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/lib.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/client/configuration.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/communication/mod.rs"
+            }
+          ]
+        },
+        {
+          "id": "S4.T2",
+          "title": "AppHost TLS fixture and `tls` scenario",
+          "descriptionMarkdown": "Generate the ephemeral CA and leaf in the AppHost, add the service's HTTPS endpoint, pass the CA to cells, and add the `tls` scenario for native (`tests/e2e/tls.rs`) and Chromium (`ignoreHTTPSErrors`) plus its catalog entry.",
+          "criterionIds": [],
+          "designIds": [
+            "D7",
+            "D2",
+            "D3"
+          ],
+          "dependsOn": [],
+          "checkIds": [],
+          "supportingCriterionIds": [
+            "R4.C1"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "dotnet/SignalRTestService/Program.cs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "tests/wasm-fixture/src/lib.rs"
+            }
+          ]
+        },
+        {
+          "id": "S4.T3",
+          "title": "Native rustls WebSocket and hyper negotiate",
+          "descriptionMarkdown": "Switch `connect_socket` to `Connector::Rustls` with the connection's config, replace native `ehttp` negotiate with the hyper HTTP/1.1 client over the same config, make `ehttp` browser-only and remove `tokio-native-tls`.",
+          "criterionIds": [
+            "R4.C1",
+            "R4.C6"
+          ],
+          "designIds": [
+            "D7",
+            "D8"
+          ],
+          "dependsOn": [
+            "S4.T1",
+            "S4.T2"
+          ],
+          "checkIds": [
+            "s4-tls-e2e",
+            "s4-native-functional",
+            "s4-negotiate-errors"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/communication/client_tokio.rs",
+              "symbol": "CommunicationClient::connect_socket"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/communication/common.rs",
+              "symbol": "HttpClient::post_text"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "Cargo.toml"
+            }
+          ]
+        },
+        {
+          "id": "S4.T4",
+          "title": "Mobile dependency graph and Android build cases",
+          "descriptionMarkdown": "Add the `Platform` cases `tls-graph` and `android-build` and fix any graph or Android compile issue they reveal.",
+          "criterionIds": [
+            "R4.C4",
+            "R4.C5"
+          ],
+          "designIds": [
+            "D7",
+            "D5"
+          ],
+          "dependsOn": [
+            "S4.T3"
+          ],
+          "checkIds": [
+            "s4-mobile-platform"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "Cargo.toml"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "S5",
+      "title": "Negotiation completeness and skip negotiation",
+      "dependsOn": [
+        "S4"
+      ],
+      "tasks": [
+        {
+          "id": "S5.T1",
+          "title": "Negotiation model and redirect loop",
+          "descriptionMarkdown": "Add `src/communication/negotiation.rs` (`NegotiateOutcome`, `negotiate_with` over an injected request function, redirect limit, token propagation, error surfacing), wire the native and browser request functions, keep reconnect/resume endpoint rules, and add the `negotiation_` tests.",
+          "criterionIds": [
+            "R5.C1",
+            "R5.C2"
+          ],
+          "designIds": [
+            "D9",
+            "D8"
+          ],
+          "dependsOn": [],
+          "checkIds": [
+            "s5-negotiation-unit"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/communication/common.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/protocol/negotiate.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/client/client.rs"
+            }
+          ]
+        },
+        {
+          "id": "S5.T2",
+          "title": "Skip negotiation",
+          "descriptionMarkdown": "Add `skip_negotiation()`, direct `ConnectionData` construction with `access_token`, the stateful-incompatibility error, direct ordinary reconnect on both targets, and the `skip_negotiation` tests.",
+          "criterionIds": [
+            "R5.C4"
+          ],
+          "designIds": [
+            "D9"
+          ],
+          "dependsOn": [
+            "S5.T1"
+          ],
+          "checkIds": [
+            "s5-skip-unit"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/client/configuration.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/communication/client_tokio.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/communication/client_wasm.rs"
+            }
+          ]
+        },
+        {
+          "id": "S5.T3",
+          "title": "Redirect and skip-negotiation end-to-end",
+          "descriptionMarkdown": "Add the redirect endpoint, `AccessTokenProbe` and negotiate counter to the test service and the `negotiate-redirect` and `skip-negotiation` scenarios for native and Chromium.",
+          "criterionIds": [
+            "R5.C3",
+            "R5.C5"
+          ],
+          "designIds": [
+            "D9",
+            "D4",
+            "D2",
+            "D3"
+          ],
+          "dependsOn": [
+            "S5.T1",
+            "S5.T2"
+          ],
+          "checkIds": [
+            "s5-negotiation-e2e"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "dotnet/SignalRTestService/Program.cs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "dotnet/SignalRTestService/TestHub.cs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "tests/wasm-fixture/src/lib.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "S6",
+      "title": "Native runtime ownership",
+      "dependsOn": [
+        "S5"
+      ],
+      "tasks": [
+        {
+          "id": "S6.T1",
+          "title": "Runtime handle capture and configuration",
+          "descriptionMarkdown": "Add native-only `with_runtime_handle`, resolve the handle at `connect`, return the explanatory error before negotiation when none exists, and add the `runtime_ownership` tests.",
+          "criterionIds": [
+            "R6.C1"
+          ],
+          "designIds": [
+            "D10"
+          ],
+          "dependsOn": [],
+          "checkIds": [
+            "s6-runtime-unit"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/client/client.rs",
+              "symbol": "SignalRClient::connect_with"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/client/configuration.rs"
+            }
+          ]
+        },
+        {
+          "id": "S6.T2",
+          "title": "Runtime-owned tasks and executor-agnostic futures",
+          "descriptionMarkdown": "Run connect/reconnect I/O on the stored handle, add the writer task and command channel (stateful tracking inside it), move reconnect loops and dropped-stream cancellation onto the handle, make `disconnect` non-blocking, document `InvocationContext::spawn`, and add the native-only `executor-independence` scenario.",
+          "criterionIds": [
+            "R6.C2",
+            "R6.C3"
+          ],
+          "designIds": [
+            "D10",
+            "D2"
+          ],
+          "dependsOn": [
+            "S6.T1"
+          ],
+          "checkIds": [
+            "s6-executor-e2e",
+            "s6-native-regression",
+            "s6-stateful-generation"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/communication/client_tokio.rs",
+              "symbol": "CommunicationConnection"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/client/client.rs",
+              "symbol": "SignalRClient::enumerate_internal"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/client/context.rs",
+              "symbol": "InvocationContext::spawn"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "S7",
+      "title": "Event-driven browser transport, workers and threaded WASM",
+      "dependsOn": [
+        "S5"
+      ],
+      "tasks": [
+        {
+          "id": "S7.T1",
+          "title": "gloo-net transport, cancellable timers and fetch negotiate",
+          "descriptionMarkdown": "Rewrite `src/communication/client_wasm.rs` on `gloo-net` WebSocket streams with one receiver task per socket, `gloo-timers` sleeps and `gloo-net` fetch negotiate; remove `wasm-sockets` and `ehttp`; add the `Platform` case `wasm-transport` and the `message-burst` scenario.",
+          "criterionIds": [
+            "R7.C1",
+            "R7.C2",
+            "R7.C6"
+          ],
+          "designIds": [
+            "D11",
+            "D8",
+            "D5"
+          ],
+          "dependsOn": [],
+          "checkIds": [
+            "s7-wasm-transport",
+            "s7-burst-e2e",
+            "s7-chromium-regression"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/communication/client_wasm.rs",
+              "symbol": "CommunicationClient"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/execution/storage_wasm.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "Cargo.toml"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "tests/wasm-fixture/src/lib.rs"
+            }
+          ]
+        },
+        {
+          "id": "S7.T2",
+          "title": "Web Worker support",
+          "descriptionMarkdown": "Make the fixture start-up worker-safe, add the module-worker host page served by `fixture-host`, the `worker-transport` scenario and catalog entry, and document single-owner `!Send` use.",
+          "criterionIds": [
+            "R7.C3"
+          ],
+          "designIds": [
+            "D11",
+            "D3"
+          ],
+          "dependsOn": [
+            "S7.T1"
+          ],
+          "checkIds": [
+            "s7-worker-e2e"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "tests/wasm-fixture/src/lib.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "tools-node/wasm-host/index.html"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/client/client.rs"
+            }
+          ]
+        },
+        {
+          "id": "S7.T3",
+          "title": "Threaded WASM build and runtime proof",
+          "descriptionMarkdown": "Add the `Platform` case `threaded-wasm-build`, the AppHost threaded fixture build (`Fixture:Threads`, pinned nightly, RayX flags), the `fixture-host` `isolated` endpoint with COOP/COEP, and the `threaded-wasm` scenario asserting cross-origin isolation.",
+          "criterionIds": [
+            "R7.C4",
+            "R7.C5"
+          ],
+          "designIds": [
+            "D11",
+            "D1",
+            "D5"
+          ],
+          "dependsOn": [
+            "S7.T1"
+          ],
+          "checkIds": [
+            "s7-threaded-build",
+            "s7-threaded-e2e"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "tests/wasm-fixture/Cargo.toml"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "S8",
+      "title": "Connection liveness",
+      "dependsOn": [
+        "S6",
+        "S7"
+      ],
+      "tasks": [
+        {
+          "id": "S8.T1",
+          "title": "Liveness configuration, scheduler and handshake parsing",
+          "descriptionMarkdown": "Add the three duration options with validation, `src/communication/liveness.rs`, protocol-aware Ping encoding, the shared handshake parser, and the `liveness_` tests.",
+          "criterionIds": [
+            "R8.C1",
+            "R8.C2"
+          ],
+          "designIds": [
+            "D12"
+          ],
+          "dependsOn": [],
+          "checkIds": [
+            "s8-liveness-unit"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/client/configuration.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/protocol/negotiate.rs",
+              "symbol": "HandshakeResponse"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/communication/stateful.rs",
+              "symbol": "is_trackable"
+            }
+          ]
+        },
+        {
+          "id": "S8.T2",
+          "title": "Native liveness and service liveness fixtures",
+          "descriptionMarkdown": "Drive Pings from the writer and server-timeout detection from the receiver, bound and validate the native handshake, add `KeepAliveHub`, `SilentHub` and `/silent-handshake`, and the three native scenarios with catalog entries.",
+          "criterionIds": [
+            "R8.C3"
+          ],
+          "designIds": [
+            "D12",
+            "D4",
+            "D2"
+          ],
+          "dependsOn": [
+            "S8.T1"
+          ],
+          "checkIds": [
+            "s8-native-liveness"
+          ],
+          "supportingCriterionIds": [
+            "R8.C4"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/communication/client_tokio.rs",
+              "symbol": "CommunicationClient::connect_to_server"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "dotnet/SignalRTestService/Program.cs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "dotnet/SignalRTestService/TestHub.cs"
+            }
+          ]
+        },
+        {
+          "id": "S8.T3",
+          "title": "Browser liveness",
+          "descriptionMarkdown": "Add the per-socket liveness task and the bounded/validated browser handshake, plus fixture exports and Playwright tests for the three scenarios.",
+          "criterionIds": [
+            "R8.C4"
+          ],
+          "designIds": [
+            "D12",
+            "D3"
+          ],
+          "dependsOn": [
+            "S8.T1",
+            "S8.T2"
+          ],
+          "checkIds": [
+            "s8-chromium-liveness"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/communication/client_wasm.rs",
+              "symbol": "CommunicationClient"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "tests/wasm-fixture/src/lib.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "S9",
+      "title": "Application lifecycle controls",
+      "dependsOn": [
+        "S8"
+      ],
+      "tasks": [
+        {
+          "id": "S9.T1",
+          "title": "Paused lifecycle, status and DefaultRetryPolicy",
+          "descriptionMarkdown": "Extend both lifecycle coordinators with `Paused`, add public `ConnectionStatus` and `SignalRClient::status()`, add `DefaultRetryPolicy`, and the `lifecycle_controls` tests.",
+          "criterionIds": [
+            "R9.C1",
+            "R9.C4"
+          ],
+          "designIds": [
+            "D13"
+          ],
+          "dependsOn": [],
+          "checkIds": [
+            "s9-lifecycle-unit"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/communication/reconnection.rs",
+              "symbol": "ReconnectCoordinator"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/communication/client_wasm.rs",
+              "symbol": "LifecycleState"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/client/client.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/lib.rs"
+            }
+          ]
+        },
+        {
+          "id": "S9.T2",
+          "title": "Native pause and resume",
+          "descriptionMarkdown": "Implement native `pause`/`resume` on the runtime handle and add the `pause-resume` and `pause-resume-stateful` scenarios with catalog entries.",
+          "criterionIds": [
+            "R9.C2"
+          ],
+          "designIds": [
+            "D13",
+            "D2"
+          ],
+          "dependsOn": [
+            "S9.T1"
+          ],
+          "checkIds": [
+            "s9-native-lifecycle"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/communication/client_tokio.rs",
+              "symbol": "ClientDisconnectionHandler"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/client/client.rs"
+            }
+          ]
+        },
+        {
+          "id": "S9.T3",
+          "title": "Browser pause and resume",
+          "descriptionMarkdown": "Implement browser `pause`/`resume`, fixture exports and Playwright tests for both scenarios.",
+          "criterionIds": [
+            "R9.C3"
+          ],
+          "designIds": [
+            "D13",
+            "D3"
+          ],
+          "dependsOn": [
+            "S9.T1"
+          ],
+          "checkIds": [
+            "s9-chromium-lifecycle"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/communication/client_wasm.rs",
+              "symbol": "WasmReconnectionContext"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "tests/wasm-fixture/src/lib.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "S10",
+      "title": "Every target in CI, and consumer documentation",
+      "dependsOn": [
+        "S9"
+      ],
+      "memoryScopes": [
+        "interop-validation",
+        "interop-validation/rust-tests",
+        "interop-validation/dotnet-test-service",
+        "repository-governance/quality-gates"
+      ],
+      "tasks": [
+        {
+          "id": "S10.T1",
+          "title": "Firefox and WebKit targets",
+          "descriptionMarkdown": "Add Playwright `firefox` and `webkit` projects and runner targets; fix engine-specific failures; record any documented engine limitation as a catalog exclusion with its reason.",
+          "criterionIds": [
+            "R10.C1"
+          ],
+          "designIds": [
+            "D3",
+            "D2"
+          ],
+          "dependsOn": [],
+          "checkIds": [
+            "s10-firefox-webkit"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "tools-node/playwright.config.ts"
+            }
+          ]
+        },
+        {
+          "id": "S10.T2",
+          "title": "Android emulator target",
+          "descriptionMarkdown": "Add the Android runner (`cargo ndk` build, `adb` push/run, `10.0.2.2` endpoint rewrite, base64 CA, bounds, logcat diagnostics) and make every native-capable scenario pass on the x86_64 emulator.",
+          "criterionIds": [
+            "R10.C2"
+          ],
+          "designIds": [
+            "D14",
+            "D2"
+          ],
+          "dependsOn": [],
+          "checkIds": [
+            "s10-android",
+            "s10-mobile-runner-unit"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "Cargo.toml"
+            }
+          ]
+        },
+        {
+          "id": "S10.T3",
+          "title": "iOS simulator target",
+          "descriptionMarkdown": "Add the iOS simulator runner (`aarch64-apple-ios-sim` build, `xcrun simctl` boot/spawn, `SIMCTL_CHILD_*` environment, bounds, diagnostics); it is proven by the CI `e2e / ios` job.",
+          "criterionIds": [
+            "R10.C3"
+          ],
+          "designIds": [
+            "D14",
+            "D2"
+          ],
+          "dependsOn": [],
+          "checkIds": [
+            "s10-mobile-runner-unit",
+            "s10-socket-unit"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "Cargo.toml"
+            }
+          ]
+        },
+        {
+          "id": "S10.T4",
+          "title": "All-target CI matrix",
+          "descriptionMarkdown": "Add the Firefox/WebKit, Android-emulator and iOS-simulator e2e jobs and the Android/iOS/threaded-WASM/Platform quality jobs, extend the `WorkflowContract` category, push the epic branch and record a green run (R10.C3 and R10.C5 evidence) in the sprint review.",
+          "criterionIds": [
+            "R10.C4",
+            "R10.C5"
+          ],
+          "designIds": [
+            "D15",
+            "D5"
+          ],
+          "dependsOn": [
+            "S10.T1",
+            "S10.T2",
+            "S10.T3"
+          ],
+          "checkIds": [
+            "s10-workflow-contract"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": ".github/workflows/quality.yml"
+            }
+          ]
+        },
+        {
+          "id": "S10.T5",
+          "title": "Consumer and contributor documentation",
+          "descriptionMarkdown": "Write README's 'Platform support' and 'Testing with Aspire' sections, update `FORK.md` and the RayX.SignalR skill, and document the RayX.GameX conformance-gate replacement command.",
+          "criterionIds": [
+            "R10.C6"
+          ],
+          "designIds": [
+            "D16"
+          ],
+          "dependsOn": [
+            "S10.T4"
+          ],
+          "checkIds": [],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "README.md"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "FORK.md"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": ".codex/skills/rayx-signalr/SKILL.md"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "S11",
+      "title": "Final review repairs",
+      "dependsOn": [
+        "S10"
+      ],
+      "memoryScopes": [
+        "rayx-signalr:client-runtime/connection-lifecycle",
+        "rayx-signalr:client-runtime/transport",
+        "rayx-signalr:interop-validation",
+        "rayx-signalr:repository-governance/quality-gates"
+      ],
+      "tasks": [
+        {
+          "id": "S11.T1",
+          "title": "Native lifecycle and connection-setup repairs",
+          "descriptionMarkdown": "Final-review findings EPIC-F2..F4: native manual `reconnect_with_policy` ends the logical connection when it gives up; `disconnect` is terminal in every state and a policy run stops when every client handle is dropped (no strong state reference across network I/O); native negotiate and WebSocket setup are bounded by the browser's 15 s socket-open bound. New `native_connection_runs` and `connection_setup_bounds` test groups.",
+          "criterionIds": [],
+          "supportingCriterionIds": [
+            "R9.C1",
+            "R8.C1"
+          ],
+          "designIds": [
+            "D13",
+            "D12",
+            "D10"
+          ],
+          "dependsOn": [],
+          "checkIds": [
+            "s11-native-runs-unit"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/communication/client_tokio.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/communication/negotiate_http.rs"
+            }
+          ]
+        },
+        {
+          "id": "S11.T2",
+          "title": "Harness, documentation and memory repairs",
+          "descriptionMarkdown": "Final-review findings EPIC-F1, F5..F11: correct Android platform-verifier setup docs; e2e binaries use the default TLS features (ring); TLS key outside uploaded diagnostics; documented iOS harness workarounds and browser Basic-auth caveat; doc accuracy; stale memory; per-job quality workflow contract, compiler errors in build failures, JSON accessToken redaction and iOS cleanup. Tests in `MobileRunnerTests` and `WorkflowContract`.",
+          "criterionIds": [],
+          "supportingCriterionIds": [
+            "R10.C3",
+            "R10.C4",
+            "R10.C6"
+          ],
+          "designIds": [
+            "D14",
+            "D15",
+            "D16"
+          ],
+          "dependsOn": [],
+          "checkIds": [
+            "s11-harness-unit"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "dotnet/RayX.SignalR.E2E.Tests/Scenarios/MobileCellRunners.cs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "README.md"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

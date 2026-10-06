@@ -67,12 +67,11 @@ impl NegotiateResponse {
         }
     }
 
-    /// The query string to append to the transport URL (`?id=<token>`).
-    /// V0 uses `connection_id`; V1 uses `connection_token`.
-    pub fn endpoint_query(&self) -> String {
+    /// The id the transport connects with: the v1 connection token, else the v0 connection id.
+    pub fn transport_id(&self) -> &str {
         match self {
-            NegotiateResponse::V0(v) => format!("?id={}", v.connection_id),
-            NegotiateResponse::V1(v) => format!("?id={}", v.connection_token),
+            NegotiateResponse::V0(v) => &v.connection_id,
+            NegotiateResponse::V1(v) => &v.connection_token,
         }
     }
 
@@ -122,13 +121,27 @@ impl HandshakeRequest {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 /// Sent by the server as an acknowledgment of the previous `HandshakeRequest` message. Contains an error if the handshake failed.
 pub struct HandshakeResponse {
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     error: Option<String>,
+    /// Present only when the server sent a hub message instead of a handshake response.
+    #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
+    message_type: Option<serde_json::Value>,
+}
+
+impl HandshakeResponse {
+    /// The server's handshake error, if it rejected the handshake.
+    pub fn error(&self) -> Option<&str> {
+        self.error.as_deref()
+    }
+
+    /// Whether the record is a hub message (it has a `type`) rather than a handshake response.
+    pub fn is_hub_message(&self) -> bool {
+        self.message_type.is_some()
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]

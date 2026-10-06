@@ -4,7 +4,7 @@ agentx:
   scope: client-runtime/transport
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-08-10T03:15:00+02:00"
+  updated: "2026-10-06T08:00:00+02:00"
   topics:
     - negotiation
     - authentication
@@ -13,7 +13,7 @@ agentx:
 ---
 # Knowledge
 
-- Negotiate uses Basic or Bearer authorization headers through `ehttp`.
+- Negotiate sends Basic or Bearer authorization headers (hyper natively, `gloo-net` fetch in browsers).
 - The negotiated endpoint appends a Bearer `access_token` query parameter because browser WebSocket APIs cannot set custom headers.
 - Only the WebSockets transport is accepted; transfer format must match JSON text or MessagePack binary.
 - Ordinary reconnect negotiates a new connection token and handshakes once; stateful resume opens a replacement WebSocket with the existing token and sends no second handshake.

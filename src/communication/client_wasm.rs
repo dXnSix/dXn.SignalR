@@ -1,13 +1,25 @@
+//! Browser transport: one event-driven WebSocket per physical connection.
+//!
+//! Each socket has a receiver task that processes frames as they arrive; nothing polls on an
+//! interval, no closure is leaked, and timers are `gloo-timers` futures that are cancelled when
+//! dropped. Nothing touches `window`, so the client
+//! runs on the main thread, in Web Workers and in threaded (atomics) builds. The client is
+//! `!Send`: use one client per thread or worker.
+
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
     time::Duration,
 };
 
-use log::{debug, error, info, warn};
-use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
+use futures::{
+    channel::mpsc,
+    future::{select, Either},
+    StreamExt,
+};
+use gloo_timers::future::TimeoutFuture;
+use log::{error, info, warn};
 use wasm_bindgen_futures::spawn_local;
-use wasm_sockets::{ConnectionStatus, PollingClient};
 
 use crate::{
     client::ConnectionRecipe,
@@ -15,193 +27,775 @@ use crate::{
     protocol::{
         hub_protocol::{HubProtocolKind, MessagePayload},
         messages::{MessageParser, RECORD_SEPARATOR},
-        negotiate::{HandshakeRequest, HandshakeResponse, MessageType, Ping},
+        negotiate::{HandshakeRequest, MessageType, Ping},
         stateful::{Ack, Sequence},
     },
 };
 
 use super::{
+    browser_socket::{BrowserSocket, SocketEvent},
     common::Communication,
-    reconnection::ReconnectionConfig,
+    liveness::{
+        parse_handshake_response, ping_frame, LivenessAction, LivenessConfig, LivenessTracker,
+    },
+    reconnection::{
+        ConnectionStatus, FirstAttempt, Lifecycle, LifecycleState, PauseOutcome,
+        ReconnectionConfig, ResumeOutcome,
+    },
     stateful::{SerializedFrame, StatefulMessageBuffer, TrackResult},
     HttpClient,
 };
 
 type SharedStatefulBuffer = Rc<RefCell<StatefulMessageBuffer>>;
+type SocketEvents = mpsc::UnboundedReceiver<SocketEvent>;
 
-#[wasm_bindgen]
-extern "C" {
-    #[wasm_bindgen(js_namespace = globalThis, js_name = setInterval)]
-    fn set_interval(closure: &wasm_bindgen::prelude::Closure<dyn Fn()>, time: u32) -> f64;
-    #[wasm_bindgen(js_namespace = globalThis, js_name = clearInterval)]
-    fn clear_interval(token: f64);
-    #[wasm_bindgen(js_namespace = Date, js_name = now)]
-    fn date_now() -> f64;
-    #[wasm_bindgen(js_namespace = globalThis, js_name = setTimeout)]
-    fn set_timeout(closure: &wasm_bindgen::prelude::Closure<dyn FnMut()>, time: u32) -> f64;
+/// One outbound WebSocket frame.
+enum Frame {
+    Text(String),
+    #[cfg_attr(not(feature = "messagepack"), allow(dead_code))]
+    Binary(Vec<u8>),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum LifecycleState {
-    Connected,
-    Reconnecting,
-    Disconnected,
-    LocalClosed,
+impl From<SerializedFrame> for Frame {
+    fn from(frame: SerializedFrame) -> Self {
+        match frame {
+            SerializedFrame::Text(text) => Frame::Text(text),
+            #[cfg(feature = "messagepack")]
+            SerializedFrame::Binary(bytes) => Frame::Binary(bytes),
+        }
+    }
 }
 
+/// Milliseconds on the monotonic `performance.now()` clock, available in windows and workers
+/// alike; liveness deadlines must not move when the wall clock is adjusted.
+fn now_ms() -> u64 {
+    let now = js_sys::Reflect::get(&js_sys::global(), &"performance".into())
+        .ok()
+        .and_then(|performance| {
+            let now = js_sys::Reflect::get(&performance, &"now".into()).ok()?;
+            wasm_bindgen::JsCast::dyn_into::<js_sys::Function>(now)
+                .ok()?
+                .call0(&performance)
+                .ok()?
+                .as_f64()
+        })
+        .unwrap_or_else(js_sys::Date::now);
+    now.max(0.0) as u64
+}
+
+/// A connected browser socket and its liveness tracker: every frame sent through it postpones
+/// the next keep-alive Ping, and its receiver task records every frame received.
+struct LiveSocket {
+    socket: BrowserSocket,
+    liveness: RefCell<LivenessTracker>,
+}
+
+impl LiveSocket {
+    fn new(socket: BrowserSocket, config: &LivenessConfig) -> Self {
+        Self {
+            socket,
+            liveness: RefCell::new(LivenessTracker::new(config, now_ms())),
+        }
+    }
+
+    fn send(&self, frame: &Frame) -> Result<(), String> {
+        let result = match frame {
+            Frame::Text(text) => self.socket.send_text(text),
+            Frame::Binary(bytes) => self.socket.send_binary(bytes),
+        };
+        if result.is_ok() {
+            self.liveness.borrow_mut().on_sent(now_ms());
+        }
+        result
+    }
+
+    fn close(&self) {
+        self.socket.close();
+    }
+}
+
+/// A socket ready to install: its events and any hub messages from the handshake frame.
+struct Opened {
+    socket: Rc<LiveSocket>,
+    events: SocketEvents,
+    pending: Option<Frame>,
+}
 type DisconnectionCallback = dyn Fn(WasmReconnectionContext);
+
+/// How long opening a socket may take (the handshake has its own configurable timeout).
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// The current physical socket.
+struct Socket {
+    socket: Rc<LiveSocket>,
+}
+
+/// State shared by every clone of a client, its socket tasks and its reconnect contexts.
+struct Shared {
+    socket: RefCell<Option<Socket>>,
+    storage: UpdatableActionStorage,
+    recipe: ConnectionRecipe,
+    /// The negotiated transport URL a stateful resume reconnects to.
+    transport_endpoint: RefCell<String>,
+    protocol_kind: HubProtocolKind,
+    stateful: Option<SharedStatefulBuffer>,
+    reconnection_config: RefCell<ReconnectionConfig>,
+    disconnection_handler: RefCell<Option<Rc<DisconnectionCallback>>>,
+    /// The shared lifecycle machine. A socket belongs to the generation that installed it; its
+    /// events are ignored once the lifecycle moved on, so a stale attempt never replaces a newer
+    /// connection.
+    lifecycle: Cell<Lifecycle>,
+}
+
+impl Shared {
+    fn lifecycle<R>(&self, change: impl FnOnce(&mut Lifecycle) -> R) -> R {
+        let mut lifecycle = self.lifecycle.get();
+        let result = change(&mut lifecycle);
+        self.lifecycle.set(lifecycle);
+        result
+    }
+
+    fn state(&self) -> LifecycleState {
+        self.lifecycle.get().state()
+    }
+
+    fn owns(&self, generation: u64) -> bool {
+        self.lifecycle.get().owns(generation)
+    }
+
+    fn superseded(&self) -> String {
+        self.lifecycle.get().superseded_reason().to_string()
+    }
+
+    /// Fails ordinary pending work; stateful pending work waits for the resume.
+    fn fail_ordinary_pending(&self, reason: &str) {
+        if self.stateful.is_none() {
+            let mut storage = self.storage.clone();
+            storage.fail_pending(reason);
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct WasmReconnectionContext {
-    client: Rc<RefCell<Option<Rc<RefCell<PollingClient>>>>>,
-    storage: UpdatableActionStorage,
-    recipe: ConnectionRecipe,
-    transport_endpoint: String,
-    protocol_kind: HubProtocolKind,
-    stateful: Option<SharedStatefulBuffer>,
-    reconnection_config: Rc<RefCell<ReconnectionConfig>>,
-    lifecycle: Rc<Cell<LifecycleState>>,
-    attempt_in_progress: Rc<Cell<bool>>,
-    generation: Rc<Cell<u64>>,
+    shared: Rc<Shared>,
+    server_allows_reconnect: bool,
 }
 
 impl WasmReconnectionContext {
-    pub async fn reconnect(&self) -> Result<(), String> {
-        if self.attempt_in_progress.replace(true) {
-            return Err("A reconnect attempt is already running".to_string());
-        }
+    /// Whether the server allowed reconnecting; `false` after a Close without permission.
+    pub fn server_allows_reconnect(&self) -> bool {
+        self.server_allows_reconnect
+    }
 
-        self.lifecycle.set(LifecycleState::Reconnecting);
-        if self.stateful.is_none() {
-            let mut storage = self.storage.clone();
-            storage.fail_pending("The connection was replaced by a fresh logical reconnect");
+    fn refuse_terminal_close(&self) -> Result<(), String> {
+        if self.server_allows_reconnect {
+            Ok(())
+        } else {
+            Err("The server closed the connection without allowing reconnect".to_string())
         }
-        let result = self.connect_current().await;
-        self.finish_attempt(&result);
+    }
+
+    pub async fn reconnect(&self) -> Result<(), String> {
+        self.refuse_terminal_close()?;
+        let generation = begin_reconnect(&self.shared)?;
+        let result = attempt(&self.shared, generation).await;
+        if result.is_err() {
+            self.shared
+                .lifecycle(|lifecycle| lifecycle.fail(generation));
+        }
         result
     }
 
     pub async fn reconnect_with_policy(&self) -> Result<(), String> {
-        if self.attempt_in_progress.replace(true) {
-            return Err("A reconnect attempt is already running".to_string());
-        }
-
-        self.lifecycle.set(LifecycleState::Reconnecting);
-        if self.stateful.is_none() {
-            let mut storage = self.storage.clone();
-            storage.fail_pending("The connection was replaced by a fresh logical reconnect");
-        }
-
-        let started = date_now();
-        let mut retry_count = 0;
-        let result = loop {
-            if self.lifecycle.get() == LifecycleState::LocalClosed {
-                break Err("Client was locally disconnected".to_string());
-            }
-
-            let delay = self
-                .reconnection_config
-                .borrow()
-                .policy
-                .next_retry_delay(retry_count, (date_now() - started).max(0.0) as u64);
-            let Some(delay) = delay else {
-                break Err("Reconnection attempts exhausted".to_string());
-            };
-
-            CommunicationClient::sleep(delay).await?;
-            if self.lifecycle.get() == LifecycleState::LocalClosed {
-                break Err("Client was locally disconnected".to_string());
-            }
-
-            match self.connect_current().await {
-                Ok(()) => break Ok(()),
-                Err(error) => {
-                    warn!(
-                        "WASM reconnect attempt {} failed: {}",
-                        retry_count + 1,
-                        error
-                    );
-                    retry_count += 1;
-                }
-            }
-        };
-
-        if let Err(error) = &result {
-            if let Some(buffer) = &self.stateful {
-                buffer.borrow_mut().dispose();
-            }
-            let mut storage = self.storage.clone();
-            storage.fail_pending(error);
-        }
-        self.finish_attempt(&result);
-        result
+        self.refuse_terminal_close()?;
+        let generation = begin_reconnect(&self.shared)?;
+        run_policy_to_end(&self.shared, generation, FirstAttempt::WithoutDelay).await
     }
 
     pub async fn is_connected(&self) -> bool {
-        self.lifecycle.get() == LifecycleState::Connected
+        self.shared.state() == LifecycleState::Connected
     }
 
     pub fn endpoint(&self) -> String {
-        self.recipe.display_endpoint()
+        self.shared.recipe.display_endpoint()
     }
+}
 
-    async fn connect_current(&self) -> Result<(), String> {
-        let generation = self.generation.get().wrapping_add(1);
-        self.generation.set(generation);
-        let client = if let Some(buffer) = &self.stateful {
-            CommunicationClient::resume_to_server(
-                self.transport_endpoint.clone(),
-                self.protocol_kind,
-                buffer.clone(),
+/// Begins a reconnect generation and fails ordinary pending work, which can never complete on a
+/// new logical connection.
+fn begin_reconnect(shared: &Shared) -> Result<u64, String> {
+    let generation = shared.lifecycle(Lifecycle::begin).map_err(str::to_string)?;
+    shared.fail_ordinary_pending("The connection was replaced by a fresh logical reconnect");
+    Ok(generation)
+}
+
+/// One connect attempt of `generation`: a stateful resume, or a fresh negotiation and handshake.
+/// The socket is installed only if the generation still runs.
+async fn attempt(shared: &Rc<Shared>, generation: u64) -> Result<(), String> {
+    let liveness = shared.recipe.liveness();
+    // A disposed buffer means the stateful logical connection ended (a pause: browsers cannot
+    // drop a socket without the closing handshake, after which the server disposes it; or a
+    // terminal close or exhausted attempts): negotiate a fresh one instead of resuming.
+    let resume = shared
+        .stateful
+        .as_ref()
+        .filter(|buffer| !buffer.borrow().is_disposed());
+    let (opened, fresh_stateful) = if let Some(buffer) = resume {
+        let endpoint = shared.transport_endpoint.borrow().clone();
+        let opened = resume_socket(&endpoint, shared.protocol_kind, buffer, &liveness).await?;
+        (opened, None)
+    } else {
+        let configuration = HttpClient::negotiate(&shared.recipe).await?;
+        let stateful = configuration.stateful_reconnect();
+        let opened = open_socket(
+            &configuration.get_endpoint(),
+            shared.protocol_kind,
+            stateful.is_some(),
+            &liveness,
+        )
+        .await?;
+        (opened, stateful.map(|_| configuration.get_endpoint()))
+    };
+
+    if !shared.lifecycle(|lifecycle| lifecycle.complete(generation)) {
+        opened.socket.close();
+        return Err(shared.superseded());
+    }
+    // A fresh stateful logical connection starts with a fresh replay buffer.
+    if let (Some(buffer), Some(endpoint)) = (&shared.stateful, fresh_stateful) {
+        buffer.borrow_mut().renew();
+        shared.transport_endpoint.replace(endpoint);
+    }
+    install(shared, opened, generation);
+    info!("WASM reconnect completed");
+    Ok(())
+}
+
+/// Attempts until one succeeds, the policy gives up, or the generation is superseded (by
+/// `pause` or a local close).
+async fn run_policy(
+    shared: &Rc<Shared>,
+    generation: u64,
+    first: FirstAttempt,
+) -> Result<(), String> {
+    let started = now_ms();
+    let mut retry_count = 0;
+    loop {
+        if !shared.owns(generation) {
+            return Err(shared.superseded());
+        }
+        let delay = {
+            let config = shared.reconnection_config.borrow();
+            first.delay(
+                config.policy.as_ref(),
+                retry_count,
+                now_ms().saturating_sub(started),
             )
-            .await?
-        } else {
-            let configuration = HttpClient::negotiate(&self.recipe).await?;
-            CommunicationClient::connect_physical(
-                configuration.get_endpoint(),
-                self.protocol_kind,
-                false,
-            )
-            .await?
         };
-
-        if self.lifecycle.get() == LifecycleState::LocalClosed {
-            let _ = client.borrow().close();
-            return Err("Client was locally disconnected".to_string());
+        let Some(delay) = delay else {
+            return Err("Reconnection attempts exhausted".to_string());
+        };
+        if !delay.is_zero() {
+            sleep(delay).await;
         }
-        if self.generation.get() != generation {
-            let _ = client.borrow().close();
-            return Err("Stale reconnect generation was discarded".to_string());
+        if !shared.owns(generation) {
+            return Err(shared.superseded());
         }
-
-        self.client.replace(Some(client));
-        self.lifecycle.set(LifecycleState::Connected);
-        info!("WASM fresh logical reconnect completed");
-        Ok(())
-    }
-
-    fn finish_attempt(&self, result: &Result<(), String>) {
-        self.attempt_in_progress.set(false);
-        if result.is_err() && self.lifecycle.get() != LifecycleState::LocalClosed {
-            self.lifecycle.set(LifecycleState::Disconnected);
+        match attempt(shared, generation).await {
+            Ok(()) => return Ok(()),
+            Err(error) if !shared.owns(generation) => return Err(error),
+            Err(error) => {
+                warn!(
+                    "WASM reconnect attempt {} failed: {}",
+                    retry_count + 1,
+                    error
+                );
+                retry_count += 1;
+            }
         }
     }
 }
 
-pub struct CommunicationClient {
-    client: Rc<RefCell<Option<Rc<RefCell<PollingClient>>>>>,
-    storage: UpdatableActionStorage,
-    recipe: ConnectionRecipe,
-    transport_endpoint: String,
+/// A policy run that gives up while it still owns its generation disposes the stateful buffer
+/// and fails pending work.
+async fn run_policy_to_end(
+    shared: &Rc<Shared>,
+    generation: u64,
+    first: FirstAttempt,
+) -> Result<(), String> {
+    let result = run_policy(shared, generation, first).await;
+    if let Err(error) = &result {
+        if shared.lifecycle(|lifecycle| lifecycle.fail(generation)) {
+            if let Some(buffer) = &shared.stateful {
+                // A later resume can only start a fresh logical connection.
+                buffer.borrow_mut().dispose();
+            }
+            let mut storage = shared.storage.clone();
+            storage.fail_pending(error);
+        }
+    }
+    result
+}
+
+/// A cancellable browser timer: dropping the future clears the timeout.
+async fn sleep(delay: Duration) {
+    TimeoutFuture::new(delay.as_millis().min(u128::from(u32::MAX)) as u32).await;
+}
+
+/// Runs `future` with a timeout; dropping either side cancels it.
+async fn with_timeout<T>(
+    operation: &str,
+    timeout: Duration,
+    future: impl std::future::Future<Output = Result<T, String>>,
+) -> Result<T, String> {
+    let future = std::pin::pin!(future);
+    let timer = std::pin::pin!(sleep(timeout));
+    match select(future, timer).await {
+        Either::Left((result, _)) => result,
+        Either::Right(((), _)) => Err(format!("{operation} timed out")),
+    }
+}
+
+/// Opens a WebSocket and waits until it is open (the URL is never repeated in errors because it
+/// can carry a token).
+async fn open(endpoint: &str) -> Result<(BrowserSocket, SocketEvents), String> {
+    info!(
+        "Connecting WASM transport to {}",
+        endpoint.split('?').next().unwrap_or(endpoint)
+    );
+    let (socket, mut events) = BrowserSocket::open(endpoint)?;
+    match events.next().await {
+        Some(SocketEvent::Open) => Ok((socket, events)),
+        _ => Err("The WebSocket connection failed".to_string()),
+    }
+}
+
+/// Opens a socket and completes the SignalR handshake within the handshake timeout. The
+/// response is JSON (in a binary frame for MessagePack); hub messages after it in the same frame
+/// are kept for the receiver.
+async fn open_socket(
+    endpoint: &str,
     protocol_kind: HubProtocolKind,
-    stateful: Option<SharedStatefulBuffer>,
-    reconnection_config: Rc<RefCell<ReconnectionConfig>>,
-    disconnection_handler: Rc<RefCell<Option<Rc<DisconnectionCallback>>>>,
-    lifecycle: Rc<Cell<LifecycleState>>,
-    attempt_in_progress: Rc<Cell<bool>>,
-    generation: Rc<Cell<u64>>,
-    interval_token: Rc<Cell<Option<f64>>>,
-    poll_closure: Rc<RefCell<Option<wasm_bindgen::prelude::Closure<dyn Fn()>>>>,
+    stateful_reconnect: bool,
+    liveness: &LivenessConfig,
+) -> Result<Opened, String> {
+    let handshake = if stateful_reconnect {
+        MessageParser::to_json(&serde_json::json!({
+            "protocol": protocol_kind.protocol_name(),
+            "version": 2,
+        }))
+    } else {
+        MessageParser::to_json(&HandshakeRequest::new(protocol_kind.protocol_name()))
+    }
+    .map_err(|error| format!("Cannot serialize handshake: {error}"))?;
+
+    let (socket, mut events) =
+        with_timeout("Opening the WebSocket", CONNECT_TIMEOUT, open(endpoint)).await?;
+    socket.send_text(&handshake)?;
+    let response = with_timeout("SignalR handshake", liveness.handshake_timeout, async {
+        loop {
+            match events.next().await {
+                Some(SocketEvent::Text(text)) => return Ok(Frame::Text(text)),
+                Some(SocketEvent::Binary(bytes)) => return Ok(Frame::Binary(bytes)),
+                Some(SocketEvent::Open) => continue,
+                Some(SocketEvent::Closed) | None => return Err(
+                    "SignalR handshake failed: the connection closed before the server answered"
+                        .to_string(),
+                ),
+            }
+        }
+    })
+    .await?;
+    let pending = match &response {
+        Frame::Text(text) => {
+            let remainder = parse_handshake_response(text.as_bytes())?;
+            (!remainder.is_empty())
+                .then(|| Frame::Text(String::from_utf8_lossy(remainder).into_owned()))
+        }
+        Frame::Binary(bytes) => {
+            let remainder = parse_handshake_response(bytes)?;
+            (!remainder.is_empty()).then(|| Frame::Binary(remainder.to_vec()))
+        }
+    };
+    Ok(Opened {
+        socket: Rc::new(LiveSocket::new(socket, liveness)),
+        events,
+        pending,
+    })
+}
+
+/// Opens a socket for a stateful resume: Sequence, then the buffered frames, without a handshake.
+async fn resume_socket(
+    endpoint: &str,
+    protocol_kind: HubProtocolKind,
+    buffer: &SharedStatefulBuffer,
+    liveness: &LivenessConfig,
+) -> Result<Opened, String> {
+    let (socket, events) =
+        with_timeout("The stateful resume", CONNECT_TIMEOUT, open(endpoint)).await?;
+    let (sequence_id, frames) = buffer.borrow_mut().begin_resend()?;
+    let resend = (|| {
+        let sequence = match protocol_kind {
+            HubProtocolKind::Json => Frame::Text(
+                MessageParser::to_json(&Sequence::new(sequence_id))
+                    .map_err(|error| error.to_string())?,
+            ),
+            #[cfg(feature = "messagepack")]
+            HubProtocolKind::MessagePack => {
+                Frame::Binary(crate::protocol::stateful::encode_messagepack_control(
+                    MessageType::Sequence,
+                    sequence_id,
+                )?)
+            }
+        };
+        match &sequence {
+            Frame::Text(text) => socket.send_text(text)?,
+            Frame::Binary(bytes) => socket.send_binary(bytes)?,
+        }
+        for frame in frames {
+            match frame.payload {
+                SerializedFrame::Text(text) => socket.send_text(&text)?,
+                #[cfg(feature = "messagepack")]
+                SerializedFrame::Binary(binary) => socket.send_binary(&binary)?,
+            }
+        }
+        Ok::<(), String>(())
+    })();
+    buffer.borrow_mut().finish_resend()?;
+    resend?;
+    Ok(Opened {
+        socket: Rc::new(LiveSocket::new(socket, liveness)),
+        events,
+        pending: None,
+    })
+}
+
+/// Makes a connected socket of `generation` current and spawns its receiver task.
+fn install(shared: &Rc<Shared>, opened: Opened, generation: u64) {
+    spawn_local(run_receiver(
+        Rc::downgrade(shared),
+        generation,
+        opened.events,
+        opened.socket.clone(),
+        opened.pending,
+        Frame::from(ping_frame(shared.protocol_kind)),
+    ));
+    if let Some(previous) = shared.socket.replace(Some(Socket {
+        socket: opened.socket,
+    })) {
+        previous.socket.close();
+    }
+}
+
+/// The socket's single task: processes frames as they arrive (first any from the handshake
+/// frame), sends a keep-alive Ping when nothing went out for the keep-alive interval, treats
+/// silence for the server timeout as a dropped transport, and reports the end of the socket to
+/// the lifecycle. Its timer is dropped with the task when the socket ends.
+async fn run_receiver(
+    shared: std::rc::Weak<Shared>,
+    generation: u64,
+    mut events: SocketEvents,
+    socket: Rc<LiveSocket>,
+    mut pending: Option<Frame>,
+    ping: Frame,
+) {
+    let mut allow_reconnect = true;
+    loop {
+        let frame = match pending.take() {
+            Some(frame) => frame,
+            None => {
+                let action = socket.liveness.borrow().poll(now_ms());
+                let next_deadline = match action {
+                    LivenessAction::SendPing => {
+                        if socket.send(&ping).is_err() {
+                            break;
+                        }
+                        continue;
+                    }
+                    LivenessAction::TimedOut => {
+                        warn!(
+                            "No message from the server within the server timeout; \
+                             the connection is considered lost"
+                        );
+                        break;
+                    }
+                    LivenessAction::Idle { next_deadline } => next_deadline,
+                };
+                let wait = Duration::from_millis(next_deadline.saturating_sub(now_ms()));
+                let event = {
+                    let timer = std::pin::pin!(sleep(wait));
+                    match select(events.next(), timer).await {
+                        Either::Left((event, _)) => event,
+                        Either::Right(((), _)) => continue,
+                    }
+                };
+                match event {
+                    Some(SocketEvent::Text(text)) => Frame::Text(text),
+                    Some(SocketEvent::Binary(bytes)) => Frame::Binary(bytes),
+                    Some(SocketEvent::Open) => continue,
+                    Some(SocketEvent::Closed) | None => break,
+                }
+            }
+        };
+        socket.liveness.borrow_mut().on_received(now_ms());
+        let Some(state) = shared.upgrade() else {
+            return;
+        };
+        if state.lifecycle.get().generation() != generation {
+            return;
+        }
+        if let Some(allow) = process_frame(&state, frame, &socket) {
+            allow_reconnect = allow;
+            break;
+        }
+    }
+    socket.close();
+    if let Some(state) = shared.upgrade() {
+        socket_closed(&state, generation, allow_reconnect);
+    }
+}
+
+/// Reacts to the end of the current socket: terminal close, manual handler or automatic policy.
+fn socket_closed(shared: &Rc<Shared>, generation: u64, allow_reconnect: bool) {
+    let lifecycle = shared.lifecycle.get();
+    if lifecycle.generation() != generation || lifecycle.state() != LifecycleState::Connected {
+        return;
+    }
+    shared.socket.replace(None);
+    if !allow_reconnect {
+        terminal_close(shared);
+        return;
+    }
+
+    if let Some(buffer) = &shared.stateful {
+        if let Err(error) = buffer.borrow_mut().disconnected() {
+            error!("Cannot enter WASM stateful resume: {}", error);
+            shared.lifecycle(Lifecycle::transport_lost);
+            let mut storage = shared.storage.clone();
+            storage.fail_pending(&error);
+            return;
+        }
+    }
+
+    // Release the handler slot borrow before running user code.
+    let handler = shared.disconnection_handler.borrow().clone();
+    if let Some(handler) = handler {
+        shared.lifecycle(Lifecycle::transport_lost);
+        shared.fail_ordinary_pending("The connection was lost");
+        handler(WasmReconnectionContext {
+            shared: shared.clone(),
+            server_allows_reconnect: true,
+        });
+    } else {
+        let Ok(generation) = begin_reconnect(shared) else {
+            return;
+        };
+        let shared = shared.clone();
+        spawn_local(async move {
+            if let Err(error) =
+                run_policy_to_end(&shared, generation, FirstAttempt::AfterPolicyDelay).await
+            {
+                warn!("WASM automatic reconnect stopped: {}", error);
+            }
+        });
+    }
+}
+
+/// Handles a server Close that forbids reconnecting: fails pending work and notifies a
+/// manual-mode application; nothing reconnects automatically.
+fn terminal_close(shared: &Rc<Shared>) {
+    shared.lifecycle(Lifecycle::remote_close);
+    shared.socket.replace(None);
+    let mut pending = shared.storage.clone();
+    pending.fail_pending("Server closed the connection without allowing reconnect");
+    if let Some(buffer) = &shared.stateful {
+        buffer.borrow_mut().dispose();
+    }
+    let handler = shared.disconnection_handler.borrow().clone();
+    if let Some(handler) = handler {
+        handler(WasmReconnectionContext {
+            shared: shared.clone(),
+            server_allows_reconnect: false,
+        });
+    }
+}
+
+/// Processes one WebSocket frame; returns `Some(allow_reconnect)` when the server closed.
+fn process_frame(shared: &Shared, frame: Frame, socket: &LiveSocket) -> Option<bool> {
+    let mut storage = shared.storage.clone();
+    let stateful = shared.stateful.as_ref();
+    match (shared.protocol_kind, frame) {
+        (HubProtocolKind::Json, Frame::Text(text)) => {
+            for message in text
+                .split(RECORD_SEPARATOR)
+                .map(MessageParser::strip_record_separator)
+                .filter(|message| !message.is_empty())
+            {
+                let message_type = match MessageParser::parse_message::<Ping>(message) {
+                    Ok(parsed) => parsed.message_type(),
+                    Err(error) => {
+                        error!("Message could not be parsed: {}", error);
+                        continue;
+                    }
+                };
+                if let Some(buffer) = stateful {
+                    let control = match message_type {
+                        MessageType::Ack => MessageParser::parse_message::<Ack>(message)
+                            .and_then(|ack| ack.sequence_id())
+                            .and_then(|id| buffer.borrow_mut().acknowledge(id).map(|_| ())),
+                        MessageType::Sequence => MessageParser::parse_message::<Sequence>(message)
+                            .and_then(|sequence| sequence.sequence_id())
+                            .and_then(|id| buffer.borrow_mut().reset_incoming_sequence(id)),
+                        _ => Ok(()),
+                    };
+                    match stateful_step(buffer, message_type, control, shared, socket) {
+                        Step::Process => {}
+                        Step::Skip => continue,
+                        Step::Fail => return Some(false),
+                    }
+                }
+                if let Some(allow) = dispatch(
+                    &mut storage,
+                    MessagePayload::Text(message.to_string()),
+                    message_type,
+                ) {
+                    return Some(allow);
+                }
+            }
+        }
+        #[cfg(feature = "messagepack")]
+        (HubProtocolKind::MessagePack, Frame::Binary(bytes)) => {
+            let messages = match crate::protocol::msgpack::split_framed_messages(&bytes) {
+                Ok(messages) => messages,
+                Err(error) => {
+                    error!("Failed to split MessagePack frames: {}", error);
+                    return None;
+                }
+            };
+            for payload in messages {
+                let message_type = match crate::protocol::msgpack::read_message_type(&payload) {
+                    Ok(message_type) => message_type,
+                    Err(error) => {
+                        error!("Cannot read MessagePack message type: {}", error);
+                        continue;
+                    }
+                };
+                if let Some(buffer) = stateful {
+                    let control = match message_type {
+                        MessageType::Ack | MessageType::Sequence => {
+                            crate::protocol::stateful::decode_messagepack_control(
+                                &payload,
+                                message_type,
+                            )
+                            .and_then(|id| {
+                                if message_type == MessageType::Ack {
+                                    buffer.borrow_mut().acknowledge(id).map(|_| ())
+                                } else {
+                                    buffer.borrow_mut().reset_incoming_sequence(id)
+                                }
+                            })
+                        }
+                        _ => Ok(()),
+                    };
+                    match stateful_step(buffer, message_type, control, shared, socket) {
+                        Step::Process => {}
+                        Step::Skip => continue,
+                        Step::Fail => return Some(false),
+                    }
+                }
+                if let Some(allow) =
+                    dispatch(&mut storage, MessagePayload::Binary(payload), message_type)
+                {
+                    return Some(allow);
+                }
+            }
+        }
+        _ => warn!("Ignoring a WebSocket frame that does not match the hub protocol"),
+    }
+    None
+}
+
+enum Step {
+    Process,
+    Skip,
+    Fail,
+}
+
+/// Applies the stateful Ack/Sequence bookkeeping for one inbound message.
+fn stateful_step(
+    buffer: &SharedStatefulBuffer,
+    message_type: MessageType,
+    control: Result<(), String>,
+    shared: &Shared,
+    socket: &LiveSocket,
+) -> Step {
+    if let Err(error) = control {
+        error!("WASM stateful protocol error: {}", error);
+        return Step::Fail;
+    }
+    if matches!(message_type, MessageType::Ack | MessageType::Sequence) {
+        return Step::Skip;
+    }
+    let should_process = match buffer.borrow_mut().should_process(message_type) {
+        Ok(value) => value,
+        Err(error) => {
+            error!("WASM stateful protocol error: {}", error);
+            return Step::Fail;
+        }
+    };
+    let acknowledgement = match buffer.borrow_mut().take_acknowledgement() {
+        Ok(value) => value,
+        Err(error) => {
+            error!("Cannot prepare WASM stateful Ack: {error}");
+            return Step::Fail;
+        }
+    };
+    if let Some(sequence_id) = acknowledgement {
+        let sent = ack_message(shared.protocol_kind, sequence_id).and_then(|ack| socket.send(&ack));
+        if let Err(error) = sent {
+            error!("Cannot send WASM stateful Ack: {error}");
+            return Step::Fail;
+        }
+    }
+    if should_process {
+        Step::Process
+    } else {
+        Step::Skip
+    }
+}
+
+/// Hands one message to the action storage; returns `Some(allow_reconnect)` for Close.
+fn dispatch(
+    storage: &mut UpdatableActionStorage,
+    payload: MessagePayload,
+    message_type: MessageType,
+) -> Option<bool> {
+    if message_type == MessageType::Close {
+        let allow = super::common::close_allows_reconnect(&payload).unwrap_or(false);
+        let _ = storage.process_message(payload, message_type);
+        return Some(allow);
+    }
+    if let Err(error) = storage.process_message(payload, message_type) {
+        error!("Message could not be processed: {}", error);
+    }
+    None
+}
+
+fn ack_message(protocol_kind: HubProtocolKind, sequence_id: u64) -> Result<Frame, String> {
+    match protocol_kind {
+        HubProtocolKind::Json => Ok(Frame::Text(
+            MessageParser::to_json(&Ack::new(sequence_id)).map_err(|error| error.to_string())?,
+        )),
+        #[cfg(feature = "messagepack")]
+        HubProtocolKind::MessagePack => Ok(Frame::Binary(
+            crate::protocol::stateful::encode_messagepack_control(MessageType::Ack, sequence_id)?,
+        )),
+    }
+}
+
+pub struct CommunicationClient {
+    shared: Rc<Shared>,
     owners: Rc<Cell<usize>>,
 }
 
@@ -209,19 +803,7 @@ impl Clone for CommunicationClient {
     fn clone(&self) -> Self {
         self.owners.set(self.owners.get() + 1);
         Self {
-            client: self.client.clone(),
-            storage: self.storage.clone(),
-            recipe: self.recipe.clone(),
-            transport_endpoint: self.transport_endpoint.clone(),
-            protocol_kind: self.protocol_kind,
-            stateful: self.stateful.clone(),
-            reconnection_config: self.reconnection_config.clone(),
-            disconnection_handler: self.disconnection_handler.clone(),
-            lifecycle: self.lifecycle.clone(),
-            attempt_in_progress: self.attempt_in_progress.clone(),
-            generation: self.generation.clone(),
-            interval_token: self.interval_token.clone(),
-            poll_closure: self.poll_closure.clone(),
+            shared: self.shared.clone(),
             owners: self.owners.clone(),
         }
     }
@@ -239,32 +821,70 @@ impl Drop for CommunicationClient {
 
 impl Communication for CommunicationClient {
     async fn connect(configuration: &super::ConnectionData) -> Result<Self, String> {
-        let client = Self::connect_physical(
-            configuration.get_endpoint(),
+        let opened = open_socket(
+            &configuration.get_endpoint(),
             configuration.get_protocol_kind(),
             configuration.stateful_reconnect().is_some(),
+            &configuration.get_recipe().liveness(),
         )
         .await?;
-        let mut result = Self::create(configuration, client);
-        result.start_polling();
-        Ok(result)
+        let shared = Rc::new(Shared {
+            socket: RefCell::new(None),
+            storage: UpdatableActionStorage::new(),
+            recipe: configuration.get_recipe(),
+            transport_endpoint: RefCell::new(configuration.get_endpoint()),
+            protocol_kind: configuration.get_protocol_kind(),
+            stateful: configuration.stateful_reconnect().map(|config| {
+                Rc::new(RefCell::new(
+                    StatefulMessageBuffer::new(config.buffer_size_bytes)
+                        .expect("negotiated stateful reconnect configuration is valid"),
+                ))
+            }),
+            reconnection_config: RefCell::new(ReconnectionConfig::default()),
+            disconnection_handler: RefCell::new(None),
+            lifecycle: Cell::new(Lifecycle::connected()),
+        });
+        install(&shared, opened, 0);
+        Ok(Self {
+            shared,
+            owners: Rc::new(Cell::new(1)),
+        })
     }
 
     async fn send<T: serde::Serialize>(&mut self, data: T) -> Result<(), String> {
-        self.send_internal(data).await
+        let json = MessageParser::to_json(&data).map_err(|error| error.to_string())?;
+        let message_type =
+            MessageParser::parse_message::<Ping>(MessageParser::strip_record_separator(&json))?
+                .message_type();
+        self.send_frame(
+            Frame::Text(json.clone()),
+            message_type,
+            SerializedFrame::Text(json),
+        )
+        .await
     }
 
     #[cfg(feature = "messagepack")]
     async fn send_binary(&mut self, data: Vec<u8>) -> Result<(), String> {
-        self.send_binary_internal(data).await
+        let frames = crate::protocol::msgpack::split_framed_messages(&data)?;
+        let first = frames
+            .first()
+            .ok_or_else(|| "Cannot send an empty MessagePack frame".to_string())?;
+        let message_type = crate::protocol::msgpack::read_message_type(first)?;
+        self.send_frame(
+            Frame::Binary(data.clone()),
+            message_type,
+            SerializedFrame::Binary(data),
+        )
+        .await
     }
 
     fn get_protocol_kind(&self) -> HubProtocolKind {
-        self.protocol_kind
+        self.shared.protocol_kind
     }
 
     fn get_storage(&self) -> Result<UpdatableActionStorage, String> {
-        Ok(self.storage.clone())
+        Ok(self.shared.storage.clone())
     }
 
     async fn disconnect(&mut self) {
@@ -275,629 +895,109 @@ impl Communication for CommunicationClient {
 }
 
 impl CommunicationClient {
-    fn create(configuration: &super::ConnectionData, client: Rc<RefCell<PollingClient>>) -> Self {
-        Self {
-            client: Rc::new(RefCell::new(Some(client))),
-            storage: UpdatableActionStorage::new(),
-            recipe: configuration.get_recipe(),
-            transport_endpoint: configuration.get_endpoint(),
-            protocol_kind: configuration.get_protocol_kind(),
-            stateful: configuration.stateful_reconnect().map(|config| {
-                Rc::new(RefCell::new(
-                    StatefulMessageBuffer::new(config.buffer_size_bytes)
-                        .expect("negotiated stateful reconnect configuration is valid"),
-                ))
-            }),
-            reconnection_config: Rc::new(RefCell::new(ReconnectionConfig::default())),
-            disconnection_handler: Rc::new(RefCell::new(None)),
-            lifecycle: Rc::new(Cell::new(LifecycleState::Connected)),
-            attempt_in_progress: Rc::new(Cell::new(false)),
-            generation: Rc::new(Cell::new(0)),
-            interval_token: Rc::new(Cell::new(None)),
-            poll_closure: Rc::new(RefCell::new(None)),
-            owners: Rc::new(Cell::new(1)),
-        }
+    pub fn set_reconnection_config(&mut self, config: ReconnectionConfig) {
+        self.shared.reconnection_config.replace(config);
     }
 
-    pub fn set_reconnection_config(&mut self, config: ReconnectionConfig) {
-        self.reconnection_config.replace(config);
+    pub(crate) fn status(&self) -> ConnectionStatus {
+        self.shared.lifecycle.get().status()
+    }
+
+    /// Pauses the connection: supersedes any running reconnect and closes the socket, which ends
+    /// its keep-alive. Browsers cannot drop a socket without the closing handshake, and the server
+    /// disposes a stateful connection on any client Close, so a stateful pause ends the logical
+    /// connection too: all pending work fails and `resume` negotiates a fresh one.
+    pub(crate) async fn pause(&self) -> Result<(), String> {
+        let shared = &self.shared;
+        if shared.lifecycle(Lifecycle::pause).map_err(str::to_string)?
+            == PauseOutcome::AlreadyPaused
+        {
+            return Ok(());
+        }
+        if let Some(previous) = shared.socket.replace(None) {
+            previous.socket.close();
+        }
+        if let Some(buffer) = &shared.stateful {
+            buffer.borrow_mut().dispose();
+        }
+        let mut storage = shared.storage.clone();
+        storage.fail_pending("The connection is paused");
+        info!("WASM connection paused");
+        Ok(())
+    }
+
+    /// Resumes a paused or disconnected connection: the first attempt starts immediately, later
+    /// ones follow the reconnection policy, and a run that gives up ends the logical connection
+    /// like an exhausted automatic reconnect.
+    pub(crate) async fn resume(&self) -> Result<(), String> {
+        let shared = &self.shared;
+        let ResumeOutcome::Started(generation) = shared
+            .lifecycle(Lifecycle::resume)
+            .map_err(str::to_string)?
+        else {
+            return Ok(());
+        };
+        shared.fail_ordinary_pending("The connection was replaced by a fresh logical reconnect");
+        run_policy_to_end(shared, generation, FirstAttempt::Always).await
     }
 
     pub fn set_disconnection_handler(
         &mut self,
         handler: impl Fn(WasmReconnectionContext) + 'static,
     ) {
-        self.disconnection_handler.replace(Some(Rc::new(handler)));
+        self.shared
+            .disconnection_handler
+            .replace(Some(Rc::new(handler)));
     }
 
-    async fn connect_physical(
-        endpoint: String,
-        protocol_kind: HubProtocolKind,
-        stateful_reconnect: bool,
-    ) -> Result<Rc<RefCell<PollingClient>>, String> {
-        let client = Self::connect_socket(endpoint).await?;
-
-        let handshake = if stateful_reconnect {
-            MessageParser::to_json(&serde_json::json!({
-                "protocol": protocol_kind.protocol_name(),
-                "version": 2,
-            }))
-        } else {
-            MessageParser::to_json(&HandshakeRequest::new(protocol_kind.protocol_name()))
-        }
-        .map_err(|error| format!("Cannot serialize handshake: {error}"))?;
-        client
-            .borrow()
-            .send_string(&handshake)
-            .map_err(Self::js_error)?;
-
-        Self::wait_until("SignalR handshake", Duration::from_secs(10), || {
-            let messages = client.borrow_mut().receive();
-            for message in messages {
-                let text = match message {
-                    wasm_sockets::Message::Text(text) => Some(text),
-                    wasm_sockets::Message::Binary(bytes) => String::from_utf8(bytes).ok(),
-                };
-                if let Some(text) = text {
-                    let text = MessageParser::strip_record_separator(&text);
-                    if text.is_empty() {
-                        continue;
-                    }
-                    return MessageParser::parse_message::<HandshakeResponse>(text)
-                        .map(|_| Some(()))
-                        .map_err(|error| format!("SignalR handshake failed: {error}"));
-                }
-            }
-            Ok(None)
-        })
-        .await?;
-
-        Ok(client)
-    }
-
-    async fn connect_socket(endpoint: String) -> Result<Rc<RefCell<PollingClient>>, String> {
-        info!(
-            "Connecting WASM transport to {}",
-            Self::display_endpoint(&endpoint)
-        );
-        let client = Rc::new(RefCell::new(
-            PollingClient::new(&endpoint).map_err(|error| format!("{error:?}"))?,
-        ));
-        Self::wait_until(
-            "WebSocket connection",
-            Duration::from_secs(10),
-            || match client.borrow().status() {
-                ConnectionStatus::Connected => Ok(Some(())),
-                ConnectionStatus::Error | ConnectionStatus::Disconnected => {
-                    Err("WebSocket connection failed".to_string())
-                }
-                _ => Ok(None),
-            },
-        )
-        .await?;
-        Ok(client)
-    }
-
-    async fn resume_to_server(
-        endpoint: String,
-        protocol_kind: HubProtocolKind,
-        buffer: SharedStatefulBuffer,
-    ) -> Result<Rc<RefCell<PollingClient>>, String> {
-        let client = Self::connect_socket(endpoint).await?;
-        let (sequence_id, frames) = buffer.borrow_mut().begin_resend()?;
-        let resend_result = (|| {
-            match protocol_kind {
-                HubProtocolKind::Json => {
-                    let sequence = MessageParser::to_json(&Sequence::new(sequence_id))
-                        .map_err(|error| error.to_string())?;
-                    client
-                        .borrow()
-                        .send_string(&sequence)
-                        .map_err(Self::js_error)?;
-                }
-                #[cfg(feature = "messagepack")]
-                HubProtocolKind::MessagePack => {
-                    let sequence = crate::protocol::stateful::encode_messagepack_control(
-                        MessageType::Sequence,
-                        sequence_id,
-                    )?;
-                    client
-                        .borrow()
-                        .send_binary(sequence)
-                        .map_err(Self::js_error)?;
-                }
-            }
-            for frame in frames {
-                match frame.payload {
-                    SerializedFrame::Text(text) => {
-                        client.borrow().send_string(&text).map_err(Self::js_error)?;
-                    }
-                    #[cfg(feature = "messagepack")]
-                    SerializedFrame::Binary(binary) => {
-                        client
-                            .borrow()
-                            .send_binary(binary)
-                            .map_err(Self::js_error)?;
-                    }
-                }
-            }
-            Ok::<(), String>(())
-        })();
-        buffer.borrow_mut().finish_resend()?;
-        resend_result?;
-        Ok(client)
-    }
-
-    async fn wait_until<T>(
-        operation: &str,
-        timeout: Duration,
-        mut poll: impl FnMut() -> Result<Option<T>, String>,
-    ) -> Result<T, String> {
-        let started = date_now();
-        loop {
-            if let Some(value) = poll()? {
-                return Ok(value);
-            }
-            if date_now() - started >= timeout.as_millis() as f64 {
-                return Err(format!("{operation} timed out"));
-            }
-            Self::sleep(Duration::from_millis(20)).await?;
-        }
-    }
-
-    async fn sleep(delay: Duration) -> Result<(), String> {
-        let (sender, receiver) = futures::channel::oneshot::channel();
-        let closure = wasm_bindgen::prelude::Closure::once(move || {
-            let _ = sender.send(());
-        });
-        set_timeout(&closure, delay.as_millis().min(u32::MAX as u128) as u32);
-        closure.forget();
-        receiver
-            .await
-            .map_err(|_| "Browser timer was cancelled".to_string())
-    }
-
-    fn start_polling(&mut self) {
-        if self.interval_token.get().is_some() {
-            return;
-        }
-
-        let client = self.client.clone();
-        let storage = self.storage.clone();
-        let recipe = self.recipe.clone();
-        let transport_endpoint = self.transport_endpoint.clone();
-        let protocol_kind = self.protocol_kind;
-        let stateful = self.stateful.clone();
-        let reconnection_config = self.reconnection_config.clone();
-        let disconnection_handler = self.disconnection_handler.clone();
-        let lifecycle = self.lifecycle.clone();
-        let attempt_in_progress = self.attempt_in_progress.clone();
-        let generation = self.generation.clone();
-
-        let closure = wasm_bindgen::prelude::Closure::wrap(Box::new(move || {
-            Self::polling_loop(
-                &client,
-                &storage,
-                &recipe,
-                &transport_endpoint,
-                protocol_kind,
-                &stateful,
-                &reconnection_config,
-                &disconnection_handler,
-                &lifecycle,
-                &attempt_in_progress,
-                &generation,
-            );
-        }) as Box<dyn Fn()>);
-        let token = set_interval(&closure, 50);
-        self.interval_token.set(Some(token));
-        self.poll_closure.replace(Some(closure));
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn polling_loop(
-        client_slot: &Rc<RefCell<Option<Rc<RefCell<PollingClient>>>>>,
-        storage: &UpdatableActionStorage,
-        recipe: &ConnectionRecipe,
-        transport_endpoint: &str,
-        protocol_kind: HubProtocolKind,
-        stateful: &Option<SharedStatefulBuffer>,
-        reconnection_config: &Rc<RefCell<ReconnectionConfig>>,
-        disconnection_handler: &Rc<RefCell<Option<Rc<DisconnectionCallback>>>>,
-        lifecycle: &Rc<Cell<LifecycleState>>,
-        attempt_in_progress: &Rc<Cell<bool>>,
-        generation: &Rc<Cell<u64>>,
-    ) {
-        let Some(client) = client_slot.borrow().clone() else {
-            return;
-        };
-        let status = client.borrow().status();
-        match status {
-            ConnectionStatus::Connected => {
-                let mut storage = storage.clone();
-                if let Some(allow_reconnect) =
-                    Self::process_messages(&client, &mut storage, protocol_kind, stateful.as_ref())
-                {
-                    let _ = client.borrow().close();
-                    if !allow_reconnect {
-                        lifecycle.set(LifecycleState::Disconnected);
-                        storage.fail_pending(
-                            "Server closed the connection without allowing reconnect",
-                        );
-                        if let Some(buffer) = stateful {
-                            buffer.borrow_mut().dispose();
-                        }
-                    }
-                }
-            }
-            ConnectionStatus::Disconnected | ConnectionStatus::Error => {
-                if lifecycle.get() != LifecycleState::Connected {
-                    return;
-                }
-                lifecycle.set(LifecycleState::Reconnecting);
-                if let Some(buffer) = stateful {
-                    if let Err(error) = buffer.borrow_mut().disconnected() {
-                        error!("Cannot enter WASM stateful resume: {}", error);
-                        lifecycle.set(LifecycleState::Disconnected);
-                        let mut storage = storage.clone();
-                        storage.fail_pending(&error);
-                        return;
-                    }
-                }
-                let context = WasmReconnectionContext {
-                    client: client_slot.clone(),
-                    storage: storage.clone(),
-                    recipe: recipe.clone(),
-                    transport_endpoint: transport_endpoint.to_string(),
-                    protocol_kind,
-                    stateful: stateful.clone(),
-                    reconnection_config: reconnection_config.clone(),
-                    lifecycle: lifecycle.clone(),
-                    attempt_in_progress: attempt_in_progress.clone(),
-                    generation: generation.clone(),
-                };
-
-                if let Some(handler) = disconnection_handler.borrow().clone() {
-                    lifecycle.set(LifecycleState::Disconnected);
-                    handler(context);
-                } else {
-                    spawn_local(async move {
-                        if let Err(error) = context.reconnect_with_policy().await {
-                            warn!("WASM automatic reconnect stopped: {}", error);
-                        }
-                    });
-                }
-            }
-            ConnectionStatus::Connecting => debug!("SignalR WebSocket is connecting"),
-        }
-    }
-
-    fn process_messages(
-        client: &Rc<RefCell<PollingClient>>,
-        storage: &mut UpdatableActionStorage,
-        protocol_kind: HubProtocolKind,
-        stateful: Option<&SharedStatefulBuffer>,
-    ) -> Option<bool> {
-        match protocol_kind {
-            HubProtocolKind::Json => {
-                for message in Self::receive_text_messages(client) {
-                    match MessageParser::parse_message::<Ping>(&message) {
-                        Ok(parsed) => {
-                            let message_type = parsed.message_type();
-                            if let Some(buffer) = stateful {
-                                let control_result = match message_type {
-                                    MessageType::Ack => {
-                                        MessageParser::parse_message::<Ack>(&message)
-                                            .and_then(|ack| ack.sequence_id())
-                                            .and_then(|sequence_id| {
-                                                buffer
-                                                    .borrow_mut()
-                                                    .acknowledge(sequence_id)
-                                                    .map(|_| ())
-                                            })
-                                    }
-                                    MessageType::Sequence => {
-                                        MessageParser::parse_message::<Sequence>(&message)
-                                            .and_then(|sequence| sequence.sequence_id())
-                                            .and_then(|sequence_id| {
-                                                buffer
-                                                    .borrow_mut()
-                                                    .reset_incoming_sequence(sequence_id)
-                                            })
-                                    }
-                                    _ => Ok(()),
-                                };
-                                if let Err(error) = control_result {
-                                    error!("WASM stateful protocol error: {}", error);
-                                    return Some(false);
-                                }
-                                if matches!(message_type, MessageType::Ack | MessageType::Sequence)
-                                {
-                                    continue;
-                                }
-                                let should_process =
-                                    match buffer.borrow_mut().should_process(message_type) {
-                                        Ok(value) => value,
-                                        Err(error) => {
-                                            error!("WASM stateful protocol error: {}", error);
-                                            return Some(false);
-                                        }
-                                    };
-                                let acknowledgement =
-                                    match buffer.borrow_mut().take_acknowledgement() {
-                                        Ok(value) => value,
-                                        Err(error) => {
-                                            error!("Cannot prepare WASM stateful Ack: {error}");
-                                            return Some(false);
-                                        }
-                                    };
-                                if let Some(sequence_id) = acknowledgement {
-                                    if let Err(error) =
-                                        Self::send_ack(client, protocol_kind, sequence_id)
-                                    {
-                                        error!("Cannot send WASM stateful Ack: {error}");
-                                        return Some(false);
-                                    }
-                                }
-                                if !should_process {
-                                    continue;
-                                }
-                            }
-                            let payload = MessagePayload::Text(message);
-                            if message_type == crate::protocol::negotiate::MessageType::Close {
-                                let allow = super::common::close_allows_reconnect(&payload)
-                                    .unwrap_or(false);
-                                let _ = storage.process_message(payload, message_type);
-                                return Some(allow);
-                            }
-                            if let Err(error) = storage.process_message(payload, message_type) {
-                                error!("Message could not be processed: {}", error);
-                            }
-                        }
-                        Err(error) => error!("Message could not be parsed: {}", error),
-                    }
-                }
-            }
-            #[cfg(feature = "messagepack")]
-            HubProtocolKind::MessagePack => {
-                for payload in Self::receive_binary_messages(client) {
-                    match crate::protocol::msgpack::read_message_type(&payload) {
-                        Ok(message_type) => {
-                            if let Some(buffer) = stateful {
-                                let control_result = match message_type {
-                                    MessageType::Ack => {
-                                        crate::protocol::stateful::decode_messagepack_control(
-                                            &payload,
-                                            MessageType::Ack,
-                                        )
-                                        .and_then(
-                                            |sequence_id| {
-                                                buffer
-                                                    .borrow_mut()
-                                                    .acknowledge(sequence_id)
-                                                    .map(|_| ())
-                                            },
-                                        )
-                                    }
-                                    MessageType::Sequence => {
-                                        crate::protocol::stateful::decode_messagepack_control(
-                                            &payload,
-                                            MessageType::Sequence,
-                                        )
-                                        .and_then(
-                                            |sequence_id| {
-                                                buffer
-                                                    .borrow_mut()
-                                                    .reset_incoming_sequence(sequence_id)
-                                            },
-                                        )
-                                    }
-                                    _ => Ok(()),
-                                };
-                                if let Err(error) = control_result {
-                                    error!("WASM stateful protocol error: {}", error);
-                                    return Some(false);
-                                }
-                                if matches!(message_type, MessageType::Ack | MessageType::Sequence)
-                                {
-                                    continue;
-                                }
-                                let should_process =
-                                    match buffer.borrow_mut().should_process(message_type) {
-                                        Ok(value) => value,
-                                        Err(error) => {
-                                            error!("WASM stateful protocol error: {}", error);
-                                            return Some(false);
-                                        }
-                                    };
-                                let acknowledgement =
-                                    match buffer.borrow_mut().take_acknowledgement() {
-                                        Ok(value) => value,
-                                        Err(error) => {
-                                            error!("Cannot prepare WASM stateful Ack: {error}");
-                                            return Some(false);
-                                        }
-                                    };
-                                if let Some(sequence_id) = acknowledgement {
-                                    if let Err(error) =
-                                        Self::send_ack(client, protocol_kind, sequence_id)
-                                    {
-                                        error!("Cannot send WASM stateful Ack: {error}");
-                                        return Some(false);
-                                    }
-                                }
-                                if !should_process {
-                                    continue;
-                                }
-                            }
-                            let payload = MessagePayload::Binary(payload);
-                            if message_type == crate::protocol::negotiate::MessageType::Close {
-                                let allow = super::common::close_allows_reconnect(&payload)
-                                    .unwrap_or(false);
-                                let _ = storage.process_message(payload, message_type);
-                                return Some(allow);
-                            }
-                            if let Err(error) = storage.process_message(payload, message_type) {
-                                error!("MessagePack message could not be processed: {}", error);
-                            }
-                        }
-                        Err(error) => error!("Cannot read MessagePack message type: {}", error),
-                    }
-                }
-            }
-        }
-        None
-    }
-
-    fn send_ack(
-        client: &Rc<RefCell<PollingClient>>,
-        protocol_kind: HubProtocolKind,
-        sequence_id: u64,
-    ) -> Result<(), String> {
-        match protocol_kind {
-            HubProtocolKind::Json => {
-                let ack = MessageParser::to_json(&Ack::new(sequence_id))
-                    .map_err(|error| error.to_string())?;
-                client.borrow().send_string(&ack).map_err(Self::js_error)
-            }
-            #[cfg(feature = "messagepack")]
-            HubProtocolKind::MessagePack => {
-                let ack = crate::protocol::stateful::encode_messagepack_control(
-                    MessageType::Ack,
-                    sequence_id,
-                )?;
-                client.borrow().send_binary(ack).map_err(Self::js_error)
-            }
-        }
-    }
-
-    async fn send_internal<T: serde::Serialize>(&self, data: T) -> Result<(), String> {
-        if self.lifecycle.get() != LifecycleState::Connected {
-            return Err(format!(
-                "Client is not connected: {:?}",
-                self.lifecycle.get()
-            ));
-        }
-        let json = MessageParser::to_json(&data).map_err(|error| error.to_string())?;
-        let message_type =
-            MessageParser::parse_message::<Ping>(MessageParser::strip_record_separator(&json))?
-                .message_type();
-        self.track_outgoing(message_type, SerializedFrame::Text(json.clone()))
-            .await?;
-        let client = self
-            .client
-            .borrow()
-            .clone()
-            .ok_or_else(|| "Client is not connected".to_string())?;
-        let result = client.borrow().send_string(&json).map_err(Self::js_error);
-        result
-    }
-
-    #[cfg(feature = "messagepack")]
-    async fn send_binary_internal(&self, data: Vec<u8>) -> Result<(), String> {
-        if self.lifecycle.get() != LifecycleState::Connected {
-            return Err(format!(
-                "Client is not connected: {:?}",
-                self.lifecycle.get()
-            ));
-        }
-        #[cfg(feature = "messagepack")]
-        if self.stateful.is_some() {
-            let frames = crate::protocol::msgpack::split_framed_messages(&data)?;
-            let first = frames
-                .first()
-                .ok_or_else(|| "Cannot send an empty MessagePack frame".to_string())?;
-            let message_type = crate::protocol::msgpack::read_message_type(first)?;
-            self.track_outgoing(message_type, SerializedFrame::Binary(data.clone()))
-                .await?;
-        }
-        let client = self
-            .client
-            .borrow()
-            .clone()
-            .ok_or_else(|| "Client is not connected".to_string())?;
-        let result = client.borrow().send_binary(data).map_err(Self::js_error);
-        result
-    }
-
-    async fn track_outgoing(
+    /// Tracks the frame for stateful replay (waiting while the buffer is full), then sends it on
+    /// the current socket.
+    async fn send_frame(
         &self,
+        message: Frame,
         message_type: MessageType,
         payload: SerializedFrame,
     ) -> Result<(), String> {
-        let Some(buffer) = &self.stateful else {
-            return Ok(());
-        };
-        loop {
-            let result = buffer.borrow_mut().track(message_type, payload.clone())?;
-            match result {
-                TrackResult::Buffered(_) | TrackResult::Bypass => return Ok(()),
-                TrackResult::Backpressured => Self::sleep(Duration::from_millis(5)).await?,
+        let lifecycle = self.shared.lifecycle.get();
+        if lifecycle.state() != LifecycleState::Connected {
+            return Err(format!("Client is not connected: {:?}", lifecycle.status()));
+        }
+        if let Some(buffer) = &self.shared.stateful {
+            loop {
+                let result = buffer.borrow_mut().track(message_type, payload.clone())?;
+                match result {
+                    TrackResult::Buffered(_) | TrackResult::Bypass => break,
+                    TrackResult::Backpressured => sleep(Duration::from_millis(5)).await,
+                }
             }
         }
-    }
-
-    fn receive_text_messages(client: &Rc<RefCell<PollingClient>>) -> Vec<String> {
-        client
-            .borrow_mut()
-            .receive()
-            .into_iter()
-            .flat_map(|message| match message {
-                wasm_sockets::Message::Text(text) => text
-                    .split(RECORD_SEPARATOR)
-                    .map(MessageParser::strip_record_separator)
-                    .filter(|message| !message.is_empty())
-                    .map(str::to_string)
-                    .collect(),
-                wasm_sockets::Message::Binary(_) => Vec::new(),
-            })
-            .collect()
-    }
-
-    #[cfg(feature = "messagepack")]
-    fn receive_binary_messages(client: &Rc<RefCell<PollingClient>>) -> Vec<Vec<u8>> {
-        client
-            .borrow_mut()
-            .receive()
-            .into_iter()
-            .flat_map(|message| match message {
-                wasm_sockets::Message::Binary(data) => {
-                    crate::protocol::msgpack::split_framed_messages(&data).unwrap_or_else(|error| {
-                        error!("Failed to split MessagePack frames: {}", error);
-                        Vec::new()
-                    })
-                }
-                wasm_sockets::Message::Text(_) => Vec::new(),
-            })
-            .collect()
+        let socket = self
+            .shared
+            .socket
+            .borrow()
+            .as_ref()
+            .map(|socket| socket.socket.clone());
+        match socket {
+            Some(socket) => socket.send(&message),
+            // A tracked frame is replayed by the stateful resume once a socket is back.
+            None if self.shared.stateful.is_some() => Ok(()),
+            None => Err("Client is not connected".to_string()),
+        }
     }
 
     fn disconnect_internal(&self) {
-        if self.lifecycle.replace(LifecycleState::LocalClosed) == LifecycleState::LocalClosed {
+        let shared = &self.shared;
+        if shared.state() == LifecycleState::LocalClosed {
             return;
         }
-        self.generation.set(self.generation.get().wrapping_add(1));
-        if let Some(token) = self.interval_token.take() {
-            clear_interval(token);
+        shared.lifecycle(Lifecycle::local_close);
+        if let Some(previous) = shared.socket.replace(None) {
+            previous.socket.close();
         }
-        self.poll_closure.borrow_mut().take();
-        if let Some(client) = self.client.borrow_mut().take() {
-            let _ = client.borrow().close();
-        }
-        if let Some(buffer) = &self.stateful {
+        if let Some(buffer) = &shared.stateful {
             buffer.borrow_mut().dispose();
         }
-        let mut storage = self.storage.clone();
+        let mut storage = shared.storage.clone();
         storage.fail_pending("Client was locally disconnected");
-    }
-
-    fn display_endpoint(endpoint: &str) -> String {
-        endpoint.split('?').next().unwrap_or(endpoint).to_string()
-    }
-
-    fn js_error(error: JsValue) -> String {
-        error
-            .as_string()
-            .unwrap_or_else(|| "JavaScript WebSocket operation failed".to_string())
     }
 }

@@ -48,19 +48,44 @@ status/remotes, and recent history before changing the fork.
   the .NET test service when its packages change.
 - For GameX consumption, use a relative path dependency and keep the transport
   behind a GameX-owned adapter.
+- RayX consumes the crate through the workspace path dependency
+  `rayx-signalr = { path = "../RayX.SignalR" }`; `rayx_devkit::SignalRService`
+  is its desktop-native and browser-WASM adapter (not Android). Compile and test `rayx_devkit` after public API
+  changes.
+- Consumers on Android either initialize the platform verifier
+  (`rayx_signalr::tls::android::init_with_env`, plus the Gradle and ProGuard setup
+  in the README) or enable `tls-webpki-roots` and call `use_webpki_roots()`;
+  native consumers without an ambient Tokio runtime pass
+  `with_runtime_handle`. The README's "Platform support" section is the consumer
+  reference.
 
 ## Validation
 
 - Run `cargo metadata --no-deps`.
 - Run focused unit tests for the changed protocol surface.
-- Run `cargo check --all-targets --features messagepack`.
-- Run `cargo check --target wasm32-unknown-unknown --features messagepack --lib`.
+- Run `cargo check --all-targets --test e2e --all-features` and
+  `cargo check --target wasm32-unknown-unknown --all-features --lib`.
+- Run `cargo clippy --all-targets --test e2e --all-features -- -D warnings` and
+  `cargo doc --all-features --no-deps` with `RUSTDOCFLAGS=-D warnings`.
 - Run `cargo fmt --all --check`; if inherited formatting debt prevents a clean
   gate, report it exactly and keep formatting-only churn separate.
-- Restore/build the .NET test service when interoperability dependencies or hub
-  behavior change.
-- Require real native and browser integration tests before claiming runtime
-  interoperability or reconnect correctness.
+- Service-dependent tests run only through Aspire (prerequisites in the README's
+  "Testing with Aspire"): select cells with `RAYX_SIGNALR_E2E_TARGETS`
+  (`native`, `chromium`, `firefox`, `webkit`, `android`, `ios`),
+  `RAYX_SIGNALR_E2E_PROTOCOLS` and `RAYX_SIGNALR_E2E_SCENARIOS`, then run
+  `dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E`. Never start
+  the test service by hand or point tests at fixed ports.
+- Run the static categories with
+  `dotnet test dotnet/RayX.SignalR.E2E.Tests --filter "Category=WorkflowContract|Category=Repository|Category=Catalog|Category=Toolchain"`,
+  plus `Category=Platform` for dependency-graph, gating and mobile or threaded
+  build changes and `Category=DependencySecurity` (with `cargo-audit`) for
+  dependency changes.
+- Add a scenario to `dotnet/RayX.SignalR.E2E.Tests/Scenarios/ScenarioCatalog.cs`,
+  `tests/e2e/<scenario>.rs` and the browser fixture/Playwright spec together; the
+  `Catalog` category fails on any mismatch.
+- Require real native and browser end-to-end cells before claiming runtime
+  interoperability, lifecycle or reconnect correctness; mobile claims need the
+  `android` or `ios` cells.
 
 ## Commit Provenance
 

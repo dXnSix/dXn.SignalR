@@ -32,14 +32,215 @@ I made this client because I could not find a client that supported my requireme
 
 I tried to design this package to be simple and convenient to use without writing boilerpart code. Please be free to comment or post issues if you have recommendations or requirements. Contribution is also welcome.
 
-A .NET test backend is also provided for testing purposes (see the /dotnet folder). The tests in the package should run using that backend. Authorization is not tested with the test scenairo, however it's been tested already by using this package in a much larger project of mine. So, it should also work without issues.
+A .NET test backend is provided for testing (see the `dotnet` folder); every service-dependent test, including Basic and Bearer authentication, runs against it through Aspire (see "Testing with Aspire").
 
-## Production validation
+## Platform support
 
-The repository has two least-privilege GitHub Actions workflows. They run on
-pull requests to `master` and pushes to `master`; interoperability can also be
-started manually. They do not publish packages, require pull-request secrets,
-or change repository settings.
+| Target | Status | Proof |
+| --- | --- | --- |
+| Windows, Linux, macOS (Tokio) | Supported | Full end-to-end catalog through Aspire (`e2e / native (<os>)`) |
+| Android (`aarch64`, `x86_64`) | Supported | Full native catalog on an x86_64 emulator (`e2e / android`); arm64-v8a is compile-checked only (`quality / android`). The platform verifier needs an app's JVM, so the cells verify TLS with webpki (extra roots, bundled roots); the platform verifier itself is build-checked only |
+| iOS (`aarch64-apple-ios`, simulator) | Supported | Full native catalog on the iOS simulator (`e2e / ios`); the device target is compile-checked only (`quality / ios`) |
+| Browser, main thread (`wasm32-unknown-unknown`) | Supported | Full browser catalog in Chromium, Firefox and WebKit (`e2e / browser (<engine>)`) |
+| Browser, Web Worker | Supported | `worker-transport` scenario in every engine |
+| Browser, multithreaded WASM (atomics) | Supported | `threaded-wasm` scenario (cross-origin isolated page, pinned nightly with `-Z build-std`) |
+| WASI (`wasm32-wasi*`) | Not supported | The crate fails to compile with an explanatory error; there is no browser WebSocket there |
+
+Emulators and simulators prove the client's networking, TLS and lifecycle code on
+those operating systems; they do not exercise a real device's radio, Doze or
+background suspension.
+
+### TLS
+
+Native connections use rustls (no OpenSSL) and never the process-wide default
+`CryptoProvider`: every connection builds its own `ClientConfig` with an explicit
+provider and verifier. Secure endpoints need one verifier feature
+(`tls-platform-verifier` or `tls-webpki-roots`) and one provider feature (`tls-ring` or
+`tls-aws-lc-rs`); the defaults enable one of each. The end-to-end cells run with the
+defaults (platform verifier and `ring`; the Android cells add `tls-webpki-roots` and
+verify with webpki); `aws-lc-rs` is covered by builds and unit tests.
+
+| Feature | Effect |
+| --- | --- |
+| `tls-platform-verifier` (default) | Verifies against the operating system's trust store (`rustls-platform-verifier`) |
+| `tls-webpki-roots` | Bundles Mozilla's roots; select them per connection with `use_webpki_roots()` |
+| `tls-ring` (default) | `ring` crypto provider |
+| `tls-aws-lc-rs` | `aws-lc-rs` crypto provider; takes precedence over `tls-ring` when both are enabled |
+
+Disabling all TLS features keeps plaintext `ws`/`http` endpoints working;
+secure endpoints then fail before any I/O. Extra trust anchors (for example a
+private CA) are added per connection with
+`with_additional_root_certificates_pem(pem)`; invalid PEM fails `connect` before
+any I/O. Secure endpoints never fall back to plaintext or to a certificate-accepting
+verifier.
+
+### Android
+
+The default platform verifier needs the app's JVM context. Either:
+
+1. Keep `tls-platform-verifier` and follow `rustls-platform-verifier`'s Android setup
+   (0.7.x): add its Maven repository to Gradle
+   (`maven { url = "https://github.com/rustls/rustls-platform-verifier/raw/maven-archive/android-release-support/maven/" }`),
+   depend on `rustls:rustls-platform-verifier` at the version of the
+   `rustls-platform-verifier-android` crate in your `Cargo.lock` (upstream documents a
+   Gradle snippet that reads it; a mismatched version can fail at runtime), keep its
+   classes from shrinking
+   (`-keep, includedescriptorclasses class org.rustls.platformverifier.** { *; }`), and
+   call `rayx_signalr::tls::android::init_with_env(env, context)` once with the JNI
+   environment and an Android `Context` (for example from a native method your
+   `Application` or `Activity` calls at start-up; `JNI_OnLoad` has no `Context`) before
+   the first secure connection; or
+2. Enable `tls-webpki-roots` and call `use_webpki_roots()` on the configuration,
+   which needs no JVM. A connection with extra PEM roots on Android always
+   verifies with webpki over those roots (plus the bundled roots when enabled).
+
+An emulator reaches the development machine's loopback at `10.0.2.2`.
+
+### iOS
+
+App Transport Security governs Apple's URL loading system, not the client's own
+rustls sockets, but production apps should still use `https`/`wss` endpoints;
+keep plain `ws`/`http` for local development (the simulator shares the Mac's
+loopback). The platform verifier uses the iOS trust store. iOS throttles and coalesces
+the wakeups of work that is not in the foreground, so keep-alive and server-timeout
+timers can fire late in the background; `pause()` when the app moves to the background.
+
+### Native runtime
+
+Every native connection is owned by one Tokio runtime: the configured
+`with_runtime_handle(handle)`, otherwise the ambient runtime at `connect`, otherwise
+`connect` fails before any I/O. Socket I/O, timers and the connection's tasks run
+on that runtime, and the client's futures only wait on runtime-agnostic
+primitives, so UI frameworks can await them from their own executors (for
+example `futures::executor::block_on` on a plain thread).
+
+### Liveness and lifecycle
+
+- `with_keep_alive_interval` (default 15 s) sends Pings when nothing else went
+  out; `with_server_timeout` (default 30 s, must exceed the keep-alive interval)
+  treats a silent server as a dropped transport; `with_handshake_timeout`
+  (default 15 s) bounds the SignalR handshake. Invalid durations fail `connect`
+  before any I/O.
+- `SignalRClient::status()` reports `ConnectionStatus::{Connected, Reconnecting,
+  Paused, Disconnected, Closed}`.
+- `pause()` (for example when a mobile app moves to the background) ends the
+  transport and stops keep-alive and automatic reconnects; `resume()` reconnects
+  immediately, then follows the reconnection policy. With stateful reconnect a
+  native pause keeps the logical connection while the server holds it; a browser
+  pause cannot (browsers always send a WebSocket Close, after which ASP.NET Core
+  disposes the connection), so it fails pending work and `resume()` negotiates a
+  fresh stateful connection.
+- `DefaultRetryPolicy` retries after 0, 2, 10 and 30 seconds and then stops, like
+  the official JavaScript and Swift clients. `ReconnectionConfig::default()`
+  still never reconnects; opt in with
+  `ReconnectionConfig { policy: Arc::new(DefaultRetryPolicy) }`.
+
+### Negotiation
+
+Negotiation follows redirects (up to 100, with the redirect's access token) and
+`skip_negotiation()` connects the WebSocket directly, as the official clients'
+`skipNegotiation` does; the server must allow WebSockets-only connections, and
+it cannot be combined with stateful reconnect.
+
+### Browsers, workers and threads
+
+The browser transport is event-driven and touches neither `window` nor polling
+timers, so it runs on the main thread and in Web Workers. The client is `!Send`:
+use one client per thread or worker. Multithreaded (atomics) builds work too:
+they need a cross-origin isolated page (`Cross-Origin-Opener-Policy: same-origin`
+and `Cross-Origin-Embedder-Policy: require-corp`), a nightly toolchain with
+`rust-src`, `-C target-feature=+atomics,+bulk-memory,+mutable-globals` and
+`-Z build-std=std,panic_abort`; binary frames are copied out of shared memory
+before sending.
+
+Browsers cannot set an `Authorization` header on a WebSocket. Bearer tokens are sent
+as `access_token` (which ASP.NET Core reads for WebSockets when configured to), but
+Basic credentials reach only the negotiate request: a standard ASP.NET Core server
+does not authenticate the WebSocket from them, so browser clients should use Bearer
+authentication. (The test service maps a connection token back to the user who
+negotiated it; that is test-only.)
+
+## Testing with Aspire
+
+Service-dependent tests run only through .NET Aspire. The AppHost
+(`dotnet/RayX.SignalR.AppHost`, selected by the root `aspire.config.json`)
+composes the ASP.NET Core SignalR test service (HTTP and HTTPS with a per-run
+test CA), the pinned `wasm-bindgen` CLI provisioning, the browser fixture builds
+and the `fixture-host` static host, all on dynamically allocated ports. The
+end-to-end project (`dotnet/RayX.SignalR.E2E.Tests`, xUnit through `dotnet test`)
+starts the same AppHost through `Aspire.Hosting.Testing` and is the single entry
+point for those tests, locally and in GitHub Actions. No test scripts remain.
+
+Prerequisites:
+
+- .NET SDK 10.0.100 (pinned by `global.json`) and the Aspire CLI
+  (`dotnet tool install --global Aspire.Cli --version 13.5.3`);
+- Rust 1.92.0 (with `wasm32-unknown-unknown` for browser cells);
+- browser cells: Node 24 with pnpm and the repository-local Playwright browsers
+  (`pnpm --dir tools-node install --frozen-lockfile`, then
+  `pnpm --dir tools-node exec playwright install chromium firefox webkit`); the
+  `threaded-wasm` cells also need `nightly-2026-06-23` with `rust-src`. The
+  AppHost installs the fixture's exact `wasm-bindgen` CLI under
+  `artifacts-temp/tools/wasm-bindgen/<version>` and never uses a machine-wide CLI;
+- Android cells: the Android SDK (`ANDROID_HOME`) with an NDK, `cargo install cargo-ndk`,
+  `rustup target add x86_64-linux-android`, and one running x86_64 emulator
+  (`emulator -avd <name>`), or `RAYX_SIGNALR_E2E_ANDROID_SERIAL` naming the device;
+- iOS cells (macOS only): Xcode with an iOS simulator runtime and
+  `rustup target add aarch64-apple-ios-sim`; `RAYX_SIGNALR_E2E_IOS_DEVICE` picks a
+  simulator by name or UDID (default: the newest available iPhone).
+
+Start the graph with the Aspire dashboard for interactive debugging:
+
+```shell
+aspire run
+```
+
+Run end-to-end cells. `RAYX_SIGNALR_E2E_TARGETS` (`native`, `chromium`,
+`firefox`, `webkit`, `android`, `ios`; default `native`),
+`RAYX_SIGNALR_E2E_PROTOCOLS` and `RAYX_SIGNALR_E2E_SCENARIOS` (default `all`)
+take comma lists or `all`; a selection that matches no cataloged cell fails.
+The C# scenario catalog (`dotnet/RayX.SignalR.E2E.Tests/Scenarios/ScenarioCatalog.cs`)
+decides which targets run which scenarios.
+
+```shell
+dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+RAYX_SIGNALR_E2E_TARGETS=chromium,firefox,webkit dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+RAYX_SIGNALR_E2E_TARGETS=android dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+```
+
+Each cell runs exactly one scenario (the Rust `e2e` test binary with
+`--exact <scenario>::<protocol>` on the host, the Android emulator or the iOS
+simulator, or Playwright with one exact title), is bounded to 60 seconds with
+process cleanup, and on failure writes bounded, token-redacted output plus Aspire
+resource logs (and an Android logcat excerpt) to `artifacts-temp/e2e/<cell>.json`.
+Android cells push the binary built by `cargo ndk` to `/data/local/tmp` (removed
+after the run) and reach the service at `10.0.2.2`. iOS cells run it with
+`xcrun simctl spawn` and shut down a simulator the run booted. Because spawned
+simulator processes are not foreground apps, the iOS runner first runs the binary once
+untimed (`--list`, then one networked scenario) before the timed cells, the scenario
+thread asks for the user-interactive QoS class, and a cell whose test already reported
+its single pass is accepted when `simctl spawn` itself does not exit; such events are
+recorded in `artifacts-temp/e2e/runner-notes.log`. Rust cells run with `--nocapture`
+and `RUST_LOG=rayx_signalr=info`, and the end-to-end binaries use the default TLS
+features plus `messagepack` (the Android binary adds `tls-webpki-roots` and verifies
+with webpki). The Rust scenarios live in `tests/e2e`
+(`test = false`, so plain `cargo test` never needs the service).
+
+Static checks are .NET test categories. CI runs `WorkflowContract`, `Repository`,
+`Catalog`, `Toolchain`, `Platform` and `DependencySecurity`; `Orchestration` (which
+starts the whole AppHost) runs locally:
+
+```shell
+dotnet test dotnet/RayX.SignalR.E2E.Tests --filter "Category=WorkflowContract|Category=Repository|Category=Catalog|Category=Toolchain"
+dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=Orchestration
+dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=Platform
+cargo install cargo-audit --locked
+dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=DependencySecurity
+```
+
+The least-privilege GitHub Actions workflows run on pull requests to `master`
+and pushes to `master` (end-to-end can also be started manually). They do not
+publish packages, require secrets, or change repository settings.
 
 Stable quality check names are:
 
@@ -48,41 +249,27 @@ Stable quality check names are:
 - `quality / native (<os>, Rust <toolchain>)`
 - `quality / wasm (<feature mode>)`
 - `quality / unit-contract (<protocol>)`
+- `quality / android (cargo ndk)`
+- `quality / ios (<target>)`
+- `quality / threaded-wasm`
+- `quality / platform`
 - `quality / rustdoc`
 - `quality / dependency-security`
+- `quality / contracts`
 
-Stable interoperability check names are:
+Stable end-to-end check names are:
 
-- `interop / native (<os>, <protocol>, <scenario>)`
-- `interop / Chromium WASM (<protocol>, <scenario>)`
+- `e2e / native (<os>)`
+- `e2e / browser (<engine>)` for `chromium`, `firefox` and `webkit`
+- `e2e / android`
+- `e2e / ios`
 
-Run the structural and local quality gates from the repository root:
+RayX.GameX's dependency-conformance gate replaces its former
+`scripts/ci/run-interop.ps1` call with:
 
-```powershell
-pwsh -NoProfile -File scripts/ci/verify-workflows.ps1
-pwsh -NoProfile -File scripts/ci/verify-workflows.ps1 -RunLocalQuality
+```shell
+RAYX_SIGNALR_E2E_TARGETS=chromium RAYX_SIGNALR_E2E_SCENARIOS=ordinary-reconnect,stateful-reconnect dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
 ```
-
-Run the complete native lifecycle matrix and repository-local
-Playwright/Chromium lifecycle matrix with:
-
-```powershell
-pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target native -Protocol json,messagepack -Scenario ordinary-reconnect,stateful-reconnect,stream-cancellation
-pwsh -NoProfile -File scripts/ci/run-interop.ps1 -Target wasm -Protocol json,messagepack -Scenario ordinary-reconnect,stateful-reconnect,short-stream-chaining,stream-cancellation
-```
-
-For dependency security, install RustSec's scanner once and run the same route
-used by CI:
-
-```powershell
-cargo install cargo-audit --locked
-pwsh -NoProfile -File scripts/ci/verify-workflows.ps1 -Security
-```
-
-Each interop scenario is bounded to 60 seconds. The harness health-checks and
-terminates the .NET fixture, requires one real selected test per matrix cell,
-and writes bounded redacted diagnostics only after failure under
-`artifacts-temp/interop/`.
 
 ## Package Overview
 `rayx-signalr` is a Rust library designed to call SignalR hubs from cross-platform Rust applications. It supports Tokio-based native runtimes and browser WASM clients.

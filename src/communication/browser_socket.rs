@@ -1,0 +1,110 @@
+//! A minimal event-driven browser WebSocket.
+//!
+//! Events arrive on a channel from listeners that live exactly as long as the socket (they are
+//! detached and dropped with it; nothing is leaked with `forget`). Binary frames are copied into
+//! a non-shared JavaScript buffer before sending, because browsers reject `WebSocket.send` with a
+//! view of shared memory, which is what wasm memory is in threaded (atomics) builds.
+
+use futures::channel::mpsc;
+use wasm_bindgen::{prelude::Closure, JsCast};
+use web_sys::{BinaryType, CloseEvent, Event, MessageEvent, WebSocket};
+
+/// One socket event, in arrival order.
+pub(crate) enum SocketEvent {
+    Open,
+    Text(String),
+    Binary(Vec<u8>),
+    /// The socket closed (or failed); no further events follow.
+    Closed,
+}
+
+pub(crate) struct BrowserSocket {
+    socket: WebSocket,
+    _on_open: Closure<dyn FnMut(Event)>,
+    _on_message: Closure<dyn FnMut(MessageEvent)>,
+    _on_error: Closure<dyn FnMut(Event)>,
+    _on_close: Closure<dyn FnMut(CloseEvent)>,
+}
+
+impl BrowserSocket {
+    /// Opens a socket; its events (starting with `Open`) arrive on the returned channel. The URL
+    /// is never repeated in errors because it can carry an access token.
+    pub(crate) fn open(url: &str) -> Result<(Self, mpsc::UnboundedReceiver<SocketEvent>), String> {
+        let socket = WebSocket::new(url).map_err(|error| {
+            format!(
+                "Cannot open the WebSocket: {}",
+                error.as_string().unwrap_or_default()
+            )
+        })?;
+        socket.set_binary_type(BinaryType::Arraybuffer);
+        let (events, receiver) = mpsc::unbounded();
+
+        let sender = events.clone();
+        let on_open = Closure::<dyn FnMut(Event)>::new(move |_| {
+            let _ = sender.unbounded_send(SocketEvent::Open);
+        });
+        let sender = events.clone();
+        let on_message = Closure::<dyn FnMut(MessageEvent)>::new(move |event: MessageEvent| {
+            let data = event.data();
+            let message = if let Some(text) = data.as_string() {
+                SocketEvent::Text(text)
+            } else if let Ok(buffer) = data.dyn_into::<js_sys::ArrayBuffer>() {
+                SocketEvent::Binary(js_sys::Uint8Array::new(&buffer).to_vec())
+            } else {
+                return;
+            };
+            let _ = sender.unbounded_send(message);
+        });
+        let sender = events.clone();
+        let on_error = Closure::<dyn FnMut(Event)>::new(move |_| {
+            let _ = sender.unbounded_send(SocketEvent::Closed);
+        });
+        let on_close = Closure::<dyn FnMut(CloseEvent)>::new(move |_| {
+            let _ = events.unbounded_send(SocketEvent::Closed);
+            events.close_channel();
+        });
+        socket.set_onopen(Some(on_open.as_ref().unchecked_ref()));
+        socket.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
+        socket.set_onerror(Some(on_error.as_ref().unchecked_ref()));
+        socket.set_onclose(Some(on_close.as_ref().unchecked_ref()));
+        Ok((
+            Self {
+                socket,
+                _on_open: on_open,
+                _on_message: on_message,
+                _on_error: on_error,
+                _on_close: on_close,
+            },
+            receiver,
+        ))
+    }
+
+    pub(crate) fn send_text(&self, text: &str) -> Result<(), String> {
+        self.socket
+            .send_with_str(text)
+            .map_err(|_| "The WebSocket send failed".to_string())
+    }
+
+    pub(crate) fn send_binary(&self, bytes: &[u8]) -> Result<(), String> {
+        // Copy into a fresh, non-shared buffer (wasm memory may be a SharedArrayBuffer).
+        let array = js_sys::Uint8Array::new_with_length(bytes.len() as u32);
+        array.copy_from(bytes);
+        self.socket
+            .send_with_array_buffer_view(&array)
+            .map_err(|_| "The WebSocket send failed".to_string())
+    }
+
+    pub(crate) fn close(&self) {
+        let _ = self.socket.close();
+    }
+}
+
+impl Drop for BrowserSocket {
+    fn drop(&mut self) {
+        self.socket.set_onopen(None);
+        self.socket.set_onmessage(None);
+        self.socket.set_onerror(None);
+        self.socket.set_onclose(None);
+        let _ = self.socket.close();
+    }
+}

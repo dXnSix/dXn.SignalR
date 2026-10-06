@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>RayX.SignalR WASM worker fixture</title>
+  </head>
+  <body data-rayx-signalr-worker="loading">
+    <script type="module">
+      const parameters = new URL(location.href).searchParams;
+      const worker = new Worker("./worker.js", { type: "module" });
+      worker.onmessage = ({ data }) => {
+        document.body.dataset.rayxSignalrWorkerOutcome = data.outcome;
+        document.body.dataset.rayxSignalrWorker = "done";
+      };
+      worker.onerror = (event) => {
+        document.body.dataset.rayxSignalrWorkerOutcome = `failed: ${event.message}`;
+        document.body.dataset.rayxSignalrWorker = "done";
+      };
+      worker.postMessage({
+        service: parameters.get("service"),
+        scenario: parameters.get("scenario"),
+        protocol: parameters.get("protocol"),
+      });
+    </script>
+  </body>
+</html>

@@ -1,19 +1,44 @@
+// Browser WASM (`wasm32-unknown-unknown`) is the only supported wasm target; the browser transport
+// and timers do not exist on WASI or other wasm32 operating systems.
+#[cfg(all(target_arch = "wasm32", not(target_os = "unknown")))]
+compile_error!(
+    "rayx-signalr supports browser WASM (wasm32-unknown-unknown) as its only wasm target; WASI and other wasm32 targets are not supported"
+);
+
 mod client;
 mod communication;
 mod completer;
 mod execution;
 pub(crate) mod platform;
 mod protocol;
-mod tests;
 
-pub use client::{DisconnectionHandler, InvocationContext, ReconnectionHandler, SignalRClient};
+pub use client::{
+    ConnectionConfiguration, DisconnectionHandler, InvocationContext, ReconnectionHandler,
+    SignalRClient,
+};
 pub use communication::reconnection::{
-    ConstantDelayPolicy, ExponentialBackoffPolicy, LinearBackoffPolicy, NoReconnectPolicy,
-    ReconnectionConfig, ReconnectionPolicy,
+    ConnectionStatus, ConstantDelayPolicy, DefaultRetryPolicy, ExponentialBackoffPolicy,
+    LinearBackoffPolicy, NoReconnectPolicy, ReconnectionConfig, ReconnectionPolicy,
 };
 pub use completer::{CompletedFuture, ManualFuture, ManualStream};
 pub use execution::{ArgumentConfiguration, CallbackHandler};
 pub use protocol::hub_protocol::HubProtocolKind;
+
+/// Native TLS integration points.
+#[cfg(not(target_arch = "wasm32"))]
+pub mod tls {
+    /// Android initialization for the platform certificate verifier. Call one of these once,
+    /// with the JNI environment and an Android `Context` (for example from a native method the
+    /// app's `Application` or `Activity` calls at start-up; `JNI_OnLoad` receives no
+    /// `Context`), before connecting to a secure endpoint. See the README and
+    /// `rustls-platform-verifier` for the Gradle repository, version and ProGuard setup.
+    #[cfg(all(target_os = "android", feature = "tls-platform-verifier"))]
+    pub mod android {
+        pub use rustls_platform_verifier::android::{
+            init_with_env, init_with_refs, init_with_runtime,
+        };
+    }
+}
 
 /// Opts a connection into ASP.NET Core stateful reconnect with a bounded replay buffer.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

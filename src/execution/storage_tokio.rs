@@ -89,11 +89,24 @@ impl Storage for UpdatableActionStorage {
         }
     }
 
-    fn fail_pending(&mut self, _error: &str) {
-        if let Ok(mut data) = self._data.lock() {
-            data.retain(|_, (persistent, _)| *persistent);
+    fn fail_pending(&mut self, error: &str) {
+        let pending = if let Ok(mut data) = self._data.lock() {
+            let keys = data
+                .iter()
+                .filter_map(|(key, (persistent, _))| (!persistent).then_some(key.clone()))
+                .collect::<Vec<_>>();
+            keys.iter()
+                .filter_map(|key| data.remove(key).map(|(_, action)| action))
+                .collect::<Vec<_>>()
         } else {
             error!("Cannot lock storage while failing pending actions");
+            return;
+        };
+        // Complete awaiters outside the storage lock.
+        for action in pending {
+            if let Ok(mut action) = action.into_inner() {
+                action.fail(error);
+            }
         }
     }
 
@@ -173,5 +186,52 @@ mod reconnect_lifecycle_storage {
         drop(stream);
 
         assert!(!storage.contains(key));
+    }
+}
+
+#[cfg(test)]
+mod pending_failure_completion {
+    use super::UpdatableActionStorage;
+    use crate::execution::Storage;
+
+    #[test]
+    fn failing_pending_work_completes_awaiting_invocations_with_the_error() {
+        let mut storage = UpdatableActionStorage::new();
+        let pending = storage.add_invocation::<i32>("Probe_1".to_string());
+
+        storage.fail_pending("transport replaced");
+
+        assert_eq!(
+            futures::executor::block_on(pending),
+            Err("transport replaced".to_string())
+        );
+        assert!(!storage.contains("Probe_1".to_string()));
+    }
+
+    #[test]
+    fn removing_a_pending_invocation_completes_it_with_an_error() {
+        let mut storage = UpdatableActionStorage::new();
+        let pending = storage.add_invocation::<i32>("Probe_2".to_string());
+
+        storage.remove("Probe_2".to_string());
+
+        let error = futures::executor::block_on(pending).unwrap_err();
+        assert!(
+            error.contains("ended before the server completed it"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn failing_pending_work_ends_open_streams() {
+        let mut storage = UpdatableActionStorage::new();
+        let mut stream = storage.add_stream::<i32>("Stream_3".to_string(), Box::new(|| {}));
+
+        storage.fail_pending("transport replaced");
+
+        assert_eq!(
+            futures::executor::block_on(futures::StreamExt::next(&mut stream)),
+            None
+        );
     }
 }
