@@ -14,6 +14,8 @@ mod completer;
 mod execution;
 pub(crate) mod platform;
 mod protocol;
+#[cfg(test)]
+mod test_logging;
 
 pub use client::{
     ConnectionConfiguration, DisconnectionHandler, InvocationContext, ReconnectionHandler,

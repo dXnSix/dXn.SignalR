@@ -16,10 +16,6 @@ impl Ack {
             sequence_id,
         }
     }
-
-    pub(crate) fn sequence_id(&self) -> Result<u64, String> {
-        validate_sequence_id(self.sequence_id)
-    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -36,10 +32,17 @@ impl Sequence {
             sequence_id,
         }
     }
+}
 
-    pub(crate) fn sequence_id(&self) -> Result<u64, String> {
-        validate_sequence_id(self.sequence_id)
+/// Decodes a JSON Ack or Sequence record of the `expected` type into its sequence id. The id is
+/// not validated here: `StatefulMessageBuffer::receive_control` rejects (and records) an id of 0.
+pub(crate) fn decode_json_control(text: &str, expected: MessageType) -> Result<u64, String> {
+    // Ack and Sequence share their JSON shape.
+    let control = crate::protocol::messages::MessageParser::parse_message::<Ack>(text)?;
+    if control.r#type != expected {
+        return Err(format!("Expected {expected:?} control message"));
     }
+    Ok(control.sequence_id)
 }
 
 pub(crate) fn validate_sequence_id(sequence_id: u64) -> Result<u64, String> {
@@ -67,6 +70,9 @@ pub(crate) fn encode_messagepack_control(
     Ok(crate::protocol::msgpack::frame_message(&payload))
 }
 
+/// Decodes a MessagePack Ack or Sequence (`[type, sequenceId]`) of the `expected` type into its
+/// sequence id. The id is not validated here: `StatefulMessageBuffer::receive_control` rejects
+/// (and records) an id of 0.
 #[cfg(feature = "messagepack")]
 pub(crate) fn decode_messagepack_control(
     payload: &[u8],
@@ -82,10 +88,9 @@ pub(crate) fn decode_messagepack_control(
     if message_type != expected as u8 as u64 {
         return Err(format!("Expected {:?} control message", expected));
     }
-    let sequence_id = items[1]
+    items[1]
         .as_u64()
-        .ok_or_else(|| "Stateful sequence ID is not an unsigned integer".to_string())?;
-    validate_sequence_id(sequence_id)
+        .ok_or_else(|| "Stateful sequence ID is not an unsigned integer".to_string())
 }
 
 #[cfg(test)]
@@ -107,8 +112,8 @@ mod stateful_golden_frames {
 
     #[test]
     fn stateful_rejects_zero_sequence_id() {
-        assert!(Ack::new(0).sequence_id().is_err());
-        assert!(Sequence::new(0).sequence_id().is_err());
+        assert!(super::validate_sequence_id(0).is_err());
+        assert_eq!(super::validate_sequence_id(1), Ok(1));
     }
 
     #[cfg(feature = "messagepack")]

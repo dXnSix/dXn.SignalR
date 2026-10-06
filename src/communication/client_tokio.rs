@@ -803,26 +803,16 @@ impl CommunicationConnection {
                                     let message_type = ping.message_type();
                                     if let Some(buffer) = &stateful {
                                         let control_result = match message_type {
-                                            MessageType::Ack => {
-                                                MessageParser::parse_message::<Ack>(&message)
-                                                    .and_then(|ack| ack.sequence_id())
-                                                    .and_then(|sequence_id| {
-                                                        buffer
-                                                            .lock()
-                                                            .expect("stateful buffer poisoned")
-                                                            .acknowledge(sequence_id)
-                                                            .map(|_| ())
-                                                    })
-                                            }
-                                            MessageType::Sequence => {
-                                                MessageParser::parse_message::<Sequence>(&message)
-                                                    .and_then(|sequence| sequence.sequence_id())
-                                                    .and_then(|sequence_id| {
-                                                        buffer
-                                                            .lock()
-                                                            .expect("stateful buffer poisoned")
-                                                            .reset_incoming_sequence(sequence_id)
-                                                    })
+                                            MessageType::Ack | MessageType::Sequence => {
+                                                let decoded =
+                                                    crate::protocol::stateful::decode_json_control(
+                                                        &message,
+                                                        message_type,
+                                                    );
+                                                buffer
+                                                    .lock()
+                                                    .expect("stateful buffer poisoned")
+                                                    .receive_control(message_type, decoded)
                                             }
                                             _ => Ok(()),
                                         };
@@ -902,27 +892,16 @@ impl CommunicationConnection {
                                     Ok(msg_type) => {
                                         if let Some(buffer) = &stateful {
                                             let control_result = match msg_type {
-                                                MessageType::Ack => crate::protocol::stateful::decode_messagepack_control(
-                                                    &payload,
-                                                    MessageType::Ack,
-                                                )
-                                                .and_then(|sequence_id| {
+                                                MessageType::Ack | MessageType::Sequence => {
+                                                    let decoded = crate::protocol::stateful::decode_messagepack_control(
+                                                        &payload,
+                                                        msg_type,
+                                                    );
                                                     buffer
                                                         .lock()
                                                         .expect("stateful buffer poisoned")
-                                                        .acknowledge(sequence_id)
-                                                        .map(|_| ())
-                                                }),
-                                                MessageType::Sequence => crate::protocol::stateful::decode_messagepack_control(
-                                                    &payload,
-                                                    MessageType::Sequence,
-                                                )
-                                                .and_then(|sequence_id| {
-                                                    buffer
-                                                        .lock()
-                                                        .expect("stateful buffer poisoned")
-                                                        .reset_incoming_sequence(sequence_id)
-                                                }),
+                                                        .receive_control(msg_type, decoded)
+                                                }
                                                 _ => Ok(()),
                                             };
                                             if let Err(error) = control_result {
@@ -1584,7 +1563,7 @@ impl CommunicationClient {
         buffer
             .lock()
             .expect("stateful buffer poisoned")
-            .finish_resend()?;
+            .finish_resend(resend_result.is_ok())?;
         resend_result?;
         Ok(OpenSocket::new(write, read))
     }

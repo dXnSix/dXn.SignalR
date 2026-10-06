@@ -82,6 +82,18 @@ Levels:
 - `info`: connection milestones (negotiation, connect, reconnect, close) and completions.
 - `debug`: message-level tracing.
 
+Stateful reconnect logs its sequencing at `debug` under the `rayx_signalr::stateful` target, on
+both targets and without payloads: every tracked outgoing sequence id, every received trackable id
+with its `accepted` or `duplicate` decision, each Ack sent and received, each Sequence message,
+the resend range of every resume with its outcome (`resend-finished` or `resend-failed`), every
+rejected Ack, Sequence or message with the reason, and lost, renewed and disposed buffers. Every
+record starts with `generation=<n>`, the physical connection it belongs to. Enable it alone to
+diagnose a resume:
+
+```text
+RUST_LOG=rayx_signalr::stateful=debug
+```
+
 `info` and `debug` can include message payloads. Do not enable them in production for hubs that
 carry personal data or secrets. Negotiation errors leave out URL query strings (which can carry
 tokens) and redact credentials from the response excerpts they quote.

@@ -80,6 +80,8 @@ let client = SignalRClient::connect_with("host", "hub", move |c| {
   pending work fails, next attempt negotiates fresh.
 - Incompatible with `skip_negotiation()`. Still needs a policy, a handler or `resume()` to
   reconnect at all.
+- Trace a resume with `RUST_LOG=rayx_signalr::stateful=debug` (payload-free sequencing records;
+  see the Logging section of [troubleshooting](troubleshooting.md)).
 
 ## Choosing
 

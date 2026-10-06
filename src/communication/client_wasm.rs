@@ -462,7 +462,7 @@ async fn resume_socket(
         }
         Ok::<(), String>(())
     })();
-    buffer.borrow_mut().finish_resend()?;
+    buffer.borrow_mut().finish_resend(resend.is_ok())?;
     resend?;
     Ok(Opened {
         socket: Rc::new(LiveSocket::new(socket, liveness)),
@@ -641,12 +641,13 @@ fn process_frame(shared: &Shared, frame: Frame, socket: &LiveSocket) -> Option<b
                 };
                 if let Some(buffer) = stateful {
                     let control = match message_type {
-                        MessageType::Ack => MessageParser::parse_message::<Ack>(message)
-                            .and_then(|ack| ack.sequence_id())
-                            .and_then(|id| buffer.borrow_mut().acknowledge(id).map(|_| ())),
-                        MessageType::Sequence => MessageParser::parse_message::<Sequence>(message)
-                            .and_then(|sequence| sequence.sequence_id())
-                            .and_then(|id| buffer.borrow_mut().reset_incoming_sequence(id)),
+                        MessageType::Ack | MessageType::Sequence => {
+                            let decoded = crate::protocol::stateful::decode_json_control(
+                                message,
+                                message_type,
+                            );
+                            buffer.borrow_mut().receive_control(message_type, decoded)
+                        }
                         _ => Ok(()),
                     };
                     match stateful_step(buffer, message_type, control, shared, socket) {
@@ -684,17 +685,11 @@ fn process_frame(shared: &Shared, frame: Frame, socket: &LiveSocket) -> Option<b
                 if let Some(buffer) = stateful {
                     let control = match message_type {
                         MessageType::Ack | MessageType::Sequence => {
-                            crate::protocol::stateful::decode_messagepack_control(
+                            let decoded = crate::protocol::stateful::decode_messagepack_control(
                                 &payload,
                                 message_type,
-                            )
-                            .and_then(|id| {
-                                if message_type == MessageType::Ack {
-                                    buffer.borrow_mut().acknowledge(id).map(|_| ())
-                                } else {
-                                    buffer.borrow_mut().reset_incoming_sequence(id)
-                                }
-                            })
+                            );
+                            buffer.borrow_mut().receive_control(message_type, decoded)
                         }
                         _ => Ok(()),
                     };

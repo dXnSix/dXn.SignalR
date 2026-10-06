@@ -37,6 +37,13 @@ text names the failing step; do not match on exact text, prefer `status()`.
 `RUST_LOG=rayx_signalr=info` (or `debug` for message tracing). Browser: `console_log`.
 `info`/`debug` can include payloads; avoid them in production for sensitive hubs.
 
+Stateful reconnect sequencing logs at `debug` on its own target, `rayx_signalr::stateful`, on both
+targets: tracked outgoing ids, received ids with `accepted`/`duplicate`, Acks sent and received,
+Sequence messages, resend ranges and their outcome (`resend-finished` or `resend-failed`), and
+rejected Acks, Sequences or messages with the reason. Every record starts with `generation=<n>`
+(the physical connection) and never contains payloads, so it is safe to enable alone:
+`RUST_LOG=rayx_signalr::stateful=debug`.
+
 ## Limitations
 
 - WebSockets only: no Server-Sent Events or Long Polling.
