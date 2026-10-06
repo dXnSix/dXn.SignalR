@@ -78,3 +78,10 @@ tmp-playwright/
 # External references and generated docs output
 .references/
 [Dd]ocs/dist/
+
+# Build output
+bin/
+obj/
+.vs/
+*.user
+Cargo.lock
