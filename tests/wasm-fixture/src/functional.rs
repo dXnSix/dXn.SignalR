@@ -3,11 +3,11 @@
 
 use std::{cell::Cell, cell::RefCell, future::Future, rc::Rc, sync::Arc, time::Duration};
 
-use futures::{channel::oneshot, StreamExt};
+use futures::{channel::oneshot, future::Either, StreamExt};
 use gloo_timers::future::TimeoutFuture;
 use rayx_signalr::{
     CallbackHandler, ConnectionConfiguration, ConstantDelayPolicy, DisconnectionHandler,
-    InvocationContext, ReconnectionConfig, ReconnectionHandler, SignalRClient,
+    InvocationContext, ManualStream, ReconnectionConfig, ReconnectionHandler, SignalRClient,
 };
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
@@ -65,6 +65,7 @@ pub async fn run_functional_scenario(
         "handshake-timeout" => handshake_timeout(messagepack).await,
         "pause-resume" => pause_resume(messagepack).await,
         "pause-resume-stateful" => pause_resume_stateful(messagepack).await,
+        "unsent-stream" => unsent_stream(messagepack).await,
         other => Err(format!("unknown functional scenario {other}")),
     };
     outcome
@@ -1534,6 +1535,120 @@ async fn pause_resume_stateful(messagepack: bool) -> Outcome {
     ensure!(
         aborts == 1,
         "the server aborted the fresh connection's transport {aborts} time(s)"
+    );
+    client.disconnect();
+    Ok(())
+}
+
+fn probe_stream(client: &mut SignalRClient) -> impl Future<Output = ManualStream<i32>> + '_ {
+    client.enumerate_with_args::<i32, _>("CancellationProbeStream".to_string(), |arguments| {
+        arguments.argument(5);
+    })
+}
+
+/// Starts a stream while the client cannot send and checks that it ends at once with the error.
+async fn unsent_stream_ends(
+    client: &mut SignalRClient,
+    phase: &str,
+) -> Result<ManualStream<i32>, String> {
+    let started = js_sys::Date::now();
+    let mut unsent = probe_stream(client).await;
+    match futures::future::select(unsent.next(), TimeoutFuture::new(1_000)).await {
+        Either::Left((None, _)) => {}
+        Either::Left((Some(item), _)) => {
+            return Err(format!("a stream started while {phase} yielded {item}"))
+        }
+        Either::Right(_) => return Err(format!("a stream started while {phase} did not end")),
+    }
+    match unsent.error() {
+        Some(error) if error.contains("not connected") => {}
+        other => {
+            return Err(format!(
+                "a stream started while {phase} ended with {other:?}"
+            ))
+        }
+    }
+    ensure!(
+        (js_sys::Date::now() - started).total_cmp(&1_000.0).is_lt(),
+        "a stream started while {phase} did not end at once"
+    );
+    Ok(unsent)
+}
+
+/// Unsent stream: a stream started while the client cannot send (paused, or reconnecting after a
+/// transport drop) ends at once with the send error instead of waiting for a server that never saw
+/// it. After the client is connected again the ended stream stays ended, the server never started
+/// it, and new streams work. The Playwright spec counts the CancelInvocation frames.
+async fn unsent_stream(messagepack: bool) -> Outcome {
+    use rayx_signalr::ConnectionStatus;
+
+    // Automatic reconnects wait 2 s, which keeps the client in Reconnecting long enough.
+    let mut client = connect("test", messagepack, |configuration| {
+        configuration.with_reconnection_policy(ReconnectionConfig {
+            policy: Arc::new(ConstantDelayPolicy::new(Duration::from_secs(2), Some(5))),
+        });
+    })
+    .await?;
+
+    // Paused.
+    client.pause().await?;
+    ensure!(
+        client.status() == ConnectionStatus::Paused,
+        "status after pause: {:?}",
+        client.status()
+    );
+    let paused = unsent_stream_ends(&mut client, "paused").await?;
+    client.resume().await?;
+    ensure!(
+        client.status() == ConnectionStatus::Connected,
+        "status after resume: {:?}",
+        client.status()
+    );
+    drop(paused);
+
+    // Reconnecting after a transport drop; the ordinary reconnect then succeeds.
+    client.send("AbortPhysicalTransport".to_string()).await?;
+    eventually(
+        "the automatic reconnect to start its delay",
+        5_000.0,
+        || {
+            let status = client.status();
+            async move { (status == ConnectionStatus::Reconnecting).then_some(()) }
+        },
+    )
+    .await?;
+    let reconnecting = unsent_stream_ends(&mut client, "reconnecting").await?;
+    eventually("the ordinary reconnect to succeed", 10_000.0, || {
+        let status = client.status();
+        async move { (status == ConnectionStatus::Connected).then_some(()) }
+    })
+    .await?;
+    ensure!(
+        reconnecting.error().is_some(),
+        "the reconnect must not reopen an ended stream"
+    );
+    drop(reconnecting);
+
+    // The reconnected server never started the unsent stream; a new stream works and cancels.
+    let mut live = probe_stream(&mut client).await;
+    let first = live.next().await;
+    ensure!(first == Some(1), "the live stream started with {first:?}");
+    drop(live);
+    let status = eventually("the live stream's cancellation", 5_000.0, || {
+        let mut probe = client.clone();
+        async move {
+            probe
+                .invoke::<super::CancellationProbeSnapshot>("CancellationProbeStatus".to_string())
+                .await
+                .ok()
+                .filter(|status| status.active == 0 && status.canceled == 1)
+        }
+    })
+    .await?;
+    ensure!(
+        status.started == 1,
+        "{} streams started on the reconnected connection",
+        status.started
     );
     client.disconnect();
     Ok(())

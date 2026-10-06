@@ -50,3 +50,30 @@ for (const { protocol, title } of protocols) {
     expect(pageErrors).toEqual([]);
   });
 }
+
+// The scenario logic lives in the fixture (`tests/wasm-fixture/src/functional.rs`) and mirrors the
+// native `tests/e2e/unsent_stream.rs`; only the live stream it drops may emit a type-5 frame.
+for (const { protocol, title } of protocols) {
+  test(`unsent stream ${title}`, async ({ page }) => {
+    const pageErrors: string[] = [];
+    let cancellationFrames = 0;
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+    page.on("console", (message) => console.log(`[browser:${message.type()}] ${message.text()}`));
+    page.on("websocket", (socket) => {
+      socket.on("framesent", ({ payload }) => cancellationFrames += countCancelInvocations(payload));
+    });
+    await openFixture(page);
+
+    const outcome = await page.evaluate(
+      (selected) =>
+        window.rayxSignalRFixture
+          .runFunctionalScenario("unsent-stream", selected)
+          .catch((error: unknown) => `failed: ${String(error)}`),
+      protocol,
+    );
+
+    expect(outcome).toBe("ok");
+    expect(cancellationFrames, "streams whose invocation was never sent must not be canceled").toBe(1);
+    expect(pageErrors).toEqual([]);
+  });
+}

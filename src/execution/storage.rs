@@ -27,6 +27,8 @@ pub trait Storage: Clone {
     fn remove(&mut self, key: String);
     fn dispose(&mut self);
     fn fail_pending(&mut self, error: &str);
+    /// Removes the action at `key` and ends it with `error`, like `fail_pending` for one action.
+    fn fail_action(&mut self, key: String, error: &str);
     fn increment(&mut self) -> usize;
 
     fn create_key(&mut self, target: String) -> String {

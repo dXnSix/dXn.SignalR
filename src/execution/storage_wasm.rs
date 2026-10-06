@@ -122,6 +122,20 @@ impl Storage for UpdatableActionStorage {
         }
     }
 
+    fn fail_action(&mut self, key: String, error: &str) {
+        let action = self
+            ._data
+            .borrow_mut()
+            .remove(&key)
+            .map(|(_, action)| action);
+        // Complete the awaiter after the storage borrow ends.
+        if let Some(action) = action {
+            if let Ok(mut action) = action.try_borrow_mut() {
+                action.fail(error);
+            }
+        }
+    }
+
     fn increment(&mut self) -> usize {
         let mut index = self._index.borrow_mut();
 

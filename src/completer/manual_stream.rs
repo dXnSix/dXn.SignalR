@@ -8,7 +8,7 @@ use std::{
     task::{Context, Poll, Waker},
 };
 
-use futures::Stream;
+use futures::{stream::FusedStream, Stream};
 
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) type StreamDropHandler = Box<dyn FnOnce() + Send + 'static>;
@@ -16,7 +16,7 @@ pub(crate) type StreamDropHandler = Box<dyn FnOnce() + Send + 'static>;
 pub(crate) type StreamDropHandler = Box<dyn FnOnce() + 'static>;
 
 struct ManualStreamState<T> {
-    queue: Arc<Mutex<VecDeque<Option<T>>>>,
+    queue: Arc<Mutex<VecDeque<T>>>,
     error: Arc<Mutex<Option<String>>>,
     waker: Arc<Mutex<Option<Waker>>>,
     closed: Arc<AtomicBool>,
@@ -48,7 +48,11 @@ impl<T> ManualStreamState<T> {
 
     fn push(&self, item: T) {
         let mut queue = self.queue.lock().unwrap();
-        queue.push_back(Some(item));
+        // Checked under the queue lock, so nothing lands behind an end the consumer has seen.
+        if self.closed.load(Ordering::Acquire) {
+            return;
+        }
+        queue.push_back(item);
         if let Some(waker) = self.waker.lock().unwrap().take() {
             // debug!("Waking stream...");
             waker.wake();
@@ -60,8 +64,9 @@ impl<T> ManualStreamState<T> {
             return;
         }
         self.drop_handler.lock().unwrap().take();
-        let mut queue = self.queue.lock().unwrap();
-        queue.push_back(None);
+        // Take the waker under the queue lock: `poll_next` checks `closed` and stores its waker
+        // under the same lock, so the end wakes a pending consumer instead of slipping past it.
+        let _queue = self.queue.lock().unwrap();
         if let Some(waker) = self.waker.lock().unwrap().take() {
             waker.wake();
         }
@@ -70,6 +75,7 @@ impl<T> ManualStreamState<T> {
 
 pub struct ManualStream<T> {
     state: ManualStreamState<T>,
+    terminated: bool,
 }
 
 impl<T> ManualStream<T> {
@@ -91,6 +97,7 @@ impl<T> ManualStream<T> {
         (
             ManualStream {
                 state: state.clone(),
+                terminated: false,
             },
             ManualStreamCompleter { state },
         )
@@ -98,8 +105,9 @@ impl<T> ManualStream<T> {
 }
 
 impl<T> ManualStream<T> {
-    /// Returns the error that ended the stream, if the server completed it with an error or the
-    /// connection failed it. `None` while the stream is open or after a normal completion.
+    /// Returns the error that ended the stream, if the server completed it with an error, the
+    /// connection failed it, or its invocation could not be sent. `None` while the stream is open
+    /// or after a normal completion.
     pub fn error(&self) -> Option<String> {
         self.state.error.lock().unwrap().clone()
     }
@@ -136,30 +144,33 @@ impl<T> ManualStreamCompleter<T> {
     }
 }
 
+/// Items queued before the end are yielded first; after that the stream returns `None` on every
+/// poll.
 impl<T> Stream for ManualStream<T> {
     type Item = T;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        // debug!("Polling stream...");
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if self.terminated {
+            return Poll::Ready(None);
+        }
         let mut queue = self.state.queue.lock().unwrap();
         if let Some(item) = queue.pop_front() {
-            // debug!("Item popped...");
-            match item {
-                Some(value) => {
-                    // debug!("Poll Ready with value");
-                    Poll::Ready(Some(value))
-                }
-                None => {
-                    // debug!("Poll Ready without value");
-                    Poll::Ready(None)
-                }
-            }
+            Poll::Ready(Some(item))
+        } else if self.state.closed.load(Ordering::Acquire) {
+            drop(queue);
+            self.terminated = true;
+            Poll::Ready(None)
         } else {
-            // debug!("Waker is peding..");
-            let mut waker = self.state.waker.lock().unwrap();
-            *waker = Some(cx.waker().clone());
+            *self.state.waker.lock().unwrap() = Some(cx.waker().clone());
             Poll::Pending
         }
+    }
+}
+
+impl<T> FusedStream for ManualStream<T> {
+    /// `true` once the stream has returned `None`.
+    fn is_terminated(&self) -> bool {
+        self.terminated
     }
 }
 
@@ -200,5 +211,98 @@ mod tests {
         drop(stream);
 
         assert_eq!(drops.load(Ordering::SeqCst), 0);
+    }
+}
+
+#[cfg(test)]
+mod fused_end {
+    use super::ManualStream;
+    use futures::{stream::FusedStream, FutureExt, StreamExt};
+    use std::{sync::mpsc, thread, time::Duration};
+
+    #[test]
+    fn a_closed_stream_returns_none_on_every_later_poll() {
+        let (mut stream, completer) = ManualStream::<i32>::create();
+
+        completer.close();
+
+        for _ in 0..3 {
+            assert_eq!(stream.next().now_or_never(), Some(None));
+            assert!(stream.is_terminated());
+        }
+        assert_eq!(stream.error(), None);
+    }
+
+    #[test]
+    fn a_failed_stream_returns_none_on_every_later_poll_and_keeps_its_error() {
+        let (mut stream, completer) = ManualStream::<i32>::create();
+
+        completer.fail("boom".to_string());
+
+        for _ in 0..3 {
+            assert_eq!(stream.next().now_or_never(), Some(None));
+            assert!(stream.is_terminated());
+            assert_eq!(stream.error().as_deref(), Some("boom"));
+        }
+    }
+
+    #[test]
+    fn items_queued_before_the_end_are_yielded_first() {
+        let (mut stream, completer) = ManualStream::<i32>::create();
+
+        completer.push(1);
+        completer.push(2);
+        completer.fail("boom".to_string());
+
+        assert_eq!(stream.next().now_or_never(), Some(Some(1)));
+        assert_eq!(stream.next().now_or_never(), Some(Some(2)));
+        assert!(!stream.is_terminated());
+        assert_eq!(stream.next().now_or_never(), Some(None));
+        assert_eq!(stream.next().now_or_never(), Some(None));
+        assert_eq!(stream.error().as_deref(), Some("boom"));
+    }
+
+    #[test]
+    fn items_pushed_after_the_end_are_dropped() {
+        let (mut stream, completer) = ManualStream::<i32>::create();
+
+        completer.push(1);
+        completer.close();
+        completer.push(2);
+
+        assert_eq!(stream.next().now_or_never(), Some(Some(1)));
+        assert_eq!(stream.next().now_or_never(), Some(None));
+        completer.push(3);
+        assert_eq!(stream.next().now_or_never(), Some(None));
+    }
+
+    #[test]
+    fn an_open_empty_stream_is_pending_and_not_terminated() {
+        let (mut stream, _completer) = ManualStream::<i32>::create();
+
+        assert_eq!(stream.next().now_or_never(), None);
+        assert!(!stream.is_terminated());
+    }
+
+    #[test]
+    fn closing_wakes_a_pending_consumer_that_then_stays_ended() {
+        let (mut stream, completer) = ManualStream::<i32>::create();
+        let (sender, results) = mpsc::channel();
+
+        let consumer = thread::spawn(move || {
+            futures::executor::block_on(async {
+                for _ in 0..3 {
+                    sender.send(stream.next().await).unwrap();
+                }
+            });
+        });
+        thread::sleep(Duration::from_millis(50));
+        completer.close();
+
+        for _ in 0..3 {
+            let next = results.recv_timeout(Duration::from_secs(5));
+            assert_eq!(next, Ok(None));
+        }
+        consumer.join().unwrap();
     }
 }

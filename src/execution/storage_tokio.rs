@@ -110,6 +110,19 @@ impl Storage for UpdatableActionStorage {
         }
     }
 
+    fn fail_action(&mut self, key: String, error: &str) {
+        let action = if let Ok(mut data) = self._data.lock() {
+            data.remove(&key).map(|(_, action)| action)
+        } else {
+            error!("Cannot lock storage while failing action {}", key);
+            return;
+        };
+        // Complete the awaiter outside the storage lock.
+        if let Some(Ok(mut action)) = action.map(Mutex::into_inner) {
+            action.fail(error);
+        }
+    }
+
     fn increment(&mut self) -> usize {
         let mut index = self._index.lock().unwrap();
 
@@ -186,6 +199,43 @@ mod reconnect_lifecycle_storage {
         drop(stream);
 
         assert!(!storage.contains(key));
+    }
+}
+
+#[cfg(test)]
+mod unsent_stream_invocation {
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+
+    use super::UpdatableActionStorage;
+    use crate::execution::Storage;
+
+    #[test]
+    fn failing_one_stream_ends_it_with_the_error_and_disarms_its_drop_handler() {
+        let mut storage = UpdatableActionStorage::new();
+        let cancellations = Arc::new(AtomicUsize::new(0));
+        let counted = cancellations.clone();
+        let mut stream = storage.add_stream::<i32>(
+            "Stream_1".to_string(),
+            Box::new(move || {
+                counted.fetch_add(1, Ordering::SeqCst);
+            }),
+        );
+        let _other = storage.add_stream::<i32>("Stream_2".to_string(), Box::new(|| {}));
+
+        storage.fail_action("Stream_1".to_string(), "not sent");
+
+        assert_eq!(
+            futures::executor::block_on(futures::StreamExt::next(&mut stream)),
+            None
+        );
+        assert_eq!(stream.error(), Some("not sent".to_string()));
+        assert!(!storage.contains("Stream_1".to_string()));
+        assert!(storage.contains("Stream_2".to_string()));
+        drop(stream);
+        assert_eq!(cancellations.load(Ordering::SeqCst), 0);
     }
 }
 

@@ -651,7 +651,8 @@ impl SignalRClient {
     /// # Returns
     ///
     /// * `ManualStream<T>` - A stream of items of type `T`; after it ends, [`ManualStream::error`] reports
-    ///   a server or connection error that ended it.
+    ///   a server or connection error that ended it. When the stream invocation cannot be sent (the
+    ///   client is not connected), the stream is returned already ended with that send error.
     ///
     /// # Type Parameters
     ///
@@ -687,7 +688,8 @@ impl SignalRClient {
     /// # Returns
     ///
     /// * `ManualStream<T>` - A stream of items of type `T`; after it ends, [`ManualStream::error`] reports
-    ///   a server or connection error that ended it.
+    ///   a server or connection error that ended it. When the stream invocation cannot be sent (the
+    ///   client is not connected), the stream is returned already ended with that send error.
     ///
     /// # Type Parameters
     ///
@@ -769,7 +771,7 @@ impl SignalRClient {
             ._actions
             .add_stream::<T>(invocation_id.clone(), drop_handler);
         let mut invocation = Invocation::create_multiple(target.clone());
-        invocation.with_invocation_id(invocation_id);
+        invocation.with_invocation_id(invocation_id.clone());
 
         if let Some(mut configuration) = configuration {
             let mut args = ArgumentConfiguration::new(invocation);
@@ -778,8 +780,14 @@ impl SignalRClient {
             invocation = args.build_invocation();
         }
 
-        if let Some(ref mut conn) = self._connection {
-            let _ = Self::send_invocation(conn, &invocation).await;
+        let sent = match self._connection {
+            Some(ref mut conn) => Self::send_invocation(conn, &invocation).await,
+            None => Err("Not connected".to_string()),
+        };
+        if let Err(error) = sent {
+            // The server never saw the invocation: end the stream with the send error. Failing it
+            // also disarms the drop handler, so no CancelInvocation follows.
+            self._actions.fail_action(invocation_id, &error);
         }
 
         res
@@ -864,7 +872,8 @@ impl SignalRClient {
     /// Pauses the connection, for example while a mobile app is in the background: ends the
     /// transport (which stops keep-alive), stops automatic reconnects and reports
     /// [`ConnectionStatus::Paused`](crate::ConnectionStatus::Paused). `invoke` and `send` fail
-    /// while paused. Ordinary pending invocations fail with "The connection is paused".
+    /// while paused, and a stream started with `enumerate` ends at once with the send error.
+    /// Ordinary pending invocations fail with "The connection is paused".
     ///
     /// With stateful reconnect, native clients drop the transport without a WebSocket Close, so
     /// the server keeps the logical connection and its pending work resumes after `resume`, but
@@ -910,6 +919,80 @@ impl Clone for SignalRClient {
             _actions: self._actions.clone(),
             _connection: self._connection.clone(),
         }
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod unsent_stream_invocation {
+    use futures::{FutureExt, StreamExt};
+
+    use super::SignalRClient;
+    use crate::{
+        client::ConnectionConfiguration,
+        communication::{Communication, CommunicationClient, ConnectionData},
+        execution::Storage,
+        protocol::hub_protocol::HubProtocolKind,
+    };
+
+    /// A client whose connection never opened, so every send fails. Its tasks belong to
+    /// `runtime`.
+    fn not_connected_client(
+        protocol: HubProtocolKind,
+        runtime: tokio::runtime::Handle,
+    ) -> SignalRClient {
+        let mut configuration = ConnectionConfiguration::new("127.0.0.1".into(), "hub".into());
+        configuration.unsecure();
+        let recipe = configuration.connection_recipe().with_runtime(runtime);
+        let data = ConnectionData::new(
+            "ws://127.0.0.1/hub".to_string(),
+            String::new(),
+            protocol,
+            recipe,
+            None,
+        );
+        let connection = CommunicationClient::create(&data).unwrap();
+        SignalRClient {
+            _actions: connection.get_storage().unwrap(),
+            _connection: Some(connection),
+        }
+    }
+
+    fn a_stream_that_cannot_be_sent_ends_with_the_send_error(protocol: HubProtocolKind) {
+        // Nothing drives this runtime, so a spawned CancelInvocation would stay a live task.
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let mut client = not_connected_client(protocol, runtime.handle().clone());
+
+        let mut stream =
+            futures::executor::block_on(client.enumerate::<i32>("Numbers".to_string()));
+
+        assert_eq!(
+            stream.next().now_or_never(),
+            Some(None),
+            "the stream must end at once"
+        );
+        let error = stream.error().expect("the send error must end the stream");
+        assert!(error.contains("not connected"), "{error}");
+        assert!(!client._actions.contains("Numbers_1".to_string()));
+
+        drop(stream);
+        assert_eq!(
+            runtime.metrics().num_alive_tasks(),
+            0,
+            "an invocation the server never saw must not be cancelled"
+        );
+    }
+
+    #[test]
+    fn json_stream_that_cannot_be_sent_ends_with_the_send_error() {
+        a_stream_that_cannot_be_sent_ends_with_the_send_error(HubProtocolKind::Json);
+    }
+
+    #[cfg(feature = "messagepack")]
+    #[test]
+    fn messagepack_stream_that_cannot_be_sent_ends_with_the_send_error() {
+        a_stream_that_cannot_be_sent_ends_with_the_send_error(HubProtocolKind::MessagePack);
     }
 }
 

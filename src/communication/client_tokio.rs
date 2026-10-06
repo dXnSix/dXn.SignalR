@@ -1339,7 +1339,7 @@ impl CommunicationClient {
         }
     }
 
-    fn create(configuration: &super::ConnectionData) -> Result<Self, String> {
+    pub(crate) fn create(configuration: &super::ConnectionData) -> Result<Self, String> {
         let recipe = configuration.get_recipe();
         info!(
             "Creating communication client to {}",
