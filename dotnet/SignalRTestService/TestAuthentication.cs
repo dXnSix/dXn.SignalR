@@ -56,6 +56,9 @@ namespace SignalRTestService
                     : AuthenticateResult.Fail("Invalid access token"));
             }
 
+            // Test-only: browsers cannot send Authorization on a WebSocket, so this service maps a
+            // negotiated connection token back to the user who negotiated it. A standard ASP.NET
+            // Core server does not do this; browser clients should use Bearer tokens.
             string? connectionToken = Request.Query["id"];
             if (!string.IsNullOrEmpty(connectionToken)
                 && TestControls.TryGetTokenUser(connectionToken, out var negotiated))

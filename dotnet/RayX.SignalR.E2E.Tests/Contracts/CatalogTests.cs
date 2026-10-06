@@ -62,7 +62,7 @@ public sealed partial class CatalogTests(AspireEnvironment environment)
     ProcessResult listing = await ProcessRunner.RunAsync(
                               new ProcessCommand(executable, ["--list", "--format", "terse"], environment.RepositoryRoot),
                               TimeSpan.FromSeconds(60));
-    Assert.True(listing.Succeeded, listing.CombinedOutput);
+    Assert.True(listing.Succeeded, Redaction.SafeTail(listing.CombinedOutput));
     HashSet<string> tests = RustTestLine()
                             .Matches(listing.StandardOutput)
                             .Select(match => match.Groups["name"].Value)
@@ -86,7 +86,7 @@ public sealed partial class CatalogTests(AspireEnvironment environment)
     {
       ProcessCommand list = BrowserCellRunner.Command(environment.RepositoryRoot, engine, title: null, list: true);
       ProcessResult listing = await ProcessRunner.RunAsync(list, TimeSpan.FromSeconds(120));
-      Assert.True(listing.Succeeded, listing.CombinedOutput);
+      Assert.True(listing.Succeeded, Redaction.SafeTail(listing.CombinedOutput));
       HashSet<string> titles = PlaywrightListLine()
                                .Matches(listing.StandardOutput)
                                .Where(match => match.Groups["project"].Value == engine)

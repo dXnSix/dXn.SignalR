@@ -9,7 +9,7 @@ string repositoryRoot = RepositoryLayout.FindRoot(builder.AppHostDirectory);
 // An ephemeral CA and server certificate for the service's HTTPS endpoint, regenerated per run.
 TestCertificateFiles certificates = TestCertificates.Generate(
   builder.Configuration["Tls:Directory"]
-  ?? Path.Combine(repositoryRoot, "artifacts-temp", "e2e", "tls", $"{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Environment.ProcessId}"));
+  ?? Path.Combine(repositoryRoot, "artifacts-temp", "tls", $"{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Environment.ProcessId}"));
 
 // The ASP.NET Core SignalR test service. Its launch profile is excluded so Aspire owns the ports.
 builder

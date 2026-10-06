@@ -25,6 +25,14 @@ public interface ICellRunner
 /// <summary>Shared cell bounds, environment and verdicts.</summary>
 public static partial class CellExecution
 {
+  /// <summary>
+  /// The cargo features of the host and iOS <c>e2e</c> binaries: the default TLS stack
+  /// (platform verifier with the <c>ring</c> provider, as consumers get it) plus MessagePack.
+  /// <c>--all-features</c> would select <c>aws-lc-rs</c> and leave the default provider without
+  /// a real handshake.
+  /// </summary>
+  public static readonly string[] E2EFeatures = ["--features", "messagepack"];
+
   /// <summary>The hard bound for one cell's process.</summary>
   public static readonly TimeSpan CellTimeout = TimeSpan.FromSeconds(60);
 
@@ -158,13 +166,13 @@ public static class NativeE2EBinary
 
       ProcessCommand build = new(
         "cargo",
-        ["test", "--test", "e2e", "--all-features", "--no-run", "--message-format=json"],
+        ["test", "--test", "e2e", .. CellExecution.E2EFeatures, "--no-run", "--message-format=json"],
         repositoryRoot);
       ProcessResult result = await ProcessRunner.RunAsync(build, TimeSpan.FromMinutes(20), cancellationToken);
       if(!result.Succeeded)
       {
         throw new InvalidOperationException(
-          $"{build.Display} failed with exit code {result.ExitCode}:\n{Redaction.SafeTail(result.StandardError)}");
+          $"{build.Display} failed with exit code {result.ExitCode}:\n{Redaction.SafeTail(CompilerErrors(result.StandardOutput) + result.StandardError)}");
       }
 
       _executable = ParseExecutable(result.StandardOutput);
@@ -174,6 +182,39 @@ public static class NativeE2EBinary
     {
       _gate.Release();
     }
+  }
+
+  /// <summary>
+  /// Extracts the rendered compiler errors from <c>cargo --message-format=json</c> output, which
+  /// carries them on standard output instead of standard error.
+  /// </summary>
+  /// <param name="messages">The JSON lines.</param>
+  /// <returns>The rendered errors, one per line block.</returns>
+  public static string CompilerErrors(string messages)
+  {
+    System.Text.StringBuilder errors = new();
+    foreach(string line in messages.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+    {
+      if(!line.StartsWith('{'))
+      {
+        continue;
+      }
+
+      using JsonDocument message = JsonDocument.Parse(line);
+      JsonElement root = message.RootElement;
+      if(root.TryGetProperty("reason", out JsonElement reason)
+         && reason.GetString() == "compiler-message"
+         && root.TryGetProperty("message", out JsonElement compiler)
+         && compiler.TryGetProperty("level", out JsonElement level)
+         && level.GetString() == "error"
+         && compiler.TryGetProperty("rendered", out JsonElement rendered)
+         && rendered.ValueKind == JsonValueKind.String)
+      {
+        errors.AppendLine(rendered.GetString());
+      }
+    }
+
+    return errors.ToString();
   }
 
   /// <summary>Finds the <c>e2e</c> test executable in <c>cargo --message-format=json</c> output.</summary>

@@ -60,7 +60,7 @@ public sealed partial class ToolchainTests(AspireEnvironment environment)
     ProcessResult result = await ProcessRunner.RunAsync(
                              new ProcessCommand(executable, ["--version"], environment.RepositoryRoot),
                              TimeSpan.FromSeconds(30));
-    Assert.True(result.Succeeded, result.CombinedOutput);
+    Assert.True(result.Succeeded, Redaction.SafeTail(result.CombinedOutput));
     Assert.Equal($"wasm-bindgen {version}", result.StandardOutput.Trim());
   }
 

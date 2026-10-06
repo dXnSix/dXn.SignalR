@@ -53,7 +53,7 @@ public static class E2EBinaryBuilds
       if(!result.Succeeded)
       {
         throw new InvalidOperationException(
-          $"{build.Display} failed with exit code {result.ExitCode}:\n{Redaction.SafeTail(result.StandardError)}");
+          $"{build.Display} failed with exit code {result.ExitCode}:\n{Redaction.SafeTail(NativeE2EBinary.CompilerErrors(result.StandardOutput) + result.StandardError)}");
       }
 
       string executable = NativeE2EBinary.ParseExecutable(result.StandardOutput);
@@ -120,6 +120,12 @@ public sealed class AndroidCellRunner : ICellRunner
   /// </summary>
   public const string TargetDirectory = "target/android-e2e";
 
+  /// <summary>
+  /// The Android <c>e2e</c> binary's features: the default TLS stack plus MessagePack and the
+  /// bundled roots the untrusted-certificate case needs without an app's JVM.
+  /// </summary>
+  public static readonly string[] AndroidFeatures = ["--features", "messagepack,tls-webpki-roots"];
+
   /// <summary>The device process name of the pushed binary; a timed-out cell is killed by it.</summary>
   public const string DeviceProcessName = "e2e";
 
@@ -132,7 +138,7 @@ public sealed class AndroidCellRunner : ICellRunner
   public static ProcessCommand BuildCommand(string repositoryRoot) =>
     new(
       "cargo",
-      ["ndk", "-t", "x86_64", "-P", "24", "test", "--test", "e2e", "--all-features", "--no-run"],
+      ["ndk", "-t", "x86_64", "-P", "24", "test", "--test", "e2e", .. AndroidFeatures, "--no-run"],
       repositoryRoot)
     {
       Environment = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -360,7 +366,7 @@ public sealed class IosCellRunner : ICellRunner
   public static ProcessCommand BuildCommand(string repositoryRoot) =>
     new(
       "cargo",
-      ["test", "--test", "e2e", "--all-features", "--target", RustTarget, "--no-run", "--message-format=json"],
+      ["test", "--test", "e2e", .. CellExecution.E2EFeatures, "--target", RustTarget, "--no-run", "--message-format=json"],
       repositoryRoot);
 
   /// <summary>Picks the simulator from <c>xcrun simctl list devices available --json</c>.</summary>
@@ -534,6 +540,8 @@ public sealed class IosCellRunner : ICellRunner
       new ProcessCommand("xcrun", ["simctl", "shutdown", _device], Directory.GetCurrentDirectory()),
       TimeSpan.FromMinutes(1));
     _booted = false;
+    _device = null;
+    _warmedUp = null;
   }
 
   static async Task<string> PrepareAsync(string repositoryRoot, CancellationToken cancellationToken)

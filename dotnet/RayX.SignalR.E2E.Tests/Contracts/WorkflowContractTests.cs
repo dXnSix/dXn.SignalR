@@ -55,11 +55,96 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
       int checkouts = actions.Count(action => action.StartsWith("actions/checkout@", StringComparison.Ordinal));
       Assert.Equal(checkouts, PersistCredentialsDisabled().Count(workflow));
 
+      // Every upload step is a recognized, failure-only, bounded diagnostics upload.
+      Assert.Equal(
+        Regex.Count(workflow, @"uses:\s*actions/upload-artifact@v7"),
+        UploadStep().Count(workflow));
       foreach(Match upload in UploadStep().Matches(workflow))
       {
         Assert.Matches(@"if:\s*failure\(\)", upload.Value);
         Assert.Contains("artifacts-temp/e2e", upload.Value, StringComparison.Ordinal);
         Assert.Contains("retention-days: 7", upload.Value, StringComparison.Ordinal);
+      }
+    }
+  }
+
+  [Fact]
+  [Trait("Category", "WorkflowContract")]
+  public void EveryQualityJobRunsItsOwnGateOnItsPlatform()
+  {
+    string quality = Workflows()["quality.yml"];
+    AssertMatches("quality.yml", quality, @"(?m)^env:\s*\n(?:\s+.*\n)*?\s+RUSTFLAGS: -D warnings");
+    AssertMatches("quality.yml", quality, @"(?m)^env:\s*\n(?:\s+.*\n)*?\s+RUSTDOCFLAGS: -D warnings");
+    Dictionary<string, string> jobs = JobBlocks(quality);
+    Dictionary<string, string[]> required = new(StringComparer.Ordinal)
+    {
+      ["rustfmt"] = [@"runs-on: ubuntu-latest", @"cargo \+1\.92\.0 fmt --all --check"],
+      ["clippy"] = [@"runs-on: ubuntu-latest", @"clippy --all-targets --test e2e --all-features -- -D warnings"],
+      ["native"] =
+      [
+        @"runs-on: \$\{\{ matrix\.os \}\}",
+        @"os: \[ubuntu-latest, windows-latest, macos-latest\]",
+        @"toolchain: \[1\.92\.0, stable\]",
+        @"check --all-targets --test e2e --all-features"
+      ],
+      ["wasm"] =
+      [
+        @"runs-on: ubuntu-latest",
+        "mode: default",
+        "mode: all-features",
+        @"cargo \+1\.92\.0 check --target wasm32-unknown-unknown \$\{\{ matrix\.feature_args \}\}"
+      ],
+      ["unit-contract"] =
+      [
+        @"runs-on: ubuntu-latest",
+        "--no-default-features",
+        "--all-features",
+        @"cargo \+1\.92\.0 test \$\{\{ matrix\.feature_args \}\}"
+      ],
+      ["android"] =
+      [
+        @"runs-on: ubuntu-latest",
+        @"cargo install cargo-ndk --version 4\.1\.2 --locked",
+        @"cargo \+1\.92\.0 ndk -t arm64-v8a -t x86_64 -P 24 check --lib"
+      ],
+      ["ios"] =
+      [
+        @"runs-on: macos-latest",
+        @"target: \[aarch64-apple-ios, aarch64-apple-ios-sim\]",
+        @"cargo \+1\.92\.0 check --lib --test e2e --all-features --target \$\{\{ matrix\.target \}\}"
+      ],
+      ["threaded-wasm"] =
+      [
+        @"runs-on: ubuntu-latest",
+        @"-C target-feature=\+atomics,\+bulk-memory,\+mutable-globals",
+        @"-Z build-std=std,panic_abort"
+      ],
+      ["platform"] =
+      [
+        @"runs-on: ubuntu-latest",
+        @"cargo install cargo-ndk --version 4\.1\.2 --locked",
+        @"nightly-2026-06-23",
+        @"--filter Category=Platform"
+      ],
+      ["rustdoc"] = [@"runs-on: ubuntu-latest", @"cargo \+1\.92\.0 doc --all-features --no-deps"],
+      ["dependency-security"] =
+      [
+        @"runs-on: ubuntu-latest",
+        "cargo install cargo-audit --locked",
+        @"--filter Category=DependencySecurity"
+      ],
+      ["contracts"] =
+      [
+        @"runs-on: ubuntu-latest",
+        @"--filter ""Category=WorkflowContract\|Category=Repository\|Category=Catalog\|Category=Toolchain"""
+      ]
+    };
+    Assert.Equal(required.Keys.Order(StringComparer.Ordinal), jobs.Keys.Order(StringComparer.Ordinal));
+    foreach((string job, string[] patterns) in required)
+    {
+      foreach(string pattern in patterns)
+      {
+        AssertMatches($"quality.yml job {job}", jobs[job], pattern);
       }
     }
   }
@@ -124,7 +209,7 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
               "e2e / android",
               @"RAYX_SIGNALR_E2E_TARGETS: android",
               @"rustup toolchain install 1\.92\.0 --profile minimal --target x86_64-linux-android",
-              @"cargo ndk -t x86_64 -P 24 test --test e2e --all-features --no-run",
+              @"cargo ndk -t x86_64 -P 24 test --test e2e --features messagepack,tls-webpki-roots --no-run",
               @"KERNEL==""kvm"", GROUP=""kvm"", MODE=""0666""",
               @"uses: reactivecircus/android-emulator-runner@v2",
               @"api-level: 34",
@@ -194,7 +279,7 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
         @"runs-on: ubuntu-latest",
         @"RAYX_SIGNALR_E2E_TARGETS: android",
         @"cargo install cargo-ndk --version 4\.1\.2 --locked",
-        @"CARGO_TARGET_DIR: target/android-e2e\s+run: cargo ndk -t x86_64 -P 24 test --test e2e --all-features --no-run",
+        @"CARGO_TARGET_DIR: target/android-e2e\s+run: cargo ndk -t x86_64 -P 24 test --test e2e --features messagepack,tls-webpki-roots --no-run",
         @"KERNEL==""kvm""",
         @"uses: reactivecircus/android-emulator-runner@v2",
         @"api-level: 34",

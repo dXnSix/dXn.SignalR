@@ -57,11 +57,13 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
   /// <summary>Gets the SignalR test service's HTTPS endpoint (served with <see cref="TlsCaPem"/>'s CA).</summary>
   public Uri TlsServiceUrl => App.GetEndpoint(ServiceResource, "https");
 
-  /// <summary>Gets the directory of this run's generated TLS certificates.</summary>
+  /// <summary>
+  /// Gets the directory of this run's generated TLS certificates and key: outside
+  /// <c>artifacts-temp/e2e</c>, which CI uploads on failure, and deleted when the run stops.
+  /// </summary>
   public string TlsDirectory { get; } = Path.Combine(
     RepositoryLayout.FindRoot(AppContext.BaseDirectory),
     "artifacts-temp",
-    "e2e",
     "tls",
     $"{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}");
 
@@ -282,6 +284,20 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
     await Scenarios.AndroidCellRunner.CleanupAsync();
     await Scenarios.IosCellRunner.CleanupAsync();
     DistributedApplication? app = _app;
+    try
+    {
+      if(app is not null && Directory.Exists(TlsDirectory))
+      {
+        Directory.Delete(TlsDirectory, recursive: true);
+      }
+    }
+    catch(IOException)
+    {
+      // The service may still hold the key open; the folder is outside the uploaded diagnostics.
+    }
+    catch(UnauthorizedAccessException)
+    {
+    }
     _app = null;
     _fixtureEnabled = false;
     _threadsEnabled = false;

@@ -1,3 +1,4 @@
+using RayX.SignalR.E2E.Tests.Infrastructure;
 using RayX.SignalR.E2E.Tests.Scenarios;
 
 namespace RayX.SignalR.E2E.Tests.Contracts;
@@ -53,7 +54,8 @@ public sealed class MobileRunnerTests
   {
     Infrastructure.ProcessCommand command = AndroidCellRunner.BuildCommand("/repo");
     Assert.Equal(Path.Combine("/repo", AndroidCellRunner.TargetDirectory), command.Environment["CARGO_TARGET_DIR"]);
-    Assert.Contains("--all-features", command.Arguments);
+    Assert.Equal(["--features", "messagepack,tls-webpki-roots"], command.Arguments.Skip(8).Take(2));
+    Assert.DoesNotContain("--all-features", command.Arguments);
   }
 
   [Fact]
@@ -84,6 +86,23 @@ public sealed class MobileRunnerTests
     {
       Directory.Delete(root, recursive: true);
     }
+  }
+
+  [Fact]
+  [Trait("Category", "Catalog")]
+  public void DiagnosticsRedactRedirectTokensAndKeepCompilerErrors()
+  {
+    Assert.Equal(
+      @"{""url"":""http://x/test"",""accessToken"":""[REDACTED]""}",
+      Redaction.Redact(@"{""url"":""http://x/test"",""accessToken"":""redirect-token""}"));
+    const string messages = """
+      {"reason":"compiler-message","message":{"level":"warning","rendered":"warning: unused"}}
+      {"reason":"compiler-message","message":{"level":"error","rendered":"error[E0425]: cannot find value"}}
+      {"reason":"build-finished","success":false}
+      """;
+    string errors = NativeE2EBinary.CompilerErrors(messages);
+    Assert.Contains("error[E0425]: cannot find value", errors, StringComparison.Ordinal);
+    Assert.DoesNotContain("warning: unused", errors, StringComparison.Ordinal);
   }
 
   [Fact]

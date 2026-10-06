@@ -8,7 +8,10 @@ public static partial class Redaction
   /// <summary>The maximum number of characters kept from one diagnostic stream.</summary>
   public const int MaximumCharacters = 32 * 1024;
 
-  /// <summary>Replaces <c>access_token=</c>, <c>Authorization</c> and <c>Bearer</c> values.</summary>
+  /// <summary>
+  /// Replaces <c>access_token=</c>, JSON <c>"accessToken"</c> (negotiate redirects),
+  /// <c>Authorization</c> and <c>Bearer</c> values.
+  /// </summary>
   /// <param name="value">The text.</param>
   /// <returns>The redacted text.</returns>
   public static string Redact(string? value)
@@ -19,6 +22,7 @@ public static partial class Redaction
     }
 
     string redacted = AccessToken().Replace(value, "$1[REDACTED]");
+    redacted = JsonAccessToken().Replace(redacted, "$1[REDACTED]");
     redacted = AuthorizationHeader().Replace(redacted, "$1[REDACTED]");
     return BearerToken().Replace(redacted, "$1[REDACTED]");
   }
@@ -44,6 +48,9 @@ public static partial class Redaction
 
   [GeneratedRegex(@"(?i)(access_token=)[^&\s""']+")]
   private static partial Regex AccessToken();
+
+  [GeneratedRegex(@"(?i)(""access_?token""\s*:\s*"")[^""]*")]
+  private static partial Regex JsonAccessToken();
 
   [GeneratedRegex(@"(?i)(authorization""?\s*[:=]\s*""?)[^\r\n""]+")]
   private static partial Regex AuthorizationHeader();

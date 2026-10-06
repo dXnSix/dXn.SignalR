@@ -137,7 +137,7 @@ public static class RepositoryFiles
                                ["ls-files", "--cached", "--others", "--exclude-standard"],
                                repositoryRoot),
                              TimeSpan.FromSeconds(60));
-    Assert.True(result.Succeeded, result.CombinedOutput);
+    Assert.True(result.Succeeded, Redaction.SafeTail(result.CombinedOutput));
     return result.StandardOutput
                  .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                  .Where(file => File.Exists(Path.Combine(repositoryRoot, file)))
