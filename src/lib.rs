@@ -27,9 +27,11 @@ pub use protocol::hub_protocol::HubProtocolKind;
 /// Native TLS integration points.
 #[cfg(not(target_arch = "wasm32"))]
 pub mod tls {
-    /// Android initialization for the platform certificate verifier. Call one of these once
-    /// (for example from `JNI_OnLoad`) before connecting to a secure endpoint; see
-    /// `rustls-platform-verifier` for the Gradle and ProGuard setup.
+    /// Android initialization for the platform certificate verifier. Call one of these once,
+    /// with the JNI environment and an Android `Context` (for example from a native method the
+    /// app's `Application` or `Activity` calls at start-up; `JNI_OnLoad` receives no
+    /// `Context`), before connecting to a secure endpoint. See the README and
+    /// `rustls-platform-verifier` for the Gradle repository, version and ProGuard setup.
     #[cfg(all(target_os = "android", feature = "tls-platform-verifier"))]
     pub mod android {
         pub use rustls_platform_verifier::android::{

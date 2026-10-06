@@ -215,7 +215,10 @@ impl InvocationContext {
     /// This method is a convenience method for writing cross-platform code, as the package supports both Tokio and WASM.
     /// Callbacks run on the connection's runtime-owned receiver task, so calling this from a
     /// callback (for example to [`complete`](Self::complete) a client result) spawns onto the
-    /// connection's runtime. Outside a Tokio runtime context it panics like `tokio::spawn`.
+    /// connection's runtime. Outside a Tokio runtime context it panics like `tokio::spawn`:
+    /// code awaiting the client from another executor (see
+    /// [`ConnectionConfiguration::with_runtime_handle`](crate::ConnectionConfiguration::with_runtime_handle))
+    /// should spawn with that runtime's `Handle::spawn` instead.
     ///
     /// # Arguments
     ///

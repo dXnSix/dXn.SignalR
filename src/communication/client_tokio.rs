@@ -142,6 +142,9 @@ fn classify_handshake_frame(frame: Option<Message>) -> HandshakeFrame {
     }
 }
 
+/// Returned when every client handle is gone while a reconnect still runs.
+const CLIENT_DROPPED: &str = "Client has been dropped";
+
 /// What woke the writer task.
 enum WriterEvent {
     Control(Option<Message>),
@@ -256,7 +259,11 @@ impl ReconnectionContext {
             let result = context
                 .run_policy(generation, FirstAttempt::WithoutDelay)
                 .await;
-            context.finish_run(generation, result).await
+            // A run that gives up ends the logical connection, as on the browser.
+            if let Err(error) = &result {
+                context.end_after_exhaustion(generation, error).await;
+            }
+            result
         })
         .await
     }
@@ -293,7 +300,6 @@ impl ReconnectionContext {
         if !self.coordinator.owns(generation) {
             return Err(self.coordinator.superseded_reason().to_string());
         }
-        let state = self.state.upgrade().ok_or("Client has been dropped")?;
         info!("Reconnecting to {}...", self.endpoint);
         let resumable = self.stateful.as_ref().filter(|buffer| {
             !buffer
@@ -324,6 +330,9 @@ impl ReconnectionContext {
             .await?;
             (socket, Some(endpoint))
         };
+        // The connection state is only held while installing, never across network I/O, so a
+        // dropped or disconnected client is never kept alive by a reconnect.
+        let state = self.state.upgrade().ok_or(CLIENT_DROPPED)?;
         let mut guard = state.lock().await;
         if !self.coordinator.complete(generation) {
             return Err(self.coordinator.superseded_reason().to_string());
@@ -347,6 +356,16 @@ impl ReconnectionContext {
         Ok(())
     }
 
+    /// Why a reconnect run of `generation` must stop: every client handle was dropped, or the
+    /// generation was superseded (by `pause` or a local close).
+    fn stopped(&self, generation: u64) -> Option<String> {
+        if self.state.strong_count() == 0 {
+            return Some(CLIENT_DROPPED.to_string());
+        }
+        (!self.coordinator.owns(generation))
+            .then(|| self.coordinator.superseded_reason().to_string())
+    }
+
     /// Attempts until one succeeds, the policy gives up, or the generation is superseded (by
     /// `pause` or a local close), which is checked again after every delay.
     async fn run_policy(&self, generation: u64, first: FirstAttempt) -> Result<(), String> {
@@ -359,8 +378,8 @@ impl ReconnectionContext {
         let started = std::time::Instant::now();
         let mut retry_count = 0u32;
         loop {
-            if !self.coordinator.owns(generation) {
-                return Err(self.coordinator.superseded_reason().to_string());
+            if let Some(reason) = self.stopped(generation) {
+                return Err(reason);
             }
             let elapsed = started.elapsed().as_millis() as u64;
             let Some(delay) = first.delay(policy.as_ref(), retry_count, elapsed) else {
@@ -371,8 +390,10 @@ impl ReconnectionContext {
             }
             match self.attempt(generation).await {
                 Ok(()) => return Ok(()),
-                Err(error) if !self.coordinator.owns(generation) => return Err(error),
                 Err(error) => {
+                    if let Some(reason) = self.stopped(generation) {
+                        return Err(reason);
+                    }
                     error!("Reconnection attempt {} failed: {error}", retry_count + 1);
                     retry_count += 1;
                 }
@@ -1176,24 +1197,30 @@ impl Communication for CommunicationClient {
             return;
         }
 
-        let mut state = self._state.lock().await;
-
-        match &*state {
-            ConnectionState::NotConnected(reason) => {
-                info!(
-                    "The client is not connected: {:?}, cannot disconnect",
-                    reason
-                );
+        // A local close is terminal in every state: it also supersedes a running reconnect, a
+        // pause or a manual-mode disconnection, and fails pending work.
+        let previous = {
+            let mut state = self._state.lock().await;
+            if matches!(
+                *state,
+                ConnectionState::NotConnected(DisconnectionReason::LocalClosed)
+            ) {
+                info!("The client is already disconnected");
+                return;
             }
-            ConnectionState::Connected(_) => {
-                info!("The underlying connection is going to be disposed.");
-                self._coordinator.local_close();
-                if let Some(buffer) = &self._stateful {
-                    buffer.lock().expect("stateful buffer poisoned").dispose();
-                }
-                *state = ConnectionState::NotConnected(DisconnectionReason::LocalClosed);
-            }
+            info!("The underlying connection is going to be disposed.");
+            self._coordinator.local_close();
+            std::mem::replace(
+                &mut *state,
+                ConnectionState::NotConnected(DisconnectionReason::LocalClosed),
+            )
+        };
+        drop(previous);
+        if let Some(buffer) = &self._stateful {
+            buffer.lock().expect("stateful buffer poisoned").dispose();
         }
+        let mut actions = self._actions.clone();
+        actions.fail_pending(super::reconnection::LOCALLY_CLOSED);
     }
 }
 
@@ -1435,7 +1462,25 @@ impl CommunicationClient {
         })
     }
 
+    /// Opens the WebSocket (TCP, TLS and upgrade) within the connection-setup bound.
     async fn connect_socket(
+        endpoint: Uri,
+        recipe: &ConnectionRecipe,
+    ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, String> {
+        Self::connect_socket_within(endpoint, recipe, super::negotiate_http::CONNECT_TIMEOUT).await
+    }
+
+    async fn connect_socket_within(
+        endpoint: Uri,
+        recipe: &ConnectionRecipe,
+        timeout: Duration,
+    ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, String> {
+        tokio::time::timeout(timeout, Self::open_websocket(endpoint, recipe))
+            .await
+            .map_err(|_| format!("Opening the WebSocket did not complete within {timeout:?}"))?
+    }
+
+    async fn open_websocket(
         endpoint: Uri,
         recipe: &ConnectionRecipe,
     ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, String> {
@@ -1719,5 +1764,140 @@ mod liveness_handshake_frames {
             classify_handshake_frame(Some(Message::binary(vec![0x7b, 0x7d, 0x1e]))),
             HandshakeFrame::Response(_)
         ));
+    }
+}
+
+#[cfg(test)]
+mod native_connection_runs {
+    use std::{sync::Arc, time::Duration};
+
+    use super::{CommunicationClient, ReconnectionContext};
+    use crate::{
+        client::ConnectionConfiguration,
+        communication::{
+            common::ConnectionData,
+            reconnection::{ConstantDelayPolicy, ReconnectionConfig},
+            tls::TlsContext,
+            Communication,
+        },
+        protocol::hub_protocol::HubProtocolKind,
+        ConnectionStatus, StatefulReconnectConfig,
+    };
+
+    /// A loopback port with nothing listening on it, so connects are refused at once.
+    fn closed_port() -> u16 {
+        std::net::TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port()
+    }
+
+    /// A stateful client for a server that went away: every reconnect attempt is refused.
+    fn stateful_client(policy: ConstantDelayPolicy) -> (CommunicationClient, ReconnectionContext) {
+        let port = closed_port();
+        let mut configuration = ConnectionConfiguration::new("127.0.0.1".into(), "hub".into());
+        configuration.unsecure();
+        configuration.with_port(i32::from(port));
+        configuration.with_stateful_reconnect(StatefulReconnectConfig::default());
+        let recipe = configuration
+            .connection_recipe()
+            .with_runtime(tokio::runtime::Handle::current())
+            .with_tls(TlsContext::for_connection(false, configuration.tls_settings()).unwrap());
+        let data = ConnectionData::new(
+            format!("ws://127.0.0.1:{port}/hub?id=token"),
+            "token".to_string(),
+            HubProtocolKind::Json,
+            recipe,
+            Some(StatefulReconnectConfig::default()),
+        );
+        let mut client = CommunicationClient::create(&data).unwrap();
+        client.set_reconnection_config(ReconnectionConfig {
+            policy: Arc::new(policy),
+        });
+        let context = client.reconnection_context();
+        (client, context)
+    }
+
+    fn buffer_disposed(client: &CommunicationClient) -> bool {
+        client
+            ._stateful
+            .as_ref()
+            .unwrap()
+            .lock()
+            .unwrap()
+            .is_disposed()
+    }
+
+    #[tokio::test]
+    async fn native_connection_runs_end_the_logical_connection_after_manual_exhaustion() {
+        let (client, context) =
+            stateful_client(ConstantDelayPolicy::new(Duration::from_millis(10), Some(2)));
+        let error = context.reconnect_with_policy().await.unwrap_err();
+        assert!(error.contains("exhausted"), "{error}");
+        assert_eq!(client.status(), ConnectionStatus::Disconnected);
+        assert!(
+            buffer_disposed(&client),
+            "an exhausted manual run ends the stateful logical connection"
+        );
+    }
+
+    #[tokio::test]
+    async fn native_connection_runs_stop_when_the_client_disconnects() {
+        let (mut client, context) =
+            stateful_client(ConstantDelayPolicy::new(Duration::from_millis(20), None));
+        let run = tokio::spawn(async move { context.reconnect_with_policy().await });
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        client.disconnect().await;
+        let error = tokio::time::timeout(Duration::from_secs(2), run)
+            .await
+            .expect("an unbounded run must stop after a local close")
+            .unwrap()
+            .unwrap_err();
+        assert!(error.contains("locally disconnected"), "{error}");
+        assert_eq!(client.status(), ConnectionStatus::Closed);
+        assert!(buffer_disposed(&client));
+    }
+
+    #[tokio::test]
+    async fn native_connection_runs_stop_when_every_client_handle_is_dropped() {
+        let (client, context) =
+            stateful_client(ConstantDelayPolicy::new(Duration::from_millis(20), None));
+        let run = tokio::spawn(async move { context.reconnect_with_policy().await });
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        drop(client);
+        let error = tokio::time::timeout(Duration::from_secs(2), run)
+            .await
+            .expect("an unbounded run must stop once the client is gone")
+            .unwrap()
+            .unwrap_err();
+        assert!(error.contains("dropped"), "{error}");
+    }
+
+    #[tokio::test]
+    async fn native_connection_runs_bound_the_websocket_upgrade() {
+        // The listener accepts TCP but never answers the upgrade request.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let silent = tokio::spawn(async move {
+            let (_socket, _) = listener.accept().await.unwrap();
+            tokio::time::sleep(Duration::from_secs(30)).await;
+        });
+        let (client, _) =
+            stateful_client(ConstantDelayPolicy::new(Duration::from_millis(10), Some(1)));
+        let endpoint: http::Uri = format!("ws://127.0.0.1:{port}/hub").parse().unwrap();
+        let started = std::time::Instant::now();
+        let Err(error) = CommunicationClient::connect_socket_within(
+            endpoint,
+            &client._recipe,
+            Duration::from_millis(300),
+        )
+        .await
+        else {
+            panic!("a silent server must not stall the upgrade");
+        };
+        assert!(error.contains("did not complete"), "{error}");
+        assert!(started.elapsed() < Duration::from_secs(5));
+        silent.abort();
     }
 }

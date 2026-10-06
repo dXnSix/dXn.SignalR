@@ -12,8 +12,32 @@ use tokio::{
 
 use super::tls::TlsContext;
 
-/// POSTs an empty body to `url` and returns the response text; non-2xx statuses are errors.
+/// The bound for native connection setup (negotiate request, TCP connect, TLS and the WebSocket
+/// upgrade), matching the browser's socket-open bound; the SignalR handshake has its own timeout.
+pub(crate) const CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+
+/// POSTs an empty body to `url` within the connection-setup bound and returns the response text;
+/// non-2xx statuses are errors.
 pub(crate) async fn post(
+    url: &str,
+    authorization: Option<String>,
+    tls: &TlsContext,
+) -> Result<String, String> {
+    post_within(url, authorization, tls, CONNECT_TIMEOUT).await
+}
+
+async fn post_within(
+    url: &str,
+    authorization: Option<String>,
+    tls: &TlsContext,
+    timeout: std::time::Duration,
+) -> Result<String, String> {
+    tokio::time::timeout(timeout, post_unbounded(url, authorization, tls))
+        .await
+        .map_err(|_| format!("The negotiate request did not complete within {timeout:?}"))?
+}
+
+async fn post_unbounded(
     url: &str,
     authorization: Option<String>,
     tls: &TlsContext,
@@ -312,5 +336,46 @@ mod negotiate_tcp_connect {
                 "{unresolvable}"
             );
         });
+    }
+}
+
+#[cfg(test)]
+mod connection_setup_bounds {
+    use std::time::Duration;
+
+    use super::post_within;
+    use crate::communication::tls::TlsContext;
+
+    #[tokio::test]
+    async fn connection_setup_bounds_the_negotiate_request() {
+        // The listener accepts TCP but never answers the negotiate request.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let silent = tokio::spawn(async move {
+            let (_socket, _) = listener.accept().await.unwrap();
+            tokio::time::sleep(Duration::from_secs(30)).await;
+        });
+        let tls = TlsContext::for_connection(false, &Default::default()).unwrap();
+        let started = std::time::Instant::now();
+        let error = post_within(
+            &format!("http://127.0.0.1:{port}/hub/negotiate?access_token=secret"),
+            None,
+            &tls,
+            Duration::from_millis(300),
+        )
+        .await
+        .unwrap_err();
+        assert!(error.contains("did not complete"), "{error}");
+        assert!(
+            !error.contains("secret"),
+            "errors never repeat the URL: {error}"
+        );
+        assert!(started.elapsed() < Duration::from_secs(5));
+        silent.abort();
+    }
+
+    #[test]
+    fn connection_setup_bound_matches_the_browser() {
+        assert_eq!(super::CONNECT_TIMEOUT, Duration::from_secs(15));
     }
 }
