@@ -60,6 +60,9 @@ pub async fn run_functional_scenario(
         "message-burst" => message_burst(messagepack).await,
         "worker-transport" => worker_transport(messagepack).await,
         "threaded-wasm" => threaded_wasm(messagepack).await,
+        "keepalive-idle" => keepalive_idle(messagepack).await,
+        "server-timeout" => server_timeout(messagepack).await,
+        "handshake-timeout" => handshake_timeout(messagepack).await,
         other => Err(format!("unknown functional scenario {other}")),
     };
     outcome
@@ -1154,4 +1157,124 @@ async fn negotiate_count(probe: &mut SignalRClient) -> Result<i32, String> {
             arguments.argument("/test-exhaust".to_string());
         })
         .await
+}
+
+/// Keep-alive: an idle client's Pings keep it connected to a hub that drops clients silent for
+/// 3 s, so after 8 s of idleness the same connection serves an invocation.
+async fn keepalive_idle(messagepack: bool) -> Outcome {
+    let mut client = connect("test-keepalive", messagepack, |configuration| {
+        configuration.with_keep_alive_interval(Duration::from_secs(1));
+        configuration.with_reconnection_policy(fast_reconnect());
+    })
+    .await?;
+    let initial = identity(&mut client).await?;
+    sleep(8_000).await;
+    let after_idle = identity(&mut client).await?;
+    ensure!(
+        after_idle == initial,
+        "the idle connection was replaced ({initial} -> {after_idle})"
+    );
+    client.disconnect();
+    Ok(())
+}
+
+/// Records when the handler ran and whether it was allowed to reconnect.
+#[derive(Clone, Default)]
+struct TimeoutHandler(Rc<Cell<Option<(f64, bool)>>>);
+
+impl DisconnectionHandler for TimeoutHandler {
+    fn on_disconnected(&self, reconnection: ReconnectionHandler) {
+        if self.0.get().is_none() {
+            self.0.set(Some((
+                js_sys::Date::now(),
+                reconnection.server_allows_reconnect(),
+            )));
+        }
+    }
+}
+
+/// Server timeout: against a hub that never pings, a 2 s server timeout treats the silent
+/// transport as dropped; an automatic policy reconnects and a manual handler is invoked with
+/// reconnecting allowed, both within 5 s.
+async fn server_timeout(messagepack: bool) -> Outcome {
+    const SERVER_TIMEOUT_MS: u32 = 2_000;
+    const RECONNECT_BOUND_MS: f64 = 5_000.0;
+
+    let mut client = connect("test-silent", messagepack, |configuration| {
+        configuration.with_keep_alive_interval(Duration::from_secs(1));
+        configuration.with_server_timeout(Duration::from_millis(SERVER_TIMEOUT_MS.into()));
+        configuration.with_reconnection_policy(fast_reconnect());
+    })
+    .await?;
+    let initial = identity(&mut client).await?;
+    let started = js_sys::Date::now();
+    // Stay silent past the server timeout: an invocation's completion would reset it.
+    sleep(SERVER_TIMEOUT_MS + 500).await;
+    eventually(
+        "an automatic reconnect after the server timeout",
+        RECONNECT_BOUND_MS - (js_sys::Date::now() - started),
+        || {
+            let mut probe = client.clone();
+            let initial = initial.clone();
+            async move { identity(&mut probe).await.ok().filter(|id| *id != initial) }
+        },
+    )
+    .await?;
+    client.disconnect();
+
+    let handler = TimeoutHandler::default();
+    let mut slot = Some(handler.clone());
+    let mut manual = connect("test-silent", messagepack, |configuration| {
+        configuration.with_keep_alive_interval(Duration::from_secs(1));
+        configuration.with_server_timeout(Duration::from_millis(SERVER_TIMEOUT_MS.into()));
+        if let Some(handler) = slot.take() {
+            configuration.with_disconnection_handler(handler);
+        }
+    })
+    .await?;
+    identity(&mut manual).await?;
+    let started = js_sys::Date::now();
+    let (invoked_at, allowed) = eventually(
+        "the disconnection handler after the server timeout",
+        RECONNECT_BOUND_MS,
+        || {
+            let handler = handler.clone();
+            async move { handler.0.get() }
+        },
+    )
+    .await?;
+    let elapsed = invoked_at - started;
+    let earliest = f64::from(SERVER_TIMEOUT_MS) - 250.0;
+    ensure!(
+        elapsed.total_cmp(&earliest).is_ge(),
+        "the handler ran before the server timeout ({elapsed} ms)"
+    );
+    ensure!(
+        allowed,
+        "a server timeout must allow reconnecting (it is a dropped transport)"
+    );
+    manual.disconnect();
+    Ok(())
+}
+
+/// Handshake timeout: an endpoint that accepts the WebSocket but never answers the handshake
+/// makes `connect` fail with a handshake-timeout error within the 1 s timeout plus 2 s.
+async fn handshake_timeout(messagepack: bool) -> Outcome {
+    let started = js_sys::Date::now();
+    let result = try_connect("silent-handshake", messagepack, |configuration| {
+        configuration.skip_negotiation();
+        configuration.with_handshake_timeout(Duration::from_secs(1));
+    })
+    .await;
+    let elapsed = js_sys::Date::now() - started;
+    match result {
+        Ok(_) => Err("connect succeeded although the server never answered".to_string()),
+        Err(error) if !error.contains("handshake timed out") => {
+            Err(format!("unexpected handshake failure: {error}"))
+        }
+        Err(_) if !(1_000.0..=3_000.0).contains(&elapsed) => {
+            Err(format!("connect failed after {elapsed} ms"))
+        }
+        Err(_) => Ok(()),
+    }
 }

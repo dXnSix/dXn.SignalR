@@ -28,6 +28,7 @@ builder.Services.AddSingleton(typeof(HubLifetimeManager<>), typeof(TrackingHubLi
 builder.Services
     .AddSignalR(options => options.EnableDetailedErrors = true)
     .AddHubOptions<TestHub>(options => options.MaximumReceiveMessageSize = 4 * 1024 * 1024)
+    .AddLivenessHubOptions()
     .AddMessagePackProtocol();
 
 var app = builder.Build();
@@ -113,5 +114,6 @@ app.MapHub<TestHub>("/test-tls");
 app.MapHub<TestHub>("/test-direct");
 app.MapHub<TestHub>("/test-stateful", options => options.AllowStatefulReconnects = true);
 app.MapHub<AuthHub>("/test-auth");
+app.MapLivenessEndpoints();
 
 app.Run();

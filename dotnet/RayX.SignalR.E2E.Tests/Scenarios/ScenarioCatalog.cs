@@ -83,7 +83,10 @@ public static class ScenarioCatalog
     new("ordinary-reconnect", Set(_native, _chromium)),
     new("stateful-reconnect", Set(_native, _chromium)),
     new("stream-cancellation", Set(_native, _chromium)),
-    new("short-stream-chaining", Set(_chromium))
+    new("short-stream-chaining", Set(_chromium)),
+    new("keepalive-idle", Set(_native, _chromium)),
+    new("server-timeout", Set(_native, _chromium)),
+    new("handshake-timeout", Set(_native, _chromium))
   ];
 
   /// <summary>Looks up a target by name.</summary>
