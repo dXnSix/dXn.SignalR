@@ -57,7 +57,8 @@ Native connections use rustls (no OpenSSL) and never the process-wide default
 provider and verifier. Secure endpoints need one verifier feature
 (`tls-platform-verifier` or `tls-webpki-roots`) and one provider feature (`tls-ring` or
 `tls-aws-lc-rs`); the defaults enable one of each. The end-to-end cells run with the
-defaults (platform verifier and `ring`); `aws-lc-rs` is covered by builds and unit tests.
+defaults (platform verifier and `ring`; the Android cells add `tls-webpki-roots` and
+verify with webpki); `aws-lc-rs` is covered by builds and unit tests.
 
 | Feature | Effect |
 | --- | --- |
@@ -221,7 +222,8 @@ thread asks for the user-interactive QoS class, and a cell whose test already re
 its single pass is accepted when `simctl spawn` itself does not exit; such events are
 recorded in `artifacts-temp/e2e/runner-notes.log`. Rust cells run with `--nocapture`
 and `RUST_LOG=rayx_signalr=info`, and the end-to-end binaries use the default TLS
-features plus `messagepack`. The Rust scenarios live in `tests/e2e`
+features plus `messagepack` (the Android binary adds `tls-webpki-roots` and verifies
+with webpki). The Rust scenarios live in `tests/e2e`
 (`test = false`, so plain `cargo test` never needs the service).
 
 Static checks are .NET test categories. CI runs `WorkflowContract`, `Repository`,
