@@ -40,6 +40,9 @@ async fn scenario(protocol: Protocol) {
     let mut aborter = client.clone();
     while let Some(value) = stream.next().await {
         stream_values.push(value);
+        if value % 20 == 0 {
+            eprintln!("progress: stateful stream reached {value}");
+        }
         if matches!(value, 4 | 80) {
             aborter
                 .send("AbortPhysicalTransport".to_string())
