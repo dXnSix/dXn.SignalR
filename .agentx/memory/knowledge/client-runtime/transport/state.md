@@ -4,7 +4,7 @@ agentx:
   scope: client-runtime/transport
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-10-06T19:00:00+02:00"
+  updated: "2026-10-06T21:00:00+02:00"
   topics:
     - http
     - websocket
@@ -27,3 +27,5 @@ Shared `HttpClient` posts to SignalR negotiate version 1, selects WebSockets wit
 ## Backlinks
 
 - Source anchors: [src/communication/common.rs](../../../../../src/communication/common.rs), [src/communication/client_tokio.rs](../../../../../src/communication/client_tokio.rs), [src/communication/client_wasm.rs](../../../../../src/communication/client_wasm.rs).
+- 2026-10-06 current [Rustls per connection and hyper negotiate](../../../decisions/client-runtime/transport/2026-10-06-client-runtime-transport-rustls-per-connection-tls.md).
+- 2026-10-06 current [Event-driven browser transport](../../../decisions/client-runtime/transport/2026-10-06-client-runtime-transport-event-driven-browser-transport.md).

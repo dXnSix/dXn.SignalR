@@ -4,7 +4,7 @@ agentx:
   scope: client-runtime/connection-lifecycle
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-10-06T19:00:00+02:00"
+  updated: "2026-10-06T21:00:00+02:00"
   topics:
     - connect
     - disconnect
@@ -27,3 +27,5 @@ Connection setup negotiates first, opens a WebSocket, completes the SignalR hand
 ## Backlinks
 
 - Source anchors: [src/client/client.rs](../../../../../src/client/client.rs), [src/communication/reconnection.rs](../../../../../src/communication/reconnection.rs), [src/communication/client_tokio.rs](../../../../../src/communication/client_tokio.rs), [src/communication/client_wasm.rs](../../../../../src/communication/client_wasm.rs).
+- 2026-10-06 current [Runtime-owned native connections](../../../decisions/client-runtime/connection-lifecycle/2026-10-06-client-runtime-connection-lifecycle-runtime-owned-native-connections.md).
+- 2026-10-06 current [Liveness and lifecycle controls](../../../decisions/client-runtime/connection-lifecycle/2026-10-06-client-runtime-connection-lifecycle-liveness-and-lifecycle-controls.md).

@@ -2,15 +2,16 @@
 agentx:
   kind: decision
   scope: interop-validation/rust-tests
-  status: current
+  status: superseded
   created: "2026-08-10T03:15:00+02:00"
-  updated: "2026-08-10T03:15:00+02:00"
+  updated: "2026-10-06T21:00:00+02:00"
   topics:
     - browser-testing
     - playwright
     - wasm
   supersedes: []
-  superseded_by: []
+  superseded_by:
+    - 2026-10-06-interop-validation-rust-tests-playwright-browser-matrix.md
 ---
 ## Decision: Use repository-local Playwright for browser runtime validation
 
