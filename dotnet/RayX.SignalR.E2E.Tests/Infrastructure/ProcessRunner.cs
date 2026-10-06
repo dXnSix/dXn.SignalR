@@ -64,7 +64,9 @@ public static class ProcessRunner
       startInfo.Environment[key] = value;
     }
 
+    // Plain output for parsing, even when CI sets CARGO_TERM_COLOR=always.
     startInfo.Environment["NO_COLOR"] = "1";
+    startInfo.Environment["CARGO_TERM_COLOR"] = "never";
     startInfo.Environment["FORCE_COLOR"] = "0";
     // Reused MSBuild nodes and build servers inherit the pipes and would keep them open.
     startInfo.Environment["MSBUILDDISABLENODEREUSE"] = "1";
