@@ -44,7 +44,8 @@ The fork now has explicit ordinary and stateful reconnect lifecycles on native
 Tokio and browser WASM, JSON and MessagePack Ack/Sequence compatibility, bounded
 replay and duplicate suppression, and runtime interoperability coverage against
 the checked-in ASP.NET Core service. Browser proof uses the repository-local
-Playwright 1.59.1 Chromium harness following the RayX.GameX validation pattern.
+Playwright 1.59.1 harness (Chromium, Firefox and WebKit) following the RayX.GameX
+validation pattern.
 
 The production gate baseline pins Rust 1.92, denies native/WASM/rustdoc warnings,
 checks pinned and stable Rust across Windows/Linux/macOS, runs service-independent
@@ -78,6 +79,10 @@ through Aspire-hosted end-to-end cells for JSON and MessagePack:
   handshake) and application lifecycle controls (`pause`, `resume`, `status`,
   `DefaultRetryPolicy`).
 
+Compile-checked only: Android arm64-v8a (`quality / android`) and the iOS device target
+`aarch64-apple-ios` (`quality / ios`); the end-to-end catalog runs on the x86_64 Android
+emulator and the iOS simulator.
+
 Residual risks, not claimed by that epic:
 
 - The Android platform verifier is only build-checked: the Android cells run as
@@ -87,6 +92,15 @@ Residual risks, not claimed by that epic:
   `rayx_signalr::tls::android::init_with_env` is not exercised by CI. Emulators and simulators do not cover
   physical radios, Doze or iOS background suspension.
 - Proxies (HTTP CONNECT, system proxy settings) are not supported.
+- The end-to-end cells use the default `ring` provider; `aws-lc-rs` is covered by builds
+  and unit tests only.
+- iOS throttles the wakeups of processes that are not in the foreground: the iOS cells
+  raise the scenario thread's QoS class, warm the simulator up once untimed, and accept a
+  passed test whose `simctl spawn` launcher does not exit (recorded in
+  `artifacts-temp/e2e/runner-notes.log`). Apps that keep connections in the background
+  can see late keep-alive and timeout timers; `pause()` on backgrounding avoids that.
+- Browsers send Basic credentials only with the negotiate request; a standard ASP.NET
+  Core server does not authenticate the WebSocket from them (use Bearer tokens).
 - Server-Sent Events and Long Polling transports are not implemented; servers
   must allow WebSockets.
 - A browser `pause()` cannot keep a stateful logical connection, because browsers

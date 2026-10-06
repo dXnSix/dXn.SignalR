@@ -39,8 +39,8 @@ A .NET test backend is provided for testing (see the `dotnet` folder); every ser
 | Target | Status | Proof |
 | --- | --- | --- |
 | Windows, Linux, macOS (Tokio) | Supported | Full end-to-end catalog through Aspire (`e2e / native (<os>)`) |
-| Android (`aarch64`, `x86_64`) | Supported | Full native catalog on an x86_64 emulator (`e2e / android`); `cargo ndk` builds for arm64-v8a and x86_64 (`quality / android`). The platform verifier needs an app's JVM, so on Android the cells verify TLS with webpki (extra roots, bundled roots); the platform verifier itself is build-checked only |
-| iOS (`aarch64-apple-ios`, simulator) | Supported | Full native catalog on the iOS simulator (`e2e / ios`); device target compile check (`quality / ios`) |
+| Android (`aarch64`, `x86_64`) | Supported | Full native catalog on an x86_64 emulator (`e2e / android`); arm64-v8a is compile-checked only (`quality / android`). The platform verifier needs an app's JVM, so the cells verify TLS with webpki (extra roots, bundled roots); the platform verifier itself is build-checked only |
+| iOS (`aarch64-apple-ios`, simulator) | Supported | Full native catalog on the iOS simulator (`e2e / ios`); the device target is compile-checked only (`quality / ios`) |
 | Browser, main thread (`wasm32-unknown-unknown`) | Supported | Full browser catalog in Chromium, Firefox and WebKit (`e2e / browser (<engine>)`) |
 | Browser, Web Worker | Supported | `worker-transport` scenario in every engine |
 | Browser, multithreaded WASM (atomics) | Supported | `threaded-wasm` scenario (cross-origin isolated page, pinned nightly with `-Z build-std`) |
@@ -54,7 +54,10 @@ background suspension.
 
 Native connections use rustls (no OpenSSL) and never the process-wide default
 `CryptoProvider`: every connection builds its own `ClientConfig` with an explicit
-provider and verifier.
+provider and verifier. Secure endpoints need one verifier feature
+(`tls-platform-verifier` or `tls-webpki-roots`) and one provider feature (`tls-ring` or
+`tls-aws-lc-rs`); the defaults enable one of each. The end-to-end cells run with the
+defaults (platform verifier and `ring`); `aws-lc-rs` is covered by builds and unit tests.
 
 | Feature | Effect |
 | --- | --- |
@@ -74,13 +77,18 @@ verifier.
 
 The default platform verifier needs the app's JVM context. Either:
 
-1. Keep `tls-platform-verifier` and wire it up like any `rustls-platform-verifier`
-   consumer: add the crate's bundled Maven repository to Gradle
-   (`maven { url = uri(<path of rustls-platform-verifier-android from cargo metadata>/maven) }`),
-   depend on `rustls:rustls-platform-verifier:latest.release`, keep its classes
-   from shrinking (`-keep, includedescriptorclasses class org.rustls.platformverifier.** { *; }`),
-   and call `rayx_signalr::tls::android::init_with_env(&mut env, context)` once
-   (from `JNI_OnLoad` or the activity) before the first secure connection; or
+1. Keep `tls-platform-verifier` and follow `rustls-platform-verifier`'s Android setup
+   (0.7.x): add its Maven repository to Gradle
+   (`maven { url = "https://github.com/rustls/rustls-platform-verifier/raw/maven-archive/android-release-support/maven/" }`),
+   depend on `rustls:rustls-platform-verifier` at the version of the
+   `rustls-platform-verifier-android` crate in your `Cargo.lock` (upstream documents a
+   Gradle snippet that reads it; a mismatched version can fail at runtime), keep its
+   classes from shrinking
+   (`-keep, includedescriptorclasses class org.rustls.platformverifier.** { *; }`), and
+   call `rayx_signalr::tls::android::init_with_env(env, context)` once with the JNI
+   environment and an Android `Context` (for example from a native method your
+   `Application` or `Activity` calls at start-up; `JNI_OnLoad` has no `Context`) before
+   the first secure connection; or
 2. Enable `tls-webpki-roots` and call `use_webpki_roots()` on the configuration,
    which needs no JVM. A connection with extra PEM roots on Android always
    verifies with webpki over those roots (plus the bundled roots when enabled).
@@ -92,7 +100,9 @@ An emulator reaches the development machine's loopback at `10.0.2.2`.
 App Transport Security governs Apple's URL loading system, not the client's own
 rustls sockets, but production apps should still use `https`/`wss` endpoints;
 keep plain `ws`/`http` for local development (the simulator shares the Mac's
-loopback). The platform verifier uses the iOS trust store.
+loopback). The platform verifier uses the iOS trust store. iOS throttles and coalesces
+the wakeups of work that is not in the foreground, so keep-alive and server-timeout
+timers can fire late in the background; `pause()` when the app moves to the background.
 
 ### Native runtime
 
@@ -141,6 +151,13 @@ and `Cross-Origin-Embedder-Policy: require-corp`), a nightly toolchain with
 `rust-src`, `-C target-feature=+atomics,+bulk-memory,+mutable-globals` and
 `-Z build-std=std,panic_abort`; binary frames are copied out of shared memory
 before sending.
+
+Browsers cannot set an `Authorization` header on a WebSocket. Bearer tokens are sent
+as `access_token` (which ASP.NET Core reads for WebSockets when configured to), but
+Basic credentials reach only the negotiate request: a standard ASP.NET Core server
+does not authenticate the WebSocket from them, so browser clients should use Bearer
+authentication. (The test service maps a connection token back to the user who
+negotiated it; that is test-only.)
 
 ## Testing with Aspire
 
@@ -195,12 +212,21 @@ Each cell runs exactly one scenario (the Rust `e2e` test binary with
 simulator, or Playwright with one exact title), is bounded to 60 seconds with
 process cleanup, and on failure writes bounded, token-redacted output plus Aspire
 resource logs (and an Android logcat excerpt) to `artifacts-temp/e2e/<cell>.json`.
-Android cells push the binary built by `cargo ndk` to `/data/local/tmp` and reach
-the service at `10.0.2.2`; iOS cells run it with `xcrun simctl spawn`. Device-side
-artifacts are removed after the run. The Rust scenarios live in `tests/e2e`
+Android cells push the binary built by `cargo ndk` to `/data/local/tmp` (removed
+after the run) and reach the service at `10.0.2.2`. iOS cells run it with
+`xcrun simctl spawn` and shut down a simulator the run booted. Because spawned
+simulator processes are not foreground apps, the iOS runner first runs the binary once
+untimed (`--list`, then one networked scenario) before the timed cells, the scenario
+thread asks for the user-interactive QoS class, and a cell whose test already reported
+its single pass is accepted when `simctl spawn` itself does not exit; such events are
+recorded in `artifacts-temp/e2e/runner-notes.log`. Rust cells run with `--nocapture`
+and `RUST_LOG=rayx_signalr=info`, and the end-to-end binaries use the default TLS
+features plus `messagepack`. The Rust scenarios live in `tests/e2e`
 (`test = false`, so plain `cargo test` never needs the service).
 
-Static checks are .NET test categories, run the same way locally and in CI:
+Static checks are .NET test categories. CI runs `WorkflowContract`, `Repository`,
+`Catalog`, `Toolchain`, `Platform` and `DependencySecurity`; `Orchestration` (which
+starts the whole AppHost) runs locally:
 
 ```shell
 dotnet test dotnet/RayX.SignalR.E2E.Tests --filter "Category=WorkflowContract|Category=Repository|Category=Catalog|Category=Toolchain"

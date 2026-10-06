@@ -65,6 +65,8 @@ status/remotes, and recent history before changing the fork.
 - Run focused unit tests for the changed protocol surface.
 - Run `cargo check --all-targets --test e2e --all-features` and
   `cargo check --target wasm32-unknown-unknown --all-features --lib`.
+- Run `cargo clippy --all-targets --test e2e --all-features -- -D warnings` and
+  `cargo doc --all-features --no-deps` with `RUSTDOCFLAGS=-D warnings`.
 - Run `cargo fmt --all --check`; if inherited formatting debt prevents a clean
   gate, report it exactly and keep formatting-only churn separate.
 - Service-dependent tests run only through Aspire (prerequisites in the README's
