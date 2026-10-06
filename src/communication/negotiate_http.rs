@@ -259,3 +259,58 @@ mod negotiate_http_errors {
         assert!(message.len() < EXCERPT_BYTES + 64, "{}", message.len());
     }
 }
+
+#[cfg(test)]
+mod negotiate_tcp_connect {
+    use super::connect_tcp;
+
+    fn runtime() -> tokio::runtime::Runtime {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+    }
+
+    #[test]
+    fn negotiate_tcp_connect_disables_nagle() {
+        runtime().block_on(async {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let port = listener.local_addr().unwrap().port();
+            let stream = connect_tcp("127.0.0.1", port).await.unwrap();
+            assert!(stream.nodelay().unwrap(), "TCP_NODELAY must be set");
+        });
+    }
+
+    #[test]
+    fn negotiate_tcp_connect_accepts_bracketed_ipv6_hosts() {
+        runtime().block_on(async {
+            // Hosts without IPv6 loopback cannot run this case.
+            let Ok(listener) = tokio::net::TcpListener::bind("[::1]:0").await else {
+                return;
+            };
+            let port = listener.local_addr().unwrap().port();
+            let stream = connect_tcp("[::1]", port).await.unwrap();
+            assert!(stream.nodelay().unwrap());
+        });
+    }
+
+    #[test]
+    fn negotiate_tcp_connect_reports_refused_and_unresolvable_hosts() {
+        runtime().block_on(async {
+            let port = {
+                let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+                listener.local_addr().unwrap().port()
+            };
+            let refused = connect_tcp("127.0.0.1", port).await.unwrap_err();
+            assert!(
+                refused.starts_with(&format!("Cannot connect to 127.0.0.1:{port}")),
+                "{refused}"
+            );
+            let unresolvable = connect_tcp("rayx-signalr.invalid", 80).await.unwrap_err();
+            assert!(
+                unresolvable.starts_with("Cannot resolve rayx-signalr.invalid:80"),
+                "{unresolvable}"
+            );
+        });
+    }
+}

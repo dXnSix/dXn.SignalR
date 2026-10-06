@@ -70,6 +70,24 @@ public sealed class MobileRunnerTests
 
   [Fact]
   [Trait("Category", "Catalog")]
+  public void RunnerNotesAreAppendedRedactedToTheDiagnosticsLog()
+  {
+    string root = Directory.CreateTempSubdirectory("rayx-runner-notes-").FullName;
+    try
+    {
+      RunnerNotes.Write(root, "ios/json/invoke passed; access_token=secret-value");
+      string log = File.ReadAllText(Path.Combine(root, "artifacts-temp", "e2e", "runner-notes.log"));
+      Assert.Contains("ios/json/invoke passed", log, StringComparison.Ordinal);
+      Assert.DoesNotContain("secret-value", log, StringComparison.Ordinal);
+    }
+    finally
+    {
+      Directory.Delete(root, recursive: true);
+    }
+  }
+
+  [Fact]
+  [Trait("Category", "Catalog")]
   public void DeviceEndpointsRewriteOnlyUrlHosts()
   {
     Dictionary<string, string> rewritten = DeviceEndpoints.Rewrite(

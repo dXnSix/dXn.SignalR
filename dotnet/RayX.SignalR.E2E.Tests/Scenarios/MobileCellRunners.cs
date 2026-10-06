@@ -4,6 +4,31 @@ using RayX.SignalR.E2E.Tests.Infrastructure;
 
 namespace RayX.SignalR.E2E.Tests.Scenarios;
 
+/// <summary>
+/// Records runner events that do not fail a cell (an iOS launcher that did not exit after a passed
+/// test, a warm-up that did not succeed) in <c>artifacts-temp/e2e/runner-notes.log</c> and on the
+/// console, so a recurring platform problem stays visible.
+/// </summary>
+public static class RunnerNotes
+{
+  static readonly object _gate = new();
+
+  /// <summary>Appends one note.</summary>
+  /// <param name="repositoryRoot">The repository root.</param>
+  /// <param name="note">The note.</param>
+  public static void Write(string repositoryRoot, string note)
+  {
+    string line = $"{DateTimeOffset.UtcNow:O} {Redaction.Redact(note)}";
+    Console.WriteLine($"runner note: {line}");
+    string directory = Path.Combine(repositoryRoot, "artifacts-temp", "e2e");
+    lock(_gate)
+    {
+      Directory.CreateDirectory(directory);
+      File.AppendAllText(Path.Combine(directory, "runner-notes.log"), line + Environment.NewLine);
+    }
+  }
+}
+
 /// <summary>Builds the Rust <c>e2e</c> test binary once per build command and run.</summary>
 public static class E2EBinaryBuilds
 {
@@ -414,7 +439,15 @@ public sealed class IosCellRunner : ICellRunner
         CancellationToken.None);
     }
 
-    return CellExecution.JudgeLibtestAllowingLauncherHang(command, result);
+    CellOutcome outcome = CellExecution.JudgeLibtestAllowingLauncherHang(command, result);
+    if(outcome.Passed && result.TimedOut)
+    {
+      RunnerNotes.Write(
+        environment.RepositoryRoot,
+        $"{cell.Id} passed, but xcrun simctl spawn did not exit within the cell bound and was stopped");
+    }
+
+    return outcome;
   }
 
   /// <summary>
@@ -465,6 +498,15 @@ public sealed class IosCellRunner : ICellRunner
           CancellationToken.None);
       }
 
+      if(!networked.Succeeded)
+      {
+        RunnerNotes.Write(
+          environment.RepositoryRoot,
+          $"ios warm-up connect_negotiate::json ended with exit code {networked.ExitCode} (timed out: {networked.TimedOut})");
+      }
+
+      // The warm-up negotiated on the service: give the cell the clean state it was promised.
+      await environment.ResetServiceAsync();
       _warmedUp = executable;
     }
     finally
