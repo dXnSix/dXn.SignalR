@@ -133,6 +133,108 @@ jobs:
       - name: Run service-independent unit and contract tests
         run: cargo +1.92.0 test ${{ matrix.feature_args }}
 
+  android:
+    name: quality / android (cargo ndk)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust with the Android targets
+        run: rustup toolchain install 1.92.0 --profile minimal --target aarch64-linux-android --target x86_64-linux-android
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: android-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+      - name: Check the library and the end-to-end binary for Android
+        run: |
+          cargo +1.92.0 ndk -t arm64-v8a -t x86_64 -P 24 check --lib
+          cargo +1.92.0 ndk -t arm64-v8a -t x86_64 -P 24 check --lib --test e2e --all-features
+
+  ios:
+    name: quality / ios (${{ matrix.target }})
+    runs-on: macos-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [aarch64-apple-ios, aarch64-apple-ios-sim]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust with the iOS target
+        run: rustup toolchain install 1.92.0 --profile minimal --target ${{ matrix.target }}
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ios-${{ matrix.target }}-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
+      - name: Check the library and the end-to-end binary for iOS
+        run: |
+          cargo +1.92.0 check --lib --target ${{ matrix.target }}
+          cargo +1.92.0 check --lib --test e2e --all-features --target ${{ matrix.target }}
+
+  threaded-wasm:
+    name: quality / threaded-wasm
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RUSTFLAGS: -D warnings -C target-feature=+atomics,+bulk-memory,+mutable-globals
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install the pinned nightly with rust-src
+        run: rustup toolchain install nightly-2026-06-23 --profile minimal --component rust-src --target wasm32-unknown-unknown
+      - name: Check the library for multithreaded browser WASM
+        run: cargo +nightly-2026-06-23 check --lib --target wasm32-unknown-unknown --all-features -Z build-std=std,panic_abort
+
+  platform:
+    name: quality / platform
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DOTNET_NOLOGO: true
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Install pinned Rust with every checked target
+        run: rustup toolchain install 1.92.0 --profile minimal --target wasm32-unknown-unknown --target wasm32-wasip1 --target aarch64-linux-android --target x86_64-linux-android --target aarch64-apple-ios
+      - name: Install the pinned nightly for the threaded build case
+        run: rustup toolchain install nightly-2026-06-23 --profile minimal --component rust-src --target wasm32-unknown-unknown
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: platform-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+      - name: Verify dependency graphs, gating, and mobile and threaded builds
+        run: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=Platform
+      - name: Upload redacted contract diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: quality-platform
+          path: artifacts-temp/e2e
+          if-no-files-found: ignore
+          retention-days: 7
+
   rustdoc:
     name: quality / rustdoc
     runs-on: ubuntu-latest
