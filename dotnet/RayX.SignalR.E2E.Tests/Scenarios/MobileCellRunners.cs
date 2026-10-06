@@ -327,6 +327,7 @@ public sealed class IosCellRunner : ICellRunner
   static readonly SemaphoreSlim _gate = new(1, 1);
   static string? _device;
   static bool _booted;
+  static string? _warmedUp;
 
   /// <summary>The cargo command that builds the simulator <c>e2e</c> binary.</summary>
   /// <param name="repositoryRoot">The repository root.</param>
@@ -394,6 +395,7 @@ public sealed class IosCellRunner : ICellRunner
 
     string device = await PrepareAsync(environment.RepositoryRoot, cancellationToken);
     string executable = await E2EBinaryBuilds.BuildAsync(BuildCommand(environment.RepositoryRoot), cancellationToken);
+    await WarmUpAsync(device, executable, environment.RepositoryRoot, cancellationToken);
     Dictionary<string, string> variables = CellExecution.ScenarioVariables(environment, cell)
                                                         .ToDictionary(
                                                           pair => $"SIMCTL_CHILD_{pair.Key}",
@@ -417,6 +419,39 @@ public sealed class IosCellRunner : ICellRunner
     }
 
     return CellExecution.JudgeLibtest(command, result);
+  }
+
+  /// <summary>
+  /// Spawns the binary once with <c>--list</c> outside any cell bound: the first launch on a
+  /// freshly booted simulator can take longer than a whole cell while the simulator prepares the
+  /// executable.
+  /// </summary>
+  static async Task WarmUpAsync(string device, string executable, string repositoryRoot, CancellationToken cancellationToken)
+  {
+    await _gate.WaitAsync(cancellationToken);
+    try
+    {
+      if(_warmedUp == executable)
+      {
+        return;
+      }
+
+      ProcessResult list = await ProcessRunner.RunAsync(
+        new ProcessCommand("xcrun", ["simctl", "spawn", device, executable, "--list"], repositoryRoot),
+        TimeSpan.FromMinutes(10),
+        cancellationToken);
+      if(!list.Succeeded)
+      {
+        throw new InvalidOperationException(
+          $"The e2e binary does not start on the simulator (exit code {list.ExitCode}, timed out: {list.TimedOut}):\n{Redaction.SafeTail(list.CombinedOutput)}");
+      }
+
+      _warmedUp = executable;
+    }
+    finally
+    {
+      _gate.Release();
+    }
   }
 
   /// <summary>Shuts down a simulator this run booted.</summary>
