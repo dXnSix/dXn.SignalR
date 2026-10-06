@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "cross-platform-support",
-  "revision": 9,
+  "revision": 11,
   "title": "Cross-platform rayx-signalr with Aspire-orchestrated end-to-end testing on every target",
   "validationMode": "sprint",
   "repositories": [
@@ -1466,7 +1466,7 @@
       ],
       "expected": {
         "exitCode": 0,
-        "minimumTests": 46
+        "minimumTests": 44
       },
       "timeoutSeconds": 5400,
       "environment": {
@@ -1650,6 +1650,61 @@
       "inputs": [
         "Cargo.toml",
         "src/communication/negotiate_http.rs"
+      ],
+      "timeoutSeconds": 1200
+    },
+    {
+      "id": "s11-native-runs-unit",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R9.C1",
+        "R8.C1"
+      ],
+      "descriptionMarkdown": "New `native_connection_runs` and `connection_setup_bounds` tests (manual exhaustion ends the logical connection, runs stop on local close or dropped clients, bounded upgrade and negotiate).",
+      "argv": [
+        "cargo",
+        "test",
+        "--lib",
+        "--all-features",
+        "--",
+        "native_connection_runs",
+        "connection_setup"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 6
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/communication/**"
+      ],
+      "timeoutSeconds": 1200
+    },
+    {
+      "id": "s11-harness-unit",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R10.C4"
+      ],
+      "descriptionMarkdown": "`MobileRunnerTests` (Android features, redaction of redirect tokens, compiler errors) and the per-job `WorkflowContract` tests.",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "FullyQualifiedName~MobileRunnerTests|Category=WorkflowContract"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 15
+      },
+      "inputs": [
+        ".github/workflows/**",
+        "global.json",
+        "Directory.Build.props",
+        "dotnet/**"
       ],
       "timeoutSeconds": 1200
     }
@@ -2825,6 +2880,80 @@
             {
               "repositoryId": "rayx-signalr",
               "path": ".codex/skills/rayx-signalr/SKILL.md"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "S11",
+      "title": "Final review repairs",
+      "dependsOn": [
+        "S10"
+      ],
+      "memoryScopes": [
+        "rayx-signalr:client-runtime/connection-lifecycle",
+        "rayx-signalr:client-runtime/transport",
+        "rayx-signalr:interop-validation",
+        "rayx-signalr:repository-governance/quality-gates"
+      ],
+      "tasks": [
+        {
+          "id": "S11.T1",
+          "title": "Native lifecycle and connection-setup repairs",
+          "descriptionMarkdown": "Final-review findings EPIC-F2..F4: native manual `reconnect_with_policy` ends the logical connection when it gives up; `disconnect` is terminal in every state and a policy run stops when every client handle is dropped (no strong state reference across network I/O); native negotiate and WebSocket setup are bounded by the browser's 15 s socket-open bound. New `native_connection_runs` and `connection_setup_bounds` test groups.",
+          "criterionIds": [],
+          "supportingCriterionIds": [
+            "R9.C1",
+            "R8.C1"
+          ],
+          "designIds": [
+            "D13",
+            "D12",
+            "D10"
+          ],
+          "dependsOn": [],
+          "checkIds": [
+            "s11-native-runs-unit"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/communication/client_tokio.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/communication/negotiate_http.rs"
+            }
+          ]
+        },
+        {
+          "id": "S11.T2",
+          "title": "Harness, documentation and memory repairs",
+          "descriptionMarkdown": "Final-review findings EPIC-F1, F5..F11: correct Android platform-verifier setup docs; e2e binaries use the default TLS features (ring); TLS key outside uploaded diagnostics; documented iOS harness workarounds and browser Basic-auth caveat; doc accuracy; stale memory; per-job quality workflow contract, compiler errors in build failures, JSON accessToken redaction and iOS cleanup. Tests in `MobileRunnerTests` and `WorkflowContract`.",
+          "criterionIds": [],
+          "supportingCriterionIds": [
+            "R10.C3",
+            "R10.C4",
+            "R10.C6"
+          ],
+          "designIds": [
+            "D14",
+            "D15",
+            "D16"
+          ],
+          "dependsOn": [],
+          "checkIds": [
+            "s11-harness-unit"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "dotnet/RayX.SignalR.E2E.Tests/Scenarios/MobileCellRunners.cs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "README.md"
             }
           ]
         }

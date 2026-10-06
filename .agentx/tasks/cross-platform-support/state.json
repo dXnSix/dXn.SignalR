@@ -1,12 +1,12 @@
 {
   "schemaVersion": 6,
   "epicId": "cross-platform-support",
-  "revision": 105,
-  "planRevision": 9,
+  "revision": 115,
+  "planRevision": 11,
   "specHashes": {
     "requirements": "4c346aa3c223174cd82f0745c6e83b5bd2eed05a5b079e544c60af85ee6c6aec",
     "design": "2ebc199ebdca6ff20f2968bb987a8f0f542050395543382bebc4b4558b8b57c8",
-    "plan": "da2eeda7e91ab86f366264ad76432532bcf39915271973d0aae30c0a3dc8ca9c"
+    "plan": "54fa9f394139f54964ae527b5441dea0d0d9023c9c192c19f1f3a78c52a67d6c"
   },
   "tasks": {
     "S1.T1": {
@@ -206,6 +206,18 @@
       "workerIds": [
         "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
       ]
+    },
+    "S11.T1": {
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
+    },
+    "S11.T2": {
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     }
   },
   "validationBatches": {
@@ -307,6 +319,33 @@
         }
       },
       "recordedAt": "2026-10-06T14:40:02Z"
+    },
+    "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82": {
+      "snapshot": {
+        "specHash": "d236fc8a52b354fc52e184bdbae1db437eb8dcab28c864c3796f479696a176d1",
+        "repositories": {
+          "rayx-signalr": "08ca400dc11b2d67d0b26cd82571ddd4a4dac66d3ac66fbff28221b7acd30796"
+        }
+      },
+      "recordedAt": "2026-10-06T15:34:12Z"
+    },
+    "30ee39841e8b8b53ee4c2b078b55c57d957434864b05f1ae40a582e1fd4fea60": {
+      "snapshot": {
+        "specHash": "d6a75e5e7f4d8f776ea134d2610efab4a6ee23bb34b04eb7b775904ae07e5a0f",
+        "repositories": {
+          "rayx-signalr": "08ca400dc11b2d67d0b26cd82571ddd4a4dac66d3ac66fbff28221b7acd30796"
+        }
+      },
+      "recordedAt": "2026-10-06T15:41:22Z"
+    },
+    "e3ec41eaa3c20e53dd8f6fc7c20128d6cf6ca87eba1832139fbbd596d23763bd": {
+      "snapshot": {
+        "specHash": "ad89eb0b2b562cafa70e78b495764bc9c0f58ddfaddace191481a38ac4dc07d8",
+        "repositories": {
+          "rayx-signalr": "753e0bd941c2fc8cf7747b7ef4af556afdacf4860be13a6b277e1c8d89b890e2"
+        }
+      },
+      "recordedAt": "2026-10-06T16:02:03Z"
     }
   },
   "checkResults": {
@@ -1006,6 +1045,929 @@
       "logPath": "artifacts-temp/agentx/cross-platform-support/S10-final-9fe61d7c9c6f.log",
       "logSha256": "b95cb1f59c4c9e1c333f4355e3381bc256e10e1c49b121830bc84cdfa450a1ab",
       "inputsHash": "5cf6b007de6f9d22dfbd363184ec4174710a554e6803a55e2279fcc92dab2dd9"
+    },
+    "final/s1-orchestration/final": {
+      "checkId": "s1-orchestration",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "8b455640a8d87b19dcfce633047ba10abb42cb12568cd19661a1f6b5a2c0a9ee",
+      "basisHash": "421d8f98e94691653a5d773840f27497ccb11da7aa43316ffa172f17b449ce58",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 14.1562,
+      "recordedAt": "2026-10-06T14:57:59Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-20bd11cafba5.log",
+      "logSha256": "80408563a06a3db1d1ad4510418dc883a6675ed9f0d433e7f61853e51600b969",
+      "inputsHash": "9ee665af38805707d254d8cfe372ab2328553c7701438c166dee1ce31155b732"
+    },
+    "final/s1-catalog/final": {
+      "checkId": "s1-catalog",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "8db9a526d5bfbf562ec10c76243c5b503667480d16135b3aecd784ed48d8332f",
+      "basisHash": "e05a1d680f902d965db34ec2d61fd295555f8ef4791534138061b878b6e238ef",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 16,
+      "durationSeconds": 13.7217,
+      "recordedAt": "2026-10-06T14:58:12Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-4e42a3d0948e.log",
+      "logSha256": "fa7a1c9ce0181ec66ed5efcb7ff8fa4427d0a112f25aaa1100af8b7d8c20b767",
+      "inputsHash": "40c0653505d598d57d745c11a0073d04ef1022a8dd58c05931193aefe3474907"
+    },
+    "final/s1-native-migrated/final": {
+      "checkId": "s1-native-migrated",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "80df9789e2a10323742aef6f236fa9efff97a6818f446111cf62ecb22080196e",
+      "basisHash": "cbfd6f175515e3ad57613ab874b9f10fd4d7e5853b1688f3e4590e9fc78150cb",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 6,
+      "durationSeconds": 38.0747,
+      "recordedAt": "2026-10-06T14:58:50Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-127804eac5e2.log",
+      "logSha256": "1cf16a2455cb45137435801c0278b458da674646b8e82945e23e3969a8b99585",
+      "inputsHash": "d90a873ba0b701211a9118c7c9d7078b25ff0f62f31ee2d4db45099581bcd381"
+    },
+    "final/s1-chromium-migrated/final": {
+      "checkId": "s1-chromium-migrated",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "c0a751cfa82900ec5833952c2a84141ae2cb78674a9a84b29c8d9615cecc34de",
+      "basisHash": "43b302281717d4302d75280ccde94a20b5d0672c3fb2eca108bdbcb35e7e786c",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 8,
+      "durationSeconds": 43.1818,
+      "recordedAt": "2026-10-06T14:59:34Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-de1d73f3a437.log",
+      "logSha256": "2e6e548426c2970aed0f0df33b35942b055374dd3b8e4b426a9afb630491b70e",
+      "inputsHash": "40c0653505d598d57d745c11a0073d04ef1022a8dd58c05931193aefe3474907"
+    },
+    "final/s1-repository-contracts/final": {
+      "checkId": "s1-repository-contracts",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "1c967cfb0a401c609b3bc08682c4762228d70d4dc9f72d9751e6bb56426b7e22",
+      "basisHash": "fc5334f9c4555872e19f8685a5e8871d8d81505825b1abcaa832f7125b863d6b",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 10,
+      "durationSeconds": 13.6724,
+      "recordedAt": "2026-10-06T14:59:47Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-101daf93158f.log",
+      "logSha256": "a94b76bebc698fa756237cc0e47fbb61934ec5c1160f61810a33760f4b2420fc",
+      "inputsHash": "068fee7de5e9a96fc85d6cfb3f2610919a2061b7da78188f0465c3453fca4608"
+    },
+    "final/s2-native-functional/final": {
+      "checkId": "s2-native-functional",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "496d78b15ca3dbd7ebd97eea2b02e107f9ffc74d203ca98418ae1585e451d990",
+      "basisHash": "a2e623bafe06945d4aec9422f0138cac5f82a25bdae435dfa27d8139c201fe76",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 20,
+      "durationSeconds": 35.7043,
+      "recordedAt": "2026-10-06T15:00:23Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-9f436faa2e0b.log",
+      "logSha256": "d97364bbbc518da920f1d767065164e0f099cac5cb5166e895a6379fdc967122",
+      "inputsHash": "d90a873ba0b701211a9118c7c9d7078b25ff0f62f31ee2d4db45099581bcd381"
+    },
+    "final/s2-chromium-functional/final": {
+      "checkId": "s2-chromium-functional",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "a4b08faf6efd94737de5fff462dc08abd73667312f0ddf363d8530a0a2fadfde",
+      "basisHash": "91110dcfed0f9282755f99bfd37eda392edae6cfd13a2a93d2d908d67edd5bf2",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 20,
+      "durationSeconds": 76.7452,
+      "recordedAt": "2026-10-06T15:01:40Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-6773f0fb6956.log",
+      "logSha256": "4bdd55ced70007d0039d7477c7b9e108bc708f8472ca6156be499cc073cb95d7",
+      "inputsHash": "40c0653505d598d57d745c11a0073d04ef1022a8dd58c05931193aefe3474907"
+    },
+    "final/s3-manifest-hygiene/final": {
+      "checkId": "s3-manifest-hygiene",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "8e581aebfe2f49b075d10bcfbe96e95e24208b7407c09e7f1ccf2fc44f79dbf3",
+      "basisHash": "a5d0fc616a7c0eb678d4b0299d7100543b49494cd7fa93fa482bbf3ea1d0ab72",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 7,
+      "durationSeconds": 9.3645,
+      "recordedAt": "2026-10-06T15:01:49Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-addbe03e6f09.log",
+      "logSha256": "d2de2993a499d4b13a722011a3526ce79befecd0336c8b9d76444f578274ba3d",
+      "inputsHash": "779f5112837d11b1fe61944866778cb2742cc09f7a21156f1d2162b6a2e2b951"
+    },
+    "final/s3-wasi-rejected/final": {
+      "checkId": "s3-wasi-rejected",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "6c6062456e4ed62289490bc3d8cf197c26cbe1dd843f2756245fb5b40708e5e9",
+      "basisHash": "729d20a4f0438e85d352b5425111e2eba59942a0e64be7a66fe741d08cd15244",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 3,
+      "durationSeconds": 5.1865,
+      "recordedAt": "2026-10-06T15:01:54Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-3e5f96eed775.log",
+      "logSha256": "739582b46819c6df6b184ee88d55c1cf70c51e378a139f74589a7963bf303839",
+      "inputsHash": "bf91ca808409bb004b5b78a48355f856f4161bc22db6e1b5fa75bb7e3a413168"
+    },
+    "final/s4-tls-unit/final": {
+      "checkId": "s4-tls-unit",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "50d157a4bb39796f25c0279e6320112bcc23f40bee52338046d55869b94a5dce",
+      "basisHash": "40d681b8ecd488afbb2baec6be9d14c4fc98ea6b2cb00af73715f6dbc87bf60c",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 11,
+      "durationSeconds": 2.3563,
+      "recordedAt": "2026-10-06T15:01:57Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-fc0f17ee6dea.log",
+      "logSha256": "7059a7a7cd20e23a1d83537c5ed423d9e2ee3c7ce94e03c520a333c2130e3299",
+      "inputsHash": "8fae825b5bd9e62406bbe456f382f83d738cbdf982ed4a5beac628aac9f25f65"
+    },
+    "final/s4-tls-disabled/final": {
+      "checkId": "s4-tls-disabled",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "b04f337f5ce37c4f6b77d29a413de329a99246ad3f5b84021fcd3b8c90c951a0",
+      "basisHash": "7a1ea7bf0e031dd250da8572f7b12ba7ead255878fe7daea64c90c82b31feaa2",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 5,
+      "durationSeconds": 1.4426,
+      "recordedAt": "2026-10-06T15:01:58Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-6aa262e16e83.log",
+      "logSha256": "4c29adbec95db4a481c15d0be9a980fd803c7ce07f21971c943b73e8ef48dfdc",
+      "inputsHash": "8fae825b5bd9e62406bbe456f382f83d738cbdf982ed4a5beac628aac9f25f65"
+    },
+    "final/s4-tls-e2e/final": {
+      "checkId": "s4-tls-e2e",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "c09beb9c7bbcd2f4b4d1500b78638cf3bbca663ea5b870b6e64a4a6052c0a8a5",
+      "basisHash": "2cdc62830acaf0b374a8387dac4f9e616584d3f6edcacb600cc5a9aa96f2a1be",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 12.3036,
+      "recordedAt": "2026-10-06T15:02:10Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-fbb0cb9b29f4.log",
+      "logSha256": "ac775a2a8519cf940fa3270d484c9d796e0191eea8ff4186c6e6445cd506c29e",
+      "inputsHash": "40c0653505d598d57d745c11a0073d04ef1022a8dd58c05931193aefe3474907"
+    },
+    "final/s4-native-functional/final": {
+      "checkId": "s4-native-functional",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "7a1e1f2a3b1bc1451ca776688582c75352226c7ad098918b831461dc2a30f29e",
+      "basisHash": "a2e623bafe06945d4aec9422f0138cac5f82a25bdae435dfa27d8139c201fe76",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 20,
+      "durationSeconds": 35.7043,
+      "recordedAt": "2026-10-06T15:02:10Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-9f436faa2e0b.log",
+      "logSha256": "d97364bbbc518da920f1d767065164e0f099cac5cb5166e895a6379fdc967122",
+      "inputsHash": "d90a873ba0b701211a9118c7c9d7078b25ff0f62f31ee2d4db45099581bcd381"
+    },
+    "final/s4-mobile-platform/final": {
+      "checkId": "s4-mobile-platform",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "450056c47bd5c7b9d39948b6c897c0be49d3f44292857fdaad123ce029fa4057",
+      "basisHash": "42cb22e2db2653e24238e2f5691c914f53445b250e80dbfb58101f65cc440c88",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 11,
+      "durationSeconds": 8.3782,
+      "recordedAt": "2026-10-06T15:02:19Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-ee96eb433bb1.log",
+      "logSha256": "5de76af295a5a77afb5991d10eadcd4d63b2f74fd475f3dffe38977145fd55ac",
+      "inputsHash": "bf91ca808409bb004b5b78a48355f856f4161bc22db6e1b5fa75bb7e3a413168"
+    },
+    "final/s5-negotiation-unit/final": {
+      "checkId": "s5-negotiation-unit",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "885ca0c9d29ed8438bfd81ceecad13604ab2a99bd76b38e7761e8e8a3db0a8cb",
+      "basisHash": "03d294cb05ccc56fe0542d806bc02eb8f2b6ac44db6c5c3ae6ce22f84a640936",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 14,
+      "durationSeconds": 0.3021,
+      "recordedAt": "2026-10-06T15:02:19Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-e9072c59e99c.log",
+      "logSha256": "04e7a34805cdc0d7a9d1fc04f68f5ca1fe936e70f18c210230b305f8bde08169",
+      "inputsHash": "6cf92e7263137cbd64231d094de837193f1af0ee45942319842c8c9175abc369"
+    },
+    "final/s5-skip-unit/final": {
+      "checkId": "s5-skip-unit",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "340d35d3bae3432ba144fb9139ae48c279781a7ce3c576ff59c521fc9a7f240a",
+      "basisHash": "34e07565051eb00f9ce1d54905a247ee3870b3c3a2ae2e4a000b06b2f8041542",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 0.2798,
+      "recordedAt": "2026-10-06T15:02:19Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-cb6066bfa0bf.log",
+      "logSha256": "a2e78e6b0043ff8662d9f3d14e6bf26de431df8943992601b80ef641d6e87e7f",
+      "inputsHash": "e5de6e2b6bb6da068991ff9eaafdeeb950c9497ae384ab9e4394e343d07300b1"
+    },
+    "final/s5-negotiation-e2e/final": {
+      "checkId": "s5-negotiation-e2e",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "427e34bd5007fbcf454e546afb8ee90159d5d43bfc36ed4a9de9516cd2fce543",
+      "basisHash": "86a5de4a0714af0e1cdcae4f9ee070581001bcc1b0661dd38db9ebe7c2d6d092",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 8,
+      "durationSeconds": 21.4319,
+      "recordedAt": "2026-10-06T15:02:41Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-6133e4c7050d.log",
+      "logSha256": "25aa8c46da90ebb936b11b8c21e08ad5a064a3637e637ddc457f3e6db7c719e2",
+      "inputsHash": "40c0653505d598d57d745c11a0073d04ef1022a8dd58c05931193aefe3474907"
+    },
+    "final/s6-runtime-unit/final": {
+      "checkId": "s6-runtime-unit",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "fec0649495cc962a389e4a12ee6821fdf5d66679b011b9fc85dc85b0436be07d",
+      "basisHash": "e5376be4aa69dd9f839031c7ae0570ccfffad2b46db45264b3ffe70fd05a4a68",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 3,
+      "durationSeconds": 2.3331,
+      "recordedAt": "2026-10-06T15:02:43Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-7515765bc903.log",
+      "logSha256": "2ae198eb01e9596a4bc2115d8afa45ea8b44f1b9de074dfa9c6c6d27896a92bd",
+      "inputsHash": "e018e7861ddbabb99caa5bb67e8b885209997b4a7336c4c7d330c4e0520f9090"
+    },
+    "final/s6-executor-e2e/final": {
+      "checkId": "s6-executor-e2e",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "738e51f10570dfbe12e09b86406246d92b937a5a178e2ef8ba466d6462a5ea2a",
+      "basisHash": "16fd8b8f5d026fb7137ac7463769c452643acfac2dbb7386308ef4a294ed0ae1",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 11.3789,
+      "recordedAt": "2026-10-06T15:02:55Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-1063c1cb6cfc.log",
+      "logSha256": "ab2bfef93fc54d503f197582cf2433f508e8c00873ee20f3d570b12d928c01cc",
+      "inputsHash": "d90a873ba0b701211a9118c7c9d7078b25ff0f62f31ee2d4db45099581bcd381"
+    },
+    "final/s6-native-regression/final": {
+      "checkId": "s6-native-regression",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "b59d0a3b70a2591e3481fcffac470dfe5b7d4daf37e7de0703000d35e36136cd",
+      "basisHash": "1777db40ab35abef59b558915ddf241e06e044eb2d14ed18801c33cdf36b9fe4",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 26,
+      "durationSeconds": 65.458,
+      "recordedAt": "2026-10-06T15:04:00Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-f1ad61c94abe.log",
+      "logSha256": "5b9497b2828e133487d96929f8f0b35026cfc2b18923928562c97c4b10af9b07",
+      "inputsHash": "d90a873ba0b701211a9118c7c9d7078b25ff0f62f31ee2d4db45099581bcd381"
+    },
+    "final/s7-wasm-transport/final": {
+      "checkId": "s7-wasm-transport",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "c8a1ad48dcc3c90ab4a451df5a58be556973f32494865f5205ea300fe22b051a",
+      "basisHash": "f63047cbdd2754009b85a3b06b207001e6de4ffbde7ad2c46f5dffe9620742ac",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 3,
+      "durationSeconds": 3.5919,
+      "recordedAt": "2026-10-06T15:04:04Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-fcaf95c0adf7.log",
+      "logSha256": "b57076d15e0896bd3de130607578b7673186832a94017720d90e8116bc539dcf",
+      "inputsHash": "f4c55944b39289fb8e1651172561580b02ceb54a2797963cc37dd4e580fedaa3"
+    },
+    "final/s7-burst-e2e/final": {
+      "checkId": "s7-burst-e2e",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "707c250638633bdacfe2ae435ff713a55cb8bed3070053433c5a8d672d2af65b",
+      "basisHash": "af5626aa955f4bdf12b708e5a6d3d78e5c2a4be6a1dd3fe8b818b2fc9ee68bc4",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 12.0288,
+      "recordedAt": "2026-10-06T15:04:16Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-cec31e9cd1f5.log",
+      "logSha256": "ab2bfef93fc54d503f197582cf2433f508e8c00873ee20f3d570b12d928c01cc",
+      "inputsHash": "40c0653505d598d57d745c11a0073d04ef1022a8dd58c05931193aefe3474907"
+    },
+    "final/s7-chromium-regression/final": {
+      "checkId": "s7-chromium-regression",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "344d3b2e4bbb24e3f1a0d4108c0ae7a1df725ede0c8d8355a2fec82fd805bea7",
+      "basisHash": "fe7dc1c5115faf39481b3b9997dafa38aa536b8d7a5ee8b391e1d2bb8ee23dce",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 28,
+      "durationSeconds": 213.0341,
+      "recordedAt": "2026-10-06T15:07:49Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-78fbbeebf536.log",
+      "logSha256": "0d2f0a2f1906c333730f7c6cd1962c1ee5a67270408a5482f210c99de5b13bda",
+      "inputsHash": "40c0653505d598d57d745c11a0073d04ef1022a8dd58c05931193aefe3474907"
+    },
+    "final/s7-worker-e2e/final": {
+      "checkId": "s7-worker-e2e",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "926f8532902b0a71a4fe534a49d08fad41907b7da0899beec3e7c6e5ee11f708",
+      "basisHash": "ddce6b402fcdcafc96126b7c896ebda483bf991f5571edc87895d45d91699f3e",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 66.8158,
+      "recordedAt": "2026-10-06T15:08:56Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-dd711b888b01.log",
+      "logSha256": "04677f2f5d43d9bf86ea1075e2967f2006a18b81b4cfd928f17929c3299c5c59",
+      "inputsHash": "40c0653505d598d57d745c11a0073d04ef1022a8dd58c05931193aefe3474907"
+    },
+    "final/s7-threaded-build/final": {
+      "checkId": "s7-threaded-build",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "7c184c55110ffdbf146f53b6766f36de060588d614b41b261006d7f8bac90f72",
+      "basisHash": "a3e46371cce2754a2985ff3ac7a4ec037f86816ac9f651c234c2f79b7830172b",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 25.464,
+      "recordedAt": "2026-10-06T15:09:21Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-5a7af58ee12e.log",
+      "logSha256": "f6052cc65e06808c8ed88c7430ee7a38ad3f6a1975a123c6d1e9b0c3990cec92",
+      "inputsHash": "bf91ca808409bb004b5b78a48355f856f4161bc22db6e1b5fa75bb7e3a413168"
+    },
+    "final/s7-threaded-e2e/final": {
+      "checkId": "s7-threaded-e2e",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "c92000e740850b6f508635d650c0f5606e50f203047c0b02d5507bd9c83db7ad",
+      "basisHash": "61cdbbedfbe9de5d346801fbe7ded90056d56499006bc65c00d7a78410433a68",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 34.7985,
+      "recordedAt": "2026-10-06T15:09:56Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-8ed586711f92.log",
+      "logSha256": "c8ee48d9df30ac93086923f4c3131d6c418a98903eaff35ad65cc3077e5cf5f6",
+      "inputsHash": "40c0653505d598d57d745c11a0073d04ef1022a8dd58c05931193aefe3474907"
+    },
+    "final/s8-liveness-unit/final": {
+      "checkId": "s8-liveness-unit",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "f41817f65a6c1bdb8f0f2532cd67958c781d95ef6c3c330450f8392f346c6eeb",
+      "basisHash": "63a454636f08fa1ef3e5370cbb01a888c20af93d4d447c03f87c3f8777e4b37e",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 14,
+      "durationSeconds": 3.3856,
+      "recordedAt": "2026-10-06T15:09:59Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-b1d3e9ec6441.log",
+      "logSha256": "b1f0aaa49af7ca6255547b8b69e8142c3edd01c431a0d4aa54e3de83ab124b3a",
+      "inputsHash": "953a8e0dbd3bd9659ab977fd1b6920097d5b4d077b6ddda648a7ef4f6b1fc0f5"
+    },
+    "final/s8-native-liveness/final": {
+      "checkId": "s8-native-liveness",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "eaf4cb58f6f95afc368cb01ad46ae5403bb769385f7baac8d5c1e68ceeeec403",
+      "basisHash": "3daaa3bb0ff282ec699a49a3bb2a4321f8391a5f651b0c04e78a029a8b169940",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 6,
+      "durationSeconds": 34.876,
+      "recordedAt": "2026-10-06T15:10:34Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-36c14aa58223.log",
+      "logSha256": "3ea68ee7b31cc067c5d14ea1674f3aa775204414e8f8f0bd54daa6a88d263ddb",
+      "inputsHash": "d90a873ba0b701211a9118c7c9d7078b25ff0f62f31ee2d4db45099581bcd381"
+    },
+    "final/s8-chromium-liveness/final": {
+      "checkId": "s8-chromium-liveness",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "746d1d69294fcfc0fd0a5b8231450dec624f3769abe889a66c5210e6ceaaffc8",
+      "basisHash": "f2e76df79be6f81d217d2c77951fc2914ba3a3a296d3a2ad611ba444e2e59d0d",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 6,
+      "durationSeconds": 59.9386,
+      "recordedAt": "2026-10-06T15:11:34Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-6be5a4890f3f.log",
+      "logSha256": "e8ff9a001de625c39c38f081037d70bdb1b2159f37dbdaf3cf6f229754303006",
+      "inputsHash": "40c0653505d598d57d745c11a0073d04ef1022a8dd58c05931193aefe3474907"
+    },
+    "final/s9-lifecycle-unit/final": {
+      "checkId": "s9-lifecycle-unit",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "10b4d2c7a8653611b41079a0058cd53f37a1caae76e434449a8bf1a861ab233d",
+      "definitionHash": "7339ba86b0612ea434c047f56a0d01476b38d431f65669a862e0585eefd450be",
+      "basisHash": "5b99fc7ee97b63418cc5d516a0d07d142a4fb8487b06288e97163df70371d9c0",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 10,
+      "durationSeconds": 3.1736,
+      "recordedAt": "2026-10-06T00:31:32Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S9-final-8bf026d2df2b.log",
+      "logSha256": "a51c5321bdbe643e6e9c71a7b33f1053179aca599eee5483042270b7b6223e6a",
+      "inputsHash": "91df1b7f98909fa4b74c2429187f6ceb8b23d0c4aa1c7567887fc3808554b3c2"
+    },
+    "final/s9-native-lifecycle/final": {
+      "checkId": "s9-native-lifecycle",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "a0ddcb9cbc02e12f1d2ade06d8a9260a9bc2a8206cd0346a45ec46ecf88bfae8",
+      "basisHash": "042ad958132f503b777b69daaf8d884e2a63f1912516ef7a588332eeb2e87d22",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 32.9974,
+      "recordedAt": "2026-10-06T15:12:07Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-11cdb8592f5e.log",
+      "logSha256": "987116094ee48f8daa22b9d04e9c937fc99952601fc763bfe7079f3f0b607d09",
+      "inputsHash": "d90a873ba0b701211a9118c7c9d7078b25ff0f62f31ee2d4db45099581bcd381"
+    },
+    "final/s9-chromium-lifecycle/final": {
+      "checkId": "s9-chromium-lifecycle",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "a81dd65d9944a719ae5d25928b0e75fd2b823a7d876b8d2e5b9631858bb87c74",
+      "basisHash": "6062b6d9bd6bbcc61bd9ee8d0934e61ad1f47ca5c18b854fd127ce02cb260f8b",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 47.8862,
+      "recordedAt": "2026-10-06T15:12:55Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-afd06416b1a0.log",
+      "logSha256": "ecd77c144c0feff58a7ca358bef94cb27d5fd9e4ebdeb39597fc9db6801bc4fe",
+      "inputsHash": "40c0653505d598d57d745c11a0073d04ef1022a8dd58c05931193aefe3474907"
+    },
+    "final/s10-firefox-webkit/final": {
+      "checkId": "s10-firefox-webkit",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "fae08e311db6b7d7c59b4a22ea689c21ca38b50e0d22efa4189ba1dbc0c5a5c4",
+      "basisHash": "b17535192431e9f925b889c815df93504cfcb04ed59004b5f9c4303ca85d0c78",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 100,
+      "durationSeconds": 578.2212,
+      "recordedAt": "2026-10-06T15:22:33Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-b635c887e6cb.log",
+      "logSha256": "6e492ad0660767e63ec8d1423d87c3e1cdd17e1f79a28ec9fdf15e8258732c8d",
+      "inputsHash": "40c0653505d598d57d745c11a0073d04ef1022a8dd58c05931193aefe3474907"
+    },
+    "final/s10-android/final": {
+      "checkId": "s10-android",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "e7431617d098b5effdb6d9fcd03488b417acec21bbb286d5a73a7deebbabf2e1",
+      "basisHash": "72daebad0b28a97c7231c2e2168723b0c95ea4e8824442948edca0b82310549f",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 44,
+      "durationSeconds": 265.9806,
+      "recordedAt": "2026-10-06T15:26:59Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-da1f34dbbac7.log",
+      "logSha256": "12e133eeda20bdb48affe7666601f1a25c0a78ef83a21949a81bcd1065dea7a1",
+      "inputsHash": "d90a873ba0b701211a9118c7c9d7078b25ff0f62f31ee2d4db45099581bcd381"
+    },
+    "final/s10-workflow-contract/final": {
+      "checkId": "s10-workflow-contract",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "7a0b1987ac0af427b12a980a333d348a71209457b4cbe04242a37070baee9f13",
+      "definitionHash": "5eaec7a6be625396be7eeb0049e6530bbf29256fc41fe17fb058b652d778dfab",
+      "basisHash": "ab9ec0afc93769c847db4e08bca6c6cbabeb8e89f7f6b9098f319f7eb563cf29",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 3.4188,
+      "recordedAt": "2026-10-06T14:39:53Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S10-final-f555e34ea90c.log",
+      "logSha256": "17fff1eadb0936a295ef8f7ed414f8f9a852ffa62f4099966cebeb38c97e3970",
+      "inputsHash": "7e90b0ff68258e1c14d83e5e39a593716236f233ad4b94f9cd8ce1ef979645de"
+    },
+    "final/s1-pending-failure-unit/final": {
+      "checkId": "s1-pending-failure-unit",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "8d507d0c6b0e7ea91deefd8a4ca5fc836141624ebece564e71d8747dea3b307e",
+      "basisHash": "105b8c28155ae931afc8c945f7fd9d0b452d20d24803146db8a2b4f407903894",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 3,
+      "durationSeconds": 2.6723,
+      "recordedAt": "2026-10-06T15:27:02Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-013fe03bac4b.log",
+      "logSha256": "9bb247b547b43c7f518b563288e0bd6bdb40a25db48ad229cfb7d79c5e4af316",
+      "inputsHash": "f238d6dbe5126bac4b9cc999cf6edc66f5064d519f1e2f13a1c595e5727e3e09"
+    },
+    "final/s2-client-unit/final": {
+      "checkId": "s2-client-unit",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "4023a36cb414ca90f707be08fc35de89fa086d1030b4cf1e515e66bc2e042eeb",
+      "basisHash": "6d650321b80b292ee06b1d9502359c1ff30da8901af4add8cdfa8915b7bb61d7",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 11,
+      "durationSeconds": 0.409,
+      "recordedAt": "2026-10-06T15:27:03Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-d6608f062819.log",
+      "logSha256": "125e594f0d0659f337ce7412d0f9a6eba839b8aab2a6facee7c3130cbb339c87",
+      "inputsHash": "f238d6dbe5126bac4b9cc999cf6edc66f5064d519f1e2f13a1c595e5727e3e09"
+    },
+    "final/s4-negotiate-errors/final": {
+      "checkId": "s4-negotiate-errors",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "e4663fe4a10b9e48bc24d684a0dc0883075226bfa6a69b9a4e4c7debb161d5c8",
+      "basisHash": "fc66a9c25d1ebd90dd01ce5a400d5d34f77b9d9f5a0ef01a76eb5949f3458628",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 5,
+      "durationSeconds": 0.3288,
+      "recordedAt": "2026-10-06T15:27:03Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-e751a0c675e1.log",
+      "logSha256": "c79d3dd7a9ad642ac647972603abec580bae152589306ee75327c017c08852d5",
+      "inputsHash": "087b733caecf435b0da45da989a0e0e477686756828814be32c309ee37b28206"
+    },
+    "final/s6-stateful-generation/final": {
+      "checkId": "s6-stateful-generation",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "5cb342e4b10ab5f956c3333110fc38f3e5fc3ece1c5561093cb70cf727b58f82",
+      "definitionHash": "6e42c8ba66ee7af176121510913e653f14db513d15e1dec36b18263b5e2722e0",
+      "basisHash": "dd21084f29d89e5995a5ed5aa6749b7b13eb267a284f165aff62fe68d2df5531",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 3,
+      "durationSeconds": 0.3137,
+      "recordedAt": "2026-10-06T15:27:03Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-90fe2f88d93f.log",
+      "logSha256": "361b838d277d978f47eab73d80aad6d5cebd488cd28917ae78785ec32f3b18b4",
+      "inputsHash": "087b733caecf435b0da45da989a0e0e477686756828814be32c309ee37b28206"
+    },
+    "final/s10-mobile-runner-unit/final": {
+      "checkId": "s10-mobile-runner-unit",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "7a0b1987ac0af427b12a980a333d348a71209457b4cbe04242a37070baee9f13",
+      "definitionHash": "281378db22fe3484d6664816578495c4b2db6e7868a875f56d5f73b2d2b4db8b",
+      "basisHash": "9413727c9c3ff1fe44268eb5c2633468255753d36d6e003e04ef02cfc0b31e00",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 9,
+      "durationSeconds": 3.4259,
+      "recordedAt": "2026-10-06T14:39:57Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S10-final-137b1ff1e3fb.log",
+      "logSha256": "072765f815c7e011640d64464b110cb8d48ab25ddce27955d4d5bc7bd492d4a7",
+      "inputsHash": "88d2246bb5dffb155c45b3de107715304de46db4d5b58fc79ae17bbb55a40f01"
+    },
+    "final/s10-socket-unit/final": {
+      "checkId": "s10-socket-unit",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "7a0b1987ac0af427b12a980a333d348a71209457b4cbe04242a37070baee9f13",
+      "definitionHash": "3483585f1b08cade404938c400856c4bae4b1523e0df447f74ef0a4df240f6e7",
+      "basisHash": "01366974dad8cea0872531d2023b6fff558656352a31bed635d54c4938b0f15e",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 3,
+      "durationSeconds": 4.8227,
+      "recordedAt": "2026-10-06T14:40:02Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S10-final-9fe61d7c9c6f.log",
+      "logSha256": "b95cb1f59c4c9e1c333f4355e3381bc256e10e1c49b121830bc84cdfa450a1ab",
+      "inputsHash": "5cf6b007de6f9d22dfbd363184ec4174710a554e6803a55e2279fcc92dab2dd9"
+    },
+    "final/final-fmt/final": {
+      "checkId": "final-fmt",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "30ee39841e8b8b53ee4c2b078b55c57d957434864b05f1ae40a582e1fd4fea60",
+      "definitionHash": "d304487528c3d6599708e4d9c30edc05f16b847a506462d04112abe167d46924",
+      "basisHash": "408acca1f64dab68408e037c4f6d5a68a122ba9196e45e06a00beb3e0e0e0385",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 0,
+      "durationSeconds": 0.4554,
+      "recordedAt": "2026-10-06T15:34:30Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-c01f0b125b8c.log",
+      "logSha256": "392fc92e31ca4eec4ae5104572d8b144bd8196e9c6a5e4b87662bfe47ecd4a22"
+    },
+    "final/final-clippy/final": {
+      "checkId": "final-clippy",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "30ee39841e8b8b53ee4c2b078b55c57d957434864b05f1ae40a582e1fd4fea60",
+      "definitionHash": "1d5030c7a924910fa44b0b9fdec32721e9d0a89edbc92730655ed431f64879e3",
+      "basisHash": "52315825466bdccb1f55589fc1ce5da52b962f40e4dbbc61e44ddaf3157a78cb",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 0,
+      "durationSeconds": 4.4552,
+      "recordedAt": "2026-10-06T15:34:35Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-a001b71045cc.log",
+      "logSha256": "5a31a22bf7589ce30acc1810c89b01f0baf18bf689cebfc241ece44af8d7a992"
+    },
+    "final/final-native-no-default/final": {
+      "checkId": "final-native-no-default",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "30ee39841e8b8b53ee4c2b078b55c57d957434864b05f1ae40a582e1fd4fea60",
+      "definitionHash": "77d45d36bbd7a1bf01ac511404d4fbe6ecfc369cf4f54534547eb63164865477",
+      "basisHash": "7bb62e21aaa6dfe94a46358715fa9e9931bfec90953d29f1a5e77f703f49e0b2",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 0,
+      "durationSeconds": 3.5205,
+      "recordedAt": "2026-10-06T15:34:38Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-33c62925afe6.log",
+      "logSha256": "a183f55c94d1427f604688ff684dfef6b2bdd3b560633c0e9d71f9ee83f5efdd"
+    },
+    "final/final-wasm-default/final": {
+      "checkId": "final-wasm-default",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "30ee39841e8b8b53ee4c2b078b55c57d957434864b05f1ae40a582e1fd4fea60",
+      "definitionHash": "bcc652b10560dc831a645e2f5ccc6f0461e67a1fb28503f30e3ccc6ab980ea52",
+      "basisHash": "c591560d6121e038b882c7e66bf29578cde9f3719326511a9c04ec0a5b52a6bc",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 0,
+      "durationSeconds": 0.5955,
+      "recordedAt": "2026-10-06T15:34:39Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-39b113c7cb7f.log",
+      "logSha256": "183bf9adb7f39b0636cec070b3ff28b96f3e705a052b9ed1a3a27962d7c277cf"
+    },
+    "final/final-wasm-all/final": {
+      "checkId": "final-wasm-all",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "30ee39841e8b8b53ee4c2b078b55c57d957434864b05f1ae40a582e1fd4fea60",
+      "definitionHash": "e2166f50740a7c86ef86c2b1d82928150a3a8833ec930181252cbf9e6eb9f872",
+      "basisHash": "f4f5976b713c86728af710455373dbed83c94154abf6d78b1dbb995731f6a3c4",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 0,
+      "durationSeconds": 0.5371,
+      "recordedAt": "2026-10-06T15:34:40Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-1c4413c0fd20.log",
+      "logSha256": "b7667a68c7e7d5930cf00b91a5f4de45748a89912e1df858c65d17d708035325"
+    },
+    "final/final-rustdoc/final": {
+      "checkId": "final-rustdoc",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "30ee39841e8b8b53ee4c2b078b55c57d957434864b05f1ae40a582e1fd4fea60",
+      "definitionHash": "24a2cbc17cf9ed558e7d81c2d10fd848e91b299ce68fbfd8c8302f86c2b9aa9a",
+      "basisHash": "e816d692d1f9279c4e9a2a1774b5fdc0b9897bceaeb19b36aaa5f84e16907e22",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 0,
+      "durationSeconds": 1.5834,
+      "recordedAt": "2026-10-06T15:34:41Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-c7e8609e2baa.log",
+      "logSha256": "8ea3456b2dea75bdc9c26e43fc622c663b061f281e428da5141256cf8af03d92"
+    },
+    "final/final-dotnet-build/final": {
+      "checkId": "final-dotnet-build",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "30ee39841e8b8b53ee4c2b078b55c57d957434864b05f1ae40a582e1fd4fea60",
+      "definitionHash": "81c0dce1af0250c3fbe721eb4b228b91ba0bb9e90d6942e50619e434de2d8c34",
+      "basisHash": "1d590b58cd969bdc46d772a833aaa31b290e74957e773eb8d0800169c8e666bf",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 0,
+      "durationSeconds": 1.6624,
+      "recordedAt": "2026-10-06T15:34:43Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-8f753d485f46.log",
+      "logSha256": "75eebec5f4768c686da96059352ad45d916bd3b67193fd841c42cfb55430e222"
+    },
+    "final/final-unit-all-features/final": {
+      "checkId": "final-unit-all-features",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "30ee39841e8b8b53ee4c2b078b55c57d957434864b05f1ae40a582e1fd4fea60",
+      "definitionHash": "5266bd5b78cbeb23805383ffd6f7b8646452155bc3051eb7408b60f952bba141",
+      "basisHash": "3c4259592a872095ce35734054426a372250a5d08ce5997a37d4005eec123d1d",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 114,
+      "durationSeconds": 10.8678,
+      "recordedAt": "2026-10-06T15:34:54Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-6f06e647d73b.log",
+      "logSha256": "260c8e57831e26f8f24f6124c69d2ff7e45aaa277d0fee63684e32f115c240ce"
+    },
+    "final/final-unit-json-only/final": {
+      "checkId": "final-unit-json-only",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "30ee39841e8b8b53ee4c2b078b55c57d957434864b05f1ae40a582e1fd4fea60",
+      "definitionHash": "34dbf98e8fb3d5e1c0f6eeff46739d9fb8de83826db6115bb86cd8279f6a9caa",
+      "basisHash": "89a71033f7a23fe9b1025df2ede6de4305b6f4954c0d87a50ddf529c702b8b03",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 88,
+      "durationSeconds": 7.6431,
+      "recordedAt": "2026-10-06T15:35:01Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-9e41f542d8ac.log",
+      "logSha256": "c5fcb47c390fccab9822d00f5a1f25f09c0e8297f4e9a43bbefe107fbb0eade3"
+    },
+    "final/final-static-categories/final": {
+      "checkId": "final-static-categories",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "30ee39841e8b8b53ee4c2b078b55c57d957434864b05f1ae40a582e1fd4fea60",
+      "definitionHash": "d0c342333b4379e8152f123da41412c91c672f2366b8ce162c2a9f5cc279905c",
+      "basisHash": "b8e0f99ef26c44a2d0e699b16e569a62fe3444bc92c5bf27f94e1d109bf41938",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 56,
+      "durationSeconds": 43.458,
+      "recordedAt": "2026-10-06T15:35:45Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-ef920e6df098.log",
+      "logSha256": "84aad84f879f4739132b61521119d2dca821cb944cfe4a2e3e9fe57bb1dc2260"
+    },
+    "final/final-e2e-native/final": {
+      "checkId": "final-e2e-native",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "30ee39841e8b8b53ee4c2b078b55c57d957434864b05f1ae40a582e1fd4fea60",
+      "definitionHash": "167d8ac058d58b9302623b23520af79656da7d80c3953b9309891f86e6e9b7b1",
+      "basisHash": "4c6e92bcb41bddfeb68d55553c7e6981bddbc5d15a0da49927bc882bcd8c196a",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 44,
+      "durationSeconds": 118.44,
+      "recordedAt": "2026-10-06T15:37:43Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-79aa3b8ff8ad.log",
+      "logSha256": "916d4fcf95f8f518a57de867d012fdbc62a21c54f65d1d9cf3f9218518375d63"
+    },
+    "final/final-e2e-chromium/final": {
+      "checkId": "final-e2e-chromium",
+      "boundaryId": "final",
+      "phase": "final",
+      "batchId": "30ee39841e8b8b53ee4c2b078b55c57d957434864b05f1ae40a582e1fd4fea60",
+      "definitionHash": "c08eaa74bf03be22de8b9848ef5a2819f570d67b9909c9839e9111dd7fb2f1ad",
+      "basisHash": "2201c56b8c354a0d42ef57fb182beb20633ccd5eb292159cc1425a4c92478b4a",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 50,
+      "durationSeconds": 218.579,
+      "recordedAt": "2026-10-06T15:41:22Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/final-final-116169238b48.log",
+      "logSha256": "d99a74e7ebba807d8dacf710a4b6035091e6994c6deb5ab9aeed87408e3b0967"
+    },
+    "S11/s11-native-runs-unit/final": {
+      "checkId": "s11-native-runs-unit",
+      "boundaryId": "S11",
+      "phase": "final",
+      "batchId": "e3ec41eaa3c20e53dd8f6fc7c20128d6cf6ca87eba1832139fbbd596d23763bd",
+      "definitionHash": "f83396e438f28b4b0225200366a2356a133d3ad4ac744e8e55543874c9c435d9",
+      "basisHash": "886e10f5e24992262ab6e073e57ae9caf5212a4b6c92f674f1358a6978a990fa",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 6,
+      "durationSeconds": 7.1686,
+      "recordedAt": "2026-10-06T16:01:58Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S11-final-99ea14d94f28.log",
+      "logSha256": "ce22f051703e6bf55994399bf439ee4ff3e7b7ccd6e3ace9d04ba0d11c8fd46a",
+      "inputsHash": "0d4da78e304110e1d328ae7f165b20021ba675a9404ca28f28bcfb696237635e"
+    },
+    "S11/s11-harness-unit/final": {
+      "checkId": "s11-harness-unit",
+      "boundaryId": "S11",
+      "phase": "final",
+      "batchId": "e3ec41eaa3c20e53dd8f6fc7c20128d6cf6ca87eba1832139fbbd596d23763bd",
+      "definitionHash": "1c25ad4616bb4004dd88507c3d19f082a77b84bc0959072a5be3763ca0147847",
+      "basisHash": "239a2d1163e78f432982ff8e1b67e820b86ee9aa895a3a7c28cb7da9a97039de",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 15,
+      "durationSeconds": 4.6017,
+      "recordedAt": "2026-10-06T16:02:02Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S11-final-f9c972fc10fc.log",
+      "logSha256": "8df198788edf16fe456971a18c7496ac5f5622661e7835fea50a6b374bbd310d",
+      "inputsHash": "e0eceb32517447f30a7dc7c27ec5b8197740f4a2c7315f3c69500f82a866ef1f"
     }
   },
   "reviews": {
@@ -3097,6 +4059,240 @@
         "S10-F11"
       ],
       "recordedAt": "2026-10-06T14:41:27Z"
+    },
+    "S11": {
+      "reviewerId": "s11-independent-reviewer",
+      "snapshotId": "f25c4182199b69cc2ddf6c2083199af15c43fe7f724a4766420972872d43c7d9",
+      "criterionIds": [
+        "R8.C1",
+        "R9.C1",
+        "R10.C3",
+        "R10.C4",
+        "R10.C6"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R9.C1",
+            "R8.C1"
+          ],
+          "sha256": "033e838dee35d9dcd2f0f662d3492deee75be2da63c86881b30ee9a94d63df2a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C1"
+          ],
+          "sha256": "17ed1999c42cfe7d54a68ad740fa1ae35112ea98f610dd741e915e13f894a097"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/reconnection.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R9.C1"
+          ],
+          "sha256": "ff74e7ff9cb7c5e620fd635402a0b5fd385e99baaa4a7b1f95be5f3b56795072"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R9.C1"
+          ],
+          "sha256": "6ca675b91fa883a359c8afd17c5255df16ee41ae866c4e3d9c3c8f2436b1bb69"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R9.C1",
+            "R8.C1"
+          ],
+          "sha256": "033e838dee35d9dcd2f0f662d3492deee75be2da63c86881b30ee9a94d63df2a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R8.C1"
+          ],
+          "sha256": "17ed1999c42cfe7d54a68ad740fa1ae35112ea98f610dd741e915e13f894a097"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/reconnection.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R9.C1"
+          ],
+          "sha256": "ff74e7ff9cb7c5e620fd635402a0b5fd385e99baaa4a7b1f95be5f3b56795072"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Scenarios/MobileCellRunners.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C3"
+          ],
+          "sha256": "e6640a66f7f448e90ce9cebbf4ad46a607664006dd09e158a8828bd2d59c8454"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Scenarios/CellRunners.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C3",
+            "R10.C4"
+          ],
+          "sha256": "eab026f0abb77ade41a352724266f401819c89f70d5c0439d1498d5bced248af"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Infrastructure/AspireEnvironment.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C4"
+          ],
+          "sha256": "f2eee80ad5542701ef13309253a43499fef6ea7b88b4878514d8f8999868382a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Infrastructure/Redaction.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C4"
+          ],
+          "sha256": "2f929c1ee823168260550a302dea122358cec4b4e0e28338f7269bc298f697f4"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/support.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C3"
+          ],
+          "sha256": "2dfec6d6a053c65f2ce1be3055d515dfedf813f60d4a58caca46fd92b16eed63"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/e2e.yml",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C3",
+            "R10.C4"
+          ],
+          "sha256": "df03545dc8cc39ebb8d3f7c1a54bea3454ca02141d1c2538096f968f1bb49630"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/quality.yml",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C4"
+          ],
+          "sha256": "5e7667ebfea3c39edbb1468c76854fb1ad80fa9f3e6cd291664d1723078b2baf"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/WorkflowContractTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R10.C4"
+          ],
+          "sha256": "3c2416f039f307b9dfc552ba36b788a81b645e9de396fd87acd0c3f84c7cd0bd"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/MobileRunnerTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R10.C4",
+            "R10.C3"
+          ],
+          "sha256": "6d8aea0784c5fd776b5d79ef332385afcc46978567e41a251183c2a1e983be79"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "README.md",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C6",
+            "R10.C3"
+          ],
+          "sha256": "be7d651392edd267a4c822f0851a8545b363d85f5653d0c3dac58fdfba3f50b7"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "FORK.md",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C6"
+          ],
+          "sha256": "7d2285ef73a0f59e474e37375ff04cda14fba02ed408af822d9f9cdc042ff3d7"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/lib.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C6"
+          ],
+          "sha256": "7c9d5e0f1293aa947c9bd23b6ae69e9e96623d75ab4afb1e71bb194ad8f94c0f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/context.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C6"
+          ],
+          "sha256": "8a687c5f58d27df4eac2bca62c9bdba5dbbdba956609a74fbb865c489c053107"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".codex/skills/rayx-signalr/SKILL.md",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C6"
+          ],
+          "sha256": "57eeb5a3f2d8055c9a1ab6fbb69a7361b68816e488fff33f91211fc9e70e37c7"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/SignalRTestService/TestAuthentication.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C6"
+          ],
+          "sha256": "36da5c34da15702740ff0953db57494df6c26bf6eda69a49ce710232ed9e284a"
+        }
+      ],
+      "summaryMarkdown": "S11 repairs every EPIC-F1..F11 finding.\n\n- I verified the repairs against the diffs of 0db27fb, dc4948b and 02d4e7b and the uncommitted memory sync.\n- Both sprint checks passed at revision 113. I also ran:\n  - the S11 Rust groups under `--no-default-features`: 6 passed;\n  - `cargo check --test e2e --features messagepack` and clippy `-D warnings` with default features: both clean.\n- A new minor doc nit, S11-F1, was found and is now repaired in a63efed.\n\nCI at head 02d4e7b is green, so the changed native lifecycle and TLS-feature setup is runtime-proven on every target: all 28 PR checks pass, with E2E run https://github.com/rayx-ui/RayX.SignalR/actions/runs/37492437677 (iOS 44/44 in job 112368338953, Android 44/44, native ubuntu 44/44, all browser engines) and Quality run 37492437561. Record this run as the current R10.C3/R10.C5 evidence; a63efed is docs-only.",
+      "findingIds": [
+        "EPIC-F1",
+        "EPIC-F2",
+        "EPIC-F3",
+        "EPIC-F4",
+        "EPIC-F5",
+        "EPIC-F6",
+        "EPIC-F7",
+        "EPIC-F8",
+        "EPIC-F9",
+        "EPIC-F10",
+        "EPIC-F11",
+        "S11-F1"
+      ],
+      "recordedAt": "2026-10-06T16:17:12Z"
     }
   },
   "checkpoints": {
@@ -3179,6 +4375,14 @@
       },
       "reviewHash": "dcc92fdc66a36636e5f7bf43f6ae6b0a216971ac18400cd779b41fadfff3a243",
       "recordedAt": "2026-10-06T14:41:28Z"
+    },
+    "S11": {
+      "snapshotId": "f25c4182199b69cc2ddf6c2083199af15c43fe7f724a4766420972872d43c7d9",
+      "commits": {
+        "rayx-signalr": "a63efed8b7e8661edfb31801a39bed75a2d5b16f"
+      },
+      "reviewHash": "8c540d292d9b147d9a617192f786a00f6d485c3f0dcd414518ca9d6bae256122",
+      "recordedAt": "2026-10-06T16:17:13Z"
     }
   },
   "findings": [
@@ -3818,6 +5022,264 @@
           "repositoryId": "rayx-signalr",
           "path": "src/communication/negotiate_http.rs",
           "symbol": "negotiate_tcp_connect"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-F1",
+      "boundaryId": "S11",
+      "criterionIds": [
+        "R10.C6"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**Android verifier setup docs.** Verified repaired.\n- `README.md` now uses the upstream 0.7.x Maven URL (`.../raw/maven-archive/android-release-support/maven/`).\n- It pins `rustls:rustls-platform-verifier` to the `Cargo.lock` version of `rustls-platform-verifier-android` and warns about mismatches.\n- It calls `init_with_env(env, context)` from a native method that receives an Android `Context`.\n- `src/lib.rs` `tls::android` docs say the same and state that `JNI_OnLoad` has no `Context`.\n- The ProGuard rule is unchanged and matches upstream.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "README.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/lib.rs",
+          "symbol": "tls::android"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-F2",
+      "boundaryId": "S11",
+      "criterionIds": [
+        "R9.C1"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Native manual policy exhaustion.** Verified repaired.\n- `ReconnectionContext::reconnect_with_policy` now calls `end_after_exhaustion` on `Err`.\n- A superseded or dropped run is unaffected, because `fail_generation` returns false. This matches the browser's `run_policy_to_end`.\n- The single `reconnect()` still only fails its generation, as on the browser.\n- Covered by `native_connection_runs_end_the_logical_connection_after_manual_exhaustion`: Disconnected status and a disposed buffer. I reran it with `--no-default-features`: passed.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "native_connection_runs::native_connection_runs_end_the_logical_connection_after_manual_exhaustion"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-F3",
+      "boundaryId": "S11",
+      "criterionIds": [
+        "R9.C1"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Terminal local close and dropped clients.** Verified repaired.\n- Native `disconnect` calls `local_close` in every non-`LocalClosed` state, swaps the state under the lock, drops the old connection outside it, disposes the buffer and fails pending work with `LOCALLY_CLOSED`. This matches the browser's `disconnect_internal`.\n- `run_policy` checks `stopped()` (no strong state references, or a superseded generation) before each attempt and after each failure.\n- `attempt` upgrades the `Weak` state only at install time.\n- Covered by `native_connection_runs_stop_when_the_client_disconnects` (Closed, disposed, run ends) and `..._stop_when_every_client_handle_is_dropped`, both with unbounded policies.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "native_connection_runs"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-F4",
+      "boundaryId": "S11",
+      "criterionIds": [
+        "R8.C1"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Bounded native connection setup.** Verified repaired.\n- `negotiate_http::CONNECT_TIMEOUT` (15 s, the same as the browser's socket-open bound) wraps `post` and `connect_socket` (TCP, TLS and upgrade through `connect_socket_within`). These are used by connect, ordinary reconnect and stateful resume.\n- The timeout errors repeat neither the URL nor the token.\n- Covered by `connection_setup_bounds` and `native_connection_runs_bound_the_websocket_upgrade` with a silent listener.\n- Browser negotiate `fetch` is still unbounded. That was optional in the finding, and the browser socket open is bounded.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs",
+          "symbol": "connection_setup_bounds"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "native_connection_runs::native_connection_runs_bound_the_websocket_upgrade"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-F5",
+      "boundaryId": "S11",
+      "criterionIds": [
+        "R10.C4",
+        "R10.C6"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**The default TLS provider is exercised end to end.** Verified repaired.\n- The host and iOS `e2e` binaries build with `--features messagepack` (`CellExecution.E2EFeatures`), which means the platform verifier with `ring`.\n- Android builds with `messagepack,tls-webpki-roots`, for the untrusted case `tests/e2e/tls.rs:44-45` needs. The workflow pre-build and its contract match.\n- I ran `cargo check --test e2e --features messagepack` and clippy `--lib --tests --features messagepack -D warnings`: both clean.\n- FORK and README now state that aws-lc-rs is covered by builds and unit tests.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Scenarios/CellRunners.cs",
+          "symbol": "CellExecution.E2EFeatures"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/MobileRunnerTests.cs"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-F6",
+      "boundaryId": "S11",
+      "criterionIds": [
+        "R10.C4"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**TLS key outside the uploaded diagnostics.** Verified repaired.\n- `AspireEnvironment.TlsDirectory` and the AppHost default now write to `artifacts-temp/tls/<run>`, outside the uploaded `artifacts-temp/e2e`.\n- `StopAsync` deletes the directory, tolerating IO errors.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Infrastructure/AspireEnvironment.cs",
+          "symbol": "TlsDirectory"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.AppHost/AppHost.cs"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-F7",
+      "boundaryId": "S11",
+      "criterionIds": [
+        "R10.C3",
+        "R10.C6"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**iOS harness accommodations and evidence.** Verified repaired.\n- README (Testing and iOS) and FORK residual risks now document the untimed warm-up, the user-interactive QoS, the launcher-hang allowance and `runner-notes.log`.\n- They also state the background wakeup-throttling risk, with `pause()` as the mitigation.\n- The coordinator recorded the iOS evidence run at b03957a (37483338412). CI at head 02d4e7b is green, so the changed native lifecycle and TLS-feature setup is runtime-proven on every target: all 28 PR checks pass, with E2E run https://github.com/rayx-ui/RayX.SignalR/actions/runs/37492437677 (iOS 44/44 in job 112368338953, Android 44/44, native ubuntu 44/44, all browser engines) and Quality run 37492437561. Record this run as the current R10.C3/R10.C5 evidence; a63efed is docs-only.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "README.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "FORK.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/support.rs",
+          "symbol": "raise_scenario_thread_priority"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-F8",
+      "boundaryId": "S11",
+      "criterionIds": [
+        "R10.C6"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Browser Basic-authentication caveat.** Verified repaired.\n- README (browsers section) and FORK state that browser Basic credentials reach only negotiate, and recommend Bearer.\n- The token-binding branch in `TestAuthentication.cs` is commented as test-only.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "README.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/SignalRTestService/TestAuthentication.cs"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-F9",
+      "boundaryId": "S11",
+      "criterionIds": [
+        "R10.C6"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Documentation accuracy.** Verified repaired.\n- README: Android and iOS device targets are compile-checked only; secure endpoints need one verifier and one provider; the device-cleanup wording is scoped (Android removal, iOS simulator shutdown); `Orchestration` is local-only.\n- FORK: compile-checked list and three-engine harness wording.\n- `InvocationContext::spawn` docs point foreign executors at `Handle::spawn`.\n- The skill lists clippy and rustdoc.\n- `AGENTS.md`/`CLAUDE.md` are deliberately left for the repository owner (governance files). That is acceptable as an owner action, not an epic defect.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "README.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "FORK.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/context.rs",
+          "symbol": "InvocationContext::spawn"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".codex/skills/rayx-signalr/SKILL.md"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-F10",
+      "boundaryId": "S11",
+      "criterionIds": [
+        "R10.C6"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Memory sync.** Verified repaired in the working tree; to be committed at the seal.\n- Updated: interop-validation rules, knowledge, hypotheses and state; rust-tests rules, knowledge and state; repository-governance state; quality-gates state (all jobs and `Platform` cases); dotnet-test-service endpoints; transport and connection-lifecycle state for the S11 behavior.\n- None of them restrict browser proof to Chromium any more.\n- Promoting the Playwright decision and D11 as built is correctly deferred until after `done`. The final review must confirm D11 is promoted with the `web-sys` `BrowserSocket` and `performance.now()`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/memory/knowledge/interop-validation/rules.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/memory/knowledge/repository-governance/quality-gates/state.md"
+        }
+      ]
+    },
+    {
+      "id": "EPIC-F11",
+      "boundaryId": "S11",
+      "criterionIds": [
+        "R10.C4"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Harness contracts and diagnostics.** Verified repaired.\n- `EveryQualityJobRunsItsOwnGateOnItsPlatform` asserts each quality job's `runs-on`, matrix and exact gate command, and the exact job set.\n- The `upload-artifact` count must equal the recognized failure-only upload steps.\n- `NativeE2EBinary.CompilerErrors` adds rendered rustc errors (errors only) to build-failure messages for the host and iOS builds.\n- `Redaction` covers the JSON `\"accessToken\"` shape (unit-tested).\n- Contract failure messages use `SafeTail`.\n- iOS `CleanupAsync` resets the device and warm-up after shutting down a simulator it booted.\n- The `s11-harness-unit` check passed at revision 113.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/WorkflowContractTests.cs",
+          "symbol": "EveryQualityJobRunsItsOwnGateOnItsPlatform"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/MobileRunnerTests.cs",
+          "symbol": "DiagnosticsRedactRedirectTokensAndKeepCompilerErrors"
+        }
+      ]
+    },
+    {
+      "id": "S11-F1",
+      "boundaryId": "S11",
+      "criterionIds": [
+        "R10.C6"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Two README sentences on the end-to-end TLS features omitted Android's extra feature.** Verified repaired in a63efed (docs-only).\n\n- `README.md` (TLS) now says the Android cells add `tls-webpki-roots` and verify with webpki.\n- The Testing section says the same of the Android binary.\n- Both now match `AndroidCellRunner.AndroidFeatures` and `e2e.yml:151`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "README.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Scenarios/MobileCellRunners.cs",
+          "symbol": "AndroidCellRunner.AndroidFeatures"
         }
       ]
     }
