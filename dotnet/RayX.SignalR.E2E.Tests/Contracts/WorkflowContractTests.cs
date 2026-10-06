@@ -53,7 +53,7 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
       string[] actions = UsesLine().Matches(workflow).Select(match => match.Groups["action"].Value).ToArray();
       Assert.All(actions, action => Assert.Contains(action, _allowedActions));
       int checkouts = actions.Count(action => action.StartsWith("actions/checkout@", StringComparison.Ordinal));
-      Assert.Equal(checkouts, PersistCredentialsDisabled().Matches(workflow).Count);
+      Assert.Equal(checkouts, PersistCredentialsDisabled().Count(workflow));
 
       foreach(Match upload in UploadStep().Matches(workflow))
       {
@@ -149,7 +149,7 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
       AssertMatches("e2e.yml", e2e, pattern);
     }
 
-    Assert.Equal(4, Regex.Matches(e2e, @"dotnet test dotnet/RayX\.SignalR\.E2E\.Tests --filter Category=E2E").Count);
+    Assert.Equal(4, Regex.Count(e2e, @"dotnet test dotnet/RayX\.SignalR\.E2E\.Tests --filter Category=E2E"));
   }
 
   [Fact]

@@ -41,7 +41,7 @@ public sealed partial class DependencySecurityTests(AspireEnvironment environmen
       scan.Succeeded,
       $"dotnet list package --vulnerable exited {scan.ExitCode} (timed out: {scan.TimedOut}):\n{Redaction.SafeTail(output)}");
     Assert.DoesNotMatch("(?i)has the following vulnerable packages", output);
-    Assert.Equal(4, NoVulnerablePackages().Matches(output).Count);
+    Assert.Equal(4, NoVulnerablePackages().Count(output));
   }
 
   [GeneratedRegex("(?i)has no vulnerable packages")]
