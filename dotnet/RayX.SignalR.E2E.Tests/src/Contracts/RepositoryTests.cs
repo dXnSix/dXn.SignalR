@@ -1,10 +1,11 @@
+using System.Text.RegularExpressions;
 using RayX.SignalR.E2E.Tests.Infrastructure;
 
 namespace RayX.SignalR.E2E.Tests.Contracts;
 
 /// <summary>Proves the repository keeps no test scripts and no production test hooks.</summary>
 [Collection(AspireTestGroup.Name)]
-public sealed class RepositoryTests(AspireEnvironment environment)
+public sealed partial class RepositoryTests(AspireEnvironment environment)
 {
   static readonly string[] _scriptExtensions = [".ps1", ".sh", ".mjs", ".cmd", ".bat"];
 
@@ -56,10 +57,23 @@ public sealed class RepositoryTests(AspireEnvironment environment)
   [Trait("Category", "Repository")]
   public async Task DocumentationDescribesTheAspireTestWorkflow()
   {
-    string readme = await File.ReadAllTextAsync(Path.Combine(environment.RepositoryRoot, "README.md"));
+    string root = environment.RepositoryRoot;
+    string readme = await File.ReadAllTextAsync(Path.Combine(root, "README.md"));
+    Assert.Contains("## Platform support", readme, StringComparison.Ordinal);
+    Assert.Contains("docs/README.md", readme, StringComparison.Ordinal);
+
+    // Every chapter the documentation index links to exists.
+    string index = await File.ReadAllTextAsync(Path.Combine(root, "docs", "README.md"));
+    string[] chapters = [.. ChapterLink().Matches(index).Select(match => match.Groups["file"].Value).Distinct()];
+    Assert.NotEmpty(chapters);
+    foreach(string chapter in chapters)
+    {
+      Assert.True(File.Exists(Path.Combine(root, "docs", chapter)), $"docs/README.md links to missing docs/{chapter}");
+    }
+
+    string testing = await File.ReadAllTextAsync(Path.Combine(root, "docs", "14-testing.md"));
     foreach(string required in new[]
             {
-              "## Platform support",
               "## Testing with Aspire",
               "aspire run",
               "dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E",
@@ -71,7 +85,17 @@ public sealed class RepositoryTests(AspireEnvironment environment)
               "e2e / ios",
               "quality / platform",
               "RAYX_SIGNALR_E2E_ANDROID_SERIAL",
-              "RAYX_SIGNALR_E2E_IOS_DEVICE",
+              "RAYX_SIGNALR_E2E_IOS_DEVICE"
+            })
+    {
+      Assert.Contains(required, testing, StringComparison.Ordinal);
+    }
+
+    string documentation = string.Join(
+      '\n',
+      await Task.WhenAll(chapters.Select(chapter => File.ReadAllTextAsync(Path.Combine(root, "docs", chapter)))));
+    foreach(string required in new[]
+            {
               "init_with_env",
               "tls-webpki-roots",
               "with_runtime_handle",
@@ -81,16 +105,22 @@ public sealed class RepositoryTests(AspireEnvironment environment)
               "WASI"
             })
     {
-      Assert.Contains(required, readme, StringComparison.Ordinal);
+      Assert.Contains(required, documentation, StringComparison.Ordinal);
     }
 
-    Assert.DoesNotContain("run-interop.ps1 -Target", readme, StringComparison.Ordinal);
-    Assert.DoesNotContain("verify-workflows.ps1", readme, StringComparison.Ordinal);
-    string fork = await File.ReadAllTextAsync(Path.Combine(environment.RepositoryRoot, "FORK.md"));
-    Assert.Contains("## Production hardening baseline", fork, StringComparison.Ordinal);
-    Assert.Contains("## Cross-platform support", fork, StringComparison.Ordinal);
-    Assert.Contains("Residual risks", fork, StringComparison.Ordinal);
+    string limitations = await File.ReadAllTextAsync(Path.Combine(root, "docs", "12-limitations.md"));
+    Assert.Contains("## Not covered by tests", limitations, StringComparison.Ordinal);
+    Assert.Contains("Long Polling", limitations, StringComparison.Ordinal);
+
+    foreach(string text in new[] { readme, documentation })
+    {
+      Assert.DoesNotContain("run-interop.ps1 -Target", text, StringComparison.Ordinal);
+      Assert.DoesNotContain("verify-workflows.ps1", text, StringComparison.Ordinal);
+    }
   }
+
+  [GeneratedRegex(@"\]\((?<file>\d\d-[a-z0-9-]+\.md)(#[^)]*)?\)")]
+  private static partial Regex ChapterLink();
 
   [Fact]
   [Trait("Category", "Repository")]
