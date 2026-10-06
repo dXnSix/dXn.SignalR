@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "cross-platform-support",
-  "revision": 7,
+  "revision": 8,
   "title": "Cross-platform rayx-signalr with Aspire-orchestrated end-to-end testing on every target",
   "validationMode": "sprint",
   "repositories": [
@@ -1205,7 +1205,7 @@
       "criterionIds": [
         "R10.C2"
       ],
-      "descriptionMarkdown": "New Android target running every native-capable scenario on a running x86_64 emulator (prerequisite: start AVD `Pixel_9_Pro_XL` or set `RAYX_SIGNALR_E2E_ANDROID_SERIAL`). Selection: targets `android`, scenarios `all`, JSON and MessagePack (46 cells).",
+      "descriptionMarkdown": "New Android target running every native-capable scenario on a running x86_64 emulator (prerequisite: start AVD `Pixel_9_Pro_XL` or set `RAYX_SIGNALR_E2E_ANDROID_SERIAL`). Selection: targets `android`, scenarios `all`, JSON and MessagePack (44 cells: 22 native-capable scenarios).",
       "argv": [
         "dotnet",
         "test",
@@ -1215,7 +1215,7 @@
       ],
       "expected": {
         "exitCode": 0,
-        "minimumTests": 46
+        "minimumTests": 44
       },
       "inputs": [
         "Cargo.toml",
@@ -1600,6 +1600,33 @@
         "src/communication/**"
       ],
       "timeoutSeconds": 900
+    },
+    {
+      "id": "s10-mobile-runner-unit",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R10.C2",
+        "R10.C3"
+      ],
+      "descriptionMarkdown": "New `MobileRunnerTests` (Android serial selection, shell quoting, `10.0.2.2` endpoint rewrite, test-binary discovery; iOS simulator selection).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "FullyQualifiedName~MobileRunnerTests"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 5
+      },
+      "inputs": [
+        "global.json",
+        "Directory.Build.props",
+        "dotnet/**"
+      ],
+      "timeoutSeconds": 1200
     }
   ],
   "finalCheckIds": [
@@ -2687,7 +2714,8 @@
           ],
           "dependsOn": [],
           "checkIds": [
-            "s10-android"
+            "s10-android",
+            "s10-mobile-runner-unit"
           ],
           "sourceRefs": [
             {
@@ -2708,7 +2736,9 @@
             "D2"
           ],
           "dependsOn": [],
-          "checkIds": [],
+          "checkIds": [
+            "s10-mobile-runner-unit"
+          ],
           "sourceRefs": [
             {
               "repositoryId": "rayx-signalr",

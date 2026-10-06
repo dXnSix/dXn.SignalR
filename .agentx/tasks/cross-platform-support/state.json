@@ -1,12 +1,12 @@
 {
   "schemaVersion": 6,
   "epicId": "cross-platform-support",
-  "revision": 90,
-  "planRevision": 7,
+  "revision": 98,
+  "planRevision": 8,
   "specHashes": {
     "requirements": "4c346aa3c223174cd82f0745c6e83b5bd2eed05a5b079e544c60af85ee6c6aec",
     "design": "2ebc199ebdca6ff20f2968bb987a8f0f542050395543382bebc4b4558b8b57c8",
-    "plan": "fbdfeb8aab2c01b6caa7fbb554f565db055f57874f26d7dee6517ac10d949949"
+    "plan": "97cca828a75f46cea957fb4c681f359c71209a4706d9daa3533f4334f46cd740"
   },
   "tasks": {
     "S1.T1": {
@@ -172,19 +172,34 @@
       ]
     },
     "S10.T1": {
-      "status": "pending"
+      "status": "implemented",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S10.T2": {
-      "status": "pending"
+      "status": "implemented",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S10.T3": {
-      "status": "pending"
+      "status": "implemented",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S10.T4": {
-      "status": "pending"
+      "status": "implemented",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S10.T5": {
-      "status": "pending"
+      "status": "implemented",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S1.T5": {
       "status": "done",
@@ -283,6 +298,15 @@
         }
       },
       "recordedAt": "2026-10-06T00:32:37Z"
+    },
+    "7d4ddf04b8dfdfa64240c06f796f9529b37d348f4895e6994933ef6bb21dfec2": {
+      "snapshot": {
+        "specHash": "31495e66f8ac55d46d5ce215b913f3be761559b9737cb01ae826cde13d974e2e",
+        "repositories": {
+          "rayx-signalr": "d16d9aeb17ec23265ffc029f1f458d0f8057df1992b98a6f7a6ffafd3c8a0c3e"
+        }
+      },
+      "recordedAt": "2026-10-06T01:11:47Z"
     }
   },
   "checkResults": {
@@ -897,6 +921,74 @@
       "logPath": "artifacts-temp/agentx/cross-platform-support/S9-final-25c86497bb42.log",
       "logSha256": "f2a529c9015c0193b1f889dd242052e22046f6210aa7b8261ba2be054c5ebd31",
       "inputsHash": "88258248c9b3e8982d4a97fd0331987192153ec1ff1d8c4c29c02aee680f2226"
+    },
+    "S10/s10-firefox-webkit/final": {
+      "checkId": "s10-firefox-webkit",
+      "boundaryId": "S10",
+      "phase": "final",
+      "batchId": "7d4ddf04b8dfdfa64240c06f796f9529b37d348f4895e6994933ef6bb21dfec2",
+      "definitionHash": "fae08e311db6b7d7c59b4a22ea689c21ca38b50e0d22efa4189ba1dbc0c5a5c4",
+      "basisHash": "b7552ab094e75d349a52eeb7ae71c68f98e417ab670690dcecdd0e3f4fd3490e",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 100,
+      "durationSeconds": 658.4655,
+      "recordedAt": "2026-10-06T01:06:44Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S10-final-7ecd67ab42ab.log",
+      "logSha256": "8730a79f3c81fb573575ee9557f85a57c7e6ae676b9ee9a8f1422353d75f6517",
+      "inputsHash": "93022e0c61acb816daffb98b4fe8427f77e23304721653ee41602ad9e6258e0b"
+    },
+    "S10/s10-android/final": {
+      "checkId": "s10-android",
+      "boundaryId": "S10",
+      "phase": "final",
+      "batchId": "7d4ddf04b8dfdfa64240c06f796f9529b37d348f4895e6994933ef6bb21dfec2",
+      "definitionHash": "e7431617d098b5effdb6d9fcd03488b417acec21bbb286d5a73a7deebbabf2e1",
+      "basisHash": "84a8535d5cab2c7b71777e3e23830eada3eb748c96ee5cea8f026010df67e523",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 44,
+      "durationSeconds": 286.6532,
+      "recordedAt": "2026-10-06T01:11:30Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S10-final-d10b8bcf3dcb.log",
+      "logSha256": "1dd5ef531bd3006993f40c3a623b1e5601793c78df3af71bc700ff2191eee5b2",
+      "inputsHash": "8d57ea2273d8e83917518521c1aaa877c6d2d31f24ac91fcfc65023f2d354bde"
+    },
+    "S10/s10-workflow-contract/final": {
+      "checkId": "s10-workflow-contract",
+      "boundaryId": "S10",
+      "phase": "final",
+      "batchId": "7d4ddf04b8dfdfa64240c06f796f9529b37d348f4895e6994933ef6bb21dfec2",
+      "definitionHash": "5eaec7a6be625396be7eeb0049e6530bbf29256fc41fe17fb058b652d778dfab",
+      "basisHash": "aa3e59cb85906e3c32aa1e3487b8c9f62353dc1b5dc4d78011570b4ef4741ae1",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 7.3178,
+      "recordedAt": "2026-10-06T01:11:38Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S10-final-b72653a8a7af.log",
+      "logSha256": "ed80aabb98a30317b16bed22f67ce3e7589b08ec1055897f82938ae1a955fd61",
+      "inputsHash": "a700fe855f1fd6848922c5bc73a50b722be1772952c81dbda69825186ac674d9"
+    },
+    "S10/s10-mobile-runner-unit/final": {
+      "checkId": "s10-mobile-runner-unit",
+      "boundaryId": "S10",
+      "phase": "final",
+      "batchId": "7d4ddf04b8dfdfa64240c06f796f9529b37d348f4895e6994933ef6bb21dfec2",
+      "definitionHash": "281378db22fe3484d6664816578495c4b2db6e7868a875f56d5f73b2d2b4db8b",
+      "basisHash": "54ca8e357fdb9fd0abb6d4c65cc6259bb4f29bafdfff399aa71dc28b54dd8ce6",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 5,
+      "durationSeconds": 9.5761,
+      "recordedAt": "2026-10-06T01:11:47Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S10-final-794115581530.log",
+      "logSha256": "18a966e434b8b60e1f16cc9c8944f646fe683efe8ba47053817cde7df73da840",
+      "inputsHash": "ff1a6d408d94ef1f507f54bcabf849f92809dbb39a694885bc2e775aaf45c579"
     }
   },
   "reviews": {
