@@ -853,6 +853,55 @@ impl SignalRClient {
             futures::executor::block_on(conn.disconnect());
         }
     }
+
+    /// The connection's current status, shared by every clone of this client.
+    pub fn status(&self) -> crate::ConnectionStatus {
+        self._connection
+            .as_ref()
+            .map_or(crate::ConnectionStatus::Closed, CommunicationClient::status)
+    }
+
+    /// Pauses the connection, for example while a mobile app is in the background: ends the
+    /// transport (which stops keep-alive), stops automatic reconnects and reports
+    /// [`ConnectionStatus::Paused`](crate::ConnectionStatus::Paused). `invoke` and `send` fail
+    /// while paused. Ordinary pending invocations fail with "The connection is paused".
+    ///
+    /// With stateful reconnect, native clients drop the transport without a WebSocket Close, so
+    /// the server keeps the logical connection and its pending work resumes after `resume`, but
+    /// only while the server still holds the disconnected connection (ASP.NET Core removes it
+    /// after a timeout; later resume attempts then fail). Browsers cannot close a WebSocket
+    /// without the closing handshake, after which ASP.NET Core disposes the logical connection:
+    /// a browser pause therefore fails all pending work and `resume` negotiates a fresh stateful
+    /// connection.
+    ///
+    /// Pausing a paused client does nothing; a locally closed client returns an error.
+    pub async fn pause(&self) -> Result<(), String> {
+        match &self._connection {
+            Some(connection) => connection.pause().await,
+            None => Err(crate::communication::reconnection::LOCALLY_CLOSED.to_string()),
+        }
+    }
+
+    /// Resumes a paused or disconnected connection and returns once it is connected again. The
+    /// first attempt starts immediately; later attempts follow the reconnection policy (with
+    /// `NoReconnectPolicy` there is only the first attempt).
+    ///
+    /// Without stateful reconnect every resume negotiates a new logical connection. With it, a
+    /// native pause resumes the same logical connection (while the server still holds it); after
+    /// a browser pause, a server close without reconnect permission, or exhausted attempts, the
+    /// old logical connection is gone and resume negotiates a fresh stateful one with a new
+    /// connection id.
+    ///
+    /// If every attempt fails, the client is disconnected and the logical connection ends like
+    /// an exhausted automatic reconnect: stateful pending work fails too, and a later `resume`
+    /// negotiates a fresh connection. Resuming a connected or reconnecting client does nothing;
+    /// a locally closed client returns an error.
+    pub async fn resume(&self) -> Result<(), String> {
+        match &self._connection {
+            Some(connection) => connection.resume().await,
+            None => Err(crate::communication::reconnection::LOCALLY_CLOSED.to_string()),
+        }
+    }
 }
 
 impl Clone for SignalRClient {

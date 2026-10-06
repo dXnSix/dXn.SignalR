@@ -232,6 +232,19 @@ impl StatefulMessageBuffer {
         Ok(())
     }
 
+    /// Whether the logical connection ended; only a fresh negotiation (`renew`) can follow.
+    pub(crate) fn is_disposed(&self) -> bool {
+        self.disposed
+    }
+
+    /// Starts over for a freshly negotiated logical connection: empty, active, and on a new
+    /// transport generation so writers of the old connection can never track frames.
+    pub(crate) fn renew(&mut self) {
+        let transport_generation = self.transport_generation.wrapping_add(1);
+        *self = Self::new(self.capacity).expect("an existing buffer has a valid capacity");
+        self.transport_generation = transport_generation;
+    }
+
     pub(crate) fn dispose(&mut self) {
         self.transport_generation = self.transport_generation.wrapping_add(1);
         self.disposed = true;

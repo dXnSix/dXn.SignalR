@@ -17,7 +17,10 @@ use crate::{
 
 use super::{
     liveness::{parse_handshake_response, ping_frame, LivenessConfig, LivenessTracker},
-    reconnection::{LifecycleState, ReconnectCoordinator, ReconnectionConfig},
+    reconnection::{
+        ConnectionStatus, FirstAttempt, LifecycleState, PauseOutcome, ReconnectCoordinator,
+        ReconnectionConfig, ResumeOutcome,
+    },
     stateful::{SerializedFrame, StatefulMessageBuffer, TrackResult},
     Communication, HttpClient,
 };
@@ -40,6 +43,15 @@ type UserDisconnectionHandler = Arc<Box<dyn Fn(ReconnectionContext) + Send + Syn
 type SharedStatefulBuffer = Arc<StdMutex<StatefulMessageBuffer>>;
 type SocketSink = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
 type SocketStream = SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>;
+/// The negotiated transport URL; a fresh stateful negotiation replaces it.
+type SharedEndpoint = Arc<RwLock<Uri>>;
+
+/// How the writer task ends (`CommunicationConnection::stop_mode`).
+const WRITER_RUNNING: u8 = 0;
+/// End with a WebSocket Close.
+const WRITER_CLOSE: u8 = 1;
+/// End by dropping the socket without a Close, which keeps a stateful connection resumable.
+const WRITER_DROP: u8 = 2;
 
 /// Frames waiting for the writer task; bounded so callers feel backpressure.
 const OUTBOUND_CAPACITY: usize = 64;
@@ -203,7 +215,9 @@ async fn on_runtime<T: Send + 'static>(
 pub struct ReconnectionContext {
     state: Weak<Mutex<ConnectionState>>,
     endpoint: Uri,
-    transport_endpoint: Uri,
+    transport_endpoint: SharedEndpoint,
+    /// The lifecycle generation of the transport this context was created for.
+    connection_generation: u64,
     recipe: ConnectionRecipe,
     actions: UpdatableActionStorage,
     reconnection_config: Arc<RwLock<ReconnectionConfig>>,
@@ -225,80 +239,11 @@ impl ReconnectionContext {
     pub async fn reconnect(&self) -> Result<(), String> {
         let context = self.clone();
         on_runtime(self.recipe.runtime(), async move {
-            context.reconnect_once().await
+            let generation = context.begin_reconnect().await?;
+            let result = context.attempt(generation).await;
+            context.finish_run(generation, result).await
         })
         .await
-    }
-
-    async fn reconnect_once(&self) -> Result<(), String> {
-        if !self.server_allows_reconnect {
-            return Err("The server closed the connection without allowing reconnect".to_string());
-        }
-        let state = self.state.upgrade().ok_or("Client has been dropped")?;
-        let generation = self.coordinator.begin().map_err(str::to_string)?;
-        {
-            let mut guard = state.lock().await;
-            *guard = ConnectionState::NotConnected(DisconnectionReason::Reconnecting);
-        }
-        if self.stateful.is_none() {
-            let mut actions = self.actions.clone();
-            actions.fail_pending("The connection was replaced by a fresh logical reconnect");
-        }
-
-        info!("Manual reconnection attempt to {}...", self.endpoint);
-
-        let connection = if let Some(buffer) = &self.stateful {
-            CommunicationClient::resume_to_server(
-                self.transport_endpoint.clone(),
-                self.protocol_kind,
-                buffer.clone(),
-                &self.recipe,
-            )
-            .await
-        } else {
-            CommunicationClient::connect_fresh(&self.recipe, self.protocol_kind).await
-        };
-
-        match connection {
-            Ok(socket) => {
-                let mut guard = state.lock().await;
-
-                if !self.coordinator.complete(generation) {
-                    return Err("Client was locally disconnected".to_string());
-                }
-
-                let new_handler = ClientDisconnectionHandler {
-                    state: self.state.clone(),
-                    endpoint: self.endpoint.clone(),
-                    transport_endpoint: self.transport_endpoint.clone(),
-                    recipe: self.recipe.clone(),
-                    actions: self.actions.clone(),
-                    reconnection_config: self.reconnection_config.clone(),
-                    user_handler: self.user_handler.clone(),
-                    coordinator: self.coordinator.clone(),
-                    protocol_kind: self.protocol_kind,
-                    stateful: self.stateful.clone(),
-                };
-
-                let connection = CommunicationConnection::start(
-                    socket,
-                    self.actions.clone(),
-                    new_handler,
-                    self.protocol_kind,
-                    self.stateful.clone(),
-                );
-                *guard = ConnectionState::Connected(Arc::new(Mutex::new(connection)));
-                info!("Manual reconnection successful");
-                Ok(())
-            }
-            Err(e) => {
-                error!("Manual reconnection failed: {}", e);
-                self.coordinator.fail(generation);
-                let mut guard = state.lock().await;
-                *guard = ConnectionState::NotConnected(DisconnectionReason::RemoteClosed);
-                Err(e)
-            }
-        }
     }
 
     /// Attempt reconnection with automatic retries using the configured policy.
@@ -307,42 +252,265 @@ impl ReconnectionContext {
     pub async fn reconnect_with_policy(&self) -> Result<(), String> {
         let context = self.clone();
         on_runtime(self.recipe.runtime(), async move {
-            context.reconnect_with_policy_on_runtime().await
+            let generation = context.begin_reconnect().await?;
+            let result = context
+                .run_policy(generation, FirstAttempt::WithoutDelay)
+                .await;
+            context.finish_run(generation, result).await
         })
         .await
     }
 
-    async fn reconnect_with_policy_on_runtime(&self) -> Result<(), String> {
-        let mut retry_count = 0u32;
-        let start_time = std::time::Instant::now();
+    /// Begins a manual reconnect generation (refused after a final server close or while
+    /// paused).
+    async fn begin_reconnect(&self) -> Result<u64, String> {
+        if !self.server_allows_reconnect {
+            return Err("The server closed the connection without allowing reconnect".to_string());
+        }
+        let state = self.state.upgrade().ok_or("Client has been dropped")?;
+        let generation = {
+            let mut guard = state.lock().await;
+            let generation = self.coordinator.begin().map_err(str::to_string)?;
+            *guard = ConnectionState::NotConnected(DisconnectionReason::Reconnecting);
+            generation
+        };
+        self.fail_ordinary_pending("The connection was replaced by a fresh logical reconnect");
+        Ok(generation)
+    }
+
+    /// Fails ordinary pending work; stateful pending work waits for the resume.
+    fn fail_ordinary_pending(&self, reason: &str) {
+        if self.stateful.is_none() {
+            let mut actions = self.actions.clone();
+            actions.fail_pending(reason);
+        }
+    }
+
+    /// One connect attempt of `generation`: a stateful resume, or a fresh negotiation (also for a
+    /// stateful client whose logical connection ended, which then starts a fresh replay buffer).
+    /// The new connection is installed only if the generation still runs.
+    async fn attempt(&self, generation: u64) -> Result<(), String> {
+        if !self.coordinator.owns(generation) {
+            return Err(self.coordinator.superseded_reason().to_string());
+        }
+        let state = self.state.upgrade().ok_or("Client has been dropped")?;
+        info!("Reconnecting to {}...", self.endpoint);
+        let resumable = self.stateful.as_ref().filter(|buffer| {
+            !buffer
+                .lock()
+                .expect("stateful buffer poisoned")
+                .is_disposed()
+        });
+        let (socket, fresh_endpoint) = if let Some(buffer) = resumable {
+            let endpoint = self
+                .transport_endpoint
+                .read()
+                .expect("transport endpoint poisoned")
+                .clone();
+            let socket = CommunicationClient::resume_to_server(
+                endpoint,
+                self.protocol_kind,
+                buffer.clone(),
+                &self.recipe,
+            )
+            .await?;
+            (socket, None)
+        } else {
+            let (socket, endpoint) = CommunicationClient::connect_fresh(
+                &self.recipe,
+                self.protocol_kind,
+                self.stateful.is_some(),
+            )
+            .await?;
+            (socket, Some(endpoint))
+        };
+        let mut guard = state.lock().await;
+        if !self.coordinator.complete(generation) {
+            return Err(self.coordinator.superseded_reason().to_string());
+        }
+        if let (Some(buffer), Some(endpoint)) = (&self.stateful, fresh_endpoint) {
+            buffer.lock().expect("stateful buffer poisoned").renew();
+            *self
+                .transport_endpoint
+                .write()
+                .expect("transport endpoint poisoned") = endpoint;
+        }
+        let connection = CommunicationConnection::start(
+            socket,
+            self.actions.clone(),
+            self.disconnection_handler(generation),
+            self.protocol_kind,
+            self.stateful.clone(),
+        );
+        *guard = ConnectionState::Connected(Arc::new(Mutex::new(connection)));
+        info!("Reconnected to {}", self.endpoint);
+        Ok(())
+    }
+
+    /// Attempts until one succeeds, the policy gives up, or the generation is superseded (by
+    /// `pause` or a local close), which is checked again after every delay.
+    async fn run_policy(&self, generation: u64, first: FirstAttempt) -> Result<(), String> {
         let policy = self
             .reconnection_config
             .read()
             .expect("reconnection config poisoned")
+            .policy
             .clone();
-
+        let started = std::time::Instant::now();
+        let mut retry_count = 0u32;
         loop {
-            let delay = policy
-                .policy
-                .next_retry_delay(retry_count, start_time.elapsed().as_millis() as u64);
-
-            if let Some(d) = delay {
-                if retry_count > 0 {
-                    tokio::time::sleep(d).await;
-                }
-
-                match self.reconnect_once().await {
-                    Ok(()) => return Ok(()),
-                    Err(e) => {
-                        if e.contains("locally disconnected") || !self.server_allows_reconnect {
-                            return Err(e);
-                        }
-                        retry_count += 1;
-                    }
-                }
-            } else {
-                return Err("Reconnection attempts exhausted".to_string());
+            if !self.coordinator.owns(generation) {
+                return Err(self.coordinator.superseded_reason().to_string());
             }
+            let elapsed = started.elapsed().as_millis() as u64;
+            let Some(delay) = first.delay(policy.as_ref(), retry_count, elapsed) else {
+                return Err("Reconnection attempts exhausted".to_string());
+            };
+            if !delay.is_zero() {
+                tokio::time::sleep(delay).await;
+            }
+            match self.attempt(generation).await {
+                Ok(()) => return Ok(()),
+                Err(error) if !self.coordinator.owns(generation) => return Err(error),
+                Err(error) => {
+                    error!("Reconnection attempt {} failed: {error}", retry_count + 1);
+                    retry_count += 1;
+                }
+            }
+        }
+    }
+
+    /// Ends a manual run: a failure that still owns its generation leaves the client
+    /// disconnected.
+    async fn finish_run(&self, generation: u64, result: Result<(), String>) -> Result<(), String> {
+        if result.is_err() {
+            self.fail_generation(generation).await;
+        }
+        result
+    }
+
+    /// Moves a still-running `generation` to Disconnected under the state lock; false when it was
+    /// superseded meanwhile.
+    async fn fail_generation(&self, generation: u64) -> bool {
+        let Some(state) = self.state.upgrade() else {
+            return false;
+        };
+        let mut guard = state.lock().await;
+        if !self.coordinator.fail(generation) {
+            return false;
+        }
+        *guard = ConnectionState::NotConnected(DisconnectionReason::RemoteClosed);
+        true
+    }
+
+    /// A policy run that gave up while it still owned its generation ends the logical
+    /// connection: a stateful buffer is disposed (a later resume negotiates a fresh one) and
+    /// pending work fails.
+    async fn end_after_exhaustion(&self, generation: u64, reason: &str) {
+        if self.fail_generation(generation).await {
+            if let Some(buffer) = &self.stateful {
+                buffer.lock().expect("stateful buffer poisoned").dispose();
+            }
+            let mut actions = self.actions.clone();
+            actions.fail_pending(reason);
+        }
+    }
+
+    fn user_handler(&self) -> Option<UserDisconnectionHandler> {
+        self.user_handler
+            .read()
+            .expect("disconnection handler poisoned")
+            .clone()
+    }
+
+    fn disconnection_handler(&self, connection_generation: u64) -> ClientDisconnectionHandler {
+        ClientDisconnectionHandler {
+            state: self.state.clone(),
+            endpoint: self.endpoint.clone(),
+            transport_endpoint: self.transport_endpoint.clone(),
+            connection_generation,
+            recipe: self.recipe.clone(),
+            actions: self.actions.clone(),
+            reconnection_config: self.reconnection_config.clone(),
+            user_handler: self.user_handler.clone(),
+            coordinator: self.coordinator.clone(),
+            protocol_kind: self.protocol_kind,
+            stateful: self.stateful.clone(),
+        }
+    }
+
+    /// Reacts to the loss of the current transport: a terminal server close, the manual
+    /// handler, or an automatic policy run. The decision is taken under the state lock; a
+    /// paused or locally closed client, or a transport that is no longer current, is ignored.
+    async fn transport_dropped(self) {
+        let Some(state) = self.state.upgrade() else {
+            return;
+        };
+        let mut guard = state.lock().await;
+        if matches!(
+            self.coordinator.lifecycle(),
+            LifecycleState::LocalClosed | LifecycleState::Paused
+        ) || self.coordinator.generation() != self.connection_generation
+        {
+            return;
+        }
+        let mut actions = self.actions.clone();
+        if !self.server_allows_reconnect {
+            self.coordinator.remote_close();
+            *guard = ConnectionState::NotConnected(DisconnectionReason::RemoteClosed);
+            drop(guard);
+            actions.fail_pending("Server closed the connection without allowing reconnect");
+            if let Some(buffer) = &self.stateful {
+                buffer.lock().expect("stateful buffer poisoned").dispose();
+            }
+            // Tell a manual-mode application about the terminal close; nothing reconnects
+            // automatically.
+            if let Some(handler) = self.user_handler() {
+                handler(self.clone());
+            }
+            return;
+        }
+        if let Some(buffer) = &self.stateful {
+            if let Err(error) = buffer
+                .lock()
+                .expect("stateful buffer poisoned")
+                .disconnected()
+            {
+                error!("Cannot enter stateful resume: {}", error);
+                self.coordinator.transport_lost();
+                *guard = ConnectionState::NotConnected(DisconnectionReason::RemoteClosed);
+                drop(guard);
+                actions.fail_pending(&error);
+                return;
+            }
+        }
+
+        // With a handler the application has full control (manual mode).
+        if let Some(handler) = self.user_handler() {
+            self.coordinator.transport_lost();
+            *guard = ConnectionState::NotConnected(DisconnectionReason::RemoteClosed);
+            drop(guard);
+            // Ordinary pending work can never complete on a new logical connection.
+            self.fail_ordinary_pending("The connection was lost");
+            info!("Connection dropped. Calling user's disconnection handler (manual mode).");
+            handler(self.clone());
+            return;
+        }
+
+        let Ok(generation) = self.coordinator.begin() else {
+            return;
+        };
+        *guard = ConnectionState::NotConnected(DisconnectionReason::Reconnecting);
+        drop(guard);
+        drop(state);
+        self.fail_ordinary_pending("The connection was replaced by a fresh logical reconnect");
+        let result = self
+            .run_policy(generation, FirstAttempt::AfterPolicyDelay)
+            .await;
+        if result.is_err() {
+            info!("Automatic reconnection attempts exhausted.");
+            self.end_after_exhaustion(generation, "Automatic reconnection attempts exhausted")
+                .await;
         }
     }
 
@@ -366,6 +534,9 @@ impl ReconnectionContext {
 /// receiver task that dispatches inbound frames.
 struct CommunicationConnection {
     writer: ConnectionWriter,
+    /// How the writer ends once its channels close (`WRITER_*`).
+    stop_mode: Arc<std::sync::atomic::AtomicU8>,
+    runtime: Handle,
     _receiver: Option<JoinHandle<()>>,
     _writer_task: Option<JoinHandle<()>>,
 }
@@ -399,6 +570,7 @@ impl CommunicationConnection {
                 .transport_generation();
             (buffer, generation)
         });
+        let stop_mode = Arc::new(std::sync::atomic::AtomicU8::new(WRITER_RUNNING));
         let writer_task = runtime.spawn(Self::run_writer(
             socket.sink,
             control_receiver,
@@ -406,6 +578,7 @@ impl CommunicationConnection {
             tracking,
             ping_frame(protocol_kind),
             liveness.clone(),
+            stop_mode.clone(),
         ));
         let receiver = runtime.spawn(Self::run_receiver(
             socket.stream,
@@ -419,6 +592,8 @@ impl CommunicationConnection {
         ));
         Self {
             writer,
+            stop_mode,
+            runtime,
             _receiver: Some(receiver),
             _writer_task: Some(writer_task),
         }
@@ -426,7 +601,8 @@ impl CommunicationConnection {
 
     /// Owns the sink: sends control frames first, applies stateful tracking and backpressure to
     /// application frames, sends a keep-alive Ping (never tracked for replay) whenever nothing
-    /// went out for the keep-alive interval, and closes the socket once every sender is gone.
+    /// went out for the keep-alive interval, and ends once every sender is gone or the
+    /// connection is stopped: with a WebSocket Close, or by dropping the socket for `WRITER_DROP`.
     async fn run_writer(
         mut sink: SocketSink,
         mut control: mpsc::UnboundedReceiver<Message>,
@@ -434,8 +610,13 @@ impl CommunicationConnection {
         stateful: Option<(SharedStatefulBuffer, u64)>,
         ping: SerializedFrame,
         liveness: ConnectionLiveness,
+        stop_mode: Arc<std::sync::atomic::AtomicU8>,
     ) {
+        let stopping = || stop_mode.load(std::sync::atomic::Ordering::Acquire) != WRITER_RUNNING;
         loop {
+            if stopping() {
+                break;
+            }
             let event = {
                 let ping_due = std::pin::pin!(tokio::time::sleep_until(liveness.ping_deadline()));
                 let messages = futures::future::select(control.next(), data.next());
@@ -457,7 +638,7 @@ impl CommunicationConnection {
                         &mut sink,
                         &mut control,
                         stateful.as_ref(),
-                        (&ping, &liveness),
+                        (&ping, &liveness, &stopping),
                         frame.message,
                         frame.tracking,
                     )
@@ -479,7 +660,11 @@ impl CommunicationConnection {
                 WriterEvent::Control(None) | WriterEvent::Data(None) => break,
             }
         }
-        let _ = sink.close().await;
+        if stop_mode.load(std::sync::atomic::Ordering::Acquire) == WRITER_DROP {
+            drop(sink);
+        } else {
+            let _ = sink.close().await;
+        }
     }
 
     /// Tracks (with backpressure) and sends one application frame. Returns the caller's result
@@ -489,7 +674,11 @@ impl CommunicationConnection {
         sink: &mut SocketSink,
         control: &mut mpsc::UnboundedReceiver<Message>,
         stateful: Option<&(SharedStatefulBuffer, u64)>,
-        (ping, liveness): (&SerializedFrame, &ConnectionLiveness),
+        (ping, liveness, stopping): (
+            &SerializedFrame,
+            &ConnectionLiveness,
+            &(dyn Fn() -> bool + Sync),
+        ),
         message: Message,
         tracking: Option<(MessageType, SerializedFrame)>,
     ) -> (Result<(), String>, bool) {
@@ -508,6 +697,12 @@ impl CommunicationConnection {
                     }
                     Ok(TrackResult::Bypass) => break,
                     Ok(TrackResult::Backpressured) => {
+                        if stopping() {
+                            return (
+                                Err("The connection closed before the message was sent".to_string()),
+                                true,
+                            );
+                        }
                         // Keep acknowledging inbound frames, and keep the connection alive, while
                         // the replay buffer is full.
                         while let Ok(ack) = control.try_recv() {
@@ -837,6 +1032,34 @@ impl CommunicationConnection {
         Ok(message)
     }
 
+    /// Stops the receiver and the writer, which ends with a WebSocket Close (queued sends fail).
+    fn stop(&mut self) {
+        self.stop_writer(WRITER_CLOSE);
+    }
+
+    /// Stops the receiver and the writer, which drops the socket without a WebSocket Close:
+    /// ASP.NET Core disposes a stateful connection on any client Close but keeps it resumable
+    /// after a lost transport. The writer finishes the frame it is writing, so a frame that
+    /// entered the replay buffer is never reported as failed.
+    fn abort(&mut self) {
+        self.stop_writer(WRITER_DROP);
+        // A writer blocked on a stalled socket is aborted after a grace period.
+        if let Some(writer) = self._writer_task.take() {
+            self.runtime.spawn(async move {
+                tokio::time::sleep(Duration::from_secs(2)).await;
+                writer.abort();
+            });
+        }
+    }
+
+    fn stop_writer(&mut self, mode: u8) {
+        self.stop_receiving();
+        self.stop_mode
+            .store(mode, std::sync::atomic::Ordering::Release);
+        self.writer.control.close_channel();
+        self.writer.data.close_channel();
+    }
+
     fn stop_receiving(&mut self) {
         if self._receiver.is_some() {
             info!("Stopping receiver...");
@@ -862,6 +1085,7 @@ enum DisconnectionReason {
     LocalClosed,
     NeverOpened,
     Reconnecting,
+    Paused,
 }
 
 enum ConnectionState {
@@ -879,7 +1103,7 @@ impl Clone for ConnectionState {
 }
 
 pub struct CommunicationClient {
-    _endpoint: Uri,
+    _endpoint: SharedEndpoint,
     _recipe: ConnectionRecipe,
     _state: Arc<Mutex<ConnectionState>>,
     _stateful: Option<SharedStatefulBuffer>,
@@ -995,6 +1219,99 @@ impl CommunicationClient {
         self._recipe.runtime()
     }
 
+    pub(crate) fn status(&self) -> ConnectionStatus {
+        self._coordinator.status()
+    }
+
+    /// Pauses the connection: supersedes any running reconnect and ends the transport, which also
+    /// stops keep-alive. Ordinary mode closes it with a WebSocket Close and fails pending work;
+    /// stateful mode drops it without a Close so the server keeps the logical connection
+    /// resumable (while it holds the disconnected connection), and keeps pending work. Sends
+    /// fail until `resume`. The transition happens under the state lock.
+    pub(crate) async fn pause(&self) -> Result<(), String> {
+        {
+            let mut guard = self._state.lock().await;
+            if self._coordinator.pause().map_err(str::to_string)? == PauseOutcome::AlreadyPaused {
+                return Ok(());
+            }
+            let previous = std::mem::replace(
+                &mut *guard,
+                ConnectionState::NotConnected(DisconnectionReason::Paused),
+            );
+            // Frames still queued for the old transport must not be tracked or sent.
+            if let Some(buffer) = &self._stateful {
+                // The buffer may already await a resume after a lost transport; a disposed
+                // buffer is replaced by a fresh negotiation on resume.
+                let _ = buffer
+                    .lock()
+                    .expect("stateful buffer poisoned")
+                    .disconnected();
+            }
+            if let ConnectionState::Connected(connection) = previous {
+                let mut connection = connection.lock().await;
+                if self._stateful.is_some() {
+                    connection.abort();
+                } else {
+                    connection.stop();
+                }
+            }
+        }
+        if self._stateful.is_none() {
+            let mut actions = self._actions.clone();
+            actions.fail_pending("The connection is paused");
+        }
+        info!("Connection paused");
+        Ok(())
+    }
+
+    /// Resumes a paused or disconnected connection: the first attempt starts immediately, later
+    /// ones follow the reconnection policy, and a run that gives up ends the logical connection
+    /// like an exhausted automatic reconnect. Runs on the connection's runtime.
+    pub(crate) async fn resume(&self) -> Result<(), String> {
+        let generation = {
+            let mut guard = self._state.lock().await;
+            match self._coordinator.resume().map_err(str::to_string)? {
+                ResumeOutcome::AlreadyActive => return Ok(()),
+                ResumeOutcome::Started(generation) => {
+                    *guard = ConnectionState::NotConnected(DisconnectionReason::Reconnecting);
+                    generation
+                }
+            }
+        };
+        let context = self.reconnection_context();
+        context.fail_ordinary_pending("The connection was replaced by a fresh logical reconnect");
+        on_runtime(self.runtime(), async move {
+            let result = context.run_policy(generation, FirstAttempt::Always).await;
+            if let Err(error) = &result {
+                context.end_after_exhaustion(generation, error).await;
+            }
+            result
+        })
+        .await
+    }
+
+    fn reconnection_context(&self) -> ReconnectionContext {
+        self.disconnection_handler(self._coordinator.generation())
+            .context(true)
+    }
+
+    fn disconnection_handler(&self, connection_generation: u64) -> ClientDisconnectionHandler {
+        ClientDisconnectionHandler {
+            state: Arc::downgrade(&self._state),
+            endpoint: Uri::from_str(&self._recipe.socket_url())
+                .expect("connection recipe produced an invalid URI"),
+            transport_endpoint: self._endpoint.clone(),
+            connection_generation,
+            recipe: self._recipe.clone(),
+            actions: self._actions.clone(),
+            reconnection_config: self._reconnection_config.clone(),
+            user_handler: self._disconnection_handler.clone(),
+            coordinator: self._coordinator.clone(),
+            protocol_kind: self._protocol_kind,
+            stateful: self._stateful.clone(),
+        }
+    }
+
     fn create(configuration: &super::ConnectionData) -> Result<Self, String> {
         let recipe = configuration.get_recipe();
         info!(
@@ -1015,7 +1332,7 @@ impl CommunicationClient {
         let coordinator = ReconnectCoordinator::connected();
 
         Ok(CommunicationClient {
-            _endpoint: endpoint,
+            _endpoint: Arc::new(RwLock::new(endpoint)),
             _recipe: recipe,
             _state: state,
             _stateful: configuration.stateful_reconnect().map(|config| {
@@ -1213,20 +1530,35 @@ impl CommunicationClient {
         Ok(OpenSocket::new(write, read))
     }
 
+    /// Negotiates a new logical connection and opens its transport; returns the negotiated
+    /// transport URL for a later stateful resume.
     async fn connect_fresh(
         recipe: &ConnectionRecipe,
         protocol_kind: HubProtocolKind,
-    ) -> Result<OpenSocket, String> {
+        stateful: bool,
+    ) -> Result<(OpenSocket, Uri), String> {
         let configuration = HttpClient::negotiate(recipe).await?;
         let endpoint = Uri::from_str(&configuration.get_endpoint())
-            .map_err(|error| format!("Negotiated WebSocket endpoint is invalid: {error}"))?;
+            .map_err(|_| "The negotiated WebSocket endpoint is not a valid URI".to_string())?;
         // The negotiated recipe carries any credentials a redirect issued for the transport.
-        Self::connect_to_server(endpoint, protocol_kind, false, &configuration.get_recipe()).await
+        let socket = Self::connect_to_server(
+            endpoint.clone(),
+            protocol_kind,
+            stateful && configuration.stateful_reconnect().is_some(),
+            &configuration.get_recipe(),
+        )
+        .await?;
+        Ok((socket, endpoint))
     }
 
     async fn connect_internal(&mut self) -> Result<(), String> {
+        let endpoint = self
+            ._endpoint
+            .read()
+            .expect("transport endpoint poisoned")
+            .clone();
         let res = CommunicationClient::connect_to_server(
-            self._endpoint.clone(),
+            endpoint,
             self._protocol_kind,
             self._stateful.is_some(),
             &self._recipe,
@@ -1235,24 +1567,10 @@ impl CommunicationClient {
 
         match res {
             Ok(socket) => {
-                let handler = ClientDisconnectionHandler {
-                    state: Arc::downgrade(&self._state),
-                    endpoint: Uri::from_str(&self._recipe.socket_url())
-                        .expect("connection recipe produced an invalid URI"),
-                    transport_endpoint: self._endpoint.clone(),
-                    recipe: self._recipe.clone(),
-                    actions: self._actions.clone(),
-                    reconnection_config: self._reconnection_config.clone(),
-                    user_handler: self._disconnection_handler.clone(),
-                    coordinator: self._coordinator.clone(),
-                    protocol_kind: self._protocol_kind,
-                    stateful: self._stateful.clone(),
-                };
-
                 let connection = CommunicationConnection::start(
                     socket,
                     self._actions.clone(),
-                    handler,
+                    self.disconnection_handler(0),
                     self._protocol_kind,
                     self._stateful.clone(),
                 );
@@ -1310,7 +1628,9 @@ impl CommunicationClient {
 struct ClientDisconnectionHandler {
     state: Weak<Mutex<ConnectionState>>,
     endpoint: Uri,
-    transport_endpoint: Uri,
+    transport_endpoint: SharedEndpoint,
+    /// The lifecycle generation of the transport this handler watches.
+    connection_generation: u64,
     recipe: ConnectionRecipe,
     actions: UpdatableActionStorage,
     reconnection_config: Arc<RwLock<ReconnectionConfig>>,
@@ -1322,215 +1642,30 @@ struct ClientDisconnectionHandler {
     stateful: Option<SharedStatefulBuffer>,
 }
 
+impl ClientDisconnectionHandler {
+    fn context(&self, server_allows_reconnect: bool) -> ReconnectionContext {
+        ReconnectionContext {
+            state: self.state.clone(),
+            endpoint: self.endpoint.clone(),
+            transport_endpoint: self.transport_endpoint.clone(),
+            connection_generation: self.connection_generation,
+            recipe: self.recipe.clone(),
+            actions: self.actions.clone(),
+            reconnection_config: self.reconnection_config.clone(),
+            user_handler: self.user_handler.clone(),
+            coordinator: self.coordinator.clone(),
+            protocol_kind: self.protocol_kind,
+            stateful: self.stateful.clone(),
+            server_allows_reconnect,
+        }
+    }
+}
+
 impl CommunicationDisconnectionHandler for ClientDisconnectionHandler {
     fn on_connection_dropped(&self, allow_reconnect: bool) {
-        let state = self.state.clone();
-        let endpoint = self.endpoint.clone();
-        let transport_endpoint = self.transport_endpoint.clone();
-        let recipe = self.recipe.clone();
-        let actions = self.actions.clone();
-        let config_slot = self.reconnection_config.clone();
-        let user_handler_slot = self.user_handler.clone();
-        let coordinator = self.coordinator.clone();
-        let protocol_kind = self.protocol_kind;
-        let stateful = self.stateful.clone();
+        let context = self.context(allow_reconnect);
         let runtime = self.recipe.runtime().unwrap_or_else(Handle::current);
-
-        runtime.spawn(async move {
-            if coordinator.lifecycle() == LifecycleState::LocalClosed {
-                return;
-            }
-            if !allow_reconnect {
-                coordinator.remote_close();
-                if let Some(shared_state) = state.upgrade() {
-                    *shared_state.lock().await =
-                        ConnectionState::NotConnected(DisconnectionReason::RemoteClosed);
-                }
-                let mut pending_actions = actions.clone();
-                pending_actions
-                    .fail_pending("Server closed the connection without allowing reconnect");
-                if let Some(buffer) = &stateful {
-                    buffer.lock().expect("stateful buffer poisoned").dispose();
-                }
-                // Tell a manual-mode application about the terminal close; nothing reconnects
-                // automatically.
-                let user_handler = user_handler_slot
-                    .read()
-                    .expect("disconnection handler poisoned")
-                    .clone();
-                if let Some(handler) = user_handler {
-                    handler(ReconnectionContext {
-                        state: state.clone(),
-                        endpoint: endpoint.clone(),
-                        transport_endpoint: transport_endpoint.clone(),
-                        recipe: recipe.clone(),
-                        actions: actions.clone(),
-                        reconnection_config: config_slot.clone(),
-                        user_handler: user_handler_slot.clone(),
-                        coordinator: coordinator.clone(),
-                        protocol_kind,
-                        stateful: stateful.clone(),
-                        server_allows_reconnect: false,
-                    });
-                }
-                return;
-            }
-            if let Some(buffer) = &stateful {
-                if let Err(error) = buffer
-                    .lock()
-                    .expect("stateful buffer poisoned")
-                    .disconnected()
-                {
-                    error!("Cannot enter stateful resume: {}", error);
-                    let mut pending_actions = actions.clone();
-                    pending_actions.fail_pending(&error);
-                    return;
-                }
-            }
-            let user_handler = user_handler_slot
-                .read()
-                .expect("disconnection handler poisoned")
-                .clone();
-            let config = config_slot
-                .read()
-                .expect("reconnection config poisoned")
-                .clone();
-
-            // If user has a handler, give them full control (manual mode)
-            if let Some(handler) = user_handler {
-                // Set state to RemoteClosed (user will change it if they reconnect)
-                if let Some(s) = state.upgrade() {
-                    let mut guard = s.lock().await;
-                    *guard = ConnectionState::NotConnected(DisconnectionReason::RemoteClosed);
-                }
-                if stateful.is_none() {
-                    // Ordinary pending work can never complete on a new logical connection.
-                    let mut pending_actions = actions.clone();
-                    pending_actions.fail_pending("The connection was lost");
-                }
-
-                // Create context for manual reconnection
-                let context = ReconnectionContext {
-                    state: state.clone(),
-                    endpoint: endpoint.clone(),
-                    transport_endpoint: transport_endpoint.clone(),
-                    recipe: recipe.clone(),
-                    actions: actions.clone(),
-                    reconnection_config: config_slot.clone(),
-                    user_handler: user_handler_slot.clone(),
-                    coordinator: coordinator.clone(),
-                    protocol_kind,
-                    stateful: stateful.clone(),
-                    server_allows_reconnect: true,
-                };
-
-                info!("Connection dropped. Calling user's disconnection handler (manual mode).");
-                handler(context);
-                return;
-            }
-
-            let generation = match coordinator.begin() {
-                Ok(generation) => generation,
-                Err(_) => return,
-            };
-            let Some(shared_state) = state.upgrade() else {
-                return;
-            };
-            {
-                let mut guard = shared_state.lock().await;
-                *guard = ConnectionState::NotConnected(DisconnectionReason::Reconnecting);
-            }
-            if stateful.is_none() {
-                let mut pending_actions = actions.clone();
-                pending_actions
-                    .fail_pending("The connection was replaced by a fresh logical reconnect");
-            }
-
-            let mut retry_count = 0;
-            let start_time = std::time::Instant::now();
-
-            loop {
-                let delay = config
-                    .policy
-                    .next_retry_delay(retry_count, start_time.elapsed().as_millis() as u64);
-
-                if let Some(d) = delay {
-                    tokio::time::sleep(d).await;
-                    info!(
-                        "Reconnecting to {} (attempt {})...",
-                        endpoint,
-                        retry_count + 1
-                    );
-
-                    let connection = if let Some(buffer) = &stateful {
-                        CommunicationClient::resume_to_server(
-                            transport_endpoint.clone(),
-                            protocol_kind,
-                            buffer.clone(),
-                            &recipe,
-                        )
-                        .await
-                    } else {
-                        CommunicationClient::connect_fresh(&recipe, protocol_kind).await
-                    };
-
-                    match connection {
-                        Ok(socket) => {
-                            if let Some(s) = state.upgrade() {
-                                let mut guard = s.lock().await;
-                                if !coordinator.complete(generation) {
-                                    return;
-                                }
-
-                                let new_handler = ClientDisconnectionHandler {
-                                    state: state.clone(),
-                                    endpoint: endpoint.clone(),
-                                    transport_endpoint: transport_endpoint.clone(),
-                                    recipe: recipe.clone(),
-                                    actions: actions.clone(),
-                                    reconnection_config: config_slot.clone(),
-                                    user_handler: user_handler_slot.clone(),
-                                    coordinator: coordinator.clone(),
-                                    protocol_kind,
-                                    stateful: stateful.clone(),
-                                };
-
-                                let connection = CommunicationConnection::start(
-                                    socket,
-                                    actions.clone(),
-                                    new_handler,
-                                    protocol_kind,
-                                    stateful.clone(),
-                                );
-                                *guard =
-                                    ConnectionState::Connected(Arc::new(Mutex::new(connection)));
-                                info!("Reconnected successfully (automatic mode)");
-                                return;
-                            } else {
-                                return;
-                            }
-                        }
-                        Err(e) => {
-                            error!("Reconnection failed: {}", e);
-                            retry_count += 1;
-                        }
-                    }
-                } else {
-                    info!("Automatic reconnection attempts exhausted.");
-                    coordinator.fail(generation);
-                    if let Some(s) = state.upgrade() {
-                        let mut guard = s.lock().await;
-                        *guard = ConnectionState::NotConnected(DisconnectionReason::RemoteClosed);
-                    }
-                    if let Some(buffer) = &stateful {
-                        buffer.lock().expect("stateful buffer poisoned").dispose();
-                    }
-                    let mut pending_actions = actions.clone();
-                    pending_actions.fail_pending("Automatic reconnection attempts exhausted");
-                    return;
-                }
-            }
-        });
+        runtime.spawn(context.transport_dropped());
     }
 }
 

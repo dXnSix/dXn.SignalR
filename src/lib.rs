@@ -17,8 +17,8 @@ pub use client::{
     SignalRClient,
 };
 pub use communication::reconnection::{
-    ConstantDelayPolicy, ExponentialBackoffPolicy, LinearBackoffPolicy, NoReconnectPolicy,
-    ReconnectionConfig, ReconnectionPolicy,
+    ConnectionStatus, ConstantDelayPolicy, DefaultRetryPolicy, ExponentialBackoffPolicy,
+    LinearBackoffPolicy, NoReconnectPolicy, ReconnectionConfig, ReconnectionPolicy,
 };
 pub use completer::{CompletedFuture, ManualFuture, ManualStream};
 pub use execution::{ArgumentConfiguration, CallbackHandler};
