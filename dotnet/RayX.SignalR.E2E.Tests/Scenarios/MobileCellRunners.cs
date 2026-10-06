@@ -88,6 +88,19 @@ public sealed class AndroidCellRunner : ICellRunner
   /// <summary>The Rust target of the emulator binary.</summary>
   public const string RustTarget = "x86_64-linux-android";
 
+  /// <summary>
+  /// The cargo target directory used only for the Android <c>e2e</c> binary (relative to the
+  /// repository root), so no other build can leave a newer <c>e2e-*</c> executable there. CI
+  /// pre-builds into the same directory.
+  /// </summary>
+  public const string TargetDirectory = "target/android-e2e";
+
+  /// <summary>The device process name of the pushed binary; a timed-out cell is killed by it.</summary>
+  public const string DeviceProcessName = "e2e";
+
+  /// <summary>The device command that stops a timed-out scenario binary.</summary>
+  public const string KillCommand = "pkill -x " + DeviceProcessName;
+
   /// <summary>The cargo command that builds the Android <c>e2e</c> binary.</summary>
   /// <param name="repositoryRoot">The repository root.</param>
   /// <returns>The command.</returns>
@@ -95,7 +108,13 @@ public sealed class AndroidCellRunner : ICellRunner
     new(
       "cargo",
       ["ndk", "-t", "x86_64", "-P", "24", "test", "--test", "e2e", "--all-features", "--no-run"],
-      repositoryRoot);
+      repositoryRoot)
+    {
+      Environment = new Dictionary<string, string>(StringComparer.Ordinal)
+      {
+        ["CARGO_TARGET_DIR"] = Path.Combine(repositoryRoot, TargetDirectory)
+      }
+    };
 
   /// <summary>
   /// Builds the Android <c>e2e</c> binary once per run. <c>cargo ndk</c> does not forward cargo's
@@ -115,9 +134,7 @@ public sealed class AndroidCellRunner : ICellRunner
         $"{build.Display} failed with exit code {result.ExitCode}:\n{Redaction.SafeTail(result.StandardError)}");
     }
 
-    string targetDirectory = Environment.GetEnvironmentVariable("CARGO_TARGET_DIR")
-                             ?? Path.Combine(repositoryRoot, "target");
-    return NewestTestExecutable(Path.Combine(targetDirectory, RustTarget, "debug", "deps"));
+    return NewestTestExecutable(Path.Combine(repositoryRoot, TargetDirectory, RustTarget, "debug", "deps"));
   }
 
   /// <summary>Finds the newest <c>e2e-&lt;hash&gt;</c> executable (no extension) in a deps directory.</summary>
@@ -189,7 +206,7 @@ public sealed class AndroidCellRunner : ICellRunner
       command.Append(' ').Append(key).Append("='").Append(value.Replace("'", "'\\''", StringComparison.Ordinal)).Append('\'');
     }
 
-    command.Append(" ./e2e ").Append(test).Append(" --exact --test-threads=1");
+    command.Append(" ./").Append(DeviceProcessName).Append(' ').Append(test).Append(" --exact --test-threads=1");
     return command.ToString();
   }
 
@@ -207,7 +224,14 @@ public sealed class AndroidCellRunner : ICellRunner
     if(result.TimedOut)
     {
       // The local adb process is gone; stop the device-side process too.
-      await Device(serial, ["shell", "pkill -f rayx-signalr-e2e/e2e"], TimeSpan.FromSeconds(15));
+      ProcessResult kill = await Device(serial, ["shell", KillCommand], TimeSpan.FromSeconds(15));
+      if(!kill.Succeeded)
+      {
+        result = result with
+        {
+          StandardError = $"{result.StandardError}\n{KillCommand} after the timeout failed with exit code {kill.ExitCode}: {kill.CombinedOutput}"
+        };
+      }
     }
 
     CellOutcome outcome = CellExecution.JudgeLibtest(command, result);
@@ -252,8 +276,8 @@ public sealed class AndroidCellRunner : ICellRunner
       if(_pushed != executable)
       {
         await Require(Device(_serial, ["shell", $"rm -rf {DeviceDirectory} && mkdir -p {DeviceDirectory}"], TimeSpan.FromSeconds(30)));
-        await Require(Device(_serial, ["push", executable, $"{DeviceDirectory}/e2e"], TimeSpan.FromMinutes(5)));
-        await Require(Device(_serial, ["shell", $"chmod 755 {DeviceDirectory}/e2e"], TimeSpan.FromSeconds(30)));
+        await Require(Device(_serial, ["push", executable, $"{DeviceDirectory}/{DeviceProcessName}"], TimeSpan.FromMinutes(5)));
+        await Require(Device(_serial, ["shell", $"chmod 755 {DeviceDirectory}/{DeviceProcessName}"], TimeSpan.FromSeconds(30)));
         _pushed = executable;
       }
 

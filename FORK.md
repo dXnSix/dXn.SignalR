@@ -80,10 +80,11 @@ through Aspire-hosted end-to-end cells for JSON and MessagePack:
 
 Residual risks, not claimed by that epic:
 
-- The Android platform verifier is proven only for its build and for extra-root
-  verification; trust-store verification inside a real APK after
-  `rayx_signalr::tls::android::init_with_env` is not exercised by CI (cells run
-  as a bare binary through `adb shell`). Emulators and simulators do not cover
+- The Android platform verifier is only build-checked: the Android cells run as
+  a bare binary through `adb shell` without an app's JVM, so they verify TLS with
+  webpki (extra roots use webpki on Android, and the untrusted case uses the
+  bundled roots). Trust-store verification inside a real APK after
+  `rayx_signalr::tls::android::init_with_env` is not exercised by CI. Emulators and simulators do not cover
   physical radios, Doze or iOS background suspension.
 - Proxies (HTTP CONNECT, system proxy settings) are not supported.
 - Server-Sent Events and Long Polling transports are not implemented; servers

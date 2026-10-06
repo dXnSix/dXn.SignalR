@@ -39,6 +39,25 @@ public sealed class MobileRunnerTests
 
   [Fact]
   [Trait("Category", "Catalog")]
+  public void AndroidKillsATimedOutCellByTheLaunchedProcessName()
+  {
+    string command = AndroidCellRunner.ShellCommand("invoke::json", new Dictionary<string, string>());
+    Assert.Contains($" ./{AndroidCellRunner.DeviceProcessName} invoke::json ", command, StringComparison.Ordinal);
+    // An exact process-name match never matches the shell that runs the kill command.
+    Assert.Equal($"pkill -x {AndroidCellRunner.DeviceProcessName}", AndroidCellRunner.KillCommand);
+  }
+
+  [Fact]
+  [Trait("Category", "Catalog")]
+  public void AndroidBuildsIntoItsOwnTargetDirectory()
+  {
+    Infrastructure.ProcessCommand command = AndroidCellRunner.BuildCommand("/repo");
+    Assert.Equal(Path.Combine("/repo", AndroidCellRunner.TargetDirectory), command.Environment["CARGO_TARGET_DIR"]);
+    Assert.Contains("--all-features", command.Arguments);
+  }
+
+  [Fact]
+  [Trait("Category", "Catalog")]
   public void DeviceEndpointsRewriteOnlyUrlHosts()
   {
     Dictionary<string, string> rewritten = DeviceEndpoints.Rewrite(

@@ -151,7 +151,7 @@ jobs:
             target
           key: android-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
       - name: Install cargo-ndk
-        run: cargo install cargo-ndk --locked
+        run: cargo install cargo-ndk --version 4.1.2 --locked
       - name: Check the library and the end-to-end binary for Android
         run: |
           cargo +1.92.0 ndk -t arm64-v8a -t x86_64 -P 24 check --lib
@@ -223,7 +223,7 @@ jobs:
             target
           key: platform-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
       - name: Install cargo-ndk
-        run: cargo install cargo-ndk --locked
+        run: cargo install cargo-ndk --version 4.1.2 --locked
       - name: Verify dependency graphs, gating, and mobile and threaded builds
         run: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=Platform
       - name: Upload redacted contract diagnostics

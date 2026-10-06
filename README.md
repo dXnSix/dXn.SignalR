@@ -32,14 +32,14 @@ I made this client because I could not find a client that supported my requireme
 
 I tried to design this package to be simple and convenient to use without writing boilerpart code. Please be free to comment or post issues if you have recommendations or requirements. Contribution is also welcome.
 
-A .NET test backend is also provided for testing purposes (see the /dotnet folder). The tests in the package should run using that backend. Authorization is not tested with the test scenairo, however it's been tested already by using this package in a much larger project of mine. So, it should also work without issues.
+A .NET test backend is provided for testing (see the `dotnet` folder); every service-dependent test, including Basic and Bearer authentication, runs against it through Aspire (see "Testing with Aspire").
 
 ## Platform support
 
 | Target | Status | Proof |
 | --- | --- | --- |
 | Windows, Linux, macOS (Tokio) | Supported | Full end-to-end catalog through Aspire (`e2e / native (<os>)`) |
-| Android (`aarch64`, `x86_64`) | Supported | Full native catalog on an x86_64 emulator (`e2e / android`); `cargo ndk` builds for arm64-v8a and x86_64 (`quality / android`) |
+| Android (`aarch64`, `x86_64`) | Supported | Full native catalog on an x86_64 emulator (`e2e / android`); `cargo ndk` builds for arm64-v8a and x86_64 (`quality / android`). The platform verifier needs an app's JVM, so on Android the cells verify TLS with webpki (extra roots, bundled roots); the platform verifier itself is build-checked only |
 | iOS (`aarch64-apple-ios`, simulator) | Supported | Full native catalog on the iOS simulator (`e2e / ios`); device target compile check (`quality / ios`) |
 | Browser, main thread (`wasm32-unknown-unknown`) | Supported | Full browser catalog in Chromium, Firefox and WebKit (`e2e / browser (<engine>)`) |
 | Browser, Web Worker | Supported | `worker-transport` scenario in every engine |

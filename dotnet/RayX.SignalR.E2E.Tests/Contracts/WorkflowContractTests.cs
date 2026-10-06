@@ -92,7 +92,7 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
               "quality / contracts",
               @"dotnet tool install --global Aspire\.Cli --version 13\.5\.\d+",
               @"quality / android \(cargo ndk\)",
-              "cargo install cargo-ndk --locked",
+              @"cargo install cargo-ndk --version 4\.1\.2 --locked",
               @"cargo \+1\.92\.0 ndk -t arm64-v8a -t x86_64 -P 24 check --lib",
               @"quality / ios \(\$\{\{ matrix\.target \}\}\)",
               @"target: \[aarch64-apple-ios, aarch64-apple-ios-sim\]",
@@ -175,10 +175,51 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
       }
     }
 
-    Assert.Matches(@"runs-on: ubuntu-latest", jobs["android"]);
-    Assert.Matches(@"runs-on: macos-latest", jobs["ios"]);
-    Assert.Matches(@"runs-on: ubuntu-latest", jobs["browser"]);
-    Assert.Matches(@"os: \[ubuntu-latest, windows-latest, macos-latest\]", jobs["native"]);
+    Dictionary<string, string[]> required = new(StringComparer.Ordinal)
+    {
+      ["native"] =
+      [
+        @"os: \[ubuntu-latest, windows-latest, macos-latest\]",
+        @"RAYX_SIGNALR_E2E_TARGETS: native"
+      ],
+      ["browser"] =
+      [
+        @"runs-on: ubuntu-latest",
+        @"RAYX_SIGNALR_E2E_TARGETS: \$\{\{ matrix\.engine \}\}",
+        @"playwright install --with-deps \$\{\{ matrix\.engine \}\}",
+        @"nightly-2026-06-23"
+      ],
+      ["android"] =
+      [
+        @"runs-on: ubuntu-latest",
+        @"RAYX_SIGNALR_E2E_TARGETS: android",
+        @"cargo install cargo-ndk --version 4\.1\.2 --locked",
+        @"CARGO_TARGET_DIR: target/android-e2e\s+run: cargo ndk -t x86_64 -P 24 test --test e2e --all-features --no-run",
+        @"KERNEL==""kvm""",
+        @"uses: reactivecircus/android-emulator-runner@v2",
+        @"api-level: 34",
+        @"arch: x86_64",
+        @"script: dotnet test dotnet/RayX\.SignalR\.E2E\.Tests --filter Category=E2E"
+      ],
+      ["ios"] =
+      [
+        @"runs-on: macos-latest",
+        @"RAYX_SIGNALR_E2E_TARGETS: ios",
+        @"--target aarch64-apple-ios-sim",
+        @"dotnet test dotnet/RayX\.SignalR\.E2E\.Tests --filter Category=E2E"
+      ]
+    };
+    foreach((string job, string[] patterns) in required)
+    {
+      foreach(string pattern in patterns)
+      {
+        AssertMatches($"e2e.yml job {job}", jobs[job], pattern);
+      }
+    }
+
+    Assert.Equal(
+      AndroidCellRunner.TargetDirectory,
+      Regex.Match(jobs["android"], @"CARGO_TARGET_DIR: (?<directory>\S+)").Groups["directory"].Value);
   }
 
   /// <summary>Splits a workflow's <c>jobs:</c> section into job blocks by job id.</summary>

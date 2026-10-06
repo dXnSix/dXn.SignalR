@@ -142,8 +142,10 @@ jobs:
             target
           key: e2e-android-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
       - name: Install cargo-ndk
-        run: cargo install cargo-ndk --locked
+        run: cargo install cargo-ndk --version 4.1.2 --locked
       - name: Build the Android end-to-end binary before the emulator starts
+        env:
+          CARGO_TARGET_DIR: target/android-e2e
         run: cargo ndk -t x86_64 -P 24 test --test e2e --all-features --no-run
       - name: Enable KVM for the emulator
         run: |
