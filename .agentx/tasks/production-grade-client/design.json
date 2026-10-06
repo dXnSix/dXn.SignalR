@@ -1,0 +1,522 @@
+{
+  "schemaVersion": 6,
+  "epicId": "production-grade-client",
+  "decisions": [
+    {
+      "id": "D1",
+      "requirementIds": [
+        "R1",
+        "R2"
+      ],
+      "descriptionMarkdown": "**Measure first, with relative budgets and the official .NET client as the reference.**\n- Micro-benchmarks: `criterion` (dev-dependency, `html_reports` off) with `[[bench]] name = \"hot_paths\" harness = false` and `required-features = [\"messagepack\"]`. Benchmarks drive the crate's internal codec and storage through a `#[doc(hidden)] pub mod bench_support` gated by a new non-default `bench-internals` feature (never enabled by consumers; documented as unstable), so they measure the real code without widening the public API. Ids follow `hot_paths/<inbound|outbound|framing>/<json|messagepack>/<message>/<size>`.\n- Baseline: the S3 budget check declares a required baseline that saves the Criterion baseline `pre-optimization` (`cargo bench --bench hot_paths --features messagepack,bench-internals -- --save-baseline pre-optimization`) before any S3 change; the `MicroBenchmarkBudget` category then runs `cargo bench ... -- --baseline pre-optimization` and reads `target/criterion/<id>/change/estimates.json` (mean point estimate) to apply R2.C3. Results live under the ignored `target/`; if they are lost, the baseline is regenerated from the S1 checkpoint commit in a temporary worktree on the same machine, never estimated.\n- End-to-end: `tests/perf` is a second `test = false` integration-test binary (`perf`) that runs one workload per invocation (`perf <workload> --protocol <p> --scale <quick|full>`), reading the endpoints the runner passes like `e2e`, and prints one JSON result line. `dotnet/RayX.SignalR.PerfReference` is a console app with the same CLI using `Microsoft.AspNetCore.SignalR.Client` and `Microsoft.AspNetCore.SignalR.Protocols.MessagePack` at the test service's ASP.NET Core version. The test service adds a `PerfHub` (`/perf`) with `Echo(payload)`, `Stream(count, size)`, `Sink(payload)`/`SinkCount()` and no artificial delays. The `Performance` category (E2E project, Aspire environment) builds the Rust binary in release once, runs Rust and .NET alternately per workload (interleaved, three rounds, median of rounds) and writes `artifacts-temp/perf/<run>.json`; `ReferenceClientBudget` evaluates that file. Both run only when selected (`RAYX_SIGNALR_PERF_WORKLOADS`), never inside the ordinary E2E selection.",
+      "invariantsMarkdown": "- Budgets are always relative (same machine, same run); no absolute numbers are asserted.\n- Release builds only for performance numbers; debug numbers are never recorded as results.\n- The perf harness reuses the Aspire service resource and dynamic ports; it never starts services itself.\n- Benchmark support code is unreachable without `bench-internals`, and the feature never changes behavior.",
+      "rationaleMarkdown": "Relative budgets are stable across developer machines and CI runners; the official .NET client is the most relevant \"fast SignalR client\" reference and runs against the identical server in the same environment. Interleaving rounds cancels thermal and noisy-neighbor drift. Criterion's saved baselines give a precise before/after for the codec work without bespoke tooling.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "Cargo.toml"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/storage.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/messages.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/Program.cs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/CellRunners.cs"
+        }
+      ],
+      "memoryDecisionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/memory/decisions/interop-validation/rust-tests/2026-10-06-interop-validation-rust-tests-aspire-is-the-only-test-orchestrator.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/memory/decisions/repository-governance/quality-gates/2026-10-06-repository-governance-quality-gates-verification-as-dotnet-categories.md"
+        }
+      ]
+    },
+    {
+      "id": "D2",
+      "requirementIds": [
+        "R2",
+        "R3"
+      ],
+      "descriptionMarkdown": "**Single-pass wire codec shared by both targets.**\n- A `protocol::codec` module defines `InboundMessage<'a>` (type, invocation id, target, stream ids, error, `allowReconnect`, sequence id) plus an undecoded payload: for JSON a `&'a serde_json::value::RawValue` for `result`, `item` and each `arguments` element (requires `serde_json`'s `raw_value` feature); for MessagePack a byte range into the frame located with `rmp` marker reads (no `rmpv::Value` tree). `HubProtocol` gains `decode_frame(&[u8]) -> impl Iterator<Item = Result<InboundMessage<'_>, ProtocolError>>` that splits records (JSON `0x1E`, MessagePack varint) without copying, and `decode_payload::<T>(&Payload) -> Result<T, _>` that deserializes once.\n- Storage dispatches on `InboundMessage` fields: completions and stream items by invocation id into the waiting action, which deserializes the payload once into its awaited type; callbacks by target, with arguments decoded lazily per parameter. The current `process_message` double parse and `update_with` re-parse go away.\n- Outbound: messages are built as typed values that know their `MessageType`; framing writes into a reused `BytesMut` (`serde_json::to_writer`, `rmp_serde` with a pre-reserved length prefix patched after encoding); stateful tracking takes the type from the value, so `json_frame` no longer re-parses. Frames are shared as `Bytes` between the stateful buffer and the writer (no clone of payload bytes).\n- Logging: payload-bearing `info`/`debug` records are removed or reduced to type and id; payloads appear only at `trace`. A `log_policy_` capturing-logger test enforces it.\n- Panic-free decoding: the codec, `negotiation.rs`, handshake parsing and the transports deny `clippy::unwrap_used`, `expect_used`, `panic` and `indexing_slicing` via module-level `#![deny]` outside `cfg(test)`; `proptest` (dev-dependency) drives the `robustness_` group.",
+      "invariantsMarkdown": "- Wire bytes are unchanged: existing golden frame tests pass without edits, JSON handshake stays JSON for MessagePack, Ack/Sequence semantics are preserved.\n- Application-defined Serde names are respected; the codec never renames payload fields.\n- A malformed or unknown message yields an error or is ignored per protocol rules; it never panics and never desynchronizes the following records in the same frame.\n- No lock or `RefCell` borrow is held while deserializing user payloads or invoking callbacks.",
+      "rationaleMarkdown": "Profiling of the current path shows the dominant costs are repeated parsing (two to three full JSON parses per inbound message, two `rmpv` decodes for MessagePack), re-parsing outbound frames to classify them, and formatting payloads into `info` logs. Borrowed raw values remove all of them while keeping `serde` as the only deserialization mechanism, which preserves application Serde names.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/messages.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/msgpack.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/hub_protocol.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/storage.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/actions.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/stateful.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/common.rs"
+        }
+      ]
+    },
+    {
+      "id": "D3",
+      "requirementIds": [
+        "R3"
+      ],
+      "descriptionMarkdown": "**Instrumented stateful sequencing and a service-driven chaos harness.**\n- `stateful.rs` emits `debug` records (target `rayx_signalr::stateful`) with the generation, tracked/received sequence ids, duplicate decisions, Acks, Sequence messages and resend ranges; no payload or token data. The `sequence_trace_` unit group asserts them with a capturing logger.\n- The test service adds a `ChaosControl` (test-only): `StartChaos(minMs, maxMs, seed)` aborts the caller's transport at seeded random intervals until `StopChaos()`, and counts aborts; the `ChaosHub` (`/test-chaos`, ordinary) and `StatefulChaosHub` (`/test-chaos-stateful`, stateful reconnect allowed) expose mixed workloads (invoke with result, sends counted server-side, server streams with sequence numbers, server-to-client callbacks and client results).\n- `soak-chaos` and `stateful-resume-stress` live in `tests/e2e` and in the wasm fixture (Chromium); per-scenario catalog bounds (`soak + 60 s`, stress 600 s) replace the default 60 s for these cells only. The soak duration is read from `RAYX_SIGNALR_SOAK_SECONDS`, which the runner forwards.\n- Native task leak check: a `#[doc(hidden)]` `diagnostics::alive_tasks()` counter (incremented/decremented by the connection's spawned tasks through a guard, compiled only with `bench-internals` or `debug_assertions`) is compared before connect and after `disconnect` settles.\n- Stall resolution: run the stress scenario with `RUST_LOG=rayx_signalr::stateful=debug`; on a stall, the cell diagnostics include the sequence trace, which names the lost range. A reproduced stall gets a fix plus a regression unit test in `stateful_regression_`, then the hypothesis record is replaced by the confirmed cause.",
+      "invariantsMarkdown": "- Chaos and diagnostics controls never ship in the library's public behavior: service controls are test-only, the alive-task counter is hidden and feature/debug-gated.\n- Stateful mode never loses or duplicates application messages; ordinary mode never leaves a pending call unresolved.\n- Sequence logging never includes payloads or credentials.",
+      "rationaleMarkdown": "The only open stability risk is a once-seen stall without data; instrumentation plus a high-volume deterministic-seed stress turns it into either evidence of absence or a reproducible bug. Service-driven aborts match how the existing reconnect scenarios inject faults.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/stateful.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/TestControls.cs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/TestHub.cs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/stateful_reconnect.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/memory/knowledge/interop-validation/hypotheses.md"
+        }
+      ]
+    },
+    {
+      "id": "D4",
+      "requirementIds": [
+        "R4"
+      ],
+      "descriptionMarkdown": "**Access-token factory, browser Basic rejection and a single connect timeout.**\n- `AccessTokenFactory`: `Arc<dyn Fn() -> BoxFuture<'static, Result<String, String>> + Send + Sync>` natively and the `LocalBoxFuture` variant on wasm, wrapped by `with_access_token_factory(|| async { ... })`. The connection resolves a token at the start of every negotiate cycle (initial connect, ordinary reconnect attempt, renegotiation after an ended stateful connection) and passes it to negotiate and to the transport; stateful resume of a live logical connection reuses the transport URL and does not call the factory (the server already authenticated the logical connection). Errors from the factory are reported as `access token factory failed: <message>` after running the message through the existing redaction.\n- Validation before I/O (`ConnectionConfiguration::validate`, shared by both targets): factory with static auth, browser Basic, `skip_negotiation` with non-WebSocket transports, stateful reconnect without WebSockets, Server-Sent-Events-only with MessagePack, zero timeouts. The browser Basic rule is a pure function tested natively (`browser_basic_`) and applied only on wasm.\n- `with_connect_timeout` (default 15 s) replaces the native `CONNECT_TIMEOUT` constant: negotiate request, TCP connect + TLS + proxy tunnel + WebSocket upgrade, and the first Long Polling/Server-Sent Events request are each bounded by it. Browsers create an `AbortController` per negotiate `fetch` (and per Long Polling request), aborting on `gloo-timers` timeout; the resulting error is `negotiate timed out after <d>` with no URL.\n- Test service: `/e2e/token` issues single-generation tokens, `/e2e/rotate-token` invalidates the current generation; a `TokenHub` (`/test-token`) requires a current token and exposes the token generation it saw; `/test-hang/negotiate` accepts and never answers (the request is held until the client disconnects); a negotiate counter lets `browser-basic-rejected` assert that no request arrived.",
+      "invariantsMarkdown": "- Tokens, proxy credentials and `Authorization` values never appear in errors or logs; browsers put the token only in the `access_token` query string the protocol requires.\n- Native Basic and Bearer behavior is unchanged; only browser Basic changes (documented).\n- Timeouts are validated before I/O and never zero.",
+      "rationaleMarkdown": "Matches the official clients (`accessTokenFactory`, per-negotiate refresh) and removes the two browser residual risks: Basic credentials that silently fail on the WebSocket, and an unbounded negotiate. A single configurable bound keeps setup behavior identical across targets.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/common.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/TestAuthentication.cs"
+        }
+      ],
+      "memoryDecisionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/memory/decisions/client-runtime/public-api/2026-06-24-client-runtime-public-api-backend-network-client.md"
+        }
+      ]
+    },
+    {
+      "id": "D5",
+      "requirementIds": [
+        "R5",
+        "R6",
+        "R7"
+      ],
+      "descriptionMarkdown": "**One transport abstraction per target, driven by the existing connection loop.**\n- `communication::transport` defines `TransportKind { WebSockets, ServerSentEvents, LongPolling }`, `Transports` (bit set, `all()` default), `TransferFormat`, and per target a `Transport` enum (not a trait object) with `start(url, token, format, connect_timeout) -> (TransportSender, TransportReceiver)`: the sender accepts `Bytes` frames in order with backpressure; the receiver yields frames or a terminal `TransportEnd { reason, allows_reconnect }`. The connection loop (handshake, liveness, stateful buffer, lifecycle, reconnect) talks only to that pair, so handshake/liveness/stateful code is transport-independent.\n- Native: WebSockets keeps `tokio-websockets` over the crate's own TCP/TLS stream; Long Polling and Server-Sent Events use the crate's hyper HTTP/1.1 client with a small per-connection connection pool (one connection for the poll/stream, one for sends) over the same TCP/TLS/proxy connector. Each transport runs inside the connection's runtime-owned tasks.\n- Browser: one event-driven task per transport instance: WebSockets via `browser_socket.rs`; Server-Sent Events via a minimal `web_sys::EventSource` wrapper (listeners detached on drop, `withCredentials` from configuration); Long Polling via `fetch` with `AbortController`, binary bodies read as `ArrayBuffer` and copied into non-shared memory (threaded builds). Sends use `fetch` POST in order. The single negotiate `fetch` is bounded by the connect timeout.\n- Selection (`negotiation.rs`): candidates are the configured transports in fixed preference order, filtered by the server's `availableTransports` and transfer formats; each failed start before the handshake completes records `(transport, error)` and renegotiates for the next candidate (a fresh connection token, as the official clients do); the final error lists every attempt.\n- Stateful reconnect is negotiated (`useStatefulReconnect`) only when the chosen transport is WebSockets; this is verified against ASP.NET Core 10 in S6 before LP/SSE work starts.",
+      "invariantsMarkdown": "- WebSocket wire behavior, frame splitting and the never-Close rule for resumable stateful transports are unchanged.\n- A transport instance belongs to exactly one lifecycle generation; a stale transport's frames or end events never affect a newer one.\n- Sends are delivered in call order on every transport; Long Polling/Server-Sent Events never have two send POSTs in flight.\n- No native lock or WASM `RefCell` borrow is held across a transport `.await`.",
+      "rationaleMarkdown": "An enum with three variants keeps static dispatch on the hot path and avoids `async_trait` allocation; isolating the lifecycle loop from the socket makes the existing, well-tested behavior apply to the new transports. Reusing the crate's own hyper/rustls stack keeps one TLS configuration per connection and makes proxies work for every transport.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/browser_socket.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/reconnection.rs"
+        }
+      ],
+      "memoryDecisionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/memory/decisions/client-runtime/connection-lifecycle/2026-10-06-client-runtime-connection-lifecycle-runtime-owned-native-connections.md"
+        }
+      ],
+      "supersedesMemoryDecisions": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/memory/decisions/client-runtime/transport/2026-10-06-client-runtime-transport-event-driven-browser-transport.md"
+        }
+      ]
+    },
+    {
+      "id": "D6",
+      "requirementIds": [
+        "R5",
+        "R6",
+        "R7"
+      ],
+      "descriptionMarkdown": "**Transport dimension in the scenario catalog.**\n- `ScenarioCatalog` marks the transport-baseline scenarios (R6.C2 list); `E2ESelection` parses `RAYX_SIGNALR_E2E_TRANSPORTS`; cells are `(target, scenario, protocol, transport)` with Server-Sent Events only for JSON; WebSockets cells keep their current names so CI history and filters stay valid.\n- Runners pass `RAYX_SIGNALR_TRANSPORT` to native/mobile scenario processes and a `transport` page parameter to the browser fixture; `tests/e2e/support.rs` and the fixture apply `with_transports` from it. Scenarios needing a specific hub transport restriction use the new service hubs (`/test-longpolling`, `/test-no-websockets`) instead.\n- Test service: the hubs used by baseline scenarios accept all transports (ASP.NET Core default); restricted hubs set `HttpConnectionDispatcherOptions.Transports`.\n- New scenarios: `transport-fallback` (native, Chromium, Android, iOS), `suspend-resume` (native, Chromium, Android, iOS; Firefox and WebKit excluded with a recorded reason), `proxy` (native, Android, iOS), `soak-chaos` and `stateful-resume-stress` (native, Chromium, Android, iOS), `token-factory` and `negotiate-timeout` (every target), `browser-basic-rejected` (browsers).",
+      "invariantsMarkdown": "- Playwright stays the only browser driver; the browser matrix and the CI matrices are not reduced.\n- An empty or unknown transport selection fails selection, like other selectors.\n- Catalog consistency with `e2e --list` and `playwright test --list` covers transport-suffixed titles.",
+      "rationaleMarkdown": "Multiplying only transport-independent scenarios keeps the matrix meaningful and bounded (15 scenarios × transports) while proving every transport on every target; keeping WebSocket cell names stable preserves existing selectors.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/ScenarioCatalog.cs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/E2ESelection.cs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/CellRunners.cs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/MobileCellRunners.cs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/support.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/tests/fixture.ts"
+        }
+      ],
+      "memoryDecisionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/memory/decisions/interop-validation/rust-tests/2026-10-06-interop-validation-rust-tests-playwright-browser-matrix.md"
+        }
+      ]
+    },
+    {
+      "id": "D7",
+      "requirementIds": [
+        "R6",
+        "R7"
+      ],
+      "descriptionMarkdown": "**Long Polling and Server-Sent Events protocol details.**\n- Long Polling: after negotiate, the first `GET ?id=<token>` is issued immediately (ASP.NET Core answers the first poll at once); each subsequent poll starts after the previous response is processed. 200 bodies contain zero or more framed records (JSON `0x1E`-separated; binary MessagePack varint-framed) passed unchanged to the codec; 204 is a server-side end (`allows_reconnect` true unless a Close message arrived); 404 means the connection is gone (ordinary reconnect path). Request timeout = server poll timeout (100 s default, from configuration `with_long_polling_timeout`, validated) + connect timeout. Close sends `DELETE ?id=<token>` best-effort with the connect timeout.\n- Server-Sent Events: native parser per the WHATWG event-stream algorithm (UTF-8, BOM skip, `data:` concatenation with `\\n`, ignore `event`/`id`/`retry` except as parsed fields, comments as liveness), one dispatched event = one or more JSON records. Browsers rely on `EventSource`; its automatic reconnection is disabled by closing the source on the first `error` and ending the transport (SignalR reconnect logic owns retries).\n- Sends (both): `POST ?id=<token>` with `Content-Type: application/octet-stream` for binary, `text/plain` for JSON, one in flight; a send queue batches frames that accumulated while a POST was in flight into one body (records concatenated), preserving order.\n- Tokens: native sends `Authorization: Bearer` on every request; browsers send `Authorization` on fetch requests and `access_token` only for `EventSource`.",
+      "invariantsMarkdown": "- Parsers never panic on arbitrary input (`robustness_`).\n- Ordering of application sends is preserved across batching.\n- No request is unbounded in time.",
+      "rationaleMarkdown": "Follows the ASP.NET Core server contract and the official TypeScript/.NET clients' behavior (first-poll semantics, 204 end, send batching), which is what the server is tuned for.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/common.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/hub_protocol.rs"
+        }
+      ]
+    },
+    {
+      "id": "D8",
+      "requirementIds": [
+        "R8"
+      ],
+      "descriptionMarkdown": "**Native HTTP CONNECT proxies inside the crate's connector.**\n- `ProxyConfig { Disabled, Explicit(ProxyUrl), System }` on `ConnectionConfiguration` (native only; the methods do not exist on wasm). `System` resolves the environment at `connect` time (`HTTPS_PROXY` for `https`/`wss`, `HTTP_PROXY` for `http`/`ws`, `ALL_PROXY` fallback, lower-case variants accepted, `NO_PROXY` matching per curl semantics).\n- The native connector (shared by negotiate and all transports) opens TCP to the proxy, writes `CONNECT host:port HTTP/1.1` with `Host` and optional `Proxy-Authorization: Basic`, reads the status line and headers with a bounded buffer (16 KiB) under the connect timeout, and on 2xx hands the tunneled stream to the existing TLS/WebSocket/hyper code. Plain `http` targets also use CONNECT (no absolute-form forwarding) so WebSockets work uniformly.\n- `ProxyUrl`'s `Debug`/`Display` and every error redact the userinfo; logs show `http://***@host:port`.\n- Test service side: `dotnet/RayX.SignalR.TestProxy` (Kestrel connection middleware implementing CONNECT, a tunnel counter, configurable required credentials and deny list, `/stats` endpoint) as an Aspire resource on a dynamic port; the service records the remote endpoint for the `proxy` scenario to assert the proxy was the peer.",
+      "invariantsMarkdown": "- TLS to the origin is negotiated end to end inside the tunnel with the connection's own rustls configuration; the proxy never terminates TLS and no verifier is relaxed.\n- Proxy credentials never appear in logs or errors.\n- Browsers never get proxy APIs.",
+      "rationaleMarkdown": "CONNECT covers corporate HTTP proxies for all three transports with one mechanism and keeps TLS verification unchanged; environment-variable support matches what Rust networking tools expect. SOCKS and OS settings are deferred (recorded out of scope).",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/tls.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.AppHost/src/AppHost.cs"
+        }
+      ]
+    },
+    {
+      "id": "D9",
+      "requirementIds": [
+        "R9"
+      ],
+      "descriptionMarkdown": "**Suspension detection in the shared liveness scheduler.**\n- `liveness.rs` gains a `Clock` abstraction (monotonic `Instant` natively, `performance.now()` in browsers, injectable in tests). Each liveness wake compares `now` with its scheduled deadline: lateness greater than the keep-alive interval marks a suspension. On suspension the scheduler checks the last-received time: if silence ≥ server timeout, it ends the transport as dropped (the reconnect or stateful-resume path runs immediately); otherwise it sends a Ping at once and continues normally.\n- Lateness is measured on the monotonic clock read at wake (process stops, browser freezes and iOS background suspension advance it) plus a wall-clock delta (`SystemTime`/`Date.now()`) as a secondary signal, because whole-device sleep stops Linux/Android `CLOCK_MONOTONIC`; a wall clock that moved backwards is ignored. Independently, any send or receive error on a transport already ends it through the existing dropped-transport path.\n- Harness: the runner signals readiness through a scenario stdout line (`RAYX_SIGNALR_SUSPEND_READY`), then suspends/resumes the process: Windows `NtSuspendProcess`/`NtResumeProcess` via P/Invoke, Unix/iOS simulator `kill -STOP/-CONT`, Android `adb shell kill -STOP/-CONT <pid>`, Chromium CDP `Page.setWebLifecycleState` via Playwright's `newCDPSession`. The service's `ClientTimeoutInterval` stays 30 s; suspension lasts 40 s; the cell bound is 120 s.",
+      "invariantsMarkdown": "- No false positives at default intervals: a wake late by less than one keep-alive interval is ordinary scheduling jitter.\n- Detection reuses the existing dropped-transport path; it never bypasses generation checks or the never-Close rule for resumable stateful transports.\n- Suspension controls exist only in the test harness.",
+      "rationaleMarkdown": "Mobile OSes and browsers freeze timers rather than fire them; checking lateness at wake costs nothing in normal operation and turns a late timer into an immediate, correct recovery instead of waiting a further server timeout.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/liveness.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/reconnection.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/MobileCellRunners.cs"
+        }
+      ],
+      "memoryDecisionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/memory/decisions/client-runtime/connection-lifecycle/2026-10-06-client-runtime-connection-lifecycle-liveness-and-lifecycle-controls.md"
+        }
+      ]
+    },
+    {
+      "id": "D10",
+      "requirementIds": [
+        "R10"
+      ],
+      "descriptionMarkdown": "**Runtime proof of the aws-lc-rs provider and of the Android platform verifier.**\n- TLS provider selection: `RAYX_SIGNALR_E2E_TLS_PROVIDER` (`ring` default, `aws-lc-rs`) maps to cargo features in `CellRunners`/`MobileCellRunners` and to a separate target directory (`target/e2e-aws-lc`, `target/android-e2e-aws-lc`) so builds do not thrash. Android `aws-lc-rs` builds need the NDK's CMake/clang toolchain (`cargo ndk` provides it); the runner reports a missing toolchain as an environment error, not a cell failure.\n- Android app: `tests/android-harness` (`crate-type = [\"cdylib\"]`, depends on the e2e scenarios through a shared `tests/e2e-scenarios` library crate extracted from `tests/e2e` so both binaries run identical code) exports `Java_dev_rayx_signalr_e2e_Harness_runScenario` via `jni`. `tests/android-app` (Gradle Kotlin DSL, AGP 8.x, `minSdk 24`, `targetSdk 35`) contains an instrumentation test `ScenarioInstrumentation` that calls `init_with_env` through a JNI `initialize(Context)` export, then runs the scenario named in instrumentation arguments and reports pass/fail via `Instrumentation.finish`. The runner builds the cdylib with `cargo ndk`, copies it into `jniLibs`, writes `network_security_config.xml` with the run's test CA, builds with `./gradlew assembleDebug assembleDebugAndroidTest` (release: `assembleRelease` with R8 and the README keep rule, signed with a generated debug key), installs, and runs `adb shell am instrument -w -e scenario <s> -e protocol <p> ...`.\n- The `tls` scenario's untrusted-CA case uses a second, untrusted CA issued per run.",
+      "invariantsMarkdown": "- The platform verifier path is the one consumers use: no extra PEM roots, trust only via the OS (network security config).\n- The release APK proves the documented ProGuard rule keeps the verifier's Kotlin classes.\n- Explicit provider per connection; never the process default.",
+      "rationaleMarkdown": "A bare `adb shell` binary cannot obtain an Android `Context`, so only an instrumented app exercises the verifier; sharing scenario code keeps the app proof equivalent to the other cells. Running the TLS scenarios with the alternate provider closes the build-only gap at low cost.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/tls.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "build.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/MobileCellRunners.cs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.AppHost/src/TestCertificates.cs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "README.md"
+        }
+      ],
+      "memoryDecisionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/memory/decisions/client-runtime/transport/2026-10-06-client-runtime-transport-rustls-per-connection-tls.md"
+        }
+      ]
+    },
+    {
+      "id": "D11",
+      "requirementIds": [
+        "R11"
+      ],
+      "descriptionMarkdown": "**CI jobs and documentation for the new dimensions.**\n- `e2e.yml`: existing per-target jobs set `RAYX_SIGNALR_E2E_TRANSPORTS: all`; new jobs `android-app` (emulator runner with JDK 17), `tls-aws-lc (<target>)` (native ubuntu/windows/macos, android, ios), `soak` (`schedule` nightly + `workflow_dispatch`, `RAYX_SIGNALR_SOAK_SECONDS: 900`, scenarios `soak-chaos,stateful-resume-stress`), and a new `perf.yml` (`workflow_dispatch` + weekly `schedule`) running `Category=Performance|Category=ReferenceClientBudget` with `full` scale on ubuntu, uploading `artifacts-temp/perf`. Pinned actions, least-privilege permissions, no publishing.\n- `WorkflowContract` gains per-job assertions for every new job.\n- Docs: README sections (transports, fallback and selection; proxies; authentication incl. token factory and browser constraints; timeouts; app lifecycle and suspension; performance with the measured report), the limitations chapter (`docs/12-limitations.md`) residual risks, the testing chapter (`docs/14-testing.md`) (new categories, selectors and environment variables), and memory (`client-runtime` rules/state for transports, auth, proxies, suspension; `interop-validation` for the new harness pieces; hypotheses).",
+      "invariantsMarkdown": "- CI matrices are not reduced; new jobs add coverage.\n- Uploaded performance artifacts contain no secrets or tokens.",
+      "rationaleMarkdown": "The new behavior is only trustworthy if CI exercises it on every target; separating perf and soak into scheduled/dispatched jobs keeps pull-request CI time bounded.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/e2e.yml"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/quality.yml"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/WorkflowContractTests.cs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "README.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/12-limitations.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/14-testing.md"
+        }
+      ]
+    },
+    {
+      "id": "D12",
+      "requirementIds": [
+        "R12"
+      ],
+      "descriptionMarkdown": "**One public `Error` with a matchable `ErrorKind`.**\n- `src/error.rs` defines `pub struct Error { kind: ErrorKind, detail: Box<ErrorDetail> }`-style or a `#[non_exhaustive] enum Error` with struct variants; either way `ErrorKind` is a `Copy` `#[non_exhaustive]` enum for matching and structured accessors expose status, transport, timeout operation and bound, server message and close reason. Sources are `Arc<dyn std::error::Error + Send + Sync>` so `Error` is `Clone` (one failure completes many pending calls).\n- Internally, layers return the typed error directly (codec -> `Protocol`/`Serialization`, negotiate -> `Negotiate`/`Authentication`/`Timeout`, TLS -> `Tls`, transports -> `Transport`, lifecycle -> `ConnectionClosed`/`Paused`); `String` errors are removed from every path that reaches the public API. `thiserror` derives `Display`; redaction reuses the existing redaction helpers and is applied when the error is built, never at display time only.\n- The disconnection handler receives a `DisconnectReason` carrying the `Error` that ended the transport.\n- The crate version moves to the next major; README migration notes map old string checks to kinds.",
+      "invariantsMarkdown": "- `Display` never contains tokens, credentials, proxy userinfo or `access_token` values.\n- Error construction never allocates on the per-message success path.\n- `ErrorKind` additions are non-breaking (`#[non_exhaustive]`).",
+      "rationaleMarkdown": "Callers need to distinguish retryable from fatal failures, authentication from network problems, and server hub errors from client errors without parsing strings; a single cloneable type with a kind enum matches common Rust client libraries and keeps the public surface small. Doing it before the hot-path and transport work lets every later feature emit typed errors from the start.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/lib.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/enumerable.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/reconnection.rs"
+        }
+      ]
+    },
+    {
+      "id": "D13",
+      "requirementIds": [
+        "R13"
+      ],
+      "descriptionMarkdown": "**Proxy resolution as a pluggable resolver in front of one tunnel connector.**\n- `ProxyConfig` gains `Socks5 { remote_dns }` URLs, `AutoConfig(url)` (feature `proxy-pac`) and `Os`; all resolve per target URL to an ordered `Vec<ProxyRoute>` (`Direct`, `HttpConnect`, `Socks5`) that the shared native connector tries in order under the connect timeout.\n- SOCKS5: hand-written client (RFC 1928/1929) on the crate's TCP stream; `socks5h` sends the domain name.\n- PAC: `boa_engine` (pure Rust) evaluates the script in a dedicated blocking task with an instruction/time budget; the helper functions are implemented in Rust and registered in the context; DNS helpers use the runtime resolver with the connect timeout.\n- OS: `windows-sys` WinHTTP (`WinHttpGetIEProxyConfigForCurrentUser`, `WinHttpGetProxyForUrl` with auto-detect/PAC), `system-configuration`/`core-foundation` CFNetwork on Apple targets (`CFNetworkCopySystemProxySettings`, `CFNetworkCopyProxiesForURL`, PAC execution), JNI `ProxySelector.getDefault().select(URI)` on Android (stores the `JavaVM` from the Android initialization), env vars on Linux. Platform readers sit behind a trait so `os_proxy_` tests inject results.\n- Test proxy: SOCKS5 listener and PAC script endpoints in `RayX.SignalR.TestProxy`; the `os-proxy` runner sets `settings put global http_proxy` on the emulator (restored in `finally`) and on CI Windows/macOS sets the user proxy via registry/`networksetup` only when `RAYX_SIGNALR_E2E_ALLOW_SYSTEM_CHANGES=1`.",
+      "invariantsMarkdown": "- TLS to the origin always runs end to end inside any tunnel with the connection's rustls configuration.\n- Credentials never appear in logs or errors; PAC evaluation is bounded and sandboxed (no network or file access from script).\n- The default remains `without_proxy()`; nothing reads OS settings unless configured.",
+      "rationaleMarkdown": "One connector with an ordered route list makes HTTP CONNECT, SOCKS5, PAC and OS answers compose (PAC and OS resolvers return mixed route lists). Delegating OS resolution to the OS APIs gets WPAD and PAC behavior identical to other apps on Windows, Apple platforms and Android without reimplementing discovery.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/tls.rs"
+        }
+      ]
+    },
+    {
+      "id": "D14",
+      "requirementIds": [
+        "R14"
+      ],
+      "descriptionMarkdown": "**HTTP/2 through hyper's HTTP/2 client and extended CONNECT.**\n- The native HTTP layer gains an `HttpConnection` enum (HTTP/1.1 `SendRequest` or HTTP/2 `SendRequest` that can be cloned for multiplexing) chosen by ALPN (`Auto`) or configuration (`Http2`, h2c prior knowledge for plaintext). Negotiate, Long Polling polls/sends and the Server-Sent Events stream of one logical connection reuse the same HTTP/2 connection.\n- WebSockets over HTTP/2: if the server's SETTINGS enable the extended CONNECT protocol, send `:method CONNECT`, `:protocol websocket` (hyper `ext::Protocol`), then run `tokio-websockets` in client mode over the upgraded stream without its HTTP/1.1 handshake; otherwise use HTTP/1.1 (`Auto`) or fail (`Http2`).\n- Kestrel: an HTTPS endpoint with `Http1AndHttp2` and an `Http2`-only plaintext endpoint for h2c; the service logs `HttpContext.Request.Protocol` for assertions.",
+      "invariantsMarkdown": "- `Http1` stays the default; HTTP/2 is opt-in until proven in CI on every native target.\n- Ordering and backpressure guarantees per transport are unchanged by multiplexing.",
+      "rationaleMarkdown": "HTTP/2 mostly benefits Long Polling and Server-Sent Events (no extra TCP/TLS handshakes for sends) and environments that only allow HTTP/2; keeping it opt-in protects the stable default.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/Program.cs"
+        }
+      ]
+    },
+    {
+      "id": "D15",
+      "requirementIds": [
+        "R15"
+      ],
+      "descriptionMarkdown": "**Experimental HTTP/3 behind a feature.**\n- Feature `http3` adds `quinn` (rustls crypto with the connection's explicit provider and verifier) and `h3`/`h3-quinn`; `HttpVersion::Http3` and `Http3Preferred` (QUIC attempt raced against nothing: QUIC first, TCP fallback when the QUIC handshake fails or exceeds half the connect timeout).\n- Before implementation, verify Kestrel's support for WebSockets over HTTP/3 (RFC 9220) in ASP.NET Core 10; record the result in the task and design (amend) before building the WebSocket path.\n- Kestrel HTTP/3 endpoint enabled only where msquic is available (the AppHost detects it and the catalog excludes unsupported hosts with a reason).\n- Android cells reach the host over UDP through the emulator's `10.0.2.2` alias; if UDP forwarding proves unavailable, that is evidence for the stretch rule.",
+      "invariantsMarkdown": "- `http3` is non-default and documented as experimental; no default build pulls QUIC dependencies.\n- No relaxed certificate verification for QUIC.",
+      "rationaleMarkdown": "HTTP/3 helps on lossy mobile networks but depends on server and network support; a feature-gated, opt-in implementation lets it be proven without risking the stable default.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "Cargo.toml"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/tls.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.AppHost/src/AppHost.cs"
+        }
+      ]
+    }
+  ],
+  "memoryDecisionsConsidered": [
+    {
+      "repositoryId": "rayx-signalr",
+      "path": ".agentx/memory/decisions/repository-governance/agent-memory/2026-08-09-repository-governance-agent-memory-initial-taxonomy.md"
+    },
+    {
+      "repositoryId": "rayx-signalr",
+      "path": ".agentx/memory/decisions/repository-governance/agent-memory/2026-09-06-repository-governance-agent-memory-contextual-workflow-routing.md"
+    },
+    {
+      "repositoryId": "rayx-signalr",
+      "path": ".agentx/memory/decisions/repository-governance/fork-policy/2026-08-09-repository-governance-fork-policy-use-direct-source-url.md"
+    }
+  ]
+}

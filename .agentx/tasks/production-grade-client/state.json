@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 6,
+  "epicId": "production-grade-client",
+  "revision": 1,
+  "planRevision": 2,
+  "specHashes": {
+    "requirements": "17d2bba269fd811369be9c67108e2a7d554274783acc904e1332907cb036314f",
+    "design": "4f30be6fbd06dd95e5819337e4655a875253aab5eda75a5a7267f81fd83c8b8a",
+    "plan": "e4aeca76f4574adf6036cb4bd6d120a406f5fd99cd43d6cff4ab8bd795e3da9e"
+  },
+  "tasks": {
+    "S1.T1": {
+      "status": "pending"
+    },
+    "S1.T2": {
+      "status": "pending"
+    },
+    "S1.T3": {
+      "status": "pending"
+    },
+    "S2.T1": {
+      "status": "pending"
+    },
+    "S2.T2": {
+      "status": "pending"
+    },
+    "S2.T3": {
+      "status": "pending"
+    },
+    "S2.T4": {
+      "status": "pending"
+    },
+    "S3.T1": {
+      "status": "pending"
+    },
+    "S3.T2": {
+      "status": "pending"
+    },
+    "S3.T3": {
+      "status": "pending"
+    },
+    "S3.T4": {
+      "status": "pending"
+    },
+    "S4.T1": {
+      "status": "pending"
+    },
+    "S4.T2": {
+      "status": "pending"
+    },
+    "S5.T1": {
+      "status": "pending"
+    },
+    "S5.T2": {
+      "status": "pending"
+    },
+    "S5.T3": {
+      "status": "pending"
+    },
+    "S6.T1": {
+      "status": "pending"
+    },
+    "S6.T2": {
+      "status": "pending"
+    },
+    "S6.T3": {
+      "status": "pending"
+    },
+    "S7.T1": {
+      "status": "pending"
+    },
+    "S8.T1": {
+      "status": "pending"
+    },
+    "S8.T2": {
+      "status": "pending"
+    },
+    "S9.T1": {
+      "status": "pending"
+    },
+    "S9.T2": {
+      "status": "pending"
+    },
+    "S10.T1": {
+      "status": "pending"
+    },
+    "S10.T2": {
+      "status": "pending"
+    },
+    "S10.T3": {
+      "status": "pending"
+    },
+    "S11.T1": {
+      "status": "pending"
+    },
+    "S11.T2": {
+      "status": "pending"
+    },
+    "S11.T3": {
+      "status": "pending"
+    },
+    "S12.T1": {
+      "status": "pending"
+    },
+    "S12.T2": {
+      "status": "pending"
+    },
+    "S12.T3": {
+      "status": "pending"
+    },
+    "S13.T1": {
+      "status": "pending"
+    },
+    "S13.T2": {
+      "status": "pending"
+    },
+    "S14.T1": {
+      "status": "pending"
+    },
+    "S14.T2": {
+      "status": "pending"
+    },
+    "S15.T1": {
+      "status": "pending"
+    },
+    "S15.T2": {
+      "status": "pending"
+    },
+    "S15.T3": {
+      "status": "pending"
+    }
+  },
+  "validationBatches": {},
+  "checkResults": {},
+  "reviews": {},
+  "checkpoints": {},
+  "findings": [],
+  "handoffMarkdown": "",
+  "protectedPaths": {
+    "rayx-signalr": {
+      ".agentx/tasks/resilient-reconnect-and-production-gates/**": "a4110a3f5f2c68d64ddf8fbedb70479c98f46dde78b064b5b3ac826772db49a6",
+      ".agentx/tasks/cross-platform-support/**": "2f05534d09247f485ef6e206dff3966e25fe5114b3b6969cda134665e69d7c6c",
+      "LICENSE": "f9becd1431aea85e0bf65852a4da210ccc322b267b1fef0537c8788b4a56aad5",
+      ".codex/skills/rayx-signalr/references/update-from-upstream.md": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  }
+}

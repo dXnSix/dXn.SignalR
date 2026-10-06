@@ -1,0 +1,328 @@
+{
+  "schemaVersion": 6,
+  "epicId": "production-grade-client",
+  "scopeMarkdown": "Make `rayx-signalr` a stable, complete and very fast SignalR client for Rust by closing the residual risks left by `cross-platform-support` and by measuring and optimizing its hot paths. The bar is: every supported target and transport proven end to end through Aspire, no silent failure modes, and throughput and latency at or better than the official .NET client in the same environment.\n\n**Order of work:** (1) measurement first: micro-benchmarks, an Aspire performance harness with the official .NET client as the reference, and stateful sequence instrumentation; (2) a typed public error model (mandatory), so every later feature reports typed errors; (3) hot-path optimization under budgets (single-pass wire codec, no payload logging, robust parsers); (4) stability: a soak/chaos harness and resolution of the unreproduced stateful-resume stall; (5) authentication and negotiate bounds (access-token factory, browser Basic rejected, browser negotiate timeout, configurable connect timeout); (6) a transport abstraction with selection and fallback; (7) Long Polling; (8) Server-Sent Events and transport fallback; (9) native HTTP CONNECT proxies; (10) suspension-aware liveness for backgrounded or frozen apps; (11) the aws-lc-rs provider end to end and the Android platform verifier inside a real app; (12-14) stretch: SOCKS5, proxy auto-config and OS proxy settings; HTTP/2; HTTP/3; (15) CI, documentation and a green run.\n\n**Audit baseline (current source, 2026-10-06, branch `feat/cross-platform-support` at `efc2ee4`):** only the WebSockets transport exists (`negotiation.rs` rejects servers without it); there is no proxy support; browser negotiate (`gloo-net` fetch in `common.rs`) has no timeout while native setup is bounded by `negotiate_http::CONNECT_TIMEOUT` (15 s, not configurable); browsers send Basic credentials only with negotiate, so a standard ASP.NET Core server cannot authenticate the WebSocket; bearer tokens are static strings with no refresh hook; the e2e binaries use the default `ring` provider, so `aws-lc-rs` is covered only by builds and unit tests; Android cells run as a bare `adb shell` binary, so the platform verifier path is only build-checked; liveness timers on suspended apps fire late and a dead transport is detected only after a further server timeout; the receive path parses each JSON message up to three times (type, then id/target, then payload) and MessagePack frames into `rmpv` values more than once, every outbound frame is re-parsed to learn its type, and every completion payload is logged at `info`; there are no benchmarks; one stateful-resume stall was seen once on the Android emulator and never reproduced (`interop-validation/hypotheses.md`).\n\n**Product decisions taken in this plan (implementers follow them unless the user changes them):**\n- In browsers, `authenticate_basic` makes `connect` fail before any request with an explanatory error (browsers cannot send `Authorization` on a WebSocket; a negotiate-only Basic login silently fails on standard servers). This is a deliberate browser-only behavior change, documented in the README and the limitations chapter (`docs/12-limitations.md`).\n- Performance budgets are relative: micro-benchmarks against a `pre-optimization` baseline saved on the same machine before optimization, and end-to-end workloads against the official .NET client (`Microsoft.AspNetCore.SignalR.Client`) run in the same Aspire run, so results do not depend on the machine.\n- Transport preference and fallback follow the official clients: WebSockets, then Server-Sent Events, then Long Polling; Server-Sent Events carry text only, so they are never selected for MessagePack.\n- Stateful reconnect is used only with WebSockets. Implementation must verify ASP.NET Core 10's behavior for Server-Sent Events and Long Polling in S6; if the server supports stateful reconnect there, amend R5 rather than silently deviating.\n- Proxies: native HTTP CONNECT proxies only (explicit URL with optional Basic proxy credentials, or `HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY`/`NO_PROXY` environment variables). Browsers always use the browser's proxy settings.\n\n**Mandatory vs. stretch:** R1-R12 are mandatory. R13 (SOCKS5, proxy auto-config files, OS-level proxy settings), R14 (HTTP/2) and R15 (HTTP/3) are stretch goals (\"if possible\"): they run after every mandatory sprint except CI/documentation, so CI and docs cover whatever was delivered. Each stretch sprint starts with a time-boxed feasibility task. A stretch criterion may be dropped only through `amend --specification` that records concrete evidence (missing server support, unavailable platform API, no maintained and audited dependency, or no reproducible test environment) **after the user confirms**; dropping one lowers the affected final-check minimum counts in the same amendment, and every criterion that was met stays. Stretch features are additive and opt-in, so the default behavior of a mandatory feature never depends on them.\n\n**Typed error model (mandatory):** the public API returns one `rayx_signalr::Error` instead of `String`. This is a deliberate breaking change: the crate moves to its next major version, and the README gets a migration section.\n\n**Out of scope:** WPAD auto-discovery performed by the crate itself (it is honored only where the OS resolver performs it under R13.C3); an iOS app-hosted (XCTest) harness (the iOS platform verifier needs no app-side initialization and keeps simulator-binary proof); browser control of HTTP versions or proxies (browsers choose them); Azure SignalR Service-specific features beyond negotiate redirects; RayX-side integration.\n\n**Environment prerequisites:** everything from `cross-platform-support` (.NET SDK 10, Aspire CLI 13.5.3, Rust 1.92, Node 24 with pnpm and the Playwright browsers, Android SDK with an NDK, `cargo-ndk` 4.1.2 and a running x86_64 emulator); plus JDK 17 and the Gradle wrapper for the Android test app, and `cargo bench` (Criterion). HTTP/3 cells need a Kestrel HTTP/3 host (Windows 11 or Linux with `libmsquic`; macOS is not supported by Kestrel). OS-proxy cells on Windows and macOS run only on ephemeral CI runners. iOS cells run only on macOS (CI).",
+  "constraintsMarkdown": "- Current source and tests are authoritative; preserve public names and semantics except where a criterion explicitly owns a change (the browser Basic rejection is the only planned behavior break).\n- Preserve the `client-runtime` and `interop-validation` rules: JSON handshake even for MessagePack; application-defined Serde names; cumulative Ack and nonzero Sequence; the ordinary/stateful split (never reuse a logical token in ordinary mode; never renegotiate or re-handshake during stateful resume; never send a WebSocket Close to end a resumable stateful transport); generation-checked reconnect completion; distinct lifecycle states on both targets.\n- Never rely on rustls' process-default `CryptoProvider`; secure endpoints never fall back to plaintext or an accept-all verifier, also behind proxies.\n- Never log, embed in errors, or put in URLs anything secret beyond what the protocol requires (`access_token` in browser query strings): redact bearer tokens, proxy credentials and `Authorization` values; never log message payloads above `trace`.\n- Fault injection, chaos and suspension controls stay test-only (the .NET test service, the fixture crate, the e2e/perf/Android harness crates, `#[cfg(test)]` code).\n- Avoid holding native locks or WASM `RefCell` borrows across `.await` points or user callbacks.\n- Service-dependent proof runs only through the Aspire end-to-end project with dynamic ports and the 60-second default cell bound (scenarios may declare a longer catalog bound); no scripts, no fixed ports, no hand-started services.\n- Every behavior change gets its own new, separately selectable test group; sprint checks select exactly those groups.\n- From S2 on, every error a criterion describes is a variant of the typed error model (for example a timeout is `ErrorKind::Timeout`); tests assert the kind and structured fields, and assert message text only where a criterion requires message content.\n- Tests never change the developer machine's network or proxy settings: OS-proxy cells that change system settings run only on emulators or on ephemeral CI runners that opt in (`RAYX_SIGNALR_E2E_ALLOW_SYSTEM_CHANGES=1`), and restore the setting afterwards.\n- Follow the repository layout current at implementation time. Paths here follow the `chore/cleanup` restructuring (2026-10-06): .NET sources live under `dotnet/<Project>/src/`, the test service is `dotnet/RayX.SignalR.TestService`, new projects (`RayX.SignalR.PerfReference`, `RayX.SignalR.TestProxy`) use the same layout and join `RayX.SignalR.slnx`, and user documentation lives in `docs/` chapters (limitations, the former `FORK.md` residual risks, in `docs/12-limitations.md`). If the layout differs when implementation starts, correct the paths through `amend` before dependent work.",
+  "requirements": [
+    {
+      "id": "R1",
+      "title": "Performance measurement",
+      "descriptionMarkdown": "Measure the client before changing it, on the same hot paths and workloads the optimization budgets use.",
+      "criteria": [
+        {
+          "id": "R1.C1",
+          "descriptionMarkdown": "Criterion micro-benchmarks in `benches/hot_paths.rs` (`cargo bench --bench hot_paths --features messagepack`) cover, for JSON and MessagePack: inbound Invocation, Completion (with and without result), StreamItem and Ping decoding plus dispatch through the action storage; outbound invocation encoding with framing; JSON record splitting and MessagePack varint framing of multi-message frames; payload sizes 32 B, 1 KiB and 64 KiB. Benchmark ids are stable (`hot_paths/<direction>/<protocol>/<message>/<size>`) so a named Criterion baseline can be compared later.",
+          "verification": "automated"
+        },
+        {
+          "id": "R1.C2",
+          "descriptionMarkdown": "An Aspire `Performance` test category runs identical workloads with a release build of the Rust native client (`tests/perf`, `test = false`) and with the official .NET client (`dotnet/RayX.SignalR.PerfReference`, `Microsoft.AspNetCore.SignalR.Client` plus its MessagePack protocol, same ASP.NET Core version as the test service) against the same test service in one run: `invoke-latency` (2,000 sequential invocations after 200 warm-up calls; p50, p99, max), `stream-throughput` (100,000 server-stream items), `send-throughput` (50,000 client-to-server sends acknowledged by a final invocation) and `fan-in` (8 concurrent clients each invoking 1,000 times; aggregate throughput), for JSON and MessagePack. Each workload result (client, protocol, workload, metrics, environment, build profile) is written to `artifacts-temp/perf/<run>.json`; workloads and iteration scale are selectable through `RAYX_SIGNALR_PERF_WORKLOADS` and `RAYX_SIGNALR_PERF_SCALE` (`quick` for smoke checks, `full` for budgets).",
+          "verification": "automated"
+        }
+      ]
+    },
+    {
+      "id": "R2",
+      "title": "Hot-path performance",
+      "descriptionMarkdown": "Make the per-message path cheaper on both targets without changing wire behavior.",
+      "criteria": [
+        {
+          "id": "R2.C1",
+          "descriptionMarkdown": "Inbound frames are decoded in one pass per message on both targets and for both protocols: one envelope decode yields the message type, invocation id or target, and the undecoded payload (a borrowed JSON raw value or a MessagePack byte range), and the payload is deserialized once into the awaited type; action storage dispatches on the decoded id or target without parsing again. Outbound messages carry their type from construction, so nothing is re-parsed to classify or track them. New frame-level `wire_codec_` tests cover every message type, both protocols, multi-message frames, unknown message types and malformed input (errors, never panics), and the existing golden frame tests stay unchanged.",
+          "verification": "automated"
+        },
+        {
+          "id": "R2.C2",
+          "descriptionMarkdown": "Message payloads, arguments and results are never logged above `trace` on either target, and nothing logged at `info` or above contains them. A `log_policy_` test with a capturing logger sends a completion whose result contains a marker string and asserts the marker appears in no record at `debug` or above.",
+          "verification": "automated"
+        },
+        {
+          "id": "R2.C3",
+          "descriptionMarkdown": "Against the Criterion baseline `pre-optimization` saved on the same machine before any hot-path change, inbound StreamItem and Completion decode-plus-dispatch are at least 1.5x faster for JSON and for MessagePack at 32 B and 1 KiB payloads, outbound invocation encoding is at least 1.2x faster, and no benchmark id regresses by more than 5 %. Verified by a `MicroBenchmarkBudget` test that reads Criterion's change estimates.",
+          "verification": "automated"
+        },
+        {
+          "id": "R2.C4",
+          "descriptionMarkdown": "In one Aspire run with `RAYX_SIGNALR_PERF_SCALE=full`, the release Rust client meets these budgets against the official .NET client for JSON and MessagePack: `invoke-latency` p50 and p99 at most 1.10x of the .NET client, `stream-throughput`, `send-throughput` and `fan-in` throughput at least 0.95x of it. Verified by a `ReferenceClientBudget` test over the run's results.",
+          "verification": "automated"
+        }
+      ]
+    },
+    {
+      "id": "R3",
+      "title": "Robustness and stability",
+      "descriptionMarkdown": "No panics on network input, observable stateful sequencing, and long-running proof under chaos.",
+      "criteria": [
+        {
+          "id": "R3.C1",
+          "descriptionMarkdown": "Property tests (`proptest`, test group `robustness_`) feed arbitrary, truncated, oversized and type-confused input to JSON record splitting, MessagePack varint framing, the envelope decoders of R2.C1, handshake parsing, negotiate response parsing (the Long Polling and Server-Sent Events parsers join this group under R6.C1 and R7.C1): none panics, all return errors. The protocol, transport and negotiation modules deny `clippy::unwrap_used`, `clippy::expect_used`, `clippy::panic` and `clippy::indexing_slicing` outside tests, with no `allow` except on a documented invariant.",
+          "verification": "automated"
+        },
+        {
+          "id": "R3.C2",
+          "descriptionMarkdown": "At `debug` level both targets log stateful sequencing without payloads: each tracked outgoing sequence id, each received trackable id with its accept/duplicate decision, each Ack sent and received, each Sequence message, and the resend range of every resume, tagged with the connection generation. Test group `sequence_trace_` asserts the records for a scripted resume.",
+          "verification": "automated"
+        },
+        {
+          "id": "R3.C3",
+          "descriptionMarkdown": "A `soak-chaos` scenario runs mixed concurrent traffic (invocations with results, fire-and-forget sends, server streams, server-to-client callbacks and client results) for `RAYX_SIGNALR_SOAK_SECONDS` (default 120 in sprint checks, 900 in the nightly CI job) while a test-only service control aborts transports at random 0.5-5 s intervals, against an ordinary and a stateful hub. It asserts: stateful mode loses and duplicates nothing (every invocation completes once with its result, streams arrive complete and in order); ordinary mode completes or fails every pending call (never hangs) and recovers; after `disconnect` no client task or socket remains (native: the runtime's alive-task count returns to its pre-connect value). Runs on native, Chromium and Android for JSON and MessagePack; the catalog bound is the soak duration plus 60 s.",
+          "verification": "automated"
+        },
+        {
+          "id": "R3.C4",
+          "descriptionMarkdown": "A `stateful-resume-stress` scenario performs 500 server-side transport aborts (100 on each of five fresh stateful connections), each immediately followed by an invocation and a short server stream, with the sequence instrumentation of R3.C2 enabled; it passes on native, Chromium and Android for JSON and MessagePack. If it reproduces the 2026-10-06 stall, the root cause is fixed and covered by a regression test in the same sprint; either way `interop-validation/hypotheses.md` and the limitations chapter (`docs/12-limitations.md`) are updated (hypothesis retired with this evidence, or replaced by the confirmed cause and fix).",
+          "verification": "automated"
+        }
+      ]
+    },
+    {
+      "id": "R4",
+      "title": "Authentication and connection-setup bounds",
+      "descriptionMarkdown": "Refreshable tokens, no silently broken browser authentication, and bounded setup on every target.",
+      "criteria": [
+        {
+          "id": "R4.C1",
+          "descriptionMarkdown": "`ConnectionConfiguration::with_access_token_factory(f)` on both targets accepts an async function returning `Result<String, String>`; it is called before every negotiate (initial connect, ordinary reconnect, resume renegotiation of an ended stateful connection) and the token is sent as Bearer (native `Authorization` header on negotiate and the WebSocket upgrade; browsers `Authorization` on negotiate and `access_token` on the transport), except where a negotiate redirect supplies its own access token. A factory error fails that attempt with the factory's message (redacted of anything token-shaped). Configuring a factory together with `authenticate_basic` or `authenticate_bearer` fails `connect` before I/O. Unit group `access_token_factory_`; e2e scenario `token-factory` (the service accepts only tokens issued by a test endpoint and rejects reuse after `/e2e/rotate-token`, proving a reconnect fetched a fresh token) on all targets.",
+          "verification": "automated"
+        },
+        {
+          "id": "R4.C2",
+          "descriptionMarkdown": "In browsers, `connect` with `authenticate_basic` fails before any network request with an error stating that browsers cannot authenticate the WebSocket with Basic credentials and naming Bearer or `with_access_token_factory` as the alternative; native behavior is unchanged. Unit group `browser_basic_` (wasm-gated logic tested natively through a shared validation function) and e2e scenario `browser-basic-rejected` on Chromium, Firefox and WebKit, which also asserts the service saw no negotiate.",
+          "verification": "automated"
+        },
+        {
+          "id": "R4.C3",
+          "descriptionMarkdown": "`with_connect_timeout(d)` (default 15 s, nonzero, validated before I/O) bounds negotiate requests and transport setup on both targets; browsers abort the negotiate `fetch` with an `AbortController`. A service endpoint that accepts the request and never responds makes `connect` fail with a timeout error naming the bound within the bound plus 2 s, and the error never contains the URL or token. E2e scenario `negotiate-timeout` (2 s bound) on all targets; unit group `connect_timeout_`.",
+          "verification": "automated"
+        }
+      ]
+    },
+    {
+      "id": "R5",
+      "title": "Transport abstraction and selection",
+      "descriptionMarkdown": "Separate the connection lifecycle from the WebSocket so further transports plug in, and select transports like the official clients.",
+      "criteria": [
+        {
+          "id": "R5.C1",
+          "descriptionMarkdown": "`with_transports(Transports)` (a set of `WebSockets`, `ServerSentEvents`, `LongPolling`; default all) on both targets. Negotiation picks the first transport in the client's preference order (WebSockets, Server-Sent Events, Long Polling) that the server lists with a transfer format the hub protocol needs (Server-Sent Events: text only, so never for MessagePack); if starting it fails before the handshake completes, the next candidate is tried with a fresh negotiate, and when all fail the error lists each transport's failure. `skip_negotiation()` requires WebSockets alone in the set and stateful reconnect requires WebSockets (otherwise `connect` fails before I/O). Unit group `transport_selection_` covers every combination of offered transports, transfer formats, protocols and configured sets.",
+          "verification": "automated"
+        },
+        {
+          "id": "R5.C2",
+          "descriptionMarkdown": "The WebSockets transport behind the new abstraction keeps every existing behavior: the full end-to-end catalog passes over WebSockets on native and Chromium for JSON and MessagePack. (Whole-catalog scope is justified because the connection loop every scenario uses is restructured.)",
+          "verification": "automated"
+        },
+        {
+          "id": "R5.C3",
+          "descriptionMarkdown": "The scenario catalog gains a transport dimension: `RAYX_SIGNALR_E2E_TRANSPORTS` (`websockets` default, `long-polling`, `server-sent-events`, `all`; an empty or unknown value fails selection) yields cells for the transport-baseline scenarios of R6.C2 on every selected transport and for all other scenarios only when `websockets` is selected, never pairs Server-Sent Events with MessagePack, names non-WebSocket cells with a transport suffix (`invoke (JSON, Long Polling)`), passes the transport to native, mobile and browser runners, and keeps catalog consistency with `e2e --list` and `playwright test --list`. New `TransportCatalog` tests cover selection, cell generation and naming.",
+          "verification": "automated"
+        }
+      ]
+    },
+    {
+      "id": "R6",
+      "title": "Long Polling transport",
+      "descriptionMarkdown": "A complete Long Polling transport on both targets.",
+      "criteria": [
+        {
+          "id": "R6.C1",
+          "descriptionMarkdown": "Long Polling on both targets: the receive loop issues `GET <url>?id=<token>` requests one at a time (the server holds each up to its poll timeout; 204 ends the connection; 200 delivers zero or more frames; any other status or a network error drops the transport); sends are ordered `POST` requests (one in flight, queued in order, honoring backpressure); `DELETE` ends the connection on local close. Text and binary transfer formats work, so JSON and MessagePack both run. The handshake, keep-alive Pings, server timeout, pause/resume, ordinary reconnect and the access-token factory behave as over WebSockets; every request is bounded by the poll timeout plus `connect_timeout`. Unit group `long_polling_` (request sequencing, status handling, ordering, cancellation on close) and the `robustness_` parsers.",
+          "verification": "automated"
+        },
+        {
+          "id": "R6.C2",
+          "descriptionMarkdown": "The transport baseline (the catalog scenarios marked transport-independent: connect-negotiate, authentication, invoke, send, server-stream, callbacks, concurrency-and-clones, large-payload, server-close, reconnect-exhaustion, ordinary-reconnect, keepalive-idle, server-timeout, pause-resume, token-factory) passes over Long Polling for JSON and MessagePack on native, Chromium, Firefox, WebKit and Android, and on iOS in CI.",
+          "verification": "automated"
+        }
+      ]
+    },
+    {
+      "id": "R7",
+      "title": "Server-Sent Events transport and fallback",
+      "descriptionMarkdown": "A complete Server-Sent Events transport and proven fallback between transports.",
+      "criteria": [
+        {
+          "id": "R7.C1",
+          "descriptionMarkdown": "Server-Sent Events on both targets: native reads a streaming `GET` (`Accept: text/event-stream`) with a spec-conformant event parser (multi-line `data:`, comments as keep-alive, CRLF/LF/CR line endings, events split across reads); browsers use `EventSource` (the token travels as `access_token` because `EventSource` cannot set headers); sends are ordered `POST` requests as for Long Polling. JSON only: an explicit Server-Sent-Events-only configuration with MessagePack fails `connect` before I/O. Handshake, liveness, pause/resume, ordinary reconnect and the token factory behave as over WebSockets. Unit group `server_sent_events_` and the `robustness_` parser cases.",
+          "verification": "automated"
+        },
+        {
+          "id": "R7.C2",
+          "descriptionMarkdown": "The transport baseline of R6.C2 passes over Server-Sent Events for JSON on native, Chromium, Firefox, WebKit and Android, and on iOS in CI.",
+          "verification": "automated"
+        },
+        {
+          "id": "R7.C3",
+          "descriptionMarkdown": "Fallback is proven end to end: against hubs restricted server-side to Long Polling (`/test-longpolling`) and to Server-Sent Events plus Long Polling (`/test-no-websockets`), a client with the default transport set connects with the expected transport (reported by `TransportDetails`) for each protocol, and a client restricted to WebSockets fails with an error naming the unavailable transport. Scenario `transport-fallback` on native, Chromium and Android.",
+          "verification": "automated"
+        }
+      ]
+    },
+    {
+      "id": "R8",
+      "title": "Native HTTP proxies",
+      "descriptionMarkdown": "Connect through HTTP CONNECT proxies on native targets.",
+      "criteria": [
+        {
+          "id": "R8.C1",
+          "descriptionMarkdown": "Native-only `with_proxy(url)` (`http://[user:password@]host:port`), `with_system_proxy()` (reads `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY` and `NO_PROXY` in upper or lower case at `connect`; `NO_PROXY` supports host names, domain suffixes, IP addresses, CIDR ranges, ports and `*`) and `without_proxy()` (default). Every native connection (negotiate, WebSocket, Long Polling, Server-Sent Events) to a proxied endpoint opens an HTTP CONNECT tunnel (Basic `Proxy-Authorization` when credentials are configured), then runs TLS with the connection's rustls configuration inside the tunnel for secure endpoints. A 407 or other non-2xx CONNECT answer fails with an error that never contains the credentials; proxy credentials and URLs are redacted in logs. Unit group `proxy_` (configuration parsing, `NO_PROXY` matching, CONNECT request bytes, response handling, redaction).",
+          "verification": "automated"
+        },
+        {
+          "id": "R8.C2",
+          "descriptionMarkdown": "An Aspire `test-proxy` resource (test-only .NET CONNECT proxy with a tunnel counter, optional required credentials and a deny list) proves: plaintext and TLS endpoints over all three transports connect through the proxy (counter increases, the service sees the proxy as the peer); wrong credentials fail with the 407 error; a `NO_PROXY` match bypasses the proxy. Scenario `proxy` on native and Android, and on iOS in CI.",
+          "verification": "automated"
+        }
+      ]
+    },
+    {
+      "id": "R9",
+      "title": "Suspension-aware liveness",
+      "descriptionMarkdown": "Recover promptly when the OS suspends or freezes the app, instead of waiting for timers that fired late.",
+      "criteria": [
+        {
+          "id": "R9.C1",
+          "descriptionMarkdown": "The shared liveness scheduler detects suspension on both targets: when a liveness wake happens more than one keep-alive interval after its scheduled deadline (monotonic clock), the client sends a Ping at once; when the elapsed silence has reached the server timeout, the transport is treated as dropped immediately (the reconnect path or stateful resume runs) rather than after a further server timeout. Detection never fires during normal operation (no false positives at the default intervals). Unit group `suspension_` with an injected clock.",
+          "verification": "automated"
+        },
+        {
+          "id": "R9.C2",
+          "descriptionMarkdown": "Scenario `suspend-resume`: the runner suspends the scenario process for 40 s (longer than the service's 30 s client timeout) after the scenario signals readiness, then resumes it: native on Windows (`NtSuspendProcess`/`NtResumeProcess`) and Unix (`SIGSTOP`/`SIGCONT`), Android (`kill -STOP`/`-CONT` on the device process), iOS (the simulator process is a host process), Chromium (`Page.setWebLifecycleState` frozen/active through CDP). Within 5 s of resuming, a stateful client has resumed and its pending invocation completes, and an ordinary client has reconnected and its pending work has failed with a connection error. Firefox and WebKit are catalog exclusions (no freeze API), recorded with the reason.",
+          "verification": "automated"
+        },
+        {
+          "id": "R9.C3",
+          "descriptionMarkdown": "The documentation (`docs/06-connection-lifecycle.md`, `docs/09-platforms.md`) covers app lifecycle integration for iOS (`pause()` on entering the background, `resume()` on becoming active), Android (`onStop`/`onStart`) and browsers (`visibilitychange`, page freeze), and what suspension detection does when an app does not pause.",
+          "verification": "manual"
+        }
+      ]
+    },
+    {
+      "id": "R10",
+      "title": "TLS provider and Android platform-verifier proof",
+      "descriptionMarkdown": "Prove the alternative crypto provider and the Android platform verifier at runtime.",
+      "criteria": [
+        {
+          "id": "R10.C1",
+          "descriptionMarkdown": "`RAYX_SIGNALR_E2E_TLS_PROVIDER=aws-lc-rs` makes the runners build the e2e binaries with `--no-default-features --features messagepack,tls-platform-verifier,tls-aws-lc-rs` (Android adds `tls-webpki-roots`); the TLS-dependent scenarios (`tls`, `connect-negotiate`, `negotiate-redirect`, and `proxy`, which covers TLS over all three transports) pass with it on native and Android, and on iOS in CI.",
+          "verification": "automated"
+        },
+        {
+          "id": "R10.C2",
+          "descriptionMarkdown": "A test-only Android app (`tests/android-app`, Gradle with Kotlin, minSdk 24) embeds a `cdylib` harness (`tests/android-harness`) that reuses the `tests/e2e` scenarios through a JNI `runScenario(name, protocol, environment)` entry. It initializes the platform verifier with `rayx_signalr::tls::android::init_with_env(env, context)` from the instrumentation `Context`, and trusts the per-run test CA through a generated `network_security_config` trust anchor, without extra PEM roots. New targets `android-app` (debug APK) and `android-app-release` (minified release APK with the documented ProGuard keep rule) run `tls` (platform-verifier trust and rejection of an untrusted second CA), `connect-negotiate` and `invoke` on the emulator through `am instrument`, with the same bounds and diagnostics as other cells.",
+          "verification": "automated"
+        },
+        {
+          "id": "R10.C3",
+          "descriptionMarkdown": "The Android documentation (`docs/09-platforms.md`) matches the working test app (the Gradle repository and version wiring, the ProGuard rule and the initialization call are copied from it), and the limitations chapter (`docs/12-limitations.md`) no longer lists the Android platform verifier or `aws-lc-rs` as unproven.",
+          "verification": "manual"
+        }
+      ]
+    },
+    {
+      "id": "R11",
+      "title": "CI, documentation and completion",
+      "descriptionMarkdown": "Run everything in CI and document the finished client.",
+      "criteria": [
+        {
+          "id": "R11.C1",
+          "descriptionMarkdown": "Workflows run every new dimension through Aspire: the e2e jobs select `RAYX_SIGNALR_E2E_TRANSPORTS=all`; `e2e / android-app` (emulator runner, debug and release APKs); `e2e / tls-aws-lc (<target>)` for native (ubuntu, windows, macos), Android and iOS; `e2e / soak` on `schedule` (nightly) and `workflow_dispatch` with 900 s; `perf / compare` on `workflow_dispatch` and `schedule` with `RAYX_SIGNALR_PERF_SCALE=full`, uploading `artifacts-temp/perf` as an artifact (not failure-only, 30-day retention, still no secrets). The typed-error scenario runs in every e2e job; delivered stretch features run too: SOCKS5 and PAC scenarios with the proxy scenarios, `e2e / os-proxy (windows, macos)` on ephemeral runners with `RAYX_SIGNALR_E2E_ALLOW_SYSTEM_CHANGES=1`, HTTP/2 scenarios in the native and Android jobs, and HTTP/3 scenarios on ubuntu (with `libmsquic`) and windows. `WorkflowContract` asserts every new job, its platform and its selection inside its own job block and keeps the existing governance (least privilege, no publishing, pinned actions).",
+          "verification": "automated"
+        },
+        {
+          "id": "R11.C2",
+          "descriptionMarkdown": "A GitHub Actions run of every workflow on the epic branch is green, including all transports on every e2e target, `e2e / android-app`, the aws-lc-rs jobs, a dispatched `e2e / soak` (900 s) and a dispatched `perf / compare` whose report meets R2.C4; the run URLs are recorded in the final review.",
+          "verification": "manual"
+        },
+        {
+          "id": "R11.C3",
+          "descriptionMarkdown": "The documentation (`docs/` chapters, README overview) covers error handling (the `Error`/`ErrorKind` model and the migration from `String` errors), transports and fallback, proxies (including the delivered SOCKS5, PAC and OS-settings support), HTTP versions (delivered HTTP/2 and HTTP/3 support and what browsers do), the access-token factory, browser authentication, `with_connect_timeout`, suspension handling and the measured performance (the `perf / compare` report summary with its environment); the limitations chapter (`docs/12-limitations.md`) lists only the residual risks that remain (with the proven ones removed); the testing chapter (`docs/14-testing.md`) and, if it still exists, the RayX.SignalR skill's validation list name the new categories and selectors; memory records the new behavior and decisions.",
+          "verification": "manual"
+        }
+      ]
+    },
+    {
+      "id": "R12",
+      "title": "Typed error model (mandatory)",
+      "descriptionMarkdown": "Replace `String` errors in the public API with one structured, matchable error type on both targets.",
+      "criteria": [
+        {
+          "id": "R12.C1",
+          "descriptionMarkdown": "`rayx_signalr::Error` (`#[non_exhaustive]`, `Clone + Send + Sync + 'static`, `std::error::Error` with `source()` chains through `Arc`) and the `Copy` `ErrorKind` returned by `Error::kind()` cover at least: `Configuration` (rejected before I/O, naming the setting), `Negotiate` (HTTP status and a bounded, redacted body excerpt), `Authentication` (401/403 status, or the access-token factory's failure as the source), `Timeout` (which operation - connect, negotiate, handshake, server timeout - and the bound), `Tls`, `Proxy`, `Transport` (which transport, and whether the server allowed reconnecting), `TransportUnavailable` (every attempted transport with its error), `Handshake`, `Protocol` (malformed or unexpected frames), `Serialization` (a payload could not be encoded or decoded into the requested type), `Hub` (the server's invocation or stream error message), `ConnectionClosed` (local disconnect, server close with its optional message, or reconnect attempts exhausted), `Paused` and `Canceled`. Helpers: `Error::status()`, `Error::is_transient()` (true for timeouts, dropped transports, 5xx and 408/429 negotiate answers). `Display` is stable, human-readable and redacted (no tokens, credentials, proxy userinfo or `access_token` values). Unit group `error_model_` covers construction, classification, `Display` redaction, `source()` chains and `is_transient`.",
+          "verification": "automated"
+        },
+        {
+          "id": "R12.C2",
+          "descriptionMarkdown": "Every public fallible API on both targets uses the typed model: `connect`/`connect_with`, `invoke*`, `send*`, stream errors (`error()` returns `Option<&Error>`), `pause`/`resume`, configuration validation, disconnection/reconnection handler information (the reason the connection dropped), and the TLS/Android initialization functions. No public signature contains a `String` error. `tests/public_error_types.rs` asserts the signatures at compile time (function-pointer and trait-bound assertions for every public fallible item), and the wasm build compiles the same public surface.",
+          "verification": "automated"
+        },
+        {
+          "id": "R12.C3",
+          "descriptionMarkdown": "E2e scenario `error-kinds` on every target asserts the kind and structured fields of: a hub method that throws (`Hub` with the server message), an unauthenticated connect (`Authentication`, 401), an unknown hub path (`Negotiate`, 404), the hanging negotiate with a 2 s bound (`Timeout` naming negotiate), a payload that cannot be deserialized into the requested type (`Serialization`), invoking after `disconnect` (`ConnectionClosed`), invoking while paused (`Paused`), a server close with an error message (`ConnectionClosed` carrying it), and natively an untrusted certificate (`Tls`); no `Display` output contains the test token. Existing scenarios and unit tests that matched error strings are migrated to kinds in the same sprint.",
+          "verification": "automated"
+        },
+        {
+          "id": "R12.C4",
+          "descriptionMarkdown": "The documentation (`docs/` chapters, README overview) covers error handling with matching examples and a migration section from `String` errors; `Cargo.toml` moves to the next major version; the documentation of every public fallible item names its error kinds.",
+          "verification": "manual"
+        }
+      ]
+    },
+    {
+      "id": "R13",
+      "title": "SOCKS5, proxy auto-config and OS proxy settings (stretch)",
+      "descriptionMarkdown": "Extend native proxy support beyond HTTP CONNECT, if feasible (see the stretch rule in the scope).",
+      "criteria": [
+        {
+          "id": "R13.C1",
+          "descriptionMarkdown": "`with_proxy` and the proxy environment variables accept `socks5://` (local DNS) and `socks5h://` (proxy-side DNS) URLs with optional username/password authentication (RFC 1929); IPv4, IPv6 and domain addresses; every native connection (negotiate and all transports) tunnels through SOCKS5 with TLS inside the tunnel; failures are `ErrorKind::Proxy` with the SOCKS reply code and never contain credentials. Unit group `socks_` (handshake bytes, auth, reply codes, truncated replies); scenario `proxy-socks` (the Aspire test proxy gains a SOCKS5 listener with a counter and required credentials) on native and Android.",
+          "verification": "automated"
+        },
+        {
+          "id": "R13.C2",
+          "descriptionMarkdown": "Behind the non-default `proxy-pac` feature (pure-Rust JavaScript engine, no C toolchain), `with_proxy_auto_config(url)` loads a PAC script (`http`, `https` or `file`) once per connect under the connect timeout, evaluates `FindProxyForURL(url, host)` with the standard helper functions (`isPlainHostName`, `dnsDomainIs`, `localHostOrDomainIs`, `isResolvable`, `isInNet`, `dnsResolve`, `myIpAddress`, `dnsDomainLevels`, `shExpMatch`, `weekdayRange`, `dateRange`, `timeRange`) under a bounded evaluation time, and tries the returned `PROXY`/`HTTPS`/`SOCKS`/`SOCKS5`/`DIRECT` entries in order. Script load or evaluation failures are `ErrorKind::Proxy`. Unit group `pac_`; scenario `proxy-pac` (the test proxy serves PAC scripts that select HTTP, SOCKS5 and DIRECT per host) on native and Android.",
+          "verification": "automated"
+        },
+        {
+          "id": "R13.C3",
+          "descriptionMarkdown": "`with_os_proxy()` resolves the proxy per URL from the operating system: Windows through WinHTTP (current-user settings including auto-detect and PAC), macOS and iOS through CFNetwork (system settings including PAC), Android through `java.net.ProxySelector` via JNI (initialized with the same Android initialization as the platform verifier), and Linux through the proxy environment variables. Unit group `os_proxy_` with injected platform readers; scenario `os-proxy` on `android-app` (emulator global proxy set and restored by the runner) and, in CI only, on ephemeral Windows and macOS runners that opt in to system changes.",
+          "verification": "automated"
+        }
+      ]
+    },
+    {
+      "id": "R14",
+      "title": "HTTP/2 (stretch)",
+      "descriptionMarkdown": "Use HTTP/2 natively where the server supports it, if feasible.",
+      "criteria": [
+        {
+          "id": "R14.C1",
+          "descriptionMarkdown": "Native `with_http_version(HttpVersion)`: `Http1` (default, unchanged behavior), `Auto` (TLS offers ALPN `h2, http/1.1` and uses HTTP/2 when negotiated; plaintext stays HTTP/1.1) and `Http2` (HTTP/2 only; plaintext uses h2c prior knowledge; fails with `ErrorKind::Transport` when unavailable). Over HTTP/2, negotiate, Long Polling and Server-Sent Events of one logical connection share one multiplexed connection, and WebSockets use RFC 8441 extended CONNECT when the server enables it (otherwise a separate HTTP/1.1 connection in `Auto`, an error in `Http2`). Works inside CONNECT and SOCKS5 tunnels. Unit group `http2_`.",
+          "verification": "automated"
+        },
+        {
+          "id": "R14.C2",
+          "descriptionMarkdown": "The test service gains an HTTPS endpoint with HTTP/1.1 and HTTP/2 and an h2c endpoint, and records each request's protocol. Scenario `http2` proves negotiate and all three transports over HTTP/2 (WebSockets through extended CONNECT) for JSON and MessagePack (Server-Sent Events JSON only), plus `Auto` falling back to HTTP/1.1 against an HTTP/1.1-only endpoint, on native and Android.",
+          "verification": "automated"
+        }
+      ]
+    },
+    {
+      "id": "R15",
+      "title": "HTTP/3 (stretch)",
+      "descriptionMarkdown": "Offer HTTP/3 natively as an experimental option, if feasible.",
+      "criteria": [
+        {
+          "id": "R15.C1",
+          "descriptionMarkdown": "Behind the non-default `http3` feature (QUIC with the connection's own rustls configuration and explicit provider), `HttpVersion::Http3` carries negotiate, Long Polling and Server-Sent Events over HTTP/3, and WebSockets over RFC 9220 only if the server supports it (verified first; otherwise WebSockets is unavailable over HTTP/3 and transport selection skips it with a recorded reason). `HttpVersion::Http3Preferred` falls back to TCP (HTTP/2 or HTTP/1.1) within the connect timeout when QUIC cannot be established (for example UDP blocked). Unit group `http3_`.",
+          "verification": "automated"
+        },
+        {
+          "id": "R15.C2",
+          "descriptionMarkdown": "The test service gains a Kestrel HTTP/3 endpoint (where the host supports it) and records the request protocol. Scenario `http3` proves negotiate and the available transports over HTTP/3, and `Http3Preferred` falling back to TCP against an endpoint without HTTP/3, on native (Windows 11 and Linux with `libmsquic`) and Android; macOS and iOS hosts are catalog exclusions with the recorded Kestrel limitation.",
+          "verification": "automated"
+        }
+      ]
+    }
+  ]
+}
