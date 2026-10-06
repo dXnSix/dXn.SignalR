@@ -154,6 +154,7 @@ where
 /// that outlives the bound, which can only happen when the runtime thread itself is blocked (the
 /// bound is a Tokio timer), and ends the process so the cell fails with that diagnosis.
 pub async fn bounded<F: Future<Output = ()>>(name: &str, scenario: F) {
+    raise_scenario_thread_priority();
     let finished = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let watched = finished.clone();
     let label = name.to_string();
@@ -171,6 +172,27 @@ pub async fn bounded<F: Future<Output = ()>>(name: &str, scenario: F) {
     finished.store(true, std::sync::atomic::Ordering::Release);
     result.unwrap_or_else(|_| panic!("{name} exceeded {SCENARIO_TIMEOUT:?}"));
 }
+
+/// On the iOS simulator the scenario binary is launched with `xcrun simctl spawn`, not as a
+/// foreground app, and the system throttles and coalesces its wakeups; the scenario thread (which
+/// runs the whole current-thread runtime) asks for the user-interactive class a foreground app's
+/// networking would have.
+#[cfg(target_os = "ios")]
+fn raise_scenario_thread_priority() {
+    /// `QOS_CLASS_USER_INTERACTIVE` from `<sys/qos.h>`.
+    const QOS_CLASS_USER_INTERACTIVE: u32 = 0x21;
+    extern "C" {
+        fn pthread_set_qos_class_self_np(qos_class: u32, relative_priority: i32) -> i32;
+    }
+    // SAFETY: the call only changes the calling thread's scheduling class.
+    let status = unsafe { pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0) };
+    if status != 0 {
+        eprintln!("cannot raise the scenario thread's QoS class: error {status}");
+    }
+}
+
+#[cfg(not(target_os = "ios"))]
+fn raise_scenario_thread_priority() {}
 
 /// Polls `probe` until it returns `Some`, failing with `what` after `limit`.
 pub async fn eventually<T, F, Fut>(what: &str, limit: Duration, mut probe: F) -> T
