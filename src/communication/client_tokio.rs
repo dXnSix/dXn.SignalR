@@ -1,6 +1,7 @@
 use std::{
     str::FromStr,
     sync::{Arc, Mutex as StdMutex, RwLock, Weak},
+    time::Duration,
 };
 
 use crate::{
@@ -15,6 +16,7 @@ use crate::{
 };
 
 use super::{
+    liveness::{parse_handshake_response, ping_frame, LivenessConfig, LivenessTracker},
     reconnection::{LifecycleState, ReconnectCoordinator, ReconnectionConfig},
     stateful::{SerializedFrame, StatefulMessageBuffer, TrackResult},
     Communication, HttpClient,
@@ -41,6 +43,99 @@ type SocketStream = SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>;
 
 /// Frames waiting for the writer task; bounded so callers feel backpressure.
 const OUTBOUND_CAPACITY: usize = 64;
+
+/// An open physical WebSocket after its handshake or stateful resume.
+struct OpenSocket {
+    sink: SocketSink,
+    stream: SocketStream,
+    /// Hub messages the server sent in the handshake frame; processed before the stream.
+    pending: Option<Message>,
+}
+
+impl OpenSocket {
+    fn new(sink: SocketSink, stream: SocketStream) -> Self {
+        Self {
+            sink,
+            stream,
+            pending: None,
+        }
+    }
+}
+
+/// One physical connection's liveness state, shared by its writer (keep-alive Pings) and its
+/// receiver (server timeout), on a millisecond clock that starts when the connection starts.
+#[derive(Clone)]
+struct ConnectionLiveness {
+    started: tokio::time::Instant,
+    tracker: Arc<StdMutex<LivenessTracker>>,
+}
+
+impl ConnectionLiveness {
+    fn new(config: &LivenessConfig) -> Self {
+        Self {
+            started: tokio::time::Instant::now(),
+            tracker: Arc::new(StdMutex::new(LivenessTracker::new(config, 0))),
+        }
+    }
+
+    fn now(&self) -> u64 {
+        self.started.elapsed().as_millis() as u64
+    }
+
+    fn instant(&self, at: u64) -> tokio::time::Instant {
+        self.started + Duration::from_millis(at)
+    }
+
+    fn tracker(&self) -> std::sync::MutexGuard<'_, LivenessTracker> {
+        self.tracker.lock().expect("liveness tracker poisoned")
+    }
+
+    fn sent(&self) {
+        let now = self.now();
+        self.tracker().on_sent(now);
+    }
+
+    fn received(&self) {
+        let now = self.now();
+        self.tracker().on_received(now);
+    }
+
+    /// When the writer must send a Ping unless another frame goes out first.
+    fn ping_deadline(&self) -> tokio::time::Instant {
+        self.instant(self.tracker().ping_deadline())
+    }
+
+    /// When the receiver treats the transport as dropped unless a frame arrives first.
+    fn timeout_deadline(&self) -> tokio::time::Instant {
+        self.instant(self.tracker().timeout_deadline())
+    }
+}
+
+/// One frame read while waiting for the handshake response.
+enum HandshakeFrame {
+    /// A WebSocket Ping or Pong (from the server or a proxy): keep waiting.
+    Skip,
+    /// The socket closed before the server answered.
+    Closed,
+    /// A data frame, which must hold the handshake response.
+    Response(Message),
+}
+
+/// Classifies a frame read during the handshake; `None` is the end of the stream.
+fn classify_handshake_frame(frame: Option<Message>) -> HandshakeFrame {
+    match frame {
+        Some(frame) if frame.is_ping() || frame.is_pong() => HandshakeFrame::Skip,
+        Some(frame) if frame.is_text() || frame.is_binary() => HandshakeFrame::Response(frame),
+        _ => HandshakeFrame::Closed,
+    }
+}
+
+/// What woke the writer task.
+enum WriterEvent {
+    Control(Option<Message>),
+    Data(Option<OutboundFrame>),
+    PingDue,
+}
 
 /// One outbound application frame and the channel its sender awaits.
 struct OutboundFrame {
@@ -165,7 +260,7 @@ impl ReconnectionContext {
         };
 
         match connection {
-            Ok((write, read)) => {
+            Ok(socket) => {
                 let mut guard = state.lock().await;
 
                 if !self.coordinator.complete(generation) {
@@ -186,8 +281,7 @@ impl ReconnectionContext {
                 };
 
                 let connection = CommunicationConnection::start(
-                    write,
-                    read,
+                    socket,
                     self.actions.clone(),
                     new_handler,
                     self.protocol_kind,
@@ -279,8 +373,7 @@ struct CommunicationConnection {
 impl CommunicationConnection {
     /// Spawns the writer and receiver tasks on the connection's runtime.
     fn start(
-        sink: SocketSink,
-        stream: SocketStream,
+        socket: OpenSocket,
         storage: impl Storage + Send + 'static,
         disconnection_handler: ClientDisconnectionHandler,
         protocol_kind: HubProtocolKind,
@@ -290,6 +383,11 @@ impl CommunicationConnection {
             .recipe
             .runtime()
             .unwrap_or_else(Handle::current);
+        // The clock starts on the connection's runtime, which also runs both tasks' timers.
+        let liveness = {
+            let _runtime = runtime.enter();
+            ConnectionLiveness::new(&disconnection_handler.recipe.liveness())
+        };
         let (control, control_receiver) = mpsc::unbounded();
         let (data, data_receiver) = mpsc::channel(OUTBOUND_CAPACITY);
         let writer = ConnectionWriter { control, data };
@@ -302,13 +400,17 @@ impl CommunicationConnection {
             (buffer, generation)
         });
         let writer_task = runtime.spawn(Self::run_writer(
-            sink,
+            socket.sink,
             control_receiver,
             data_receiver,
             tracking,
+            ping_frame(protocol_kind),
+            liveness.clone(),
         ));
         let receiver = runtime.spawn(Self::run_receiver(
-            stream,
+            socket.stream,
+            socket.pending,
+            liveness,
             storage,
             disconnection_handler,
             protocol_kind,
@@ -323,35 +425,58 @@ impl CommunicationConnection {
     }
 
     /// Owns the sink: sends control frames first, applies stateful tracking and backpressure to
-    /// application frames, and closes the socket once every sender is gone.
+    /// application frames, sends a keep-alive Ping (never tracked for replay) whenever nothing
+    /// went out for the keep-alive interval, and closes the socket once every sender is gone.
     async fn run_writer(
         mut sink: SocketSink,
         mut control: mpsc::UnboundedReceiver<Message>,
         mut data: mpsc::Receiver<OutboundFrame>,
         stateful: Option<(SharedStatefulBuffer, u64)>,
+        ping: SerializedFrame,
+        liveness: ConnectionLiveness,
     ) {
         loop {
-            match futures::future::select(control.next(), data.next()).await {
-                Either::Left((Some(message), _)) => {
+            let event = {
+                let ping_due = std::pin::pin!(tokio::time::sleep_until(liveness.ping_deadline()));
+                let messages = futures::future::select(control.next(), data.next());
+                match futures::future::select(messages, ping_due).await {
+                    Either::Left((Either::Left((message, _)), _)) => WriterEvent::Control(message),
+                    Either::Left((Either::Right((frame, _)), _)) => WriterEvent::Data(frame),
+                    Either::Right(_) => WriterEvent::PingDue,
+                }
+            };
+            match event {
+                WriterEvent::Control(Some(message)) => {
                     if sink.send(message).await.is_err() {
                         break;
                     }
+                    liveness.sent();
                 }
-                Either::Right((Some(frame), _)) => {
+                WriterEvent::Data(Some(frame)) => {
                     let (result, socket_failed) = Self::write_frame(
                         &mut sink,
                         &mut control,
                         stateful.as_ref(),
+                        (&ping, &liveness),
                         frame.message,
                         frame.tracking,
                     )
                     .await;
+                    if result.is_ok() {
+                        liveness.sent();
+                    }
                     let _ = frame.done.send(result);
                     if socket_failed {
                         break;
                     }
                 }
-                Either::Left((None, _)) | Either::Right((None, _)) => break,
+                WriterEvent::PingDue => {
+                    if sink.send(Self::ping_message(&ping)).await.is_err() {
+                        break;
+                    }
+                    liveness.sent();
+                }
+                WriterEvent::Control(None) | WriterEvent::Data(None) => break,
             }
         }
         let _ = sink.close().await;
@@ -364,6 +489,7 @@ impl CommunicationConnection {
         sink: &mut SocketSink,
         control: &mut mpsc::UnboundedReceiver<Message>,
         stateful: Option<&(SharedStatefulBuffer, u64)>,
+        (ping, liveness): (&SerializedFrame, &ConnectionLiveness),
         message: Message,
         tracking: Option<(MessageType, SerializedFrame)>,
     ) -> (Result<(), String>, bool) {
@@ -382,11 +508,19 @@ impl CommunicationConnection {
                     }
                     Ok(TrackResult::Bypass) => break,
                     Ok(TrackResult::Backpressured) => {
-                        // Keep acknowledging inbound frames while the replay buffer is full.
+                        // Keep acknowledging inbound frames, and keep the connection alive, while
+                        // the replay buffer is full.
                         while let Ok(ack) = control.try_recv() {
                             if let Err(error) = sink.send(ack).await {
                                 return (Err(error.to_string()), true);
                             }
+                            liveness.sent();
+                        }
+                        if tokio::time::Instant::now() >= liveness.ping_deadline() {
+                            if let Err(error) = sink.send(Self::ping_message(ping)).await {
+                                return (Err(error.to_string()), true);
+                            }
+                            liveness.sent();
                         }
                         tokio::time::sleep(std::time::Duration::from_millis(5)).await;
                     }
@@ -402,8 +536,21 @@ impl CommunicationConnection {
         }
     }
 
+    fn ping_message(ping: &SerializedFrame) -> Message {
+        match ping {
+            SerializedFrame::Text(text) => Message::text(text.clone()),
+            #[cfg(feature = "messagepack")]
+            SerializedFrame::Binary(bytes) => Message::binary(bytes.clone()),
+        }
+    }
+
+    /// Dispatches inbound frames (first any hub messages from the handshake frame). Silence for
+    /// the server timeout is a dropped transport: the reconnect path runs as for a socket error.
+    #[allow(clippy::too_many_arguments)]
     async fn run_receiver(
         mut stream: SocketStream,
+        mut pending: Option<Message>,
+        liveness: ConnectionLiveness,
         mut storage: impl Storage + Send + 'static,
         disconnection_handler: ClientDisconnectionHandler,
         protocol_kind: HubProtocolKind,
@@ -412,7 +559,26 @@ impl CommunicationConnection {
     ) {
         {
             let mut allow_reconnect = true;
-            'receive: while let Some(item) = stream.next().await {
+            'receive: loop {
+                let item = match pending.take() {
+                    Some(message) => Ok(message),
+                    None => {
+                        match tokio::time::timeout_at(liveness.timeout_deadline(), stream.next())
+                            .await
+                        {
+                            Ok(Some(item)) => item,
+                            Ok(None) => break 'receive,
+                            Err(_) => {
+                                error!(
+                                    "No message from the server within the server timeout; \
+                                     the connection is considered lost"
+                                );
+                                break 'receive;
+                            }
+                        }
+                    }
+                };
+                liveness.received();
                 match item {
                     Ok(ws_message) => match protocol_kind {
                         HubProtocolKind::Json => {
@@ -888,13 +1054,7 @@ impl CommunicationClient {
         protocol_kind: HubProtocolKind,
         stateful_reconnect: bool,
         recipe: &ConnectionRecipe,
-    ) -> Result<
-        (
-            SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
-            SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
-        ),
-        String,
-    > {
+    ) -> Result<OpenSocket, String> {
         let ws = Self::connect_socket(endpoint, recipe).await?;
         let (mut write, mut read) = ws.split();
 
@@ -914,11 +1074,48 @@ impl CommunicationClient {
             .send(Message::text(message))
             .await
             .map_err(|error| error.to_string())?;
-        match read.next().await {
-            Some(Ok(_)) => Ok((write, read)),
-            Some(Err(error)) => Err(error.to_string()),
-            None => Err("Handshake error".to_string()),
-        }
+        let timeout = recipe.liveness().handshake_timeout;
+        let response = tokio::time::timeout(timeout, async {
+            loop {
+                let frame = match read.next().await {
+                    None => None,
+                    Some(Err(error)) => return Err(format!("SignalR handshake failed: {error}")),
+                    Some(Ok(frame)) => Some(frame),
+                };
+                match classify_handshake_frame(frame) {
+                    HandshakeFrame::Skip => continue,
+                    HandshakeFrame::Closed => {
+                        return Err(
+                            "SignalR handshake failed: the connection closed before the server \
+                             answered"
+                                .to_string(),
+                        )
+                    }
+                    HandshakeFrame::Response(response) => return Ok(response),
+                }
+            }
+        })
+        .await
+        .map_err(|_| {
+            format!("SignalR handshake timed out: the server did not answer within {timeout:?}")
+        })??;
+        // The response is JSON, in a binary frame when the hub protocol is MessagePack; hub
+        // messages after it in the same frame are kept for the receiver.
+        let remainder = parse_handshake_response(response.as_payload())?;
+        let pending = if remainder.is_empty() {
+            None
+        } else if response.is_text() {
+            let text = std::str::from_utf8(remainder)
+                .map_err(|_| "SignalR handshake failed: invalid UTF-8 after the response")?;
+            Some(Message::text(text.to_string()))
+        } else {
+            Some(Message::binary(remainder.to_vec()))
+        };
+        Ok(OpenSocket {
+            sink: write,
+            stream: read,
+            pending,
+        })
     }
 
     async fn connect_socket(
@@ -960,13 +1157,7 @@ impl CommunicationClient {
         protocol_kind: HubProtocolKind,
         buffer: SharedStatefulBuffer,
         recipe: &ConnectionRecipe,
-    ) -> Result<
-        (
-            SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
-            SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
-        ),
-        String,
-    > {
+    ) -> Result<OpenSocket, String> {
         let ws = Self::connect_socket(endpoint, recipe).await?;
         let (mut write, read) = ws.split();
         let (sequence_id, frames) = buffer
@@ -1019,19 +1210,13 @@ impl CommunicationClient {
             .expect("stateful buffer poisoned")
             .finish_resend()?;
         resend_result?;
-        Ok((write, read))
+        Ok(OpenSocket::new(write, read))
     }
 
     async fn connect_fresh(
         recipe: &ConnectionRecipe,
         protocol_kind: HubProtocolKind,
-    ) -> Result<
-        (
-            SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
-            SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
-        ),
-        String,
-    > {
+    ) -> Result<OpenSocket, String> {
         let configuration = HttpClient::negotiate(recipe).await?;
         let endpoint = Uri::from_str(&configuration.get_endpoint())
             .map_err(|error| format!("Negotiated WebSocket endpoint is invalid: {error}"))?;
@@ -1049,7 +1234,7 @@ impl CommunicationClient {
         .await;
 
         match res {
-            Ok((write, read)) => {
+            Ok(socket) => {
                 let handler = ClientDisconnectionHandler {
                     state: Arc::downgrade(&self._state),
                     endpoint: Uri::from_str(&self._recipe.socket_url())
@@ -1065,8 +1250,7 @@ impl CommunicationClient {
                 };
 
                 let connection = CommunicationConnection::start(
-                    write,
-                    read,
+                    socket,
                     self._actions.clone(),
                     handler,
                     self._protocol_kind,
@@ -1291,7 +1475,7 @@ impl CommunicationDisconnectionHandler for ClientDisconnectionHandler {
                     };
 
                     match connection {
-                        Ok((write, read)) => {
+                        Ok(socket) => {
                             if let Some(s) = state.upgrade() {
                                 let mut guard = s.lock().await;
                                 if !coordinator.complete(generation) {
@@ -1312,8 +1496,7 @@ impl CommunicationDisconnectionHandler for ClientDisconnectionHandler {
                                 };
 
                                 let connection = CommunicationConnection::start(
-                                    write,
-                                    read,
+                                    socket,
                                     actions.clone(),
                                     new_handler,
                                     protocol_kind,
@@ -1348,5 +1531,44 @@ impl CommunicationDisconnectionHandler for ClientDisconnectionHandler {
                 }
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod liveness_handshake_frames {
+    use tokio_websockets::Message;
+
+    use super::{classify_handshake_frame, HandshakeFrame};
+
+    #[test]
+    fn liveness_handshake_skips_websocket_control_frames() {
+        assert!(matches!(
+            classify_handshake_frame(Some(Message::ping("probe"))),
+            HandshakeFrame::Skip
+        ));
+        assert!(matches!(
+            classify_handshake_frame(Some(Message::pong("probe"))),
+            HandshakeFrame::Skip
+        ));
+    }
+
+    #[test]
+    fn liveness_handshake_reports_a_close_before_the_response() {
+        assert!(matches!(
+            classify_handshake_frame(Some(Message::close(None, ""))),
+            HandshakeFrame::Closed
+        ));
+        assert!(matches!(
+            classify_handshake_frame(None),
+            HandshakeFrame::Closed
+        ));
+        assert!(matches!(
+            classify_handshake_frame(Some(Message::text("{}".to_string()))),
+            HandshakeFrame::Response(_)
+        ));
+        assert!(matches!(
+            classify_handshake_frame(Some(Message::binary(vec![0x7b, 0x7d, 0x1e]))),
+            HandshakeFrame::Response(_)
+        ));
     }
 }

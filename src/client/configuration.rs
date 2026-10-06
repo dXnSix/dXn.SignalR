@@ -1,4 +1,7 @@
+use std::time::Duration;
+
 use crate::client::DisconnectionHandler;
+use crate::communication::liveness::LivenessConfig;
 use crate::communication::reconnection::ReconnectionConfig;
 use crate::protocol::hub_protocol::HubProtocolKind;
 use crate::StatefulReconnectConfig;
@@ -35,6 +38,7 @@ pub struct ConnectionConfiguration {
     _protocol: HubProtocolKind,
     _stateful_reconnect: Option<StatefulReconnectConfig>,
     _skip_negotiation: bool,
+    _liveness: LivenessConfig,
     #[cfg(not(target_arch = "wasm32"))]
     _tls: crate::communication::tls::TlsSettings,
     #[cfg(not(target_arch = "wasm32"))]
@@ -72,6 +76,7 @@ pub(crate) struct ConnectionRecipe {
     protocol: HubProtocolKind,
     stateful_reconnect: Option<StatefulReconnectConfig>,
     skip_negotiation: bool,
+    liveness: LivenessConfig,
     /// Credentials for the transport when negotiation replaced them (a redirect access token).
     transport_authentication: Option<Authentication>,
     #[cfg(not(target_arch = "wasm32"))]
@@ -95,6 +100,10 @@ impl ConnectionRecipe {
 
     pub(crate) fn skips_negotiation(&self) -> bool {
         self.skip_negotiation
+    }
+
+    pub(crate) fn liveness(&self) -> LivenessConfig {
+        self.liveness
     }
 
     pub(crate) fn with_transport_authentication(mut self, authentication: Authentication) -> Self {
@@ -199,6 +208,7 @@ impl ConnectionConfiguration {
             _protocol: HubProtocolKind::default(),
             _stateful_reconnect: None,
             _skip_negotiation: false,
+            _liveness: LivenessConfig::default(),
             #[cfg(not(target_arch = "wasm32"))]
             _tls: Default::default(),
             #[cfg(not(target_arch = "wasm32"))]
@@ -410,6 +420,30 @@ impl ConnectionConfiguration {
         self
     }
 
+    /// Sends a Ping after this long without outbound messages, so the server (whose
+    /// `ClientTimeoutInterval` defaults to 30 s) keeps the connection. Defaults to 15 s.
+    /// Must be greater than zero and less than the server timeout, or `connect` fails before I/O.
+    pub fn with_keep_alive_interval(&mut self, interval: Duration) -> &ConnectionConfiguration {
+        self._liveness.keep_alive_interval = interval;
+        self
+    }
+
+    /// Treats the transport as dropped after this long without any inbound message (the server
+    /// pings every `KeepAliveInterval`, 15 s by default); the reconnect path then runs as for any
+    /// dropped transport. Defaults to 30 s. Must be greater than the keep-alive interval, or
+    /// `connect` fails before I/O.
+    pub fn with_server_timeout(&mut self, timeout: Duration) -> &ConnectionConfiguration {
+        self._liveness.server_timeout = timeout;
+        self
+    }
+
+    /// Fails `connect` (and ends a reconnect attempt) when the server does not answer the
+    /// handshake within this time. Defaults to 15 s. Must be greater than zero.
+    pub fn with_handshake_timeout(&mut self, timeout: Duration) -> &ConnectionConfiguration {
+        self._liveness.handshake_timeout = timeout;
+        self
+    }
+
     /// Enables ASP.NET Core stateful reconnect for this connection.
     pub fn with_stateful_reconnect(
         &mut self,
@@ -437,12 +471,17 @@ impl ConnectionConfiguration {
             protocol: self._protocol,
             stateful_reconnect: self._stateful_reconnect,
             skip_negotiation: self._skip_negotiation,
+            liveness: self._liveness,
             transport_authentication: None,
             #[cfg(not(target_arch = "wasm32"))]
             tls: Default::default(),
             #[cfg(not(target_arch = "wasm32"))]
             runtime: None,
         }
+    }
+
+    pub(crate) fn liveness(&self) -> LivenessConfig {
+        self._liveness
     }
 
     #[cfg(not(target_arch = "wasm32"))]

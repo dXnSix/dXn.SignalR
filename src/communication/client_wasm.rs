@@ -27,7 +27,7 @@ use crate::{
     protocol::{
         hub_protocol::{HubProtocolKind, MessagePayload},
         messages::{MessageParser, RECORD_SEPARATOR},
-        negotiate::{HandshakeRequest, HandshakeResponse, MessageType, Ping},
+        negotiate::{HandshakeRequest, MessageType, Ping},
         stateful::{Ack, Sequence},
     },
 };
@@ -35,6 +35,9 @@ use crate::{
 use super::{
     browser_socket::{BrowserSocket, SocketEvent},
     common::Communication,
+    liveness::{
+        parse_handshake_response, ping_frame, LivenessAction, LivenessConfig, LivenessTracker,
+    },
     reconnection::ReconnectionConfig,
     stateful::{SerializedFrame, StatefulMessageBuffer, TrackResult},
     HttpClient,
@@ -50,15 +53,73 @@ enum Frame {
     Binary(Vec<u8>),
 }
 
-fn send(socket: &BrowserSocket, frame: &Frame) -> Result<(), String> {
-    match frame {
-        Frame::Text(text) => socket.send_text(text),
-        Frame::Binary(bytes) => socket.send_binary(bytes),
+impl From<SerializedFrame> for Frame {
+    fn from(frame: SerializedFrame) -> Self {
+        match frame {
+            SerializedFrame::Text(text) => Frame::Text(text),
+            #[cfg(feature = "messagepack")]
+            SerializedFrame::Binary(bytes) => Frame::Binary(bytes),
+        }
     }
+}
+
+/// Milliseconds on the monotonic `performance.now()` clock, available in windows and workers
+/// alike; liveness deadlines must not move when the wall clock is adjusted.
+fn now_ms() -> u64 {
+    let now = js_sys::Reflect::get(&js_sys::global(), &"performance".into())
+        .ok()
+        .and_then(|performance| {
+            let now = js_sys::Reflect::get(&performance, &"now".into()).ok()?;
+            wasm_bindgen::JsCast::dyn_into::<js_sys::Function>(now)
+                .ok()?
+                .call0(&performance)
+                .ok()?
+                .as_f64()
+        })
+        .unwrap_or_else(js_sys::Date::now);
+    now.max(0.0) as u64
+}
+
+/// A connected browser socket and its liveness tracker: every frame sent through it postpones
+/// the next keep-alive Ping, and its receiver task records every frame received.
+struct LiveSocket {
+    socket: BrowserSocket,
+    liveness: RefCell<LivenessTracker>,
+}
+
+impl LiveSocket {
+    fn new(socket: BrowserSocket, config: &LivenessConfig) -> Self {
+        Self {
+            socket,
+            liveness: RefCell::new(LivenessTracker::new(config, now_ms())),
+        }
+    }
+
+    fn send(&self, frame: &Frame) -> Result<(), String> {
+        let result = match frame {
+            Frame::Text(text) => self.socket.send_text(text),
+            Frame::Binary(bytes) => self.socket.send_binary(bytes),
+        };
+        if result.is_ok() {
+            self.liveness.borrow_mut().on_sent(now_ms());
+        }
+        result
+    }
+
+    fn close(&self) {
+        self.socket.close();
+    }
+}
+
+/// A socket ready to install: its events and any hub messages from the handshake frame.
+struct Opened {
+    socket: Rc<LiveSocket>,
+    events: SocketEvents,
+    pending: Option<Frame>,
 }
 type DisconnectionCallback = dyn Fn(WasmReconnectionContext);
 
-/// How long opening a socket plus the SignalR handshake may take.
+/// How long opening a socket may take (the handshake has its own configurable timeout).
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -71,7 +132,7 @@ enum LifecycleState {
 
 /// The current physical socket.
 struct Socket {
-    socket: Rc<BrowserSocket>,
+    socket: Rc<LiveSocket>,
 }
 
 /// State shared by every clone of a client, its socket tasks and its reconnect contexts.
@@ -199,11 +260,24 @@ impl WasmReconnectionContext {
 async fn connect_current(shared: &Rc<Shared>) -> Result<(), String> {
     let generation = shared.generation.get().wrapping_add(1);
     shared.generation.set(generation);
-    let (socket, events) = if let Some(buffer) = &shared.stateful {
-        resume_socket(&shared.transport_endpoint, shared.protocol_kind, buffer).await?
+    let liveness = shared.recipe.liveness();
+    let opened = if let Some(buffer) = &shared.stateful {
+        resume_socket(
+            &shared.transport_endpoint,
+            shared.protocol_kind,
+            buffer,
+            &liveness,
+        )
+        .await?
     } else {
         let configuration = HttpClient::negotiate(&shared.recipe).await?;
-        open_socket(&configuration.get_endpoint(), shared.protocol_kind, false).await?
+        open_socket(
+            &configuration.get_endpoint(),
+            shared.protocol_kind,
+            false,
+            &liveness,
+        )
+        .await?
     };
 
     if shared.lifecycle.get() == LifecycleState::LocalClosed {
@@ -213,7 +287,7 @@ async fn connect_current(shared: &Rc<Shared>) -> Result<(), String> {
         return Err("Stale reconnect generation was discarded".to_string());
     }
 
-    install(shared, socket, events);
+    install(shared, opened);
     info!("WASM reconnect completed");
     Ok(())
 }
@@ -258,12 +332,15 @@ async fn open(endpoint: &str) -> Result<(BrowserSocket, SocketEvents), String> {
     }
 }
 
-/// Opens a socket and completes the (always JSON) SignalR handshake.
+/// Opens a socket and completes the SignalR handshake within the handshake timeout. The
+/// response is JSON (in a binary frame for MessagePack); hub messages after it in the same frame
+/// are kept for the receiver.
 async fn open_socket(
     endpoint: &str,
     protocol_kind: HubProtocolKind,
     stateful_reconnect: bool,
-) -> Result<(Rc<BrowserSocket>, SocketEvents), String> {
+    liveness: &LivenessConfig,
+) -> Result<Opened, String> {
     let handshake = if stateful_reconnect {
         MessageParser::to_json(&serde_json::json!({
             "protocol": protocol_kind.protocol_name(),
@@ -274,29 +351,39 @@ async fn open_socket(
     }
     .map_err(|error| format!("Cannot serialize handshake: {error}"))?;
 
-    with_timeout("The SignalR handshake", CONNECT_TIMEOUT, async {
-        let (socket, mut events) = open(endpoint).await?;
-        socket.send_text(&handshake)?;
+    let (socket, mut events) =
+        with_timeout("Opening the WebSocket", CONNECT_TIMEOUT, open(endpoint)).await?;
+    socket.send_text(&handshake)?;
+    let response = with_timeout("SignalR handshake", liveness.handshake_timeout, async {
         loop {
-            let text = match events.next().await {
-                Some(SocketEvent::Text(text)) => text,
-                Some(SocketEvent::Binary(bytes)) => String::from_utf8(bytes)
-                    .map_err(|_| "The handshake response is not text".to_string())?,
+            match events.next().await {
+                Some(SocketEvent::Text(text)) => return Ok(Frame::Text(text)),
+                Some(SocketEvent::Binary(bytes)) => return Ok(Frame::Binary(bytes)),
                 Some(SocketEvent::Open) => continue,
-                Some(SocketEvent::Closed) | None => {
-                    return Err("The WebSocket closed during the handshake".to_string())
-                }
-            };
-            let text = MessageParser::strip_record_separator(&text);
-            if text.is_empty() {
-                continue;
+                Some(SocketEvent::Closed) | None => return Err(
+                    "SignalR handshake failed: the connection closed before the server answered"
+                        .to_string(),
+                ),
             }
-            MessageParser::parse_message::<HandshakeResponse>(text)
-                .map_err(|error| format!("SignalR handshake failed: {error}"))?;
-            return Ok((Rc::new(socket), events));
         }
     })
-    .await
+    .await?;
+    let pending = match &response {
+        Frame::Text(text) => {
+            let remainder = parse_handshake_response(text.as_bytes())?;
+            (!remainder.is_empty())
+                .then(|| Frame::Text(String::from_utf8_lossy(remainder).into_owned()))
+        }
+        Frame::Binary(bytes) => {
+            let remainder = parse_handshake_response(bytes)?;
+            (!remainder.is_empty()).then(|| Frame::Binary(remainder.to_vec()))
+        }
+    };
+    Ok(Opened {
+        socket: Rc::new(LiveSocket::new(socket, liveness)),
+        events,
+        pending,
+    })
 }
 
 /// Opens a socket for a stateful resume: Sequence, then the buffered frames, without a handshake.
@@ -304,7 +391,8 @@ async fn resume_socket(
     endpoint: &str,
     protocol_kind: HubProtocolKind,
     buffer: &SharedStatefulBuffer,
-) -> Result<(Rc<BrowserSocket>, SocketEvents), String> {
+    liveness: &LivenessConfig,
+) -> Result<Opened, String> {
     let (socket, events) =
         with_timeout("The stateful resume", CONNECT_TIMEOUT, open(endpoint)).await?;
     let (sequence_id, frames) = buffer.borrow_mut().begin_resend()?;
@@ -322,7 +410,10 @@ async fn resume_socket(
                 )?)
             }
         };
-        send(&socket, &sequence)?;
+        match &sequence {
+            Frame::Text(text) => socket.send_text(text)?,
+            Frame::Binary(bytes) => socket.send_binary(bytes)?,
+        }
         for frame in frames {
             match frame.payload {
                 SerializedFrame::Text(text) => socket.send_text(&text)?,
@@ -334,39 +425,83 @@ async fn resume_socket(
     })();
     buffer.borrow_mut().finish_resend()?;
     resend?;
-    Ok((Rc::new(socket), events))
+    Ok(Opened {
+        socket: Rc::new(LiveSocket::new(socket, liveness)),
+        events,
+        pending: None,
+    })
 }
 
 /// Makes a connected socket current and spawns its receiver task.
-fn install(shared: &Rc<Shared>, socket: Rc<BrowserSocket>, events: SocketEvents) {
+fn install(shared: &Rc<Shared>, opened: Opened) {
     let generation = shared.generation.get();
     spawn_local(run_receiver(
         Rc::downgrade(shared),
         generation,
-        events,
-        socket.clone(),
+        opened.events,
+        opened.socket.clone(),
+        opened.pending,
+        Frame::from(ping_frame(shared.protocol_kind)),
     ));
-    if let Some(previous) = shared.socket.replace(Some(Socket { socket })) {
+    if let Some(previous) = shared.socket.replace(Some(Socket {
+        socket: opened.socket,
+    })) {
         previous.socket.close();
     }
     shared.lifecycle.set(LifecycleState::Connected);
 }
 
-/// Processes frames as they arrive and reports the end of the socket to the lifecycle.
+/// The socket's single task: processes frames as they arrive (first any from the handshake
+/// frame), sends a keep-alive Ping when nothing went out for the keep-alive interval, treats
+/// silence for the server timeout as a dropped transport, and reports the end of the socket to
+/// the lifecycle. Its timer is dropped with the task when the socket ends.
 async fn run_receiver(
     shared: std::rc::Weak<Shared>,
     generation: u64,
     mut events: SocketEvents,
-    socket: Rc<BrowserSocket>,
+    socket: Rc<LiveSocket>,
+    mut pending: Option<Frame>,
+    ping: Frame,
 ) {
     let mut allow_reconnect = true;
-    while let Some(event) = events.next().await {
-        let frame = match event {
-            SocketEvent::Text(text) => Frame::Text(text),
-            SocketEvent::Binary(bytes) => Frame::Binary(bytes),
-            SocketEvent::Open => continue,
-            SocketEvent::Closed => break,
+    loop {
+        let frame = match pending.take() {
+            Some(frame) => frame,
+            None => {
+                let action = socket.liveness.borrow().poll(now_ms());
+                let next_deadline = match action {
+                    LivenessAction::SendPing => {
+                        if socket.send(&ping).is_err() {
+                            break;
+                        }
+                        continue;
+                    }
+                    LivenessAction::TimedOut => {
+                        warn!(
+                            "No message from the server within the server timeout; \
+                             the connection is considered lost"
+                        );
+                        break;
+                    }
+                    LivenessAction::Idle { next_deadline } => next_deadline,
+                };
+                let wait = Duration::from_millis(next_deadline.saturating_sub(now_ms()));
+                let event = {
+                    let timer = std::pin::pin!(sleep(wait));
+                    match select(events.next(), timer).await {
+                        Either::Left((event, _)) => event,
+                        Either::Right(((), _)) => continue,
+                    }
+                };
+                match event {
+                    Some(SocketEvent::Text(text)) => Frame::Text(text),
+                    Some(SocketEvent::Binary(bytes)) => Frame::Binary(bytes),
+                    Some(SocketEvent::Open) => continue,
+                    Some(SocketEvent::Closed) | None => break,
+                }
+            }
         };
+        socket.liveness.borrow_mut().on_received(now_ms());
         let Some(state) = shared.upgrade() else {
             return;
         };
@@ -453,7 +588,7 @@ fn terminal_close(shared: &Rc<Shared>) {
 }
 
 /// Processes one WebSocket frame; returns `Some(allow_reconnect)` when the server closed.
-fn process_frame(shared: &Shared, frame: Frame, socket: &BrowserSocket) -> Option<bool> {
+fn process_frame(shared: &Shared, frame: Frame, socket: &LiveSocket) -> Option<bool> {
     let mut storage = shared.storage.clone();
     let stateful = shared.stateful.as_ref();
     match (shared.protocol_kind, frame) {
@@ -559,7 +694,7 @@ fn stateful_step(
     message_type: MessageType,
     control: Result<(), String>,
     shared: &Shared,
-    socket: &BrowserSocket,
+    socket: &LiveSocket,
 ) -> Step {
     if let Err(error) = control {
         error!("WASM stateful protocol error: {}", error);
@@ -583,8 +718,7 @@ fn stateful_step(
         }
     };
     if let Some(sequence_id) = acknowledgement {
-        let sent =
-            ack_message(shared.protocol_kind, sequence_id).and_then(|ack| send(socket, &ack));
+        let sent = ack_message(shared.protocol_kind, sequence_id).and_then(|ack| socket.send(&ack));
         if let Err(error) = sent {
             error!("Cannot send WASM stateful Ack: {error}");
             return Step::Fail;
@@ -653,10 +787,11 @@ impl Drop for CommunicationClient {
 
 impl Communication for CommunicationClient {
     async fn connect(configuration: &super::ConnectionData) -> Result<Self, String> {
-        let (socket, events) = open_socket(
+        let opened = open_socket(
             &configuration.get_endpoint(),
             configuration.get_protocol_kind(),
             configuration.stateful_reconnect().is_some(),
+            &configuration.get_recipe().liveness(),
         )
         .await?;
         let shared = Rc::new(Shared {
@@ -677,7 +812,7 @@ impl Communication for CommunicationClient {
             attempt_in_progress: Cell::new(false),
             generation: Cell::new(0),
         });
-        install(&shared, socket, events);
+        install(&shared, opened);
         Ok(Self {
             shared,
             owners: Rc::new(Cell::new(1)),
@@ -769,7 +904,7 @@ impl CommunicationClient {
             .as_ref()
             .map(|socket| socket.socket.clone());
         match socket {
-            Some(socket) => send(&socket, &message),
+            Some(socket) => socket.send(&message),
             // A tracked frame is replayed by the stateful resume once a socket is back.
             None if self.shared.stateful.is_some() => Ok(()),
             None => Err("Client is not connected".to_string()),

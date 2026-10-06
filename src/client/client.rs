@@ -295,6 +295,8 @@ impl SignalRClient {
         if let Some(mut ops) = options {
             (ops)(&mut config);
         }
+        // Liveness durations are validated before any I/O.
+        config.liveness().validate()?;
 
         let disconnection_handler = config.get_disconnection_handler();
         let reconnection_config = config.get_reconnection_config();

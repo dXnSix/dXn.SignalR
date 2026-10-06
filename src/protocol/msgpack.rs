@@ -185,7 +185,6 @@ pub fn encode_cancel_invocation(invocation_id: &str) -> Result<Vec<u8>, String> 
 }
 
 /// Encode Ping (type 6). Layout: [6]
-#[allow(dead_code)]
 pub fn encode_ping() -> Vec<u8> {
     // Ping is always exactly: fixarray(1) + fixint(6) = 0x91 0x06
     vec![0x91, 0x06]
