@@ -395,12 +395,8 @@ public sealed class IosCellRunner : ICellRunner
 
     string device = await PrepareAsync(environment.RepositoryRoot, cancellationToken);
     string executable = await E2EBinaryBuilds.BuildAsync(BuildCommand(environment.RepositoryRoot), cancellationToken);
-    await WarmUpAsync(device, executable, environment.RepositoryRoot, cancellationToken);
-    Dictionary<string, string> variables = CellExecution.ScenarioVariables(environment, cell)
-                                                        .ToDictionary(
-                                                          pair => $"SIMCTL_CHILD_{pair.Key}",
-                                                          pair => pair.Value,
-                                                          StringComparer.Ordinal);
+    await WarmUpAsync(device, executable, environment, cell, cancellationToken);
+    Dictionary<string, string> variables = ChildVariables(CellExecution.ScenarioVariables(environment, cell));
     ProcessCommand command = new(
       "xcrun",
       ["simctl", "spawn", device, executable, .. CellExecution.LibtestArguments(cell.Scenario.RustTest(cell.Protocol))],
@@ -422,11 +418,16 @@ public sealed class IosCellRunner : ICellRunner
   }
 
   /// <summary>
-  /// Spawns the binary once with <c>--list</c> outside any cell bound: the first launch on a
-  /// freshly booted simulator can take longer than a whole cell while the simulator prepares the
-  /// executable.
+  /// Prepares the simulator once per binary, outside any cell bound: the binary must start
+  /// (<c>--list</c>), and one short networked scenario runs untimed and unjudged, because the first
+  /// networked launch on a freshly booted simulator can stall for longer than a whole cell.
   /// </summary>
-  static async Task WarmUpAsync(string device, string executable, string repositoryRoot, CancellationToken cancellationToken)
+  static async Task WarmUpAsync(
+    string device,
+    string executable,
+    AspireEnvironment environment,
+    E2ECell cell,
+    CancellationToken cancellationToken)
   {
     await _gate.WaitAsync(cancellationToken);
     try
@@ -437,13 +438,31 @@ public sealed class IosCellRunner : ICellRunner
       }
 
       ProcessResult list = await ProcessRunner.RunAsync(
-        new ProcessCommand("xcrun", ["simctl", "spawn", device, executable, "--list"], repositoryRoot),
+        new ProcessCommand("xcrun", ["simctl", "spawn", device, executable, "--list"], environment.RepositoryRoot),
         TimeSpan.FromMinutes(10),
         cancellationToken);
       if(!list.Succeeded)
       {
         throw new InvalidOperationException(
           $"The e2e binary does not start on the simulator (exit code {list.ExitCode}, timed out: {list.TimedOut}):\n{Redaction.SafeTail(list.CombinedOutput)}");
+      }
+
+      ProcessResult networked = await ProcessRunner.RunAsync(
+        new ProcessCommand(
+          "xcrun",
+          ["simctl", "spawn", device, executable, .. CellExecution.LibtestArguments("connect_negotiate::json")],
+          environment.RepositoryRoot)
+        {
+          Environment = ChildVariables(CellExecution.ScenarioVariables(environment, cell))
+        },
+        TimeSpan.FromMinutes(5),
+        cancellationToken);
+      if(networked.TimedOut)
+      {
+        await ProcessRunner.RunAsync(
+          new ProcessCommand("pkill", ["-f", executable], environment.RepositoryRoot),
+          TimeSpan.FromSeconds(15),
+          CancellationToken.None);
       }
 
       _warmedUp = executable;
@@ -453,6 +472,12 @@ public sealed class IosCellRunner : ICellRunner
       _gate.Release();
     }
   }
+
+  /// <summary>Passes scenario variables to a simulator process through <c>SIMCTL_CHILD_*</c>.</summary>
+  /// <param name="variables">The scenario variables.</param>
+  /// <returns>The prefixed variables.</returns>
+  public static Dictionary<string, string> ChildVariables(IReadOnlyDictionary<string, string> variables) =>
+    variables.ToDictionary(pair => $"SIMCTL_CHILD_{pair.Key}", pair => pair.Value, StringComparer.Ordinal);
 
   /// <summary>Shuts down a simulator this run booted.</summary>
   /// <returns>A task that completes when the simulator is shut down.</returns>
