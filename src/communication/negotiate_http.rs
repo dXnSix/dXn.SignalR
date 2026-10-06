@@ -52,14 +52,39 @@ pub(crate) async fn post(
         .body(Empty::<Bytes>::new())
         .map_err(|_| "Cannot build the negotiate request".to_string())?;
 
-    let tcp = TcpStream::connect((host, port))
-        .await
-        .map_err(|error| format!("Cannot connect to {host}:{port}: {error}"))?;
+    let tcp = connect_tcp(host, port).await?;
     if secure {
         send(tls_stream(tls, host, tcp).await?, request).await
     } else {
         send(tcp, request).await
     }
+}
+
+/// Opens a TCP connection to the first reachable resolved address, with Nagle's algorithm off:
+/// SignalR exchanges small frames (Pings, stateful Acks, invocations) whose latency must not wait
+/// for delayed TCP acknowledgements.
+pub(crate) async fn connect_tcp(host: &str, port: u16) -> Result<TcpStream, String> {
+    // `Uri::host` keeps the brackets of IPv6 literals; resolvers need them removed.
+    let host = host.trim_start_matches('[').trim_end_matches(']');
+    let addresses = tokio::net::lookup_host((host, port))
+        .await
+        .map_err(|error| format!("Cannot resolve {host}:{port}: {error}"))?;
+    let mut last_error = None;
+    for address in addresses {
+        match TcpStream::connect(address).await {
+            Ok(stream) => {
+                stream.set_nodelay(true).map_err(|error| {
+                    format!("Cannot configure the connection to {host}:{port}: {error}")
+                })?;
+                return Ok(stream);
+            }
+            Err(error) => last_error = Some(error),
+        }
+    }
+    Err(match last_error {
+        Some(error) => format!("Cannot connect to {host}:{port}: {error}"),
+        None => format!("Cannot resolve {host}:{port}: no addresses"),
+    })
 }
 
 #[cfg(rayx_tls)]

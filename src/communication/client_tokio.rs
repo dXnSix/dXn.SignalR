@@ -1456,17 +1456,31 @@ impl CommunicationClient {
                 })?;
         }
 
-        let stream = if Some("wss") == endpoint.scheme_str() {
+        let host = endpoint
+            .host()
+            .ok_or_else(|| "The WebSocket endpoint has no host".to_string())?;
+        let secure = Some("wss") == endpoint.scheme_str();
+        let port = endpoint.port_u16().unwrap_or(if secure { 443 } else { 80 });
+        // Every resolved address is tried and Nagle's algorithm is off (see `connect_tcp`).
+        let tcp = super::negotiate_http::connect_tcp(host, port).await?;
+        let stream = if secure {
             info!("Connection to secure endpoint...");
             // The same rustls configuration as this connection's negotiate requests.
             let connector = recipe.tls().websocket_connector()?;
-            builder.connector(&connector).connect().await
+            connector
+                .wrap(host.trim_start_matches('[').trim_end_matches(']'), tcp)
+                .await
+                .map_err(|error| error.to_string())?
         } else {
             info!("Connection to plain endpoint...");
-            builder.connect().await
+            MaybeTlsStream::Plain(tcp)
         };
 
-        stream.map(|(ws, _)| ws).map_err(|error| error.to_string())
+        builder
+            .connect_on(stream)
+            .await
+            .map(|(ws, _)| ws)
+            .map_err(|error| error.to_string())
     }
 
     async fn resume_to_server(
