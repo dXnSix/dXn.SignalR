@@ -1,22 +1,31 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 1,
-  "planRevision": 2,
+  "revision": 20,
+  "planRevision": 4,
   "specHashes": {
-    "requirements": "17d2bba269fd811369be9c67108e2a7d554274783acc904e1332907cb036314f",
-    "design": "4f30be6fbd06dd95e5819337e4655a875253aab5eda75a5a7267f81fd83c8b8a",
-    "plan": "e4aeca76f4574adf6036cb4bd6d120a406f5fd99cd43d6cff4ab8bd795e3da9e"
+    "requirements": "fa4b191d89399fb7513c45859057f398f2cc8380e8a4ca4f7bf6cd54015811d6",
+    "design": "8db53748247faa68cd2d1d7441dfb322707b35f6d4f8257d23b0e13c0fcee31d",
+    "plan": "fdff3af2f9fb74dc84ff1a32fc2bf874e64f5adabd8aa0ef2dbe5abb039b1132"
   },
   "tasks": {
     "S1.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S1.T2": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S1.T3": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S2.T1": {
       "status": "pending"
@@ -130,11 +139,409 @@
       "status": "pending"
     }
   },
-  "validationBatches": {},
-  "checkResults": {},
-  "reviews": {},
-  "checkpoints": {},
-  "findings": [],
+  "validationBatches": {
+    "5932d0a4da7f7ce2dc4a011dd4fae5ac046f77beb8abd836e62e4df2cd7940c4": {
+      "snapshot": {
+        "specHash": "8e2c3164e83c65293df008198e8030c14ff32e9d47414d772304a569dc35bc5f",
+        "repositories": {
+          "rayx-signalr": "370867a86961fc6c387067464545b7d3c251716070f39cb77a45cb0b4702dabd"
+        }
+      },
+      "recordedAt": "2026-10-06T20:54:32Z"
+    }
+  },
+  "checkResults": {
+    "S1/s1-bench-smoke/final": {
+      "checkId": "s1-bench-smoke",
+      "boundaryId": "S1",
+      "phase": "final",
+      "batchId": "5932d0a4da7f7ce2dc4a011dd4fae5ac046f77beb8abd836e62e4df2cd7940c4",
+      "definitionHash": "44bb566e8206445daccee38d06ebaacae71597f098e3b717ba9a1ffbe3707c1c",
+      "basisHash": "fe08c9263262dfc140eaec82f3814f369a4c86616e4164ceccb949a475c32ecd",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 0,
+      "durationSeconds": 8.5262,
+      "recordedAt": "2026-10-06T20:53:53Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S1-final-1c19cdb781d7.log",
+      "logSha256": "23528d8c37f241b7b6475a5bbe282d237c1a1711f7edadb1c35b7c7a98609871",
+      "inputsHash": "7ac7482f0c8d09ffc99e5066c08a4a8b0cbfa110d808febacb4d2da6f40d6f3a"
+    },
+    "S1/s1-perf-harness/final": {
+      "checkId": "s1-perf-harness",
+      "boundaryId": "S1",
+      "phase": "final",
+      "batchId": "5932d0a4da7f7ce2dc4a011dd4fae5ac046f77beb8abd836e62e4df2cd7940c4",
+      "definitionHash": "5c84728571af1c413a2848078d9612f38412bb3b83cac9883ed95c4f7e764381",
+      "basisHash": "c2d74a97a5644d46d0e1d384acefcffb84e0db5c992d433b5703bcb4a1a841f8",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 8,
+      "durationSeconds": 36.4346,
+      "recordedAt": "2026-10-06T20:54:29Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S1-final-faed4137f8c1.log",
+      "logSha256": "aeee70e85ce92b23f15d6417d5ce1e69c24ca04d85a8ecbde3bfd0e9a61ce353",
+      "inputsHash": "4ee661dd1fbb19ef9efaca3875df497c140aa25922dd320a6663af654e07b947"
+    },
+    "S1/s1-sequence-trace/final": {
+      "checkId": "s1-sequence-trace",
+      "boundaryId": "S1",
+      "phase": "final",
+      "batchId": "5932d0a4da7f7ce2dc4a011dd4fae5ac046f77beb8abd836e62e4df2cd7940c4",
+      "definitionHash": "a0079ebfcfe8392f431991933189868a39f4a1e3fb23fc752e419cedcde251cb",
+      "basisHash": "c21350a2b6a806eebd24db126f4910598abf76eacedc64c84abacff359e4dea8",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 8,
+      "durationSeconds": 2.5122,
+      "recordedAt": "2026-10-06T20:54:32Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S1-final-7e8544ad29a1.log",
+      "logSha256": "f28c22d72fb3a8c1c4e096dbe7aed1389aa4ef845ea1e3177694e8aa4cc1cfc9",
+      "inputsHash": "cc6820b26742b29fcdb2a1129c2dae3565004a820593121f76d239a88be91424"
+    }
+  },
+  "reviews": {
+    "S1": {
+      "reviewerId": "claude-review-S1-independent",
+      "snapshotId": "5932d0a4da7f7ce2dc4a011dd4fae5ac046f77beb8abd836e62e4df2cd7940c4",
+      "criterionIds": [
+        "R1.C1",
+        "R1.C2",
+        "R3.C2"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "Cargo.toml",
+          "kind": "source",
+          "criterionIds": [
+            "R1.C1",
+            "R1.C2"
+          ],
+          "sha256": "e11b3cc69f28fc2d2df7d4a2790ad874399cc790803a59cbb0910f5900bb7edc"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/bench_support.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R1.C1"
+          ],
+          "sha256": "66f5ecc2a556b3cc8b201bd462fcb9479a795e2c0ce6ca19d150c27b66e1960b"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R1.C1"
+          ],
+          "sha256": "eeda260022a91b771b67357c54a1f386ac913368d2199a8c7dfd621fa969cba6"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R1.C1",
+            "R3.C2"
+          ],
+          "sha256": "9377d3a1e291a130af9cec9669d724f8e9e81941ccb6d161f48512ba22953cc3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "benches/hot_paths.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R1.C1"
+          ],
+          "sha256": "d5bd0d9fe530e7b150ccff14c692a1a876d5eb0e52a79f04f82918f9232b40e3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/14-testing.md",
+          "kind": "source",
+          "criterionIds": [
+            "R1.C1",
+            "R1.C2"
+          ],
+          "sha256": "a6736163bff6aabafaf9068777a5c2b03d3fc008306ea723bda3fc819edd44f4"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/perf/main.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R1.C2"
+          ],
+          "sha256": "ea8f8167a2832385912115875658527225d73b63dde92a8e3243886c9390289f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.PerfReference/src/Program.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R1.C2"
+          ],
+          "sha256": "dc9aeb2f5ec72820843bd808729d421b2124d8f277d0f99e4c8a16596ee5e588"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.PerfReference/RayX.SignalR.PerfReference.csproj",
+          "kind": "source",
+          "criterionIds": [
+            "R1.C2"
+          ],
+          "sha256": "9fb3912cb1f1e2226ff65b6c1a2b958ed8fad73b265c91ba590606710465289b"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/PerfHub.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R1.C2"
+          ],
+          "sha256": "b8a1024ce01abf7111f9dd6e4cebbf9e4e17a05df0daebdf38e62ce4b79f6241"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/Program.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R1.C2"
+          ],
+          "sha256": "698d8a4a718848cc6b75f9244c28828a3198373768a056ec020e699519cfb93c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Performance/PerformanceTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R1.C2"
+          ],
+          "sha256": "0858a4103f146b208c3668fc871b4cc318992a90d399ba0dbdff7489ab58b571"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Performance/PerformanceRunner.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R1.C2"
+          ],
+          "sha256": "8d8ec2bd65061af8ca509fd2cc98fedf6f39164faf145f0cc5ff053cf5012683"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Performance/PerformanceSelection.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R1.C2"
+          ],
+          "sha256": "529cc6260b202b2f0e0b40f80dfc689f09c8886acc4da4193d00577057d3700c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/perf/20261006-205412-28880.json",
+          "kind": "runtime",
+          "criterionIds": [
+            "R1.C2"
+          ],
+          "sha256": "9720cf85ee951302ad9a983b09252b9e8908e4ab3385d60f4fb627a96b11050b"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/stateful.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C2"
+          ],
+          "sha256": "9bf74576d36f84194b55fdcbfb6282a6902003b69341d0d0bcc0ae1c01747b8f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/stateful.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C2"
+          ],
+          "sha256": "aa8474e972e8207542129031b0b9c0330b4be4b6a91db89aec891e07806e75a7"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C2"
+          ],
+          "sha256": "f7e62307dddb9dfedd47d71f5a9eb063e9ebc06ce42d67b3c9202886000e0ef5"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/11-errors-and-logging.md",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C2"
+          ],
+          "sha256": "8ba79a274ff94e985ab12e2376b66688b9ac33ce8c4c47a1e2a69c129baf3cec"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/troubleshooting.md",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C2"
+          ],
+          "sha256": "62e7c1848c94bf175708b2c3e6324c244acba7c1a6a2b05fa91f19bbdf2b94a5"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/stateful.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R3.C2"
+          ],
+          "sha256": "9bf74576d36f84194b55fdcbfb6282a6902003b69341d0d0bcc0ae1c01747b8f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/test_logging.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R3.C2"
+          ],
+          "sha256": "6389cc6c42af689d7279855ff9d98b18b0bef71d0fbe69c2348d9f7ad32f5624"
+        }
+      ],
+      "summaryMarkdown": "S1 meets R1.C1, R1.C2 and R3.C2 with no wire or behavior regression, and all four findings are verified resolved against snapshot `5932d0a4…`.\n\n- **R1.C1:** 34 stable ids over the real codec and storage, with a faithful mirror of the non-stateful receive and send paths.\n- **R1.C2:** identical, warmed-up, release-only, three-round interleaved workloads against the official client, with complete results.\n- **R3.C2:** generation-tagged, payload-free sequencing on both targets, including wire-level rejections and resend outcomes, asserted by 8 `sequence_trace_` tests.\n\nNotes for later sprints:\n- **S3, measurements:** the warmed run puts Rust `send-throughput` at about 0.07x of .NET (30k vs 440k sends/s), far below R2.C4's 0.95x.\n- **S3, benchmark source:** when hot-path changes begin, extract one dispatch function shared by `run_receiver` and `bench_support` so baselines keep measuring the receiver.\n- **S3, baseline paths:** Criterion stores ids under `target/criterion/hot_paths_inbound_json/...` (slashes become underscores).",
+      "findingIds": [
+        "S1-F1",
+        "S1-F2",
+        "S1-F3",
+        "S1-F4"
+      ],
+      "recordedAt": "2026-10-06T20:56:41Z"
+    }
+  },
+  "checkpoints": {
+    "S1": {
+      "snapshotId": "5932d0a4da7f7ce2dc4a011dd4fae5ac046f77beb8abd836e62e4df2cd7940c4",
+      "commits": {
+        "rayx-signalr": "2c165e21045fd0bfe1d8f1183dd7d6ac4cca98ab"
+      },
+      "reviewHash": "5e22c65c3591f0425c79046cc5e668ed3c25c45544fc4b66fb57b4b5789439ad",
+      "recordedAt": "2026-10-06T20:57:41Z"
+    }
+  },
+  "findings": [
+    {
+      "id": "S1-F1",
+      "criterionIds": [
+        "R1.C2"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/perf/main.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.PerfReference/src/Program.cs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Performance/PerformanceRunner.cs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/14-testing.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/perf/20261006-204626-37676.json"
+        }
+      ],
+      "descriptionMarkdown": "**Expected:** R1.C2's identical workloads measure both clients in a comparable state, because R2.C4 turns these numbers into budgets against the official client.\n\n**Observed (original):** every round starts a fresh process, the Rust binary is ahead-of-time compiled, and the .NET reference was timed largely on tier-0 JIT code and first-use initialization: `stream-throughput`, `send-throughput` and `fan-in` had no warm-up, and `invoke-latency`'s warm-up lasted about 4-40 ms.\n\n**Repair (requested):** amend R1.C2/D1 for an identical, untimed, steady-state warm-up of every workload on the measured connection(s) in both clients, record its size, document it, keep .NET's default tiering, and rerun `s1-perf-harness`.\n\n**Verified resolved:** R1.C2/D1 now require the warm-up (2 s full / 0.2 s quick, where every minimum count is a tenth). `tests/perf/main.rs` and the PerfReference `Program.cs` implement the same loops with identical scale constants on the same measured connection(s), and the csproj and runner leave tiering at its defaults. Every result records `warmup_ms` and its warm-up count, and `ExpectedMetrics` requires them. `RunOnceAsync` refuses non-release results before anything is recorded (D1 invariant). The warmed quick runs confirm the bias was real and is gone: .NET fan-in 11.5k to 26.5k calls/s, send-throughput 100k to 440k sends/s, MessagePack stream 87k to 438k items/s, while the Rust client moved at most 1.5x.",
+      "boundaryId": "S1"
+    },
+    {
+      "id": "S1-F2",
+      "criterionIds": [
+        "R3.C2"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/stateful.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/stateful.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs"
+        }
+      ],
+      "descriptionMarkdown": "**Expected:** with `RUST_LOG=rayx_signalr::stateful=debug` the trace shows every received Ack and Sequence, including rejected ones (zero-id and undecodable), and the outcome of every resume, as `docs/11-errors-and-logging.md` and the skill's `troubleshooting.md` promise.\n\n**Observed (original):** rejected control messages and failed resends left no stateful record. After the first repair, zero-id and undecodable Ack/Sequence frames were still rejected inside the protocol decoders before reaching the buffer, so `reason=zero` was unreachable from real traffic.\n\n**Verified resolved:**\n- `decode_json_control` and `decode_messagepack_control` now return the raw id with the same logical type, arity and integer checks for both protocols.\n- `StatefulMessageBuffer::receive_control` records `ack-rejected` / `sequence-rejected reason=malformed` for a decode error. A decoded id goes to `acknowledge` / `reset_incoming_sequence`, which record `reason=zero|beyond-highest-sent|transport-active|gap` before returning the unchanged errors. Zero ids are still refused, as the hub-protocol rules require.\n- All four receiver sites (`run_receiver` JSON and MessagePack, WASM `process_frame` JSON and MessagePack) decode outside the lock or borrow, then call `receive_control`, and keep their previous error handling.\n- `should_process` records `receive-rejected reason=before-sequence`, and `finish_resend(completed)` records `resend-finished` or `resend-failed` on both resume paths.\n- `sequence_trace_records_rejected_control_messages_from_the_wire` and `sequence_trace_accepts_valid_control_messages_from_the_wire` drive the same decode-plus-`receive_control` path with JSON and MessagePack wire payloads (zero id, missing id, non-JSON, wrong type, wrong arity) and assert the exact records. The `s1-sequence-trace` check ran all 8 tests.",
+      "boundaryId": "S1"
+    },
+    {
+      "id": "S1-F3",
+      "criterionIds": [
+        "R1.C1"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/tasks/production-grade-client/requirements.json"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/tasks/production-grade-client/design.json"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "Cargo.toml"
+        }
+      ],
+      "descriptionMarkdown": "**Expected:** R1.C1's stated invocation runs the benchmarks.\n\n**Observed (original):** `cargo bench --bench hot_paths --features messagepack` exited 101 because the bench requires `bench-internals`; R1.C1's command and D1's `required-features = [\"messagepack\"]` contradicted D1's own gating, while the implementation was correct.\n\n**Repair (requested):** specification-only amendment.\n\n**Verified resolved:** R1.C1 now names `cargo bench --bench hot_paths --features messagepack,bench-internals` and D1 declares `required-features = [\"messagepack\", \"bench-internals\"]`, matching `Cargo.toml`, the `s1-bench-smoke` check and `docs/14-testing.md`.",
+      "boundaryId": "S1"
+    },
+    {
+      "id": "S1-F4",
+      "criterionIds": [
+        "R3.C2"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/troubleshooting.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/reconnection.md"
+        }
+      ],
+      "descriptionMarkdown": "**Expected:** the repository's documentation duty updates the skill references together with the `docs/` chapter for the new `rayx_signalr::stateful` target.\n\n**Observed (original):** only `docs/11-errors-and-logging.md` documented it.\n\n**Verified resolved:** the skill's `troubleshooting.md` Logging section documents the target, `RUST_LOG=rayx_signalr::stateful=debug`, the `generation=` tag, resend outcomes, rejections and the no-payload guarantee, and `reconnection.md` points to it from the stateful section. With S1-F2's decode routing, the claim that every rejected Ack, Sequence or message is recorded now holds.",
+      "boundaryId": "S1"
+    }
+  ],
   "handoffMarkdown": "",
   "protectedPaths": {
     "rayx-signalr": {

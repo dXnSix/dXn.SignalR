@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 2,
+  "revision": 4,
   "title": "Production-grade rayx-signalr: typed errors, all transports, proxies, refreshable auth, suspension-aware liveness, proven TLS paths, reference-class performance, and stretch SOCKS/PAC/OS proxies, HTTP/2 and HTTP/3",
   "validationMode": "sprint",
   "repositories": [
@@ -1666,11 +1666,15 @@
       "repositoryId": "rayx-signalr",
       "kind": "static",
       "criterionIds": [],
-      "descriptionMarkdown": "Native Clippy with all features and all targets (benches, `e2e`, `perf`, harness crates). Whole-suite scope is justified: the epic replaces the public error type, the wire codec and the transport layer (connection loop, negotiate, transports), which every public API path uses.",
+      "descriptionMarkdown": "Native Clippy with all features and all targets, naming the `test = false` targets `e2e` and `perf` explicitly because `--all-targets` skips them (benches, `e2e`, `perf`, harness crates). Whole-suite scope is justified: the epic replaces the public error type, the wire codec and the transport layer (connection loop, negotiate, transports), which every public API path uses.",
       "argv": [
         "cargo",
         "clippy",
         "--all-targets",
+        "--test",
+        "e2e",
+        "--test",
+        "perf",
         "--all-features",
         "--",
         "-D",
