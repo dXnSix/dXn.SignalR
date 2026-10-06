@@ -206,7 +206,11 @@ public sealed class AndroidCellRunner : ICellRunner
       command.Append(' ').Append(key).Append("='").Append(value.Replace("'", "'\\''", StringComparison.Ordinal)).Append('\'');
     }
 
-    command.Append(" ./").Append(DeviceProcessName).Append(' ').Append(test).Append(" --exact --test-threads=1");
+    command.Append(" ./").Append(DeviceProcessName);
+    foreach(string argument in CellExecution.LibtestArguments(test))
+    {
+      command.Append(' ').Append(argument);
+    }
     return command.ToString();
   }
 
@@ -397,7 +401,7 @@ public sealed class IosCellRunner : ICellRunner
                                                           StringComparer.Ordinal);
     ProcessCommand command = new(
       "xcrun",
-      ["simctl", "spawn", device, executable, cell.Scenario.RustTest(cell.Protocol), "--exact", "--test-threads=1"],
+      ["simctl", "spawn", device, executable, .. CellExecution.LibtestArguments(cell.Scenario.RustTest(cell.Protocol))],
       environment.RepositoryRoot)
     {
       Environment = variables
@@ -440,13 +444,20 @@ public sealed class IosCellRunner : ICellRunner
         return _device;
       }
 
-      ProcessResult listing = await ProcessRunner.RunAsync(
-        new ProcessCommand("xcrun", ["simctl", "list", "devices", "available", "--json"], repositoryRoot),
-        TimeSpan.FromMinutes(1),
-        cancellationToken);
+      // The first simctl call can wait for CoreSimulator to start; retry before giving up.
+      ProcessResult listing = new(-1, false, string.Empty, string.Empty);
+      for(int attempt = 1; attempt <= 3 && !listing.Succeeded; attempt++)
+      {
+        listing = await ProcessRunner.RunAsync(
+          new ProcessCommand("xcrun", ["simctl", "list", "devices", "available", "--json"], repositoryRoot),
+          TimeSpan.FromMinutes(3),
+          cancellationToken);
+      }
+
       if(!listing.Succeeded)
       {
-        throw new InvalidOperationException($"xcrun simctl list failed:\n{Redaction.SafeTail(listing.CombinedOutput)}");
+        throw new InvalidOperationException(
+          $"xcrun simctl list failed (exit code {listing.ExitCode}, timed out: {listing.TimedOut}):\n{Redaction.SafeTail(listing.CombinedOutput)}");
       }
 
       (string udid, bool booted) = SelectDevice(Environment.GetEnvironmentVariable(DeviceVariable), listing.StandardOutput);

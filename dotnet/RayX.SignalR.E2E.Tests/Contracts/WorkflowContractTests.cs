@@ -199,6 +199,7 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
         @"uses: reactivecircus/android-emulator-runner@v2",
         @"api-level: 34",
         @"arch: x86_64",
+        @"disk-size: 2048M",
         @"script: dotnet test dotnet/RayX\.SignalR\.E2E\.Tests --filter Category=E2E"
       ],
       ["ios"] =

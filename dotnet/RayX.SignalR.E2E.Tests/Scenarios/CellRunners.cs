@@ -28,6 +28,14 @@ public static partial class CellExecution
   /// <summary>The hard bound for one cell's process.</summary>
   public static readonly TimeSpan CellTimeout = TimeSpan.FromSeconds(60);
 
+  /// <summary>
+  /// The libtest arguments of a Rust cell: one exact test, uncaptured output, so a cell killed at
+  /// its bound still leaves its client log in the diagnostics.
+  /// </summary>
+  /// <param name="test">The exact <c>module::protocol</c> test name.</param>
+  /// <returns>The arguments.</returns>
+  public static string[] LibtestArguments(string test) => [test, "--exact", "--test-threads=1", "--nocapture"];
+
   /// <summary>Builds the <c>RAYX_SIGNALR_E2E_*</c> variables every scenario reads.</summary>
   /// <param name="environment">The running AppHost.</param>
   /// <param name="cell">The cell.</param>
@@ -39,7 +47,9 @@ public static partial class CellExecution
       ["RAYX_SIGNALR_E2E_SERVICE_URL"] = Origin(environment.ServiceUrl),
       ["RAYX_SIGNALR_E2E_TLS_URL"] = Origin(environment.TlsServiceUrl),
       ["RAYX_SIGNALR_E2E_TLS_CA_PEM_BASE64"] = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(environment.TlsCaPem)),
-      ["RAYX_SIGNALR_E2E_PROTOCOL"] = cell.Protocol
+      ["RAYX_SIGNALR_E2E_PROTOCOL"] = cell.Protocol,
+      // Rust cells log the client's lifecycle (diagnostics keep a bounded, redacted tail).
+      ["RUST_LOG"] = "rayx_signalr=info"
     };
     if(environment.FixtureEnabled)
     {
@@ -182,7 +192,7 @@ public sealed class NativeCellRunner : ICellRunner
     string executable = await NativeE2EBinary.BuildAsync(environment.RepositoryRoot, cancellationToken);
     ProcessCommand command = new(
       executable,
-      [cell.Scenario.RustTest(cell.Protocol), "--exact", "--test-threads=1"],
+      CellExecution.LibtestArguments(cell.Scenario.RustTest(cell.Protocol)),
       environment.RepositoryRoot)
     {
       Environment = CellExecution.ScenarioVariables(environment, cell)

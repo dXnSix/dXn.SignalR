@@ -141,6 +141,8 @@ jobs:
             ~/.cargo/git
             target
           key: e2e-android-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
+      - name: Free disk space for the emulator
+        run: sudo rm -rf /usr/share/swift /usr/local/.ghcup /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
       - name: Install cargo-ndk
         run: cargo install cargo-ndk --version 4.1.2 --locked
       - name: Build the Android end-to-end binary before the emulator starts
@@ -158,6 +160,7 @@ jobs:
           api-level: 34
           arch: x86_64
           target: google_apis
+          disk-size: 2048M
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           disable-animations: true
           script: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E

@@ -33,7 +33,7 @@ public sealed class MobileRunnerTests
       });
     Assert.Equal(
       $"cd {AndroidCellRunner.DeviceDirectory} && env RAYX_SIGNALR_E2E_SERVICE_URL='http://10.0.2.2:5000' "
-      + "RAYX_SIGNALR_E2E_TRICKY='it'\\''s' ./e2e invoke::json --exact --test-threads=1",
+      + "RAYX_SIGNALR_E2E_TRICKY='it'\\''s' ./e2e invoke::json --exact --test-threads=1 --nocapture",
       command);
   }
 
