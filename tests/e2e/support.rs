@@ -7,7 +7,7 @@ use rayx_signalr::{
 };
 use serde::{Deserialize, Serialize};
 
-/// The test hub's simple entity (`TestEntity` in `SignalRTestService`).
+/// The test hub's simple entity (`TestEntity` in `RayX.SignalR.TestService`).
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct TestEntity {
     pub number: i32,

@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 
-namespace SignalRTestService
+namespace RayX.SignalR.TestService
 {
     /// <summary>
     /// Mapped at <c>/test-keepalive</c> with a 3 s client timeout and 1 s server pings: a client

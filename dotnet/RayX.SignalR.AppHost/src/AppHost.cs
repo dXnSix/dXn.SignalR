@@ -13,7 +13,7 @@ TestCertificateFiles certificates = TestCertificates.Generate(
 
 // The ASP.NET Core SignalR test service. Its launch profile is excluded so Aspire owns the ports.
 builder
-  .AddProject<Projects.SignalRTestService>(
+  .AddProject<Projects.RayX_SignalR_TestService>(
     "signalr-test-service",
     options => options.ExcludeLaunchProfile = true)
   .WithHttpEndpoint(name: "http")

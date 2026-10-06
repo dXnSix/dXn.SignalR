@@ -3,6 +3,6 @@
         <Project Path="dotnet/RayX.SignalR.AppHost/RayX.SignalR.AppHost.csproj"/>
         <Project Path="dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj"/>
         <Project Path="dotnet/RayX.SignalR.FixtureHost/RayX.SignalR.FixtureHost.csproj"/>
-        <Project Path="dotnet/SignalRTestService/SignalRTestService.csproj"/>
+        <Project Path="dotnet/RayX.SignalR.TestService/RayX.SignalR.TestService.csproj"/>
     </Folder>
 </Solution>

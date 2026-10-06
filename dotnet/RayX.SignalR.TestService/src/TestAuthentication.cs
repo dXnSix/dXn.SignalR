@@ -4,7 +4,7 @@ using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
 
-namespace SignalRTestService
+namespace RayX.SignalR.TestService
 {
     /// <summary>
     /// Test-only authentication for the <c>/test-auth</c> hub. Accepts Basic

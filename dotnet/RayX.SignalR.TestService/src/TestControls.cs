@@ -3,7 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Protocol;
 
-namespace SignalRTestService
+namespace RayX.SignalR.TestService
 {
     /// <summary>
     /// Test-only service state shared by hubs and middleware: probes, negotiate counters,
