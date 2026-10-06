@@ -4,7 +4,7 @@ agentx:
   scope: interop-validation/rust-tests
   status: superseded
   created: "2026-08-10T03:15:00+02:00"
-  updated: "2026-10-06T21:00:00+02:00"
+  updated: "2026-10-06T21:10:00+02:00"
   topics:
     - browser-testing
     - playwright
@@ -25,4 +25,4 @@ agentx:
 
 ### Supersedes: None.
 
-### Source anchors: [Playwright package](../../../../../tools-node/package.json), [Playwright tests](../../../../../tools-node/tests), [browser cell runner](../../../../../dotnet/RayX.SignalR.E2E.Tests/Scenarios/CellRunners.cs), and [end-to-end workflow](../../../../../.github/workflows/e2e.yml).
+### Source anchors: [Playwright package](../../../../../tools-node/package.json), [Playwright tests](../../../../../tools-node/tests), [browser cell runner](../../../../../dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/CellRunners.cs), and [end-to-end workflow](../../../../../.github/workflows/e2e.yml).

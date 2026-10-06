@@ -4,7 +4,7 @@ agentx:
   scope: repository-governance/quality-gates
   status: current
   created: "2026-08-10T03:15:00+02:00"
-  updated: "2026-10-06T21:00:00+02:00"
+  updated: "2026-10-06T21:10:00+02:00"
   topics:
     - github-actions
     - toolchain
@@ -24,5 +24,5 @@ Read this file before changing production validation or required-check contracts
 
 ## Backlinks
 
-- Source anchors: [quality workflow](../../../../../.github/workflows/quality.yml), [end-to-end workflow](../../../../../.github/workflows/e2e.yml), [workflow contract tests](../../../../../dotnet/RayX.SignalR.E2E.Tests/Contracts/WorkflowContractTests.cs), [production validation docs](../../../../../README.md).
+- Source anchors: [quality workflow](../../../../../.github/workflows/quality.yml), [end-to-end workflow](../../../../../.github/workflows/e2e.yml), [workflow contract tests](../../../../../dotnet/RayX.SignalR.E2E.Tests/src/Contracts/WorkflowContractTests.cs), [production validation docs](../../../../../README.md).
 - 2026-10-06 current [Gates as .NET test categories; browser-only WASM](../../../decisions/repository-governance/quality-gates/2026-10-06-repository-governance-quality-gates-verification-as-dotnet-categories.md).

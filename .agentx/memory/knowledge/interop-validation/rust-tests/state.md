@@ -4,7 +4,7 @@ agentx:
   scope: interop-validation/rust-tests
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-10-06T19:00:00+02:00"
+  updated: "2026-10-06T21:10:00+02:00"
   topics:
     - tokio
     - wasm
@@ -25,5 +25,5 @@ The functional baseline (connect-negotiate, authentication, invoke, send, server
 
 ## Backlinks
 
-- Source anchors: [tests/e2e](../../../../../tests/e2e), [WASM fixture](../../../../../tests/wasm-fixture), [Playwright tests](../../../../../tools-node/tests), [scenario catalog](../../../../../dotnet/RayX.SignalR.E2E.Tests/Scenarios/ScenarioCatalog.cs).
+- Source anchors: [tests/e2e](../../../../../tests/e2e), [WASM fixture](../../../../../tests/wasm-fixture), [Playwright tests](../../../../../tools-node/tests), [scenario catalog](../../../../../dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/ScenarioCatalog.cs).
 - 2026-08-10 current [Decision: use repository-local Playwright for browser runtime validation](../../../decisions/interop-validation/rust-tests/2026-08-10-interop-validation-rust-tests-use-playwright-for-browser-runtime.md).

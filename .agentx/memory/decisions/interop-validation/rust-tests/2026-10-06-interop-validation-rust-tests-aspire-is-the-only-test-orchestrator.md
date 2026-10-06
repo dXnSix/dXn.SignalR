@@ -4,7 +4,7 @@ agentx:
   scope: interop-validation/rust-tests
   status: current
   created: "2026-10-06T21:00:00+02:00"
-  updated: "2026-10-06T21:00:00+02:00"
+  updated: "2026-10-06T21:10:00+02:00"
   topics:
     - aspire
     - e2e
@@ -25,4 +25,4 @@ agentx:
 
 ### Supersedes: None.
 
-### Source anchors: [AppHost](../../../../../dotnet/RayX.SignalR.AppHost/AppHost.cs), [scenario catalog](../../../../../dotnet/RayX.SignalR.E2E.Tests/Scenarios/ScenarioCatalog.cs), [cell runners](../../../../../dotnet/RayX.SignalR.E2E.Tests/Scenarios/CellRunners.cs), [mobile runners](../../../../../dotnet/RayX.SignalR.E2E.Tests/Scenarios/MobileCellRunners.cs), [end-to-end workflow](../../../../../.github/workflows/e2e.yml).
+### Source anchors: [AppHost](../../../../../dotnet/RayX.SignalR.AppHost/src/AppHost.cs), [scenario catalog](../../../../../dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/ScenarioCatalog.cs), [cell runners](../../../../../dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/CellRunners.cs), [mobile runners](../../../../../dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/MobileCellRunners.cs), [end-to-end workflow](../../../../../.github/workflows/e2e.yml).

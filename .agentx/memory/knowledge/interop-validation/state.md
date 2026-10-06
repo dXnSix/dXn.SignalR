@@ -4,7 +4,7 @@ agentx:
   scope: interop-validation
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-10-06T21:00:00+02:00"
+  updated: "2026-10-06T21:10:00+02:00"
   topics:
     - rust-tests
     - aspnet
@@ -24,6 +24,6 @@ Compatibility validation spans service-independent Rust unit/contract tests, the
 
 ## Backlinks
 
-- Source anchors: [tests/e2e](../../../../tests/e2e), [dotnet/SignalRTestService](../../../../dotnet/SignalRTestService), [AppHost](../../../../dotnet/RayX.SignalR.AppHost/AppHost.cs), [end-to-end project](../../../../dotnet/RayX.SignalR.E2E.Tests), [Playwright configuration](../../../../tools-node/playwright.config.ts).
+- Source anchors: [tests/e2e](../../../../tests/e2e), [dotnet/RayX.SignalR.TestService](../../../../dotnet/RayX.SignalR.TestService), [AppHost](../../../../dotnet/RayX.SignalR.AppHost/src/AppHost.cs), [end-to-end project](../../../../dotnet/RayX.SignalR.E2E.Tests), [Playwright configuration](../../../../tools-node/playwright.config.ts).
 - 2026-10-06 current [Run every service-dependent test through Aspire on every target](../../decisions/interop-validation/rust-tests/2026-10-06-interop-validation-rust-tests-aspire-is-the-only-test-orchestrator.md).
 - 2026-10-06 current [Prove browser behavior with Playwright on Chromium, Firefox and WebKit](../../decisions/interop-validation/rust-tests/2026-10-06-interop-validation-rust-tests-playwright-browser-matrix.md) (supersedes the 2026-08-10 Chromium-only decision).

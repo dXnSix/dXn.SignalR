@@ -2,15 +2,16 @@
 agentx:
   kind: decision
   scope: repository-governance/fork-policy
-  status: current
+  status: superseded
   created: "2026-08-09T22:04:26+02:00"
-  updated: "2026-08-09T22:04:26+02:00"
+  updated: "2026-10-06T21:10:00+02:00"
   topics:
     - fork
     - provenance
     - remote-policy
   supersedes: []
-  superseded_by: []
+  superseded_by:
+    - 2026-10-06-repository-governance-fork-policy-independent-library.md
 ---
 # Decision: Use the direct source URL for upstream updates
 
@@ -38,6 +39,8 @@ None.
 
 ## Source anchors
 
-- [FORK.md](../../../../../FORK.md)
-- [RayX.SignalR skill](../../../../../.codex/skills/rayx-signalr/SKILL.md)
-- [Upstream update workflow](../../../../../.codex/skills/rayx-signalr/references/update-from-upstream.md)
+- `FORK.md`, `.codex/skills/rayx-signalr/SKILL.md` and its `references/update-from-upstream.md` (all removed 2026-10-06).
+
+## Superseded by
+
+2026-10-06 current [Treat RayX.SignalR as an independent library](2026-10-06-repository-governance-fork-policy-independent-library.md).

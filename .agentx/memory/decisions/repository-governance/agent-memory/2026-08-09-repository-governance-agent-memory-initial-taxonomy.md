@@ -4,7 +4,7 @@ agentx:
   scope: repository-governance/agent-memory
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-08-09T21:45:00+02:00"
+  updated: "2026-10-06T21:10:00+02:00"
   topics:
     - taxonomy
     - initialization
@@ -40,6 +40,6 @@ None.
 
 - [Cargo.toml](../../../../../Cargo.toml)
 - [src/lib.rs](../../../../../src/lib.rs)
-- [dotnet/SignalRTestService/Program.cs](../../../../../dotnet/SignalRTestService/Program.cs)
-- [FORK.md](../../../../../FORK.md)
-- [RayX.SignalR skill](../../../../../.codex/skills/rayx-signalr/SKILL.md)
+- [dotnet/RayX.SignalR.TestService/src/Program.cs](../../../../../dotnet/RayX.SignalR.TestService/src/Program.cs)
+- `FORK.md` (removed; see 2026-10-06 current [Independent library decision](../fork-policy/2026-10-06-repository-governance-fork-policy-independent-library.md))
+- [RayX.SignalR skill](../../../../../.claude/skills/rayx-signalr/SKILL.md)
