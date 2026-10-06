@@ -1,19 +1,80 @@
-debug/
+# Rust build output
 target/
+target-wasm-*/
 
-Cargo.lock
-
-**/*.rs.bk
-
-*.pdb
-*.user
-
-.vs
-obj
-bin
-dist
-
+# Generated RayX validation/build artifacts
+artifacts/
 artifacts-temp/
+out/
+.artifacts/
+.[Aa]rtifacts/
+
+# AgentX is metadata-only; raw task/experiment output belongs in artifacts-temp/
+.agentx/tasks/*/*artifact*/
+.agentx/tasks/*/*baseline*/
+.agentx/tasks/*/*evidence*/
+.agentx/tasks/*/*performance*/
+.agentx/tasks/*/attachment/
+.agentx/tasks/*/attachments/
+.agentx/experiments/*/*artifact*/
+.agentx/experiments/*/*baseline*/
+.agentx/experiments/*/*evidence*/
+.agentx/experiments/*/*performance*/
+.agentx/experiments/*/attachment/
+.agentx/experiments/*/attachments/
+.agentx/**/*.bmp
+.agentx/**/*.cpuprofile
+.agentx/**/*.gif
+.agentx/**/*.har
+.agentx/**/*.jpeg
+.agentx/**/*.jpg
+.agentx/**/*.log
+.agentx/**/*.mov
+.agentx/**/*.mp4
+.agentx/**/*.png
+.agentx/**/*.profraw
+.agentx/**/*.svg
+.agentx/**/*.trace
+.agentx/**/*.webm
+.agentx/**/*.webp
+.agentx/**/*.zip
+**/gradle/.gradle/
+**/gradle/**/build/
+**/gradle/app/src/main/jniLibs/
+**/gradle/app/src/main/assets/assets/
+**/platform/ios/assets/
+
+# Python bytecode caches
+__pycache__/
+
+# Node/Playwright validation workspace
+node_modules/
 tools-node/node_modules/
+tools-node/package-lock.json
 tools-node/playwright-report/
 tools-node/test-results/
+
+# Local editor/user state
+.idea/
+.vs/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+*.rsuser
+*.user
+*.suo
+
+# Local environment and transient files
+.env
+*.log
+*.tmp
+*.binlog
+tmp-playwright/
+.tmp-playwright/
+
+# External references and generated docs output
+.references/
+[Dd]ocs/dist/
