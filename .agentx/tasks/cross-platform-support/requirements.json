@@ -440,12 +440,12 @@
         },
         {
           "id": "R9.C2",
-          "descriptionMarkdown": "Native `pause-resume` and `pause-resume-stateful`: `pause()` closes the transport gracefully, stops keep-alive and automatic reconnect and reports `Paused`; in ordinary mode pending work fails with 'connection paused' and `invoke`/`send` while paused fail without queuing; `resume()` reconnects immediately (later attempts follow the policy) and new invocations succeed; in stateful mode a server stream started before `pause` completes after `resume` in order without gaps or duplicates. Verified for JSON and MessagePack by the Aspire end-to-end cells (native).",
+          "descriptionMarkdown": "Native `pause-resume` and `pause-resume-stateful`: `pause()` ends the transport, stops keep-alive and automatic reconnect and reports `Paused` (ordinary mode closes with a WebSocket Close; stateful mode drops the transport without a Close, because ASP.NET Core ends the logical connection on any client Close, so the server keeps it resumable); in ordinary mode pending work fails with 'connection paused' and `invoke`/`send` while paused fail without queuing; `resume()` reconnects immediately (later attempts follow the policy) and new invocations succeed; in stateful mode a server stream started before `pause` completes after `resume` in order without gaps or duplicates on the same logical connection. Verified for JSON and MessagePack by the Aspire end-to-end cells (native).",
           "verification": "automated"
         },
         {
           "id": "R9.C3",
-          "descriptionMarkdown": "The same two scenarios pass in Chromium for JSON and MessagePack. Verified by the Aspire end-to-end cells (Chromium).",
+          "descriptionMarkdown": "Chromium, JSON and MessagePack: `pause-resume` passes as on native. Browsers cannot end a WebSocket without the closing handshake, so a browser `pause()` in stateful mode ends the logical connection: all pending work (stateful included) fails with 'connection paused', and `resume()` negotiates a fresh stateful connection (new connection id, fresh replay buffer); `pause-resume-stateful` in Chromium verifies exactly that, plus that the fresh connection still resumes statefully after a server-side transport abort. Verified by the Aspire end-to-end cells (Chromium).",
           "verification": "automated"
         },
         {

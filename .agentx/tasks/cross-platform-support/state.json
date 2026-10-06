@@ -1,12 +1,12 @@
 {
   "schemaVersion": 6,
   "epicId": "cross-platform-support",
-  "revision": 80,
-  "planRevision": 6,
+  "revision": 90,
+  "planRevision": 7,
   "specHashes": {
-    "requirements": "7eb9cbe1721e8eb99d4c5705831832ccae1fd86cc2fa0eedd8d134f82a4c97a8",
-    "design": "4b35d6e40f5712d063705d8a28f5c93e1be15bf8a322f62d9fb08296fefa14e5",
-    "plan": "a15f71c0bd565e73a0f23e818c475e123592d490777b24c0721b14a425967149"
+    "requirements": "4c346aa3c223174cd82f0745c6e83b5bd2eed05a5b079e544c60af85ee6c6aec",
+    "design": "2ebc199ebdca6ff20f2968bb987a8f0f542050395543382bebc4b4558b8b57c8",
+    "plan": "fbdfeb8aab2c01b6caa7fbb554f565db055f57874f26d7dee6517ac10d949949"
   },
   "tasks": {
     "S1.T1": {
@@ -154,13 +154,22 @@
       ]
     },
     "S9.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S9.T2": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S9.T3": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S10.T1": {
       "status": "pending"
@@ -265,6 +274,15 @@
         }
       },
       "recordedAt": "2026-10-06T00:00:18Z"
+    },
+    "10b4d2c7a8653611b41079a0058cd53f37a1caae76e434449a8bf1a861ab233d": {
+      "snapshot": {
+        "specHash": "33bcdbecaf00b046ffcac4983c4c80c6be320340a197ff991b2da48862ec1eb9",
+        "repositories": {
+          "rayx-signalr": "b2286104dc675fc4402aed13f6e26da344990affcc84aa531283aaf35f671c20"
+        }
+      },
+      "recordedAt": "2026-10-06T00:32:37Z"
     }
   },
   "checkResults": {
@@ -828,6 +846,57 @@
       "logPath": "artifacts-temp/agentx/cross-platform-support/S8-final-7176a66e72f9.log",
       "logSha256": "c858330b4e6004f913369b6e7aad268c560c3187eb8c5e0263722a460e3105e6",
       "inputsHash": "23fd19c2cfdee02c4a6662dcf6784d187cbc0d196403b64cdd949994010332d3"
+    },
+    "S9/s9-lifecycle-unit/final": {
+      "checkId": "s9-lifecycle-unit",
+      "boundaryId": "S9",
+      "phase": "final",
+      "batchId": "10b4d2c7a8653611b41079a0058cd53f37a1caae76e434449a8bf1a861ab233d",
+      "definitionHash": "7339ba86b0612ea434c047f56a0d01476b38d431f65669a862e0585eefd450be",
+      "basisHash": "5b99fc7ee97b63418cc5d516a0d07d142a4fb8487b06288e97163df70371d9c0",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 10,
+      "durationSeconds": 3.1736,
+      "recordedAt": "2026-10-06T00:31:32Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S9-final-8bf026d2df2b.log",
+      "logSha256": "a51c5321bdbe643e6e9c71a7b33f1053179aca599eee5483042270b7b6223e6a",
+      "inputsHash": "91df1b7f98909fa4b74c2429187f6ceb8b23d0c4aa1c7567887fc3808554b3c2"
+    },
+    "S9/s9-native-lifecycle/final": {
+      "checkId": "s9-native-lifecycle",
+      "boundaryId": "S9",
+      "phase": "final",
+      "batchId": "10b4d2c7a8653611b41079a0058cd53f37a1caae76e434449a8bf1a861ab233d",
+      "definitionHash": "a0ddcb9cbc02e12f1d2ade06d8a9260a9bc2a8206cd0346a45ec46ecf88bfae8",
+      "basisHash": "cda13b97dc27c5d006c48c87b6227e480c50bfb575cc75eef68f96ba88966b90",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 30.5474,
+      "recordedAt": "2026-10-06T00:32:02Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S9-final-6f48107c2622.log",
+      "logSha256": "4eeed1eb337532d197d2f52703fcffc2a621a58ecc96c94f6dd52d5f7d8f9edd",
+      "inputsHash": "fddd81618c5a7e127c2d1b3e806aaefe7888b9ceb78c10a6c8633f931c68d575"
+    },
+    "S9/s9-chromium-lifecycle/final": {
+      "checkId": "s9-chromium-lifecycle",
+      "boundaryId": "S9",
+      "phase": "final",
+      "batchId": "10b4d2c7a8653611b41079a0058cd53f37a1caae76e434449a8bf1a861ab233d",
+      "definitionHash": "a81dd65d9944a719ae5d25928b0e75fd2b823a7d876b8d2e5b9631858bb87c74",
+      "basisHash": "cd50f7212fccc7f9aea9d97a2eac1e76598a60a13166bd611e00c2a0ce3e10cc",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 34.1944,
+      "recordedAt": "2026-10-06T00:32:37Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S9-final-25c86497bb42.log",
+      "logSha256": "f2a529c9015c0193b1f889dd242052e22046f6210aa7b8261ba2be054c5ebd31",
+      "inputsHash": "88258248c9b3e8982d4a97fd0331987192153ec1ff1d8c4c29c02aee680f2226"
     }
   },
   "reviews": {
@@ -2499,6 +2568,144 @@
         "S8-F2"
       ],
       "recordedAt": "2026-10-06T00:00:39Z"
+    },
+    "S9": {
+      "reviewerId": "s9-independent-reviewer",
+      "snapshotId": "10b4d2c7a8653611b41079a0058cd53f37a1caae76e434449a8bf1a861ab233d",
+      "criterionIds": [
+        "R9.C1",
+        "R9.C2",
+        "R9.C3",
+        "R9.C4"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/reconnection.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R9.C1",
+            "R9.C4"
+          ],
+          "sha256": "ff74e7ff9cb7c5e620fd635402a0b5fd385e99baaa4a7b1f95be5f3b56795072"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/stateful.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R9.C1"
+          ],
+          "sha256": "468feb64e3feec951ea9c821cb8caa7c1f4755acdb96ee1964d72c0bebeac071"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R9.C1",
+            "R9.C2",
+            "R9.C3"
+          ],
+          "sha256": "6ca675b91fa883a359c8afd17c5255df16ee41ae866c4e3d9c3c8f2436b1bb69"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/lib.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R9.C1",
+            "R9.C4"
+          ],
+          "sha256": "880aa0349698ece73af233f34ddfd94cadbb42da96fdc73875aee275d666a04a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R9.C1",
+            "R9.C2"
+          ],
+          "sha256": "aa1b921613500af1f540f250b0e009deeaf2262d660e326cf975da5b7870907b"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R9.C1",
+            "R9.C3"
+          ],
+          "sha256": "c15d2021137c65dbbe3e444a97a2bf2e3a6dde4659fd92ed3d4ba08c670e06dd"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/reconnection.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R9.C1",
+            "R9.C4"
+          ],
+          "sha256": "ff74e7ff9cb7c5e620fd635402a0b5fd385e99baaa4a7b1f95be5f3b56795072"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/pause_resume.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R9.C2"
+          ],
+          "sha256": "62edd6116118288b4546b6e336af6fc12253fcf7e4f4270c5817bcb97b937d4a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/pause_resume_stateful.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R9.C2"
+          ],
+          "sha256": "0444014a27dd1eed22d7dafbb22ed84ccbf572e3c43e125527394fe5a42487d6"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Scenarios/ScenarioCatalog.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R9.C2",
+            "R9.C3"
+          ],
+          "sha256": "65088dfb3f1977b6cc4ceec3aec49175ed10b2b35a935af4ce4b819a59138882"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R9.C3"
+          ],
+          "sha256": "e11210f01121577c0fcdb9a16c69075d6293c45e5044a8be44e486d2dff3c4c8"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/tests/signalr-lifecycle.spec.ts",
+          "kind": "test",
+          "criterionIds": [
+            "R9.C3"
+          ],
+          "sha256": "b572b247a796008de2024777969c72e9d565a3b1447e75a1b8eff4a46ec9a0f4"
+        }
+      ],
+      "summaryMarkdown": "**Re-review at revision 88: passed.** All five S9 findings (S9-F1 major; S9-F2 to S9-F5 minor) are resolved, each with non-vacuous regression coverage.\n\n- **R9.C1 and R9.C4:** the shared `Lifecycle` machine and `DefaultRetryPolicy` are proven by the 10 `lifecycle_controls` tests.\n- **R9.C2:** the native `pause-resume` and `pause-resume-stateful` cells pass for JSON and MessagePack. They cover:\n  - ordinary pause and resume;\n  - no reconnect attempt while paused during a policy delay;\n  - stateful pause without a Close, keeping the logical connection, with no transport traffic while paused;\n  - renegotiation after a terminal close, followed by a stateful resume.\n- **R9.C3:** the Chromium cells cover the browser semantics: a stateful pause ends the logical connection, and the fresh connection still resumes statefully.\n\nLifecycle transitions are atomic under the state lock. Stale drops and completions are rejected by generation. No lock or borrow is held across an await or a user callback. The pause specification amendment is technically justified and correctly implemented.",
+      "findingIds": [
+        "S9-F1",
+        "S9-F2",
+        "S9-F3",
+        "S9-F4",
+        "S9-F5"
+      ],
+      "recordedAt": "2026-10-06T00:33:16Z"
     }
   },
   "checkpoints": {
@@ -2565,6 +2772,14 @@
       },
       "reviewHash": "dcae3cec60b8b1fbbc7f709ab717dc9b6460bcde1a3812ba043f7ace0e674bfa",
       "recordedAt": "2026-10-06T00:00:49Z"
+    },
+    "S9": {
+      "snapshotId": "10b4d2c7a8653611b41079a0058cd53f37a1caae76e434449a8bf1a861ab233d",
+      "commits": {
+        "rayx-signalr": "29bd5e45436ae82c7c69b015804394b7b91558bd"
+      },
+      "reviewHash": "10d0ad836b98eae73055c76d0fd630e107118cf59ed45109060ec74352a79cc2",
+      "recordedAt": "2026-10-06T00:33:26Z"
     }
   },
   "findings": [
@@ -2838,6 +3053,131 @@
       ],
       "descriptionMarkdown": "The browser liveness clock used the wall clock (`js_sys::Date::now()`), so a backward clock step suspended Pings and server-timeout detection and a forward step caused a spurious timeout. **Resolved:** `now_ms()` reads the monotonic `performance.now()` from `js_sys::global()` through `js_sys::Reflect` (available in windows and workers), falling back to `Date::now` only when `performance` is absent; the source is stable per realm, so deadlines never mix clocks. Covered by the deterministic `liveness_` scheduler tests and the passing Chromium liveness cells.",
       "boundaryId": "S8"
+    },
+    {
+      "id": "S9-F1",
+      "boundaryId": "S9",
+      "criterionIds": [
+        "R9.C2"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**Native policy runs made one more network attempt after `pause`.**\n- **Original defect:** `run_policy` checked generation ownership only before the backoff sleep, and `attempt` did no check before connecting. A pause during a delay still ran a full negotiate or stateful resume.\n- **Verified repair:**\n  - `ReconnectionContext::attempt` (`client_tokio.rs:292-295`) returns the superseded reason before any I/O when `owns(generation)` is false. `run_policy` calls it after every delay, so automatic, manual-policy and resume runs are all covered.\n  - The new native `pause-resume` tail and the browser `pause_resume` tail drop the transport under `ConstantDelayPolicy(2 s)`, pause during the delay, wait 3 s, and assert that the status is `Paused` and `NegotiateCount(\"/test\")` is unchanged. The pre-repair code would have negotiated once after the delay, so these tests are not vacuous.\n  - The S9 checks passed again (`s9-check2.json`, revision 87).",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "ReconnectionContext::attempt"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/pause_resume.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "symbol": "pause_resume"
+        }
+      ]
+    },
+    {
+      "id": "S9-F2",
+      "boundaryId": "S9",
+      "criterionIds": [
+        "R9.C1",
+        "R9.C2"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Native lifecycle and `ConnectionState` updates were not atomic.**\n- **Verified repair:** coordinator transitions and state writes now happen together under the state lock in `begin_reconnect`, `pause`, `resume`, `fail_generation` and `attempt`.\n- `transport_dropped` decides under the lock. It ignores Paused or LocalClosed clients and drops whose `connection_generation` is no longer the coordinator's generation. It releases the lock before it fails pending work or calls user handlers.\n- Lock order: state, then connection, in `pause`. `writer()` releases the state lock before it takes the connection lock, so the two cannot deadlock.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "ReconnectionContext::transport_dropped"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "CommunicationClient::pause"
+        }
+      ]
+    },
+    {
+      "id": "S9-F3",
+      "boundaryId": "S9",
+      "criterionIds": [
+        "R9.C2"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Native stateful pause could fail a send that `resume` would replay.**\n- **Verified repair:** the writer now stops cooperatively through `stop_mode` (`WRITER_CLOSE` or `WRITER_DROP`). It finishes the frame in flight, so a buffered frame still reports success, and it leaves backpressure with an error for frames that were never tracked.\n- `pause` calls `disconnected()` on the buffer before stopping the writer, so queued frames hit `STALE_TRANSPORT` and are never tracked or sent.\n- A 2 s grace abort covers a stalled socket.\n- `WRITER_DROP` drops the sink without a Close, which preserves the amended stateful-pause semantics proven by the passing native `pause-resume-stateful` cells.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "CommunicationConnection::run_writer"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/pause_resume_stateful.rs"
+        }
+      ]
+    },
+    {
+      "id": "S9-F4",
+      "boundaryId": "S9",
+      "criterionIds": [
+        "R9.C1",
+        "R9.C2",
+        "R9.C3"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**After a disposed stateful buffer, resume renegotiates on both targets, but the public docs were wrong and native renegotiation had no runtime proof.**\n- **Earlier verification:** both `attempt`s negotiate a fresh stateful connection when the buffer `is_disposed()`, then `renew()` it and replace the transport URL after `complete`. Resume runs that give up end the logical connection through `end_after_exhaustion` (native) and `run_policy_to_end` (browser). A unit test covers the buffer.\n- **Verified repair, public docs:** `SignalRClient::pause`/`resume` (`src/client/client.rs`) now cover:\n  - the server-side window for native stateful resume;\n  - `NoReconnectPolicy` meaning a single attempt;\n  - when a stateful resume keeps the logical connection (native pause) and when it negotiates a fresh one with a new id (browser pause, terminal server close, exhausted attempts);\n  - that a run whose attempts all fail ends the logical connection, failing stateful pending work.\n- **Verified repair, native runtime proof:** `tests/e2e/pause_resume_stateful.rs` now continues after the pause/resume part:\n  - `ScheduleServerClose(false, 200)`, then the status becomes `Disconnected`.\n  - `resume()` connects with a new connection id.\n  - On the fresh connection, `OrderedSequence(40)` with `AbortPhysicalTransport` at item 5 arrives in order as 1..=40, on the same fresh id, with `TransportAbortCount == 1`.\n  - This proves the native fresh-stateful negotiation, the endpoint swap and the buffer renewal at runtime for JSON and MessagePack (`s9-check3.json`, revision 88).",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "SignalRClient::resume"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "ReconnectionContext::attempt"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/pause_resume_stateful.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/reconnection.rs",
+          "symbol": "lifecycle_controls_an_ended_stateful_connection_renews_for_a_fresh_negotiation"
+        }
+      ]
+    },
+    {
+      "id": "S9-F5",
+      "boundaryId": "S9",
+      "criterionIds": [
+        "R9.C2",
+        "R9.C3"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**The stateful scenarios could pass without proving their transport claims.**\n- **Verified repair:**\n  - The native `pause-resume-stateful` drains the stream with `now_or_never` after the 800 ms pause and asserts that at most 2 items arrived. The server produced about 40 during the pause, so a pause that left the socket open would fail.\n  - The browser `pause_resume_stateful` asserts that `TransportAbortCount` is 1 on the fresh connection, so the stateful-resume-after-abort claim is no longer vacuous.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/pause_resume_stateful.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "symbol": "pause_resume_stateful"
+        }
+      ]
     }
   ],
   "handoffMarkdown": "",

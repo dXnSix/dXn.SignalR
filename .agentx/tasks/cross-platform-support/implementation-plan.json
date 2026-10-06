@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "cross-platform-support",
-  "revision": 6,
+  "revision": 7,
   "title": "Cross-platform rayx-signalr with Aspire-orchestrated end-to-end testing on every target",
   "validationMode": "sprint",
   "repositories": [
