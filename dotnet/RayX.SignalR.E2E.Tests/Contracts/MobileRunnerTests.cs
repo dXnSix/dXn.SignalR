@@ -58,6 +58,18 @@ public sealed class MobileRunnerTests
 
   [Fact]
   [Trait("Category", "Catalog")]
+  public void IosAcceptsAPassedTestWhoseLauncherDidNotExitButNotAnUnfinishedOne()
+  {
+    Infrastructure.ProcessCommand command = new("xcrun", ["simctl", "spawn"], "/repo");
+    const string passed = "running 1 test\ntest invoke::json ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 43 filtered out; finished in 2.36s\n";
+    Assert.True(CellExecution.JudgeLibtestAllowingLauncherHang(command, new(124, true, passed, string.Empty)).Passed);
+    Assert.False(CellExecution.JudgeLibtestAllowingLauncherHang(command, new(124, true, "running 1 test\n", string.Empty)).Passed);
+    Assert.False(CellExecution.JudgeLibtestAllowingLauncherHang(command, new(101, false, "test result: FAILED. 0 passed; 1 failed;", string.Empty)).Passed);
+    Assert.False(CellExecution.JudgeLibtest(command, new(124, true, passed, string.Empty)).Passed);
+  }
+
+  [Fact]
+  [Trait("Category", "Catalog")]
   public void DeviceEndpointsRewriteOnlyUrlHosts()
   {
     Dictionary<string, string> rewritten = DeviceEndpoints.Rewrite(

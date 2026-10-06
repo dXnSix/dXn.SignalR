@@ -71,6 +71,30 @@ public static partial class CellExecution
   public static CellOutcome JudgeLibtest(ProcessCommand command, ProcessResult result) =>
     Judge(command, result, LibtestOnePassed().IsMatch(result.StandardOutput), "libtest did not report exactly one passed test");
 
+  /// <summary>
+  /// Judges a libtest run whose launcher may outlive the test: <c>xcrun simctl spawn</c> sometimes
+  /// does not return after the simulator process finished. A run that timed out after libtest
+  /// already reported exactly one passed test passes, with a note in
+  /// its output; a scenario that did not finish within the bound still fails.
+  /// </summary>
+  /// <param name="command">The command.</param>
+  /// <param name="result">The result.</param>
+  /// <returns>The outcome.</returns>
+  public static CellOutcome JudgeLibtestAllowingLauncherHang(ProcessCommand command, ProcessResult result)
+  {
+    if(result.TimedOut && LibtestOnePassed().IsMatch(result.StandardOutput))
+    {
+      ProcessResult finished = result with
+      {
+        StandardError = result.StandardError
+                        + "\nnote: the scenario passed, but the launcher did not exit within the cell bound and was stopped"
+      };
+      return new CellOutcome(command, finished, true, string.Empty);
+    }
+
+    return JudgeLibtest(command, result);
+  }
+
   /// <summary>Judges a Playwright run that must have executed exactly one passing test.</summary>
   /// <param name="command">The command.</param>
   /// <param name="result">The result.</param>

@@ -418,7 +418,7 @@ public sealed class IosCellRunner : ICellRunner
         CancellationToken.None);
     }
 
-    return CellExecution.JudgeLibtest(command, result);
+    return CellExecution.JudgeLibtestAllowingLauncherHang(command, result);
   }
 
   /// <summary>
