@@ -1,12 +1,12 @@
 {
   "schemaVersion": 6,
   "epicId": "cross-platform-support",
-  "revision": 98,
-  "planRevision": 8,
+  "revision": 105,
+  "planRevision": 9,
   "specHashes": {
     "requirements": "4c346aa3c223174cd82f0745c6e83b5bd2eed05a5b079e544c60af85ee6c6aec",
     "design": "2ebc199ebdca6ff20f2968bb987a8f0f542050395543382bebc4b4558b8b57c8",
-    "plan": "97cca828a75f46cea957fb4c681f359c71209a4706d9daa3533f4334f46cd740"
+    "plan": "da2eeda7e91ab86f366264ad76432532bcf39915271973d0aae30c0a3dc8ca9c"
   },
   "tasks": {
     "S1.T1": {
@@ -172,31 +172,31 @@
       ]
     },
     "S10.T1": {
-      "status": "implemented",
+      "status": "done",
       "workerIds": [
         "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
       ]
     },
     "S10.T2": {
-      "status": "implemented",
+      "status": "done",
       "workerIds": [
         "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
       ]
     },
     "S10.T3": {
-      "status": "implemented",
+      "status": "done",
       "workerIds": [
         "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
       ]
     },
     "S10.T4": {
-      "status": "implemented",
+      "status": "done",
       "workerIds": [
         "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
       ]
     },
     "S10.T5": {
-      "status": "implemented",
+      "status": "done",
       "workerIds": [
         "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
       ]
@@ -299,14 +299,14 @@
       },
       "recordedAt": "2026-10-06T00:32:37Z"
     },
-    "7d4ddf04b8dfdfa64240c06f796f9529b37d348f4895e6994933ef6bb21dfec2": {
+    "7a0b1987ac0af427b12a980a333d348a71209457b4cbe04242a37070baee9f13": {
       "snapshot": {
-        "specHash": "31495e66f8ac55d46d5ce215b913f3be761559b9737cb01ae826cde13d974e2e",
+        "specHash": "d236fc8a52b354fc52e184bdbae1db437eb8dcab28c864c3796f479696a176d1",
         "repositories": {
-          "rayx-signalr": "d16d9aeb17ec23265ffc029f1f458d0f8057df1992b98a6f7a6ffafd3c8a0c3e"
+          "rayx-signalr": "67c081b1b5ae678efb2bd9ea73b665323c7ec6b0c39851dee40601d468a53dbf"
         }
       },
-      "recordedAt": "2026-10-06T01:11:47Z"
+      "recordedAt": "2026-10-06T14:40:02Z"
     }
   },
   "checkResults": {
@@ -926,69 +926,86 @@
       "checkId": "s10-firefox-webkit",
       "boundaryId": "S10",
       "phase": "final",
-      "batchId": "7d4ddf04b8dfdfa64240c06f796f9529b37d348f4895e6994933ef6bb21dfec2",
+      "batchId": "7a0b1987ac0af427b12a980a333d348a71209457b4cbe04242a37070baee9f13",
       "definitionHash": "fae08e311db6b7d7c59b4a22ea689c21ca38b50e0d22efa4189ba1dbc0c5a5c4",
-      "basisHash": "b7552ab094e75d349a52eeb7ae71c68f98e417ab670690dcecdd0e3f4fd3490e",
+      "basisHash": "000af6d3b9502f87da72676909c1c56c3aafeca8d9762ffb86be568f1ed70b0c",
       "status": "passed",
       "exitCode": 0,
       "testCount": 100,
-      "durationSeconds": 658.4655,
-      "recordedAt": "2026-10-06T01:06:44Z",
+      "durationSeconds": 569.5559,
+      "recordedAt": "2026-10-06T14:35:35Z",
       "messageMarkdown": "Expectation matched",
-      "logPath": "artifacts-temp/agentx/cross-platform-support/S10-final-7ecd67ab42ab.log",
-      "logSha256": "8730a79f3c81fb573575ee9557f85a57c7e6ae676b9ee9a8f1422353d75f6517",
-      "inputsHash": "93022e0c61acb816daffb98b4fe8427f77e23304721653ee41602ad9e6258e0b"
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S10-final-edd269b20801.log",
+      "logSha256": "bfd38cf3aff8e0c4dc16e8195618a01a1a93481f7853f16e8c34d363b2fc061b",
+      "inputsHash": "0a3f10928f15b0f7c293e4a2d69c45dcb720030cf88ad517154c1f90b350327a"
     },
     "S10/s10-android/final": {
       "checkId": "s10-android",
       "boundaryId": "S10",
       "phase": "final",
-      "batchId": "7d4ddf04b8dfdfa64240c06f796f9529b37d348f4895e6994933ef6bb21dfec2",
+      "batchId": "7a0b1987ac0af427b12a980a333d348a71209457b4cbe04242a37070baee9f13",
       "definitionHash": "e7431617d098b5effdb6d9fcd03488b417acec21bbb286d5a73a7deebbabf2e1",
-      "basisHash": "84a8535d5cab2c7b71777e3e23830eada3eb748c96ee5cea8f026010df67e523",
+      "basisHash": "12a2c8bb5986c7e517f934162385bb6bab25c292b4ed068c31b88fea8d736064",
       "status": "passed",
       "exitCode": 0,
       "testCount": 44,
-      "durationSeconds": 286.6532,
-      "recordedAt": "2026-10-06T01:11:30Z",
+      "durationSeconds": 255.2126,
+      "recordedAt": "2026-10-06T14:39:50Z",
       "messageMarkdown": "Expectation matched",
-      "logPath": "artifacts-temp/agentx/cross-platform-support/S10-final-d10b8bcf3dcb.log",
-      "logSha256": "1dd5ef531bd3006993f40c3a623b1e5601793c78df3af71bc700ff2191eee5b2",
-      "inputsHash": "8d57ea2273d8e83917518521c1aaa877c6d2d31f24ac91fcfc65023f2d354bde"
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S10-final-abffc8b76daf.log",
+      "logSha256": "1433fceff0d0475513609aaf2a275cabe25a6c9c4d5a925603e6dcecde6ffdd4",
+      "inputsHash": "c20083f365c2b837c23e68ee98dc80cc50c22143bdf0093a0c0ec31b908beb7e"
     },
     "S10/s10-workflow-contract/final": {
       "checkId": "s10-workflow-contract",
       "boundaryId": "S10",
       "phase": "final",
-      "batchId": "7d4ddf04b8dfdfa64240c06f796f9529b37d348f4895e6994933ef6bb21dfec2",
+      "batchId": "7a0b1987ac0af427b12a980a333d348a71209457b4cbe04242a37070baee9f13",
       "definitionHash": "5eaec7a6be625396be7eeb0049e6530bbf29256fc41fe17fb058b652d778dfab",
-      "basisHash": "aa3e59cb85906e3c32aa1e3487b8c9f62353dc1b5dc4d78011570b4ef4741ae1",
+      "basisHash": "ab9ec0afc93769c847db4e08bca6c6cbabeb8e89f7f6b9098f319f7eb563cf29",
       "status": "passed",
       "exitCode": 0,
       "testCount": 4,
-      "durationSeconds": 7.3178,
-      "recordedAt": "2026-10-06T01:11:38Z",
+      "durationSeconds": 3.4188,
+      "recordedAt": "2026-10-06T14:39:53Z",
       "messageMarkdown": "Expectation matched",
-      "logPath": "artifacts-temp/agentx/cross-platform-support/S10-final-b72653a8a7af.log",
-      "logSha256": "ed80aabb98a30317b16bed22f67ce3e7589b08ec1055897f82938ae1a955fd61",
-      "inputsHash": "a700fe855f1fd6848922c5bc73a50b722be1772952c81dbda69825186ac674d9"
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S10-final-f555e34ea90c.log",
+      "logSha256": "17fff1eadb0936a295ef8f7ed414f8f9a852ffa62f4099966cebeb38c97e3970",
+      "inputsHash": "7e90b0ff68258e1c14d83e5e39a593716236f233ad4b94f9cd8ce1ef979645de"
     },
     "S10/s10-mobile-runner-unit/final": {
       "checkId": "s10-mobile-runner-unit",
       "boundaryId": "S10",
       "phase": "final",
-      "batchId": "7d4ddf04b8dfdfa64240c06f796f9529b37d348f4895e6994933ef6bb21dfec2",
+      "batchId": "7a0b1987ac0af427b12a980a333d348a71209457b4cbe04242a37070baee9f13",
       "definitionHash": "281378db22fe3484d6664816578495c4b2db6e7868a875f56d5f73b2d2b4db8b",
-      "basisHash": "54ca8e357fdb9fd0abb6d4c65cc6259bb4f29bafdfff399aa71dc28b54dd8ce6",
+      "basisHash": "9413727c9c3ff1fe44268eb5c2633468255753d36d6e003e04ef02cfc0b31e00",
       "status": "passed",
       "exitCode": 0,
-      "testCount": 5,
-      "durationSeconds": 9.5761,
-      "recordedAt": "2026-10-06T01:11:47Z",
+      "testCount": 9,
+      "durationSeconds": 3.4259,
+      "recordedAt": "2026-10-06T14:39:57Z",
       "messageMarkdown": "Expectation matched",
-      "logPath": "artifacts-temp/agentx/cross-platform-support/S10-final-794115581530.log",
-      "logSha256": "18a966e434b8b60e1f16cc9c8944f646fe683efe8ba47053817cde7df73da840",
-      "inputsHash": "ff1a6d408d94ef1f507f54bcabf849f92809dbb39a694885bc2e775aaf45c579"
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S10-final-137b1ff1e3fb.log",
+      "logSha256": "072765f815c7e011640d64464b110cb8d48ab25ddce27955d4d5bc7bd492d4a7",
+      "inputsHash": "88d2246bb5dffb155c45b3de107715304de46db4d5b58fc79ae17bbb55a40f01"
+    },
+    "S10/s10-socket-unit/final": {
+      "checkId": "s10-socket-unit",
+      "boundaryId": "S10",
+      "phase": "final",
+      "batchId": "7a0b1987ac0af427b12a980a333d348a71209457b4cbe04242a37070baee9f13",
+      "definitionHash": "3483585f1b08cade404938c400856c4bae4b1523e0df447f74ef0a4df240f6e7",
+      "basisHash": "01366974dad8cea0872531d2023b6fff558656352a31bed635d54c4938b0f15e",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 3,
+      "durationSeconds": 4.8227,
+      "recordedAt": "2026-10-06T14:40:02Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S10-final-9fe61d7c9c6f.log",
+      "logSha256": "b95cb1f59c4c9e1c333f4355e3381bc256e10e1c49b121830bc84cdfa450a1ab",
+      "inputsHash": "5cf6b007de6f9d22dfbd363184ec4174710a554e6803a55e2279fcc92dab2dd9"
     }
   },
   "reviews": {
@@ -2798,6 +2815,288 @@
         "S9-F5"
       ],
       "recordedAt": "2026-10-06T00:33:16Z"
+    },
+    "S10": {
+      "reviewerId": "s10-independent-reviewer",
+      "snapshotId": "7a0b1987ac0af427b12a980a333d348a71209457b4cbe04242a37070baee9f13",
+      "criterionIds": [
+        "R10.C1",
+        "R10.C2",
+        "R10.C3",
+        "R10.C4",
+        "R10.C5",
+        "R10.C6"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/playwright.config.ts",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C1"
+          ],
+          "sha256": "711f0a9509288359cd9f62a1283e0bd5de84a37aa2f8e0bac304d8432ba0ed7b"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Scenarios/ScenarioCatalog.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C1",
+            "R10.C2",
+            "R10.C3"
+          ],
+          "sha256": "95601a57c394a2d62c9e013f2a2c08692a08afc773e37ac07f33bf289f0e30f4"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Scenarios/E2ECellTests.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C1",
+            "R10.C2",
+            "R10.C3"
+          ],
+          "sha256": "9255fc0f4193ebe889475b044031a2adc9958f9f5cffbaf6fe9265461b7316aa"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Scenarios/E2ESelection.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C1"
+          ],
+          "sha256": "7cb98682e5d1a935005249713a4f8ca2ee12e199188ef28374a21f90b89058b7"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Scenarios/MobileCellRunners.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C2",
+            "R10.C3"
+          ],
+          "sha256": "432c6704a9d634707bcf31a283ec9ffaa71b3f408dc77e1cb5113eacf4b1271e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.AppHost/TestCertificates.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C2"
+          ],
+          "sha256": "c4184fc71432f41fe18f70aa866c6dd42b44155b6e5c83a6608a15f2a83af9b5"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/tls.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C2"
+          ],
+          "sha256": "fb9dda97f15fdb27583f4a7ef1488fb4a6d351442e65a07ec530348ca2466ab5"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/tls.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C2",
+            "R10.C6"
+          ],
+          "sha256": "3ea2c7f4e82fa3dab09ed9b676e89e07658d04197db6cea6c4edadd65e0d1fe6"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/e2e.yml",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C3",
+            "R10.C4",
+            "R10.C5"
+          ],
+          "sha256": "52b18a28f823333df6daf8c4cd7428b05b77c04d06f74b469becd3e192bcae36"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/quality.yml",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C4",
+            "R10.C5"
+          ],
+          "sha256": "5e7667ebfea3c39edbb1468c76854fb1ad80fa9f3e6cd291664d1723078b2baf"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "README.md",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C6"
+          ],
+          "sha256": "e59c60d885d2acffa28418a88f0ae0f0939ca4db7178d7921b483a1e5f15bb1c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "FORK.md",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C6"
+          ],
+          "sha256": "709ad184eeeefe2bf8e177894293a4d08166e45703775a516af18472cc2021da"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".codex/skills/rayx-signalr/SKILL.md",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C6"
+          ],
+          "sha256": "1fca0f45dc6e18af901bf01c821b79c0a735f03e761927e6d0b7db244e2425b5"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/MobileRunnerTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R10.C2",
+            "R10.C3"
+          ],
+          "sha256": "96a432c8a22884e4e27b58d0b8b1a9e2611528eea992e196adca78ce0a762256"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/WorkflowContractTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R10.C4"
+          ],
+          "sha256": "e935b2b2b2c2d1bb0d93fcd27a86cfb20965d3ae7ce0f373384ff850410a682d"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/RepositoryTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R10.C6"
+          ],
+          "sha256": "fa0221d2861bffba681eec2f9353654be18700ba9824cc42d5ce6b6711ab6015"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Infrastructure/ProcessRunner.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C4",
+            "R10.C5"
+          ],
+          "sha256": "91938bf477b5cfb1b16457afce95f261457a134b1fe5026a78d2d1c63c06ec25"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/e2e.yml",
+          "kind": "runtime",
+          "criterionIds": [
+            "R10.C3",
+            "R10.C5"
+          ],
+          "sha256": "52b18a28f823333df6daf8c4cd7428b05b77c04d06f74b469becd3e192bcae36"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/quality.yml",
+          "kind": "runtime",
+          "criterionIds": [
+            "R10.C5"
+          ],
+          "sha256": "5e7667ebfea3c39edbb1468c76854fb1ad80fa9f3e6cd291664d1723078b2baf"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Scenarios/CellRunners.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C2",
+            "R10.C3"
+          ],
+          "sha256": "71ce69b859e613019af79b3116c39a0b587ba3c1f88faeaab97641774d00b615"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Scenarios/CellRun.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C3"
+          ],
+          "sha256": "b377d2ca40b14fcd4fb7c20c718eff44d9027ab23edb464d6a34a95f65a0e304"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C3",
+            "R10.C4"
+          ],
+          "sha256": "fd5d739f59ea943c3a4de3a922ba73ed78d935b5f9be2fb7c62ea08b6cce5e6e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C3"
+          ],
+          "sha256": "b4c54b0ebf33c39098e9171433541352228f11a9085b63448220c960716e045d"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/support.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R10.C2",
+            "R10.C3"
+          ],
+          "sha256": "02b8fe893bb5985590b1fcd762035b2db2951663e543d033ff98ab14d044febe"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/cross-platform-support/s10-check5.json",
+          "kind": "runtime",
+          "criterionIds": [
+            "R10.C1",
+            "R10.C2",
+            "R10.C3",
+            "R10.C4"
+          ],
+          "sha256": "88b8d4813f3c18369381b897fa51342911bf287d76abe56e672e967529ed2d33"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R10.C3"
+          ],
+          "sha256": "fd5d739f59ea943c3a4de3a922ba73ed78d935b5f9be2fb7c62ea08b6cce5e6e"
+        }
+      ],
+      "summaryMarkdown": "S10 passes. All eleven findings are resolved; S10-F9 to S10-F11 were fixed in 3ff061a and verified in source, and the socket tests were rerun (3/3).\n\nLocal `check --sprint S10` at revision 103 passes 5/5 (`s10-check5.json`): Firefox/WebKit 100, Android 44, WorkflowContract, MobileRunnerTests 9, s10-socket-unit 3.\n\nCriteria:\n- R10.C1: Firefox and WebKit run the whole browser catalog with no exclusions.\n- R10.C2: Android 44/44 locally and in CI. The tls.rs webpki path is documented.\n- R10.C3: `e2e / ios` 44/44 in CI (https://github.com/rayx-ui/RayX.SignalR/actions/runs/37478924791). The launcher-hang allowance and the unjudged warm-up can never pass an unfinished or failing scenario, and both are now recorded in runner notes.\n- R10.C4: workflows cover every target, and WorkflowContract asserts the rules per job.\n- R10.C5: https://github.com/rayx-ui/RayX.SignalR/pull/1 at 3ff061a, all 28 checks green (https://github.com/rayx-ui/RayX.SignalR/actions/runs/37478924791, https://github.com/rayx-ui/RayX.SignalR/actions/runs/37478924710).\n- R10.C6: README, FORK and the skill match source.\n\nThe CI results are coordinator-reported: the repository is private, so the reviewer could not fetch the runs. The transport memory sync (`client-runtime/transport/state.md`) is accurate but still uncommitted.",
+      "findingIds": [
+        "S10-F1",
+        "S10-F2",
+        "S10-F3",
+        "S10-F4",
+        "S10-F5",
+        "S10-F6",
+        "S10-F7",
+        "S10-F8",
+        "S10-F9",
+        "S10-F10",
+        "S10-F11"
+      ],
+      "recordedAt": "2026-10-06T14:41:27Z"
     }
   },
   "checkpoints": {
@@ -2872,6 +3171,14 @@
       },
       "reviewHash": "10d0ad836b98eae73055c76d0fd630e107118cf59ed45109060ec74352a79cc2",
       "recordedAt": "2026-10-06T00:33:26Z"
+    },
+    "S10": {
+      "snapshotId": "7a0b1987ac0af427b12a980a333d348a71209457b4cbe04242a37070baee9f13",
+      "commits": {
+        "rayx-signalr": "3ff061a08e51ddf726d92f7229c03f874ee18ff5"
+      },
+      "reviewHash": "dcc92fdc66a36636e5f7bf43f6ae6b0a216971ac18400cd779b41fadfff3a243",
+      "recordedAt": "2026-10-06T14:41:28Z"
     }
   },
   "findings": [
@@ -3268,6 +3575,249 @@
           "repositoryId": "rayx-signalr",
           "path": "tests/wasm-fixture/src/functional.rs",
           "symbol": "pause_resume_stateful"
+        }
+      ]
+    },
+    {
+      "id": "S10-F1",
+      "boundaryId": "S10",
+      "criterionIds": [
+        "R10.C2"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**Android timeout kill never matches the device process.** `dotnet/RayX.SignalR.E2E.Tests/Scenarios/MobileCellRunners.cs:210` runs `pkill -f rayx-signalr-e2e/e2e` on timeout, but `ShellCommand` (lines 184-194) does `cd /data/local/tmp/rayx-signalr-e2e && env ... ./e2e <test> --exact --test-threads=1`, so the scenario's cmdline is `./e2e invoke::json ...` and the `sh -c` parent contains `rayx-signalr-e2e && env`. Neither contains `rayx-signalr-e2e/e2e`; the only match is pkill's own `sh -c` wrapper.\n\n*Expected* (D14): the device-side process is killed when a cell exceeds 60 s. *Observed*: a timed-out scenario keeps running on the emulator and overlaps the next cell's service reset and connections. The local 44/44 run never hit the timeout path, so nothing exercised it.\n\n*Repair*: launch the binary by absolute path (`... env K='v' /data/local/tmp/rayx-signalr-e2e/e2e <test> --exact --test-threads=1`) so `pkill -f rayx-signalr-e2e/e2e` matches, or use `pkill -x e2e`. Check the kill result. Expose the kill command as a constant and add a `MobileRunnerTests` assertion that the kill pattern matches the launched command line.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/MobileRunnerTests.cs",
+          "symbol": "AndroidKillsATimedOutCellByTheLaunchedProcessName"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Scenarios/MobileCellRunners.cs",
+          "symbol": "AndroidCellRunner.KillCommand"
+        }
+      ]
+    },
+    {
+      "id": "S10-F2",
+      "boundaryId": "S10",
+      "criterionIds": [
+        "R10.C6",
+        "R10.C2"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**FORK/README overstate Android TLS proof.** `FORK.md:83` says the Android platform verifier is proven \"for its build and for extra-root verification\". On Android, though, extra roots select webpki (`src/communication/tls.rs` `verifier()` maps `(has_extra_roots, android) = (true, true)` to `WebPki`), and `tests/e2e/tls.rs:44-45` forces `use_webpki_roots()` for the untrusted client. So the Android cells exercise only webpki (extra roots plus the bundled Mozilla roots), and the platform verifier on Android is compile-only. The `README.md:42` matrix row says \"Full native catalog\" and does not mention this.\n\n*Repair*: in FORK.md, state that Android TLS cells verify through webpki (extra and bundled roots) and that the Android platform verifier is compiled but never exercised at runtime (it needs `init_with_env` inside an APK). Add the same footnote to the README Android row. The tls.rs adaptation is acceptable: it still proves trusted-CA success, untrusted rejection with a certificate error, and no hub contact on the code path an Android consumer with extra roots actually uses.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "FORK.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "README.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/RepositoryTests.cs"
+        }
+      ]
+    },
+    {
+      "id": "S10-F3",
+      "boundaryId": "S10",
+      "criterionIds": [
+        "R10.C6"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Stale README intro.** `README.md:36` still says \"Authorization is not tested with the test scenairo\", which contradicts the cataloged `authentication` scenario (all six targets, both protocols) and the new Aspire testing section. *Repair*: replace the paragraph with a pointer to \"Testing with Aspire\", or delete the authorization sentence.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "README.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/RepositoryTests.cs"
+        }
+      ]
+    },
+    {
+      "id": "S10-F4",
+      "boundaryId": "S10",
+      "criterionIds": [
+        "R10.C2"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Android binary discovery by mtime can pick a stale executable.** `AndroidCellRunner.BuildAsync` (`MobileCellRunners.cs:118-133`) returns the newest `e2e-*` in `target/x86_64-linux-android/debug/deps`. When cargo finds the `--all-features` build fresh, it does not relink, so a different-hash `e2e-*` built later (for example a developer's `cargo ndk ... test --test e2e` without `--all-features`) wins. The messagepack cells then fail with a misleading \"did not report exactly one passed test\".\n\n*Repair*: build into a dedicated target directory for the runner (for example `CARGO_TARGET_DIR=<repo>/artifacts-temp/e2e-android-target`, with the same value in the `e2e / android` pre-build step), or select the executable whose `.d` dep-info lists the `--all-features` build. Cover the choice in `MobileRunnerTests`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/MobileRunnerTests.cs",
+          "symbol": "AndroidBuildsIntoItsOwnTargetDirectory"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/WorkflowContractTests.cs",
+          "symbol": "EveryCatalogTargetHasAnEndToEndJobOnItsPlatform"
+        }
+      ]
+    },
+    {
+      "id": "S10-F5",
+      "boundaryId": "S10",
+      "criterionIds": [
+        "R10.C4"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**WorkflowContract checks target-specific rules against the whole file, not per job.** `WorkflowContractTests.cs` matches `RAYX_SIGNALR_E2E_TARGETS: android|ios`, the KVM udev rule, the `cargo ndk` pre-build, the emulator-runner `api-level`/`arch`/`script` and the iOS toolchain target anywhere in `e2e.yml`. The `JobBlocks` helper it already has is used only for `runs-on`. Moving any of these into the wrong job, or dropping `playwright install --with-deps ${{ matrix.engine }}` from the browser job, would still pass.\n\n*Repair*: assert per job block:\n- native: `RAYX_SIGNALR_E2E_TARGETS: native`\n- browser: `RAYX_SIGNALR_E2E_TARGETS: ${{ matrix.engine }}` and `playwright install --with-deps ${{ matrix.engine }}`\n- android: the KVM rule, the pre-build, the emulator runner with `api-level: 34`/`arch: x86_64`/`script: dotnet test ...`, and `TARGETS: android`\n- ios: `macos-latest`, `aarch64-apple-ios-sim`, `TARGETS: ios`\n\nDo the same for the quality platform jobs.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/WorkflowContractTests.cs",
+          "symbol": "EveryCatalogTargetHasAnEndToEndJobOnItsPlatform"
+        }
+      ]
+    },
+    {
+      "id": "S10-F6",
+      "boundaryId": "S10",
+      "criterionIds": [
+        "R10.C4",
+        "R10.C5"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**cargo-ndk is unpinned in CI.** `e2e.yml:145`, `quality.yml:154` and `quality.yml:226` run `cargo install cargo-ndk --locked` with no version. The runner and the Platform `android-build` case depend on 4.x CLI behavior (`-P`, `-t arm64-v8a`, no JSON forwarding; local evidence used 4.1.2). A future major release would break three jobs at once and make results irreproducible. *Repair*: use `cargo install cargo-ndk --locked --version 4.1.2` (or `^4`) in all three places and assert the pinned form in WorkflowContract.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/WorkflowContractTests.cs",
+          "symbol": "EveryCatalogTargetHasAnEndToEndJobOnItsPlatform"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/quality.yml"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/e2e.yml"
+        }
+      ]
+    },
+    {
+      "id": "S10-F7",
+      "boundaryId": "S10",
+      "criterionIds": [
+        "R10.C3"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**R10.C3 unproven.** iOS simulator cells have never run; the Windows host cannot run them, and the `e2e / ios` job has not executed. Source review of `IosCellRunner` found no blocking defect: it uses `simctl list devices available --json` parsing, boot plus `bootstatus -b`, `SIMCTL_CHILD_*` variables, host-side `pkill -f <binary>` on timeout, and a linker-signed ad-hoc arm64 binary. The certificate is Apple-policy compliant (P-256, SHA-256, serverAuth EKU, SAN, 7-day validity) for the `PlatformWithExtraRoots` path. *Repair*: open the draft PR and record a green `e2e / ios` run URL with 44 passed cells (22 native-capable scenarios x 2 protocols) in the sprint review. If it fails, repair from the uploaded `artifacts-temp/e2e` diagnostics.\n\n**Resolved:** CI `e2e / ios` (job 112305736970, https://github.com/rayx-ui/RayX.SignalR/actions/runs/37474344900, head 9897d4d) passed 44/44, and no cell used the launcher-hang allowance (coordinator-reported; the repository is private, so the reviewer could not fetch it).\n\nReconfirmed at 3ff061a: E2E https://github.com/rayx-ui/RayX.SignalR/actions/runs/37478924791 and Quality https://github.com/rayx-ui/RayX.SignalR/actions/runs/37478924710, all 28 checks green including `e2e / ios` and `e2e / android` (coordinator-reported; the repository is private).",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/e2e.yml",
+          "symbol": "ios job 112305736970 in https://github.com/rayx-ui/RayX.SignalR/actions/runs/37474344900"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Scenarios/MobileCellRunners.cs",
+          "symbol": "IosCellRunner"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/e2e.yml",
+          "symbol": "https://github.com/rayx-ui/RayX.SignalR/actions/runs/37478924791"
+        }
+      ]
+    },
+    {
+      "id": "S10-F8",
+      "boundaryId": "S10",
+      "criterionIds": [
+        "R10.C5"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**R10.C5 unproven.** No GitHub Actions run of `quality.yml` and `e2e.yml` on the epic branch exists yet. Both workflows trigger only on `pull_request`/`push` to `master` (plus `workflow_dispatch` for e2e), so a draft PR to `master` is required.\n\nFirst-run risks to watch:\n- `/dev/kvm` availability on the repository's runner class (2-vCPU private-repo runners may lack it).\n- WebKit/Firefox on Linux: local proof used Playwright's Windows builds.\n- Android API 34 `google_apis` image vs the local API 37 AVD.\n- The 60-minute budgets for the android and ios jobs; locally the Android cells took 4.5 min after the build.\n\n*Repair*: run the workflows and record the green run URL in the sprint review.\n\n**Resolved:** https://github.com/rayx-ui/RayX.SignalR/pull/1 at head 9897d4d has all 28 checks green: E2E run https://github.com/rayx-ui/RayX.SignalR/actions/runs/37474344900 (native ubuntu/windows/macos, chromium/firefox/webkit, android 44/44, ios 44/44) and Quality run https://github.com/rayx-ui/RayX.SignalR/actions/runs/37474344743 (coordinator-reported; the repository is private, so the reviewer could not fetch it).\n\nReconfirmed at 3ff061a: E2E https://github.com/rayx-ui/RayX.SignalR/actions/runs/37478924791 and Quality https://github.com/rayx-ui/RayX.SignalR/actions/runs/37478924710, all 28 checks green including `e2e / ios` and `e2e / android` (coordinator-reported; the repository is private).",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/e2e.yml",
+          "symbol": "https://github.com/rayx-ui/RayX.SignalR/actions/runs/37474344900"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/quality.yml",
+          "symbol": "https://github.com/rayx-ui/RayX.SignalR/actions/runs/37474344743"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/e2e.yml",
+          "symbol": "https://github.com/rayx-ui/RayX.SignalR/actions/runs/37478924791"
+        }
+      ]
+    },
+    {
+      "id": "S10-F9",
+      "boundaryId": "S10",
+      "criterionIds": [
+        "R10.C3"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**The iOS warm-up pollutes the service state of the first selected cell.** `IosCellRunner.RunAsync` (`MobileCellRunners.cs`) calls `WarmUpAsync` inside the cell's run. That is after `E2ECellTests.Cell` already called `environment.ResetServiceAsync()`. The warm-up runs `connect_negotiate::json`, which negotiates `/test` and `/no-such-hub`, so the first real cell starts with a dirty negotiate count.\n\nWith the full selection the first cell is `connect-negotiate`, which asserts no counters, so CI is unaffected. But a documented selection like `RAYX_SIGNALR_E2E_TARGETS=ios RAYX_SIGNALR_E2E_SCENARIOS=negotiate-redirect` fails falsely: `negotiate_redirect.rs` asserts `NegotiateCount(\"/test\") == 2` and gets 3. It can never produce a false pass.\n\n*Repair*: call `environment.ResetServiceAsync()` at the end of `WarmUpAsync` (after the untimed run, before `_warmedUp` is set), or warm up in the cell setup before the reset. Add a test or comment that pins the ordering.\n\n**Resolved (3ff061a):** `WarmUpAsync` calls `environment.ResetServiceAsync()` after the networked warm-up and before `_warmedUp` is set, so the first timed cell starts from clean service state.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Scenarios/MobileCellRunners.cs",
+          "symbol": "IosCellRunner.WarmUpAsync"
+        }
+      ]
+    },
+    {
+      "id": "S10-F10",
+      "boundaryId": "S10",
+      "criterionIds": [
+        "R10.C3"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Launcher-hang allowance and warm-up results are invisible.** `CellExecution.JudgeLibtestAllowingLauncherHang` appends its note to the `StandardError` of a *passing* outcome. `CellRun.ExecuteAsync` discards passing outcomes without writing diagnostics, so a recurring `simctl spawn` hang (60 s per cell) never shows up in test output or `artifacts-temp/e2e`. The same holds for an unjudged warm-up that timed out or failed.\n\nThe allowance itself is acceptable: it requires a timeout *and* libtest's `test result: ok. 1 passed; 0 failed;` line. libtest prints that only after the single test returned, and the Tokio runtime is dropped inside the test before then. So an unfinished or failing scenario still fails, which `IosAcceptsAPassedTestWhoseLauncherDidNotExitButNotAnUnfinishedOne` proves. The unjudged warm-up never counts as a cell.\n\n*Repair*: when the allowance is used, or when the warm-up times out or fails, write a diagnostics entry (for example `artifacts-temp/e2e/<cell>.launcher-hang.json` and `ios-warm-up.json`) or emit a test-output line, so occurrences are visible in CI artifacts.\n\n**Resolved (3ff061a):** `RunnerNotes.Write` prints `runner note: ...` and appends a redacted line to `artifacts-temp/e2e/runner-notes.log`. It runs for every iOS cell that passed while `simctl spawn` outlived the bound, and for a warm-up that did not succeed.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Contracts/MobileRunnerTests.cs",
+          "symbol": "RunnerNotesAreAppendedRedactedToTheDiagnosticsLog"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Scenarios/MobileCellRunners.cs",
+          "symbol": "RunnerNotes.Write"
+        }
+      ]
+    },
+    {
+      "id": "S10-F11",
+      "boundaryId": "S10",
+      "criterionIds": [
+        "R10.C3",
+        "R10.C4"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**The native transport behavior change has no focused test.** Commit 4644e16 changes production code: `negotiate_http::connect_tcp` tries every resolved address, sets `TCP_NODELAY` and strips IPv6 brackets, and `client_tokio` now builds the WebSocket over that stream with `connect_on` and rustls SNI from the trimmed host. It is runtime-exercised by every native, Android and iOS cell, but has no unit test. The repository rule (CLAUDE.md) requires a new, separately selectable test group beside the changed transport surface for every behavior change.\n\n*Repair*: add a `#[cfg(test)]` module in `negotiate_http.rs`, for example `connect_tcp_tests`, that:\n- binds a local listener and asserts `connect_tcp(\"localhost\", port)` returns a stream with `nodelay() == true`;\n- asserts `connect_tcp(\"[::1]\", port)` resolves (bracket trimming), when IPv6 loopback is available;\n- asserts a refused port yields `Cannot connect to ...` and an unresolvable host yields `Cannot resolve ...`.\n\nRecord the transport behavior in `client-runtime/transport` memory.\n\n**Resolved (3ff061a):** new `negotiate_tcp_connect` module with 3 tests: nodelay on a local listener, a bracketed IPv6 host (skipped without IPv6 loopback), and the refused and unresolvable messages. The reviewer reran it: 3/3 pass. It is registered as plan check `s10-socket-unit` on S10.T3.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs",
+          "symbol": "negotiate_tcp_connect"
         }
       ]
     }

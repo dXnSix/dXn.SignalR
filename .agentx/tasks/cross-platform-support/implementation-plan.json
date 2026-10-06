@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "cross-platform-support",
-  "revision": 8,
+  "revision": 9,
   "title": "Cross-platform rayx-signalr with Aspire-orchestrated end-to-end testing on every target",
   "validationMode": "sprint",
   "repositories": [
@@ -1627,6 +1627,31 @@
         "dotnet/**"
       ],
       "timeoutSeconds": 1200
+    },
+    {
+      "id": "s10-socket-unit",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R10.C3"
+      ],
+      "descriptionMarkdown": "New `negotiate_tcp_connect` tests: native sockets try every resolved address, set TCP_NODELAY (found slowing stateful iOS cells in CI), accept bracketed IPv6 hosts and report refused/unresolvable hosts.",
+      "argv": [
+        "cargo",
+        "test",
+        "--lib",
+        "--all-features",
+        "negotiate_tcp_connect"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 3
+      },
+      "inputs": [
+        "Cargo.toml",
+        "src/communication/negotiate_http.rs"
+      ],
+      "timeoutSeconds": 1200
     }
   ],
   "finalCheckIds": [
@@ -2737,7 +2762,8 @@
           ],
           "dependsOn": [],
           "checkIds": [
-            "s10-mobile-runner-unit"
+            "s10-mobile-runner-unit",
+            "s10-socket-unit"
           ],
           "sourceRefs": [
             {

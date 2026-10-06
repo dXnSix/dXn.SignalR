@@ -4,7 +4,7 @@ agentx:
   scope: interop-validation
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-10-06T00:30:00+02:00"
+  updated: "2026-10-06T15:00:00+02:00"
   topics:
     - rust-tests
     - aspnet
@@ -20,7 +20,7 @@ Read this file before work in this domain or subdomain and update it when the cu
 
 ## Current Technical Shape
 
-Compatibility validation spans service-independent Rust unit/contract tests, the checked-in ASP.NET Core SignalR service, black-box native scenarios in the `tests/e2e` target, and a real Chromium WASM fixture. The Aspire AppHost (`dotnet/RayX.SignalR.AppHost`, `aspire run`) composes `signalr-test-service`, pinned `wasm-bindgen` CLI provisioning under `artifacts-temp/tools/wasm-bindgen/<version>`, the fixture build and `fixture-host`, all on dynamic ports. `dotnet/RayX.SignalR.E2E.Tests` is the only entry point: its C# scenario catalog selects cells by target × protocol × scenario, native cells run the prebuilt `e2e` binary with `--exact <scenario>::<protocol>`, browser cells run repository-local Playwright with one exact title against `fixture-host` (`?service=<url>`), and failures write redacted bounded output plus resource logs to `artifacts-temp/e2e/<cell>.json`. Static verification is .NET test categories (`Orchestration`, `Toolchain`, `Catalog`, `Repository`, `WorkflowContract`, `DependencySecurity`). No test scripts remain.
+Compatibility validation spans service-independent Rust unit/contract tests, the checked-in ASP.NET Core SignalR service, black-box native scenarios in the `tests/e2e` target, and a real browser WASM fixture. Catalog targets are `native`, `chromium`, `firefox`, `webkit`, `android` (the `e2e` binary built with `cargo ndk` into `target/android-e2e`, pushed with `adb`, endpoints rewritten to `10.0.2.2`, timed-out cells killed with `pkill -x e2e`, logcat on failure) and `ios` (macOS: `aarch64-apple-ios-sim` binary run with `xcrun simctl spawn` and `SIMCTL_CHILD_*` variables); Rust cells run with `--nocapture` and `RUST_LOG=rayx_signalr=info` so a cell killed at its bound keeps its log. The Aspire AppHost (`dotnet/RayX.SignalR.AppHost`, `aspire run`) composes `signalr-test-service`, pinned `wasm-bindgen` CLI provisioning under `artifacts-temp/tools/wasm-bindgen/<version>`, the fixture build and `fixture-host`, all on dynamic ports. `dotnet/RayX.SignalR.E2E.Tests` is the only entry point: its C# scenario catalog selects cells by target × protocol × scenario, native cells run the prebuilt `e2e` binary with `--exact <scenario>::<protocol>`, browser cells run repository-local Playwright with one exact title against `fixture-host` (`?service=<url>`), and failures write redacted bounded output plus resource logs to `artifacts-temp/e2e/<cell>.json`. Static verification is .NET test categories (`Orchestration`, `Toolchain`, `Catalog`, `Repository`, `WorkflowContract`, `DependencySecurity`, `Platform`). No test scripts remain. GitHub Actions run every target through Aspire on pull requests to `master`: `e2e / native (<os>)`, `e2e / browser (<engine>)`, `e2e / android` (`reactivecircus/android-emulator-runner@v2`, API 34 x86_64, KVM, 2 GB data disk after freeing runner space) and `e2e / ios` (macos-latest), plus Android, iOS, threaded-WASM and Platform quality jobs; the harness forces `CARGO_TERM_COLOR=never` because CI colors cargo output.
 
 ## Backlinks
 
