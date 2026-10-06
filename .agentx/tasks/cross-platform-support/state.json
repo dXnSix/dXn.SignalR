@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "cross-platform-support",
-  "revision": 71,
+  "revision": 80,
   "planRevision": 6,
   "specHashes": {
     "requirements": "7eb9cbe1721e8eb99d4c5705831832ccae1fd86cc2fa0eedd8d134f82a4c97a8",
@@ -136,13 +136,22 @@
       ]
     },
     "S8.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S8.T2": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S8.T3": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "d0f2ded8-e1a3-4b95-a4d6-0dd0ec750f29"
+      ]
     },
     "S9.T1": {
       "status": "pending"
@@ -247,6 +256,15 @@
         }
       },
       "recordedAt": "2026-10-05T23:32:20Z"
+    },
+    "d5355e1161f125506c0e1989f3a77c5b62cb02eb3e0ca246c5f09848e2588cbc": {
+      "snapshot": {
+        "specHash": "3394019c6434ca907fffcaa6d846d7ca1661c553492752dad3b9a075a6311a6b",
+        "repositories": {
+          "rayx-signalr": "9e7e990928e2bc8a272b74ea7467c5d8eab6cfc6172e024c57799ab02c2207d8"
+        }
+      },
+      "recordedAt": "2026-10-06T00:00:18Z"
     }
   },
   "checkResults": {
@@ -759,6 +777,57 @@
       "logPath": "artifacts-temp/agentx/cross-platform-support/S7-final-f4bded8fd49b.log",
       "logSha256": "18aeac84cd005223b19b8d310a8516900cc205fbad17f72b5dc311ed15dd270d",
       "inputsHash": "afd709401c086af5936e34482337b107c8d48687f4291c9134cce607a3d31c92"
+    },
+    "S8/s8-liveness-unit/final": {
+      "checkId": "s8-liveness-unit",
+      "boundaryId": "S8",
+      "phase": "final",
+      "batchId": "d5355e1161f125506c0e1989f3a77c5b62cb02eb3e0ca246c5f09848e2588cbc",
+      "definitionHash": "f41817f65a6c1bdb8f0f2532cd67958c781d95ef6c3c330450f8392f346c6eeb",
+      "basisHash": "4a55314e676898d153aa79edb2315687b34a3c2914bb63fb1dd0690683bf6323",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 14,
+      "durationSeconds": 0.5334,
+      "recordedAt": "2026-10-05T23:58:27Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S8-final-c5b0bedd7be6.log",
+      "logSha256": "e17157f3ee07b455fb977ff91a993409a5234af5483c15eae8a38d6fc749e307",
+      "inputsHash": "23c4b0eafd7d0e9e93a7d7d1703e6a247915fc2061f2e7da20301cc49075cb7f"
+    },
+    "S8/s8-native-liveness/final": {
+      "checkId": "s8-native-liveness",
+      "boundaryId": "S8",
+      "phase": "final",
+      "batchId": "d5355e1161f125506c0e1989f3a77c5b62cb02eb3e0ca246c5f09848e2588cbc",
+      "definitionHash": "eaf4cb58f6f95afc368cb01ad46ae5403bb769385f7baac8d5c1e68ceeeec403",
+      "basisHash": "fa817b8fc7db4c647d60bf54bd0f650acc0e205c4f16250dca0febf4e582159e",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 6,
+      "durationSeconds": 47.3029,
+      "recordedAt": "2026-10-05T23:59:14Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S8-final-80cac9bc0d1f.log",
+      "logSha256": "c8964f6931cd038964fc04bc9ef8387035daad524088e944a504543454c01fdd",
+      "inputsHash": "f6572d07798e4d4b939b5911e9cf94d2661d2237a91133f1211367a1e94092a6"
+    },
+    "S8/s8-chromium-liveness/final": {
+      "checkId": "s8-chromium-liveness",
+      "boundaryId": "S8",
+      "phase": "final",
+      "batchId": "d5355e1161f125506c0e1989f3a77c5b62cb02eb3e0ca246c5f09848e2588cbc",
+      "definitionHash": "746d1d69294fcfc0fd0a5b8231450dec624f3769abe889a66c5210e6ceaaffc8",
+      "basisHash": "ddf7cf70d89c9273e3fba9589e54db8404f438113d70d1eaa57219e7b0f6cc4e",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 6,
+      "durationSeconds": 64.2942,
+      "recordedAt": "2026-10-06T00:00:18Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/cross-platform-support/S8-final-7176a66e72f9.log",
+      "logSha256": "c858330b4e6004f913369b6e7aad268c560c3187eb8c5e0263722a460e3105e6",
+      "inputsHash": "23fd19c2cfdee02c4a6662dcf6784d187cbc0d196403b64cdd949994010332d3"
     }
   },
   "reviews": {
@@ -2269,6 +2338,167 @@
       "summaryMarkdown": "Passed. The browser transport is event-driven: one receiver task per web-sys socket (listeners owned by `BrowserSocket`, detached and the socket closed on drop, nothing forgotten), `gloo-timers` `TimeoutFuture` sleeps/timeouts cancelled on drop, fetch negotiate on the global scope, no `window()`/`setInterval`, and no wasm-sockets/wasm-timer/async-std/ehttp in the browser graph. Lifecycle parity with the old transport holds: distinct Connected/Reconnecting/Disconnected/LocalClosed states, generation-checked install and frame handling, ordinary renegotiate+handshake vs stateful resume (Sequence + replay, no handshake), stateful Ack/Sequence bookkeeping, terminal-close and manual-handler semantics, frames queued before close processed in order, short RefCell borrows released before user callbacks/awaits, previous socket closed on replacement and local disconnect, and errors that never repeat the tokenized URL. The worker scenario asserts no `window`; the threaded scenario asserts `crossOriginIsolated`, `SharedArrayBuffer` and that wasm memory is shared; threaded RUSTFLAGS match RayX `xtask/src/wasm.rs` exactly. All six S7 checks passed (3/2/28/2/2/2).\n\nNotes (not S7 defects): memory `client-runtime/state.md` and `transport/state.md`/`knowledge.md` still describe `wasm-sockets`/`ehttp`/polling and need the sprint memory sync; `E2ESelection.RequiresThreadedFixture` triggers for any browser target (revisit when S10 adds Firefox/WebKit); `BrowserSocket::open` reports an empty reason because a DOMException has no string form (the exception name could be added without the URL); pre-existing `clippy::arc_with_non_send_sync` errors on wasm32 in `client.rs`/`manual_stream.rs` and the `Platform` category not running in CI are outside this sprint.",
       "findingIds": [],
       "recordedAt": "2026-10-05T23:37:25Z"
+    },
+    "S8": {
+      "reviewerId": "s8-independent-reviewer",
+      "snapshotId": "d5355e1161f125506c0e1989f3a77c5b62cb02eb3e0ca246c5f09848e2588cbc",
+      "criterionIds": [
+        "R8.C1",
+        "R8.C2",
+        "R8.C3",
+        "R8.C4"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/liveness.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C1",
+            "R8.C2"
+          ],
+          "sha256": "c36986b864a0a9d2daab59acc5057de81d67ce96e5d27d990dfc407d7cb15404"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C1"
+          ],
+          "sha256": "b1cbd64ce8b5b2a0b75df6c22eb150f5783f4bdd818a2c9f57f38bb1dd9fb936"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C1"
+          ],
+          "sha256": "fe9c1a27789590c6e89f8641db8a39ac499c705321d59d8470851025f2a40089"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/negotiate.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C2"
+          ],
+          "sha256": "9affd91299dcba0478a00de6a8cdbdb675e32fd40cbad9d67bf6beaaacfc1aaf"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C2",
+            "R8.C3"
+          ],
+          "sha256": "a4402364b6780d7b168ae09cf0895adceb90ce9ad1c7e76124c1c7597b39e38c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C1",
+            "R8.C2",
+            "R8.C4"
+          ],
+          "sha256": "02ec1307b086d50680c8c050cc8854648338325a6c8788cf71285cfd639afda4"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/SignalRTestService/LivenessHubs.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C3",
+            "R8.C4"
+          ],
+          "sha256": "26d47190787464da1d98adf755f5d4851e1afec56f0b88aa1a5a44b011d82bbb"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/liveness.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R8.C1",
+            "R8.C2"
+          ],
+          "sha256": "c36986b864a0a9d2daab59acc5057de81d67ce96e5d27d990dfc407d7cb15404"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R8.C2"
+          ],
+          "sha256": "a4402364b6780d7b168ae09cf0895adceb90ce9ad1c7e76124c1c7597b39e38c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/keepalive_idle.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R8.C3"
+          ],
+          "sha256": "3600dc0443007f3aa6801820244c063fd638d05696753ce203a5de4513a0e449"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/server_timeout.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R8.C3"
+          ],
+          "sha256": "1c35e006a06ed1d72e086e9c7d61c3a2b3c7e6c77e75eb5109a16bce186ad4ba"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/handshake_timeout.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R8.C3"
+          ],
+          "sha256": "aeb15cc78f7c4d0e307d46478bfa37c8b713d909b0c278fe0fa33a1f8c3ba091"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R8.C4"
+          ],
+          "sha256": "c486cd8d976bdcfd54abf8d69a8d2bd734d18ec63bcd48fd05893144bc550a88"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/tests/signalr-liveness.spec.ts",
+          "kind": "test",
+          "criterionIds": [
+            "R8.C4"
+          ],
+          "sha256": "14fee5166d98db0d1486e6fdd54ac6795b09320e767c515128310e85b44d85b8"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/Scenarios/ScenarioCatalog.cs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R8.C3",
+            "R8.C4"
+          ],
+          "sha256": "9da8750e1f73caf454c8be1e8ad2ada9ccc529a635ed486cc0b08ed4d00a40b9"
+        }
+      ],
+      "summaryMarkdown": "S8 passes. `LivenessConfig` validation runs before I/O; `LivenessTracker` requests Pings, detects server silence and resets on every inbound frame; Ping frames are protocol-aware and never enter the stateful replay buffer (native writer Pings, including during stateful backpressure, bypass tracking). One shared `parse_handshake_response` validates both targets with token-free errors, and the native handshake now skips WebSocket control frames (S8-F1 resolved). A server timeout is reported as a dropped transport (`on_connection_dropped(true)` natively, `socket_closed(..., true)` with its generation in the browser), never a local close; `tokio::time::timeout` polls the stream before the deadline, and no lock or `RefCell` borrow spans `.await` or user callbacks. The browser clock is now monotonic (S8-F2 resolved). Merging the browser liveness task into the per-socket receiver task is an acceptable simplification of D12; reconcile D12's wording at the sprint memory sync. The keepalive-idle, server-timeout and handshake-timeout cells are non-vacuous and passed on native and Chromium for JSON and MessagePack.",
+      "findingIds": [
+        "S8-F1",
+        "S8-F2"
+      ],
+      "recordedAt": "2026-10-06T00:00:39Z"
     }
   },
   "checkpoints": {
@@ -2327,6 +2557,14 @@
       },
       "reviewHash": "ce475657b61a5aa08059a86477f957a152124e00ae7e42a3b35e3538f9bf0d13",
       "recordedAt": "2026-10-05T23:37:50Z"
+    },
+    "S8": {
+      "snapshotId": "d5355e1161f125506c0e1989f3a77c5b62cb02eb3e0ca246c5f09848e2588cbc",
+      "commits": {
+        "rayx-signalr": "7ac32c4e6308281ecdfccbbb80f1c28074f3bc92"
+      },
+      "reviewHash": "dcae3cec60b8b1fbbc7f709ab717dc9b6460bcde1a3812ba043f7ace0e674bfa",
+      "recordedAt": "2026-10-06T00:00:49Z"
     }
   },
   "findings": [
@@ -2559,6 +2797,47 @@
           "path": "src/communication/client_tokio.rs"
         }
       ]
+    },
+    {
+      "id": "S8-F1",
+      "criterionIds": [
+        "R8.C2",
+        "R8.C3"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "classify_handshake_frame"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "liveness_handshake_frames"
+        }
+      ],
+      "descriptionMarkdown": "Native handshake treated any first WebSocket frame as the SignalR handshake response; tokio-websockets yields Ping/Pong/Close control frames, so a WebSocket Ping before the response failed `connect` with 'invalid response' and a Close reported 'invalid response' instead of the closed-before-answer error. **Resolved:** `connect_to_server` now loops inside the handshake timeout over `classify_handshake_frame` (`HandshakeFrame::{Skip, Closed, Response}`): Ping/Pong are skipped, Close and end-of-stream report 'the connection closed before the server answered', and only text/binary frames reach `parse_handshake_response`. Verified by `liveness_handshake_frames::liveness_handshake_skips_websocket_control_frames` and `liveness_handshake_reports_a_close_before_the_response`.",
+      "boundaryId": "S8"
+    },
+    {
+      "id": "S8-F2",
+      "criterionIds": [
+        "R8.C1",
+        "R8.C4"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "symbol": "now_ms"
+        }
+      ],
+      "descriptionMarkdown": "The browser liveness clock used the wall clock (`js_sys::Date::now()`), so a backward clock step suspended Pings and server-timeout detection and a forward step caused a spurious timeout. **Resolved:** `now_ms()` reads the monotonic `performance.now()` from `js_sys::global()` through `js_sys::Reflect` (available in windows and workers), falling back to `Date::now` only when `performance` is absent; the source is stable per realm, so deadlines never mix clocks. Covered by the deterministic `liveness_` scheduler tests and the passing Chromium liveness cells.",
+      "boundaryId": "S8"
     }
   ],
   "handoffMarkdown": "",
