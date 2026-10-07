@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 107,
+  "revision": 118,
   "planRevision": 18,
   "specHashes": {
     "requirements": "e7e7cdebbd521478aae42da3ff324462c93435f48285c3f01fc29003ff8e5765",
@@ -265,7 +265,10 @@
       ]
     },
     "P4.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "P5.T1": {
       "status": "pending"
@@ -373,6 +376,15 @@
         }
       },
       "recordedAt": "2026-10-07T15:08:44Z"
+    },
+    "e6795c666d60ed8f064d13ae4dcb1992f5bacee3f7fa934dc74a8fc796a6c8de": {
+      "snapshot": {
+        "specHash": "232cf3b56589d8145543c5e57b4c493f497cc807db8ea6e988d9d8c23b71eec6",
+        "repositories": {
+          "rayx-signalr": "a1e36771b7733ac5d0a041597bab0130dce3c19d3fcdda333cc203843e5efca8"
+        }
+      },
+      "recordedAt": "2026-10-07T15:57:40Z"
     }
   },
   "checkResults": {
@@ -1633,6 +1645,57 @@
       "logPath": "artifacts-temp/agentx/production-grade-client/P3-final-11376f5859ac.log",
       "logSha256": "dfd74739349c4afa5bd93d64b6481809eadbffa52485e7c742fc203f0c725843",
       "inputsHash": "8cb10d836b22af5045caa0c254bb216ee10b1be286dcfbaf5f8c9ab56a07a953"
+    },
+    "P4/p4-stateful-transparent/final": {
+      "checkId": "p4-stateful-transparent",
+      "boundaryId": "P4",
+      "phase": "final",
+      "batchId": "e6795c666d60ed8f064d13ae4dcb1992f5bacee3f7fa934dc74a8fc796a6c8de",
+      "definitionHash": "dbe2dbac2714a32188b6456816628798f7893d625f9afdc491d297cf24ce6545",
+      "basisHash": "4996e5e5ebfbf6e981d1760a824f0a5779ae7ba276411a4eee6230e4be91eae1",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 10,
+      "durationSeconds": 5.8691,
+      "recordedAt": "2026-10-07T15:56:12Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P4-final-c90abfae5615.log",
+      "logSha256": "44026c94ed7d60ee8bcca17f9717f3c9590af9bcfa4ee4d45b5eb583d1991485",
+      "inputsHash": "27a1a0562a5f04ad6d1f5c07114c70eda8658f6366bfe359b23a2fd37da476c2"
+    },
+    "P4/p4-stateful-e2e/final": {
+      "checkId": "p4-stateful-e2e",
+      "boundaryId": "P4",
+      "phase": "final",
+      "batchId": "e6795c666d60ed8f064d13ae4dcb1992f5bacee3f7fa934dc74a8fc796a6c8de",
+      "definitionHash": "5886dbcc65a8c0943ac8c703b7ec75498aaf06476f532361bc9f23f7393f5a83",
+      "basisHash": "af8f6216fd4c22043d1e3b15ae0cb258dac72741a91ef49f6bc981bf5b360bc4",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 8,
+      "durationSeconds": 49.594,
+      "recordedAt": "2026-10-07T15:57:02Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P4-final-ed00a1f1ea48.log",
+      "logSha256": "518e15c99ddda8260433352bacf8095e2ab68ebef5c455ccdb394329ce1e5f6b",
+      "inputsHash": "cf7e55b00348eb5c0b31f6604d0e72e2ca654c84609d85f5dd41c41bb9404923"
+    },
+    "P4/p4-stateful-android/final": {
+      "checkId": "p4-stateful-android",
+      "boundaryId": "P4",
+      "phase": "final",
+      "batchId": "e6795c666d60ed8f064d13ae4dcb1992f5bacee3f7fa934dc74a8fc796a6c8de",
+      "definitionHash": "2bb1f2e20cddcf8a3e09d18df820f8d3030a04dd4b5278437f778e6cf69108fe",
+      "basisHash": "4d3447ad2d2be06c9490ca2c1e84c9fd903118c7fe8a7f649b2b74f3c9aa188d",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 37.5278,
+      "recordedAt": "2026-10-07T15:57:40Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P4-final-4c811437f667.log",
+      "logSha256": "815732217fcafbb5f9b62c65186093ea40bad1245144962b789faad0c9e3c79b",
+      "inputsHash": "cf7e55b00348eb5c0b31f6604d0e72e2ca654c84609d85f5dd41c41bb9404923"
     }
   },
   "reviews": {
@@ -3760,6 +3823,170 @@
         "P3-F8"
       ],
       "recordedAt": "2026-10-07T15:11:29Z"
+    },
+    "P4": {
+      "reviewerId": "p4-reviewer-1",
+      "snapshotId": "e6795c666d60ed8f064d13ae4dcb1992f5bacee3f7fa934dc74a8fc796a6c8de",
+      "criterionIds": [
+        "R16.C15"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C15"
+          ],
+          "sha256": "8695cc80287e381f07d8409ea092fcfcfa96dea975d4d4d974e56cb4c99fd4fc"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C15"
+          ],
+          "sha256": "f37a32e61a1697c2ed98050b2288873a3532e0ae360c0ae664597090b749d320"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/stateful.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C15"
+          ],
+          "sha256": "427cd57292826d3f4d124287c73080a96fce734d5121e78361863e56703956e6"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/common.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C15"
+          ],
+          "sha256": "5b0087b8b4a2bfb70a039359dbe0c6ddc62c0b7de79c8c6789398c960065b012"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/reconnection.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C15"
+          ],
+          "sha256": "2bc7ee2f84fc3f25d30897960a6122a0967f0577b04e059ececc17bb43c99104"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C15"
+          ],
+          "sha256": "d870211eff379a7916b31709c7a742bc83333f89e6592298090f9ed54a8f6975"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/stateful.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C15"
+          ],
+          "sha256": "427cd57292826d3f4d124287c73080a96fce734d5121e78361863e56703956e6"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/loopback_server.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C15"
+          ],
+          "sha256": "df196945e67c0b46f12bb00f78401eb39a9f4d2834cd0bf38dca0fd61174614f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/stateful_transparent_resume.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C15"
+          ],
+          "sha256": "2351adc12c4f8b195271e9a487ce55b741cfb4dbf72d0d5e764a3de2c7218c38"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/stateful_resume_fallback.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C15"
+          ],
+          "sha256": "d9d9963f7d734a8c25815bd3ce9526ba882061707f397df41cdf1bc5f2d56dbf"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C15"
+          ],
+          "sha256": "4bc26986852d99901b3deadb8e23dee8714b422787f549eccdf63a4914ef3404"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/TestHub.cs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C15"
+          ],
+          "sha256": "410f230967aef8a4380bad1952b980fc8ac17ee729275f1f9eb8de56c5705314"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/P4-final-ed00a1f1ea48.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C15"
+          ],
+          "sha256": "518e15c99ddda8260433352bacf8095e2ab68ebef5c455ccdb394329ce1e5f6b"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/P4-final-4c811437f667.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C15"
+          ],
+          "sha256": "815732217fcafbb5f9b62c65186093ea40bad1245144962b789faad0c9e3c79b"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/lifecycle.md",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C15"
+          ],
+          "sha256": "edf6d8a4d545dca37d1126c17f1f7c649a2fe3cfc2838ec214638628cc6e6edd"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C15"
+          ],
+          "sha256": "8695cc80287e381f07d8409ea092fcfcfa96dea975d4d4d974e56cb4c99fd4fc"
+        }
+      ],
+      "summaryMarkdown": "D20 holds on both targets. After an ungraceful loss there is exactly one immediate, policy-independent resume. Status stays `Connected`, no hook fires, the connection id is kept, and sends and client-result replies made during the resume are held and resent exactly once. A failed resume, a server Close, a server timeout or a protocol violation ends the logical connection, fails pending work, and the policy or handler reconnects with a fresh negotiate. Sends that were waiting when the transport dropped are retried only within the logical connection of their first writer; pause cancels an in-flight resume; and the repository rules hold (no Close on a resumable transport, generation-checked completion). P4-F1..F6 are resolved. The `stateful_transparent_` group (10 tests) and the 8 native+Chromium and 4 Android cells pass at revision 116. Accepted residual: `send_current` reads the counter right after `writer()` releases the state lock, not under it, so it would mis-attribute the writer only if an ordinary drop plus a complete fresh reconnect fit between those two statements.",
+      "findingIds": [
+        "P4-F1",
+        "P4-F2",
+        "P4-F3",
+        "P4-F4",
+        "P4-F5",
+        "P4-F6"
+      ],
+      "recordedAt": "2026-10-07T15:58:04Z"
     }
   },
   "checkpoints": {
@@ -3810,6 +4037,14 @@
       },
       "reviewHash": "4cb040b82fb5ff878e62b048a086df7ff8874b7a3d29b1e54c5eec9ee32e4211",
       "recordedAt": "2026-10-07T15:11:59Z"
+    },
+    "P4": {
+      "snapshotId": "e6795c666d60ed8f064d13ae4dcb1992f5bacee3f7fa934dc74a8fc796a6c8de",
+      "commits": {
+        "rayx-signalr": "1893be099f494e7a9922e6a4b1ea79d83c5b0e8b"
+      },
+      "reviewHash": "5d3734d8664041544a5617384b22e2e813f8912894991614e8208dc699d0bb62",
+      "recordedAt": "2026-10-07T15:58:44Z"
     }
   },
   "findings": [
@@ -5128,9 +5363,140 @@
           "symbol": "framing_carryover_messagepack_messages_within_the_maximum_size_survive_any_split"
         }
       ]
+    },
+    {
+      "id": "P4-F1",
+      "boundaryId": "P4",
+      "criterionIds": [
+        "R16.C15"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**Native client-result Completions are lost during a transparent resume.**\n\nExpected (D20, .NET parity, invariant \"never loses application messages within one logical connection\"): a Completion for a server-to-client invocation produced while the stateful transport is being resumed goes into the replay buffer and is sent with/after the resend, exactly as the browser does (`client_wasm.rs` `TransportReplies::send` -> `send_on` -> `TrackResult::Held`).\n\nObserved: `TransportReplies::writer` (`src/communication/client_tokio.rs:2131-2146`) matches `ConnectionState::NotConnected(reason) => return Err(reason.send_error())` (line 2143), which includes the new `DisconnectionReason::Resuming(writer)`. The reply fails with \"the connection is resuming\" and `send_detached` only logs it at debug, so the Completion is never tracked or sent; the server's `InvokeAsync<T>` on the client never completes although the logical connection survived. Native and browser behavior diverge.\n\nRepair: in `TransportReplies::writer`, after the logical-connection check, return `Ok(writer.clone())` for `NotConnected(DisconnectionReason::Resuming(writer))` (as `CommunicationClient::writer` does). Add a `stateful_transparent_` unit test: a client-result handler that completes while the loopback server delays the resume (`resume_delay`) delivers exactly one Completion after the Sequence.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "TransportReplies::writer"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "stateful_transparent_a_client_result_completed_while_resuming_goes_out_with_the_resend"
+        }
+      ]
+    },
+    {
+      "id": "P4-F2",
+      "boundaryId": "P4",
+      "criterionIds": [
+        "R16.C15"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**Native sends already in flight when the transport is lost fail instead of being buffered for the resume.**\n\nExpected (D20: \"sends go into the replay buffer\"; .NET `MessageBuffer.WriteAsync` keeps waiting across the transport reconnect; the browser's `send_on` re-tracks after its backpressure sleep and gets `TrackResult::Held`): a `send`/`invoke` that obtained the old connection's writer and is waiting for replay-buffer room (or queue room) when the loss is detected completes once the resume is under way, without loss or duplicate.\n\nObserved: `ConnectionWriter::send` (`src/communication/client_tokio.rs:282-312`) tracks with the writer's fixed generation (`track_for(*generation, ...)?`, line 293). `resume_transparently` calls `buffer.disconnected()`, which bumps the transport generation, so every sender looping on `TrackResult::Backpressured` with the old writer returns `STALE_TRANSPORT` (`ErrorKind::Transport`); a sender waiting in `data.reserve()` on the old queue fails with `closed_before_sent` once the old writer task closes it. This is the common case under load: Acks stop when the transport dies, the replay buffer fills, and senders are waiting at the moment of loss. The frame was never tracked, so a retry is safe. `CommunicationClient::writer` (line 1604) likewise fails a call that waited for an attempt if the state became `Resuming` meanwhile.\n\nRepair: when `track_for` reports a stale generation (or the old queue is closed) while the lifecycle is still `Connected` in the same generation, re-acquire the current writer (`CommunicationClient::writer`, which returns the `Resuming` writer) and retry the untracked frame; handle `Resuming` in the post-attempt match of `CommunicationClient::writer` too. Add a `stateful_transparent_` test with a loopback server that withholds Acks until the buffer is full, then drops the connection, and assert the waiting send completes and its record arrives exactly once after the resume.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "ConnectionWriter::send_current"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "stateful_transparent_a_send_waiting_for_buffer_room_survives_the_loss"
+        }
+      ]
+    },
+    {
+      "id": "P4-F3",
+      "boundaryId": "P4",
+      "criterionIds": [
+        "R16.C15"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**`pause()` does not stop an in-flight transparent resume, which can then race a later `resume()` on the same buffer and token.**\n\nExpected (handoff: \"supervised under the connection generation so pause/local close supersede it\"; D20 invariant: the policy never targets an ended logical connection, one resume per loss): pausing during a transparent resume ends that resume's network I/O, so a following `resume()` is the only resume touching the replay buffer and connection token.\n\nObserved: `resume_transparently` runs `resume_to_server` under `coordinator.supervise(...)` (`src/communication/client_tokio.rs:603-614`), but `ReconnectCoordinator::pause` (`src/communication/reconnection.rs:511`) only changes the lifecycle; only `local_close` calls `runs.cancel_all()` (line 508). After `pause()`, the old resume keeps connecting (up to the 120 s connect timeout), then calls `begin_resend`/`finish_resend` on the shared buffer and sends Sequence plus frames for the same token; only the final `current()` check discards its socket. If the application calls `resume()` meanwhile, two resumes of one token run concurrently: the late one can replace the newly installed transport on the server (a spurious second loss) and toggles `resending` under the live connection. `Runs::supervise` also removes every handle of the same generation when one completes (`reconnection.rs:271-273`), so a just-finished policy run can drop the transparent resume's abort handle.\n\nRepair: make pause cancel the supervised runs of superseded generations (as `local_close` does), or re-check `current()` under the state lock before `begin_resend` in the transparent path; key `Runs` handles uniquely instead of by generation. Add a `stateful_transparent_` test: drop, `pause()` during a delayed resume, `resume()`, and assert the loopback server sees exactly one accepted resume per token after the pause.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/reconnection.rs",
+          "symbol": "ReconnectCoordinator::pause"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "stateful_transparent_a_pause_cancels_the_resume_in_flight"
+        }
+      ]
+    },
+    {
+      "id": "P4-F4",
+      "boundaryId": "P4",
+      "criterionIds": [
+        "R16.C15"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Skill lifecycle reference not updated for the transparent resume.**\n\nExpected (CLAUDE.md: a behavior change updates the matching docs chapter and the skill references in the same change): `.claude/skills/rayx-signalr/references/lifecycle.md` states that a stateful transport loss is resumed transparently while `status()` stays `Connected` and no lifecycle hook is raised, as `docs/06-connection-lifecycle.md` now does.\n\nObserved: its status table (line 38) still describes `Connected` only as \"transport open, handshake done\", and the Lifecycle events section (lines 50-56) gives the drop order `Reconnecting` -> `Reconnected` without excepting the transparent stateful resume. Only `references/reconnection.md` was updated.\n\nRepair: update the `Connected` row and the Lifecycle events paragraph of the skill's `lifecycle.md` to match docs/06 (transparent resume: stays `Connected`, no hooks, sends buffered; a failed resume continues as an ordinary drop with a fresh negotiate).",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/lifecycle.md"
+        }
+      ]
+    },
+    {
+      "id": "P4-F5",
+      "boundaryId": "P4",
+      "criterionIds": [
+        "R16.C15"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**The F2 stale-send retry can move a message onto a new logical connection (ordinary reconnects and after a failed stateful resume).**\n\nExpected (D20: a failed resume ends the logical connection and its pending work fails; repository rule: ordinary reconnect performs a fresh negotiation and fails pending work without replay; .NET `HubConnection` holds the connection lock during a send, so an in-flight send never crosses to a reconnected connection): a send that was not accepted before its transport was lost is retried only on a transport of the **same logical connection** (the transparent resume); otherwise it fails with the original error.\n\nObserved: `ConnectionWriter::try_send` (`src/communication/client_tokio.rs:305-345`) reports `Unsent::Stale` whenever the writer's queue is closed (line 311), for ordinary writers too, and when a stateful buffer's generation moved, which `dispose()` (failed resume, server Close, timeout) also does. `send_current` (line 354) then re-fetches `CommunicationClient::writer` for up to `STALE_RETRY_LIMIT` (5 s); `send_message` (line 1561) does not check the logical connection, unlike `TransportReplies::writer`. `writer()` waits for an in-flight attempt and returns the new connection's writer, so with a 0 s first policy delay (`DefaultRetryPolicy`) an `invoke`/`enumerate`/`send` waiting for queue room (64 frames) or replay-buffer room at the moment of an ordinary drop or a failed resume is sent on the freshly negotiated connection after `fail_pending` already failed its action: the caller sees an error while the server executes the invocation (or starts a stream nobody consumes and nobody cancels).\n\nRepair: capture the logical-connection counter (`actions.callbacks().logical_connection()`) when `send_message` starts and retry `Unsent::Stale` only while it is unchanged (as `TransportReplies::writer` does), and only for a stateful writer whose buffer is still active; otherwise return the stale error. Add a test (separately selectable, e.g. in `stateful_transparent_` or a `stale_send_` group): an ordinary client with a 0-delay policy whose send waits for queue room when the connection drops must fail and its frame must not reach the reconnected server; likewise a send waiting in the replay buffer when the resume is rejected (`reject_resumes`).",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "ConnectionWriter::send_current"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "stateful_transparent_a_retried_send_never_moves_to_a_new_logical_connection"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "stateful_transparent_a_waiting_send_fails_when_the_resume_fails"
+        }
+      ]
+    },
+    {
+      "id": "P4-F6",
+      "boundaryId": "P4",
+      "criterionIds": [
+        "R16.C15"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**A send that waited for a start or reconnect attempt is not retried across a transparent resume of the connection that attempt installed.**\n\nExpected (D20 and the F2 repair: a send not yet accepted when its stateful transport is lost is sent through the resume's writer of the same logical connection): the logical connection a retry must stay on is the one whose writer the send first used.\n\nObserved: `CommunicationClient::send_message` (`src/communication/client_tokio.rs:1577-1589`) reads the logical-connection counter *before* `self.writer()`. When the state is `Attempting`, `writer()` waits for the attempt, which calls `new_logical_connection()` under the state lock before installing the connection, so the first writer belongs to counter N+1 while the send captured N. If that send then waits for replay-buffer room and the new connection's transport drops, `try_send` returns `Unsent::Stale` and `same_connection()` (N+1 != N) fails the send with `Transport` although its logical connection is being resumed transparently. This affects calls made during `start()`, during a policy attempt, or during `resume()`. The window is narrow, but the outcome is the F2 failure mode again.\n\nRepair: in `send_current`, record the logical connection after the first `current()` returns, for example by passing the counter and reading it once the first writer is in hand. That writer was fetched under the state lock, so the counter already reflects its connection. Compare later retries with that value. Extend `stateful_transparent_a_retried_send_never_moves_to_a_new_logical_connection` (or add a case) so that the counter advances while the first writer is fetched and a Stale outcome is still retried on the same connection.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "ConnectionWriter::send_current"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "stateful_transparent_a_retried_send_never_moves_to_a_new_logical_connection"
+        }
+      ]
     }
   ],
-  "handoffMarkdown": "Error::hub and Error::closed_by_server keep server_message() verbatim (HubException.Message); Display stays redacted; custom Debug omits server_message. server_message rustdoc warns that it is unredacted. error_model_display_and_debug_are_redacted no longer asserts a redacted server_message. Group server_text_ (2). Docs for all P3 tasks follow before the checks.",
+  "handoffMarkdown": "D20 implemented on both targets. Native: transport_dropped resumes a stateful connection once via resume_transparently (state DisconnectionReason::Resuming(writer), lifecycle stays Connected, no hooks, supervised under the connection generation so pause/local close supersede it); sends during the resume track as TrackResult::Held (buffer detached flag set by disconnected, cleared by begin_resend) and queue on WriterChannels the resumed connection takes over. A failed resume, a server Close, a server timeout or a protocol violation dispose the buffer and continue in connection_ended (policy/handler/closed with a fresh negotiate). common::resumes_transparently decides. Browser: socket_closed spawns resume_transparently (install with no await after the resend). Loopback server: stateful resume detection by token, resume_delay, reject_resumes (404), try_next_record. Test service: AbortPhysicalTransportAndRejectResume, ResumeRejections, 404 middleware. Group stateful_transparent_ (5). Scenarios stateful-transparent-resume and stateful-resume-fallback (native, browsers, Android); connection-id no longer waits for Reconnected after a stateful drop. Docs 06/07/13 and skill reconnection updated.",
   "protectedPaths": {
     "rayx-signalr": {
       ".agentx/tasks/resilient-reconnect-and-production-gates/**": "a4110a3f5f2c68d64ddf8fbedb70479c98f46dde78b064b5b3ac826772db49a6",
