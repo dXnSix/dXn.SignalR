@@ -66,8 +66,17 @@ type UserDisconnectionHandler = Arc<Box<dyn Fn(ReconnectionContext) + Send + Syn
 type SharedStatefulBuffer = Arc<StdMutex<StatefulMessageBuffer>>;
 type SocketSink = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
 type SocketStream = SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>;
-/// The negotiated transport URL; a fresh stateful negotiation replaces it.
-type SharedEndpoint = Arc<RwLock<Uri>>;
+/// The negotiated transport of a stateful logical connection, which its resumes reconnect to: the
+/// WebSocket URL and the recipe negotiation produced (it carries a negotiate redirect's token,
+/// which every resume sends, as the .NET client keeps a redirect's access token).
+#[derive(Clone, Default)]
+struct TransportTarget {
+    uri: Uri,
+    recipe: Option<ConnectionRecipe>,
+}
+
+/// The negotiated transport; a fresh stateful negotiation replaces it.
+type SharedEndpoint = Arc<RwLock<TransportTarget>>;
 
 /// How the writer task ends (`CommunicationConnection::stop_mode`).
 const WRITER_RUNNING: u8 = 0;
@@ -597,12 +606,12 @@ impl ReconnectionContext {
         info!("Connecting to {}...", self.endpoint);
         let resumable = active(&self.stateful);
         let (socket, fresh) = if let Some(buffer) = resumable {
-            let endpoint = self.transport_endpoint.read_locked().clone();
+            let target = self.transport_endpoint.read_locked().clone();
             let socket = CommunicationClient::resume_to_server(
-                endpoint,
+                target.uri,
                 self.protocol_kind,
                 buffer,
-                &self.recipe,
+                target.recipe.as_ref().unwrap_or(&self.recipe),
                 &|| self.coordinator.owns(generation),
             )
             .await?;
@@ -633,7 +642,10 @@ impl ReconnectionContext {
             // server declined stateful reconnect the buffer stays disposed (ordinary mode).
             if let (Some(buffer), true) = (&self.stateful, fresh.stateful) {
                 buffer.locked().renew();
-                *self.transport_endpoint.write_locked() = fresh.endpoint;
+                *self.transport_endpoint.write_locked() = TransportTarget {
+                    uri: fresh.endpoint,
+                    recipe: Some(fresh.recipe),
+                };
             }
             // Every connection but a stateful resume starts a new logical connection.
             self.actions.callbacks().new_logical_connection();
@@ -691,14 +703,14 @@ impl ReconnectionContext {
             channels
         };
         info!("The transport was lost; resuming the stateful connection");
-        let endpoint = self.transport_endpoint.read_locked().clone();
+        let target = self.transport_endpoint.read_locked().clone();
         let resumed = self
             .coordinator
             .supervise(CommunicationClient::resume_to_server(
-                endpoint,
+                target.uri,
                 self.protocol_kind,
                 buffer.clone(),
-                &self.recipe,
+                target.recipe.as_ref().unwrap_or(&self.recipe),
                 &|| self.current(),
             ))
             .await;
@@ -1858,7 +1870,7 @@ impl CommunicationClient {
         let protocol_kind = recipe.protocol();
         let hooks = LifecycleHooks::new(recipe.runtime());
         let inner = ClientInner {
-            _endpoint: Arc::new(RwLock::new(Uri::default())),
+            _endpoint: Arc::new(RwLock::new(TransportTarget::default())),
             _recipe: recipe,
             _state: Arc::new(Mutex::new(ConnectionState::NotConnected(
                 DisconnectionReason::NotStarted,
@@ -1972,7 +1984,9 @@ impl CommunicationClient {
         recipe: &ConnectionRecipe,
         timeout: Duration,
     ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, Error> {
-        tokio::time::timeout(timeout, Self::open_websocket(endpoint, recipe))
+        // Boxed: the TLS, upgrade and token-factory states would otherwise make every future
+        // that awaits a connect large enough to overflow small (debug-build) stacks.
+        tokio::time::timeout(timeout, Box::pin(Self::open_websocket(endpoint, recipe)))
             .await
             .map_err(|_| Error::timed_out(TimeoutOperation::Connect, timeout))?
     }
@@ -2000,7 +2014,7 @@ impl CommunicationClient {
         let composed = super::headers::compose(
             &[("User-Agent", super::headers::user_agent())],
             recipe.headers(),
-            recipe.transport_authorization(),
+            recipe.current_transport_authorization().await?,
         );
         for (name, value) in composed {
             let invalid = || {
@@ -2138,7 +2152,8 @@ impl CommunicationClient {
         protocol_kind: HubProtocolKind,
         stateful: bool,
     ) -> Result<(OpenSocket, FreshConnection), Error> {
-        let configuration = HttpClient::negotiate(recipe).await?;
+        // Boxed for the same reason as the WebSocket open.
+        let configuration = Box::pin(HttpClient::negotiate(recipe)).await?;
         let endpoint = Uri::from_str(&configuration.get_endpoint()).map_err(|_| {
             Error::negotiate(None, "the negotiated WebSocket endpoint is not a valid URI")
         })?;
@@ -2158,6 +2173,7 @@ impl CommunicationClient {
         let connection_id = configuration.get_connection_id();
         let fresh = FreshConnection {
             endpoint,
+            recipe: configuration.get_recipe(),
             stateful,
             connection_id: (!connection_id.is_empty()).then_some(connection_id),
         };
@@ -2181,6 +2197,8 @@ impl CommunicationClient {
 struct FreshConnection {
     /// The negotiated transport URL, for a later stateful resume.
     endpoint: Uri,
+    /// The negotiated recipe (a redirect's token), for a later stateful resume.
+    recipe: ConnectionRecipe,
     /// Whether the server accepted stateful reconnect.
     stateful: bool,
     /// The negotiated connection id (`None` without negotiation).
@@ -2515,7 +2533,7 @@ mod native_connection_runs {
         let mut client =
             CommunicationClient::create_with(recipe, ReconnectCoordinator::connected()).unwrap();
         client._stateful.as_ref().unwrap().locked().renew();
-        *client._endpoint.write_locked() = format!("ws://127.0.0.1:{port}/hub?id=token")
+        client._endpoint.write_locked().uri = format!("ws://127.0.0.1:{port}/hub?id=token")
             .parse()
             .unwrap();
         client.set_reconnection_config(ReconnectionConfig {

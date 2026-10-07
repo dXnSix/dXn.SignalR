@@ -205,17 +205,35 @@ where
     let stateful = recipe.stateful_reconnect().is_some();
     let mut base = recipe.web_url();
     let mut authentication = recipe.authentication();
+    let mut redirected = false;
     let mut redirects = 0;
     loop {
+        // An access-token factory is asked for a fresh token for every negotiate request,
+        // redirect hops included, until a redirect issues the token.
+        if !redirected {
+            authentication = recipe.authentication().resolve().await?;
+        }
         let url = negotiate_url(&base, stateful);
         let text = request(url, authentication.header_value())
             .await
             .map_err(|error| {
-                error.context(format!("negotiation with {} failed", display(&base)))
+                // A timeout names only the bound: `negotiate timed out after <bound>`.
+                if error.kind() == crate::ErrorKind::Timeout {
+                    error
+                } else {
+                    error.context(format!("negotiation with {} failed", display(&base)))
+                }
             })?;
         match parse_outcome(&text, &display(&base))? {
             NegotiateOutcome::Connection(response) => {
-                return connection_data(recipe, &base, &authentication, response, bearer_in_query);
+                return connection_data(
+                    recipe,
+                    &base,
+                    &authentication,
+                    redirected,
+                    response,
+                    bearer_in_query,
+                );
             }
             NegotiateOutcome::Redirect { url, access_token } => {
                 redirects += 1;
@@ -231,6 +249,7 @@ where
                 base = url;
                 if let Some(token) = access_token {
                     authentication = Authentication::Bearer { token };
+                    redirected = true;
                 }
             }
             NegotiateOutcome::Error(message) => {
@@ -262,6 +281,7 @@ fn connection_data(
     recipe: &ConnectionRecipe,
     base: &str,
     authentication: &Authentication,
+    redirected: bool,
     response: NegotiateResponse,
     bearer_in_query: bool,
 ) -> Result<ConnectionData, Error> {
@@ -302,14 +322,40 @@ fn connection_data(
     if let Some(token) = bearer_parameter(authentication).filter(|_| bearer_in_query) {
         parameters.push(("access_token", token));
     }
+    // An access-token factory is asked again when the WebSocket opens, unless a redirect issued
+    // the transport's token.
+    let factory = matches!(recipe.authentication(), Authentication::Factory(_));
+    let transport_recipe = if factory && !redirected {
+        recipe.clone()
+    } else {
+        recipe
+            .clone()
+            .with_transport_authentication(authentication.clone())
+    };
     Ok(ConnectionData::new(
         socket_url(base, &parameters),
         response.connection_id().to_string(),
-        recipe
-            .clone()
-            .with_transport_authentication(authentication.clone()),
+        transport_recipe,
         stateful,
     ))
+}
+
+/// `url` with its `access_token` query set to `token` (percent-encoded), as a browser sends the
+/// fresh token of an access-token factory with a WebSocket.
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+pub(crate) fn with_access_token(url: &str, token: &str) -> String {
+    let (path, query) = split_query(url);
+    let mut parameters: Vec<&str> = query
+        .map(|query| {
+            query
+                .split('&')
+                .filter(|pair| !pair.is_empty() && !pair.starts_with("access_token="))
+                .collect()
+        })
+        .unwrap_or_default();
+    let token = format!("access_token={}", encode_query_value(token));
+    parameters.push(&token);
+    format!("{path}?{}", parameters.join("&"))
 }
 
 /// Builds the WebSocket connection directly from the configured endpoint, without negotiating.
@@ -322,6 +368,7 @@ fn direct_connection(
         log::warn!("{SKIP_WITH_STATEFUL}");
     }
     let authentication = recipe.authentication();
+    // Resolved when the WebSocket opens (`fresh_transport_token` in browsers).
     let parameters: Vec<(&str, &str)> = bearer_parameter(&authentication)
         .filter(|_| bearer_in_query)
         .map(|token| vec![("access_token", token)])
@@ -726,5 +773,144 @@ mod skip_negotiation {
             )))
         }));
         assert_eq!(result.unwrap().get_endpoint(), "wss://localhost:5001/hub");
+    }
+}
+
+/// The access-token factory in negotiation (R4.C1): a fresh token per negotiate, asked again for
+/// the transport, and a redirect's token used instead.
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod access_token_factory {
+    use std::sync::{
+        atomic::{AtomicU32, Ordering},
+        Arc,
+    };
+
+    use super::{
+        negotiation_tests::{negotiate_as, V1},
+        with_access_token,
+    };
+    use crate::client::ConnectionConfiguration;
+
+    /// A factory that issues `factory-1`, `factory-2`, ... and counts its calls.
+    fn counting(configuration: &mut ConnectionConfiguration) -> Arc<AtomicU32> {
+        let calls = Arc::new(AtomicU32::new(0));
+        let counted = calls.clone();
+        configuration.with_access_token_factory(move || {
+            let call = counted.fetch_add(1, Ordering::SeqCst) + 1;
+            async move { Ok(format!("factory-{call}")) }
+        });
+        calls
+    }
+
+    #[test]
+    fn access_token_factory_is_asked_for_negotiate_and_again_for_the_transport() {
+        let mut calls = None;
+        let (result, requests) = negotiate_as(false, |c| calls = Some(counting(c)), vec![V1]);
+        let calls = calls.unwrap();
+        let data = result.unwrap();
+        assert_eq!(requests.borrow()[0].1.as_deref(), Some("Bearer factory-1"));
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        let transport =
+            futures::executor::block_on(data.get_recipe().current_transport_authorization())
+                .unwrap();
+        assert_eq!(
+            transport.as_deref(),
+            Some("Bearer factory-2"),
+            "a fresh token"
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn access_token_factory_a_redirect_token_wins() {
+        let redirect = r#"{"url":"https://demo.service.signalr.net/client/?hub=chat","accessToken":"redirect-token"}"#;
+        let mut calls = None;
+        let (result, requests) =
+            negotiate_as(false, |c| calls = Some(counting(c)), vec![redirect, V1]);
+        let calls = calls.unwrap();
+        let data = result.unwrap();
+        let requests = requests.borrow();
+        assert_eq!(requests[0].1.as_deref(), Some("Bearer factory-1"));
+        assert_eq!(requests[1].1.as_deref(), Some("Bearer redirect-token"));
+        let transport =
+            futures::executor::block_on(data.get_recipe().current_transport_authorization())
+                .unwrap();
+        assert_eq!(transport.as_deref(), Some("Bearer redirect-token"));
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            1,
+            "the redirect's token is not replaced"
+        );
+    }
+
+    #[test]
+    fn access_token_factory_is_asked_again_on_a_redirect_hop_without_a_token() {
+        let redirect = r#"{"url":"https://demo.service.signalr.net/client/?hub=chat"}"#;
+        let mut calls = None;
+        let (result, requests) =
+            negotiate_as(false, |c| calls = Some(counting(c)), vec![redirect, V1]);
+        result.unwrap();
+        let requests = requests.borrow();
+        assert_eq!(requests[0].1.as_deref(), Some("Bearer factory-1"));
+        assert_eq!(requests[1].1.as_deref(), Some("Bearer factory-2"));
+        assert_eq!(calls.unwrap().load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn access_token_factory_browser_resumes_keep_a_redirect_token() {
+        // Browsers resume with the negotiated recipe: a redirect's token stays in the URL, a
+        // factory token is replaced by a fresh one.
+        let redirect = r#"{"url":"https://demo.service.signalr.net/client/?hub=chat","accessToken":"redirect-token"}"#;
+        let (redirected, _) = negotiate_as(true, |c| drop(counting(c)), vec![redirect, V1]);
+        let redirected = redirected.unwrap();
+        assert!(redirected
+            .get_endpoint()
+            .contains("access_token=redirect-token"));
+        assert_eq!(
+            futures::executor::block_on(redirected.get_recipe().fresh_transport_token()).unwrap(),
+            None
+        );
+        let mut calls = None;
+        let (plain, _) = negotiate_as(true, |c| calls = Some(counting(c)), vec![V1]);
+        assert_eq!(
+            futures::executor::block_on(plain.unwrap().get_recipe().fresh_transport_token())
+                .unwrap()
+                .as_deref(),
+            Some("factory-2")
+        );
+        assert_eq!(calls.unwrap().load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn access_token_factory_errors_fail_negotiate_redacted() {
+        let (result, requests) = negotiate_as(
+            false,
+            |c| {
+                c.with_access_token_factory(|| async {
+                    Err::<String, _>("refresh failed for Bearer abc.def-secret".to_string())
+                });
+            },
+            vec![V1],
+        );
+        let Err(error) = result else {
+            panic!("the factory error fails negotiate")
+        };
+        assert_eq!(error.kind(), crate::ErrorKind::Authentication);
+        let text = error.to_string();
+        assert!(text.contains("access token factory failed"), "{text}");
+        assert!(!text.contains("abc.def-secret"), "{text}");
+        assert!(requests.borrow().is_empty(), "no request was sent");
+    }
+
+    #[test]
+    fn access_token_factory_browser_urls_carry_the_fresh_token() {
+        assert_eq!(
+            with_access_token("wss://host/hub?id=abc&access_token=old", "new+token"),
+            "wss://host/hub?id=abc&access_token=new%2Btoken"
+        );
+        assert_eq!(
+            with_access_token("wss://host/hub?id=abc", "t"),
+            "wss://host/hub?id=abc&access_token=t"
+        );
     }
 }

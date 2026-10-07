@@ -395,6 +395,7 @@ impl SignalRClient {
     {
         let mut config = ConnectionConfiguration::new(domain.to_string(), hub.to_string());
         configure(&mut config);
+        config.validate_authentication()?;
         // Every liveness duration is accepted, as the .NET client accepts them; values that
         // cannot work are logged.
         config.liveness().warn();
@@ -427,6 +428,10 @@ impl SignalRClient {
         for (name, value) in recipe.headers() {
             crate::communication::headers::validate(name, value)?;
         }
+        crate::client::configuration::warn_browser_basic(
+            &recipe.authentication(),
+            cfg!(target_arch = "wasm32"),
+        );
         #[cfg(target_arch = "wasm32")]
         if !recipe.headers().is_empty() {
             log::warn!(
@@ -2570,6 +2575,250 @@ mod client_lifecycle_api {
             events.lock().unwrap()
         );
         client.stop().await;
+    }
+
+    #[test]
+    fn connect_timeout_defaults_to_120_seconds_and_zero_is_logged() {
+        let configuration = crate::ConnectionConfiguration::new("host".into(), "hub".into());
+        assert_eq!(
+            configuration.liveness().connect_timeout,
+            Duration::from_secs(120)
+        );
+        let mut zero = crate::ConnectionConfiguration::new("host".into(), "hub".into());
+        zero.with_connect_timeout(Duration::ZERO);
+        // Accepted, as the .NET client accepts every duration; the value that cannot work is logged.
+        assert!(zero
+            .liveness()
+            .warnings()
+            .iter()
+            .any(|warning| warning.contains("connect timeout is zero")));
+    }
+
+    #[tokio::test]
+    async fn connect_timeout_bounds_negotiate_without_the_url_or_token() {
+        let (port, server) = silent_server().await;
+        let client = SignalRClient::new("127.0.0.1", "hub", |configuration| {
+            configuration.unsecure();
+            configuration.with_port(port);
+            configuration.authenticate_bearer("secret-connect-token".to_string());
+            configuration.with_connect_timeout(Duration::from_millis(300));
+        })
+        .unwrap();
+        let started = std::time::Instant::now();
+        let error = client.start().await.unwrap_err();
+        assert!(
+            started.elapsed() < Duration::from_secs(2),
+            "{:?}",
+            started.elapsed()
+        );
+        assert_eq!(error.kind(), ErrorKind::Timeout);
+        assert_eq!(
+            error.timeout_operation(),
+            Some(crate::TimeoutOperation::Negotiate)
+        );
+        assert_eq!(error.timeout(), Some(Duration::from_millis(300)));
+        let text = format!("{error} {error:?}");
+        assert!(
+            !text.contains("127.0.0.1") && !text.contains(&port.to_string()),
+            "{text}"
+        );
+        assert!(!text.contains("secret-connect-token"), "{text}");
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn connect_timeout_bounds_the_websocket_upgrade() {
+        let (port, server) = silent_server().await;
+        let client = SignalRClient::new("127.0.0.1", "hub", |configuration| {
+            configuration.unsecure();
+            configuration.with_port(port);
+            configuration.skip_negotiation();
+            configuration.with_connect_timeout(Duration::from_millis(300));
+        })
+        .unwrap();
+        let started = std::time::Instant::now();
+        let error = client.start().await.unwrap_err();
+        assert!(
+            started.elapsed() < Duration::from_secs(2),
+            "{:?}",
+            started.elapsed()
+        );
+        assert_eq!(error.kind(), ErrorKind::Timeout);
+        assert_eq!(
+            error.timeout_operation(),
+            Some(crate::TimeoutOperation::Connect)
+        );
+        server.abort();
+    }
+
+    /// A factory issuing `token-1`, `token-2`, ... that counts its calls.
+    fn token_factory(
+        configuration: &mut crate::ConnectionConfiguration,
+    ) -> Arc<std::sync::atomic::AtomicU32> {
+        let calls = Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let counted = calls.clone();
+        configuration.with_access_token_factory(move || {
+            let call = counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+            async move { Ok(format!("token-{call}")) }
+        });
+        calls
+    }
+
+    fn authorization(request: &crate::communication::loopback_server::RequestHead) -> String {
+        request
+            .header("authorization")
+            .unwrap_or_default()
+            .to_string()
+    }
+
+    #[test]
+    fn access_token_factory_conflicting_credentials_fail_new_before_io() {
+        for static_credentials in [
+            |c: &mut crate::ConnectionConfiguration| {
+                c.authenticate_bearer("static".to_string());
+            },
+            |c: &mut crate::ConnectionConfiguration| {
+                c.authenticate_basic("user".to_string(), None);
+            },
+        ] {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .build()
+                .unwrap();
+            let _entered = runtime.enter();
+            let error = SignalRClient::new("127.0.0.1", "hub", |configuration| {
+                static_credentials(configuration);
+                configuration.with_access_token_factory(|| async { Ok("t".to_string()) });
+            })
+            .err()
+            .unwrap();
+            assert_eq!(error.kind(), ErrorKind::Configuration);
+            assert_eq!(error.setting(), Some("with_access_token_factory"));
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn access_token_factory_is_asked_for_every_negotiate_and_websocket() {
+        let mut calls = None;
+        let (server, client) = loopback(LoopbackOptions::default(), |configuration| {
+            calls = Some(token_factory(configuration));
+            configuration.with_reconnection_policy(policy(Duration::from_millis(10), None));
+        })
+        .await;
+        let calls = calls.unwrap();
+        client.start().await.unwrap();
+        server.wait_for_connections(1).await;
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 2);
+        assert_eq!(
+            authorization(&server.negotiate_requests()[0]),
+            "Bearer token-1"
+        );
+        assert_eq!(
+            authorization(&server.upgrade_requests()[0]),
+            "Bearer token-2"
+        );
+
+        // An ordinary reconnect negotiates and opens a WebSocket again, each with a fresh token.
+        server.drop_connection();
+        until(|| server.upgrade_requests().len() == 2).await;
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 4);
+        assert_eq!(
+            authorization(&server.negotiate_requests()[1]),
+            "Bearer token-3"
+        );
+        assert_eq!(
+            authorization(&server.upgrade_requests()[1]),
+            "Bearer token-4"
+        );
+        client.stop().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn access_token_factory_is_asked_for_every_stateful_resume() {
+        let mut calls = None;
+        let (server, client) = loopback(
+            LoopbackOptions {
+                stateful: true,
+                ..LoopbackOptions::default()
+            },
+            |configuration| {
+                calls = Some(token_factory(configuration));
+                configuration.with_stateful_reconnect(StatefulReconnectConfig::default());
+            },
+        )
+        .await;
+        let calls = calls.unwrap();
+        client.start().await.unwrap();
+        server.wait_for_connections(1).await;
+        server.drop_connection();
+        until(|| server.upgrade_requests().len() == 2).await;
+        assert_eq!(server.resumes(), (1, 0));
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 3);
+        assert_eq!(server.negotiations(), 1, "a resume does not negotiate");
+        assert_eq!(
+            authorization(&server.upgrade_requests()[1]),
+            "Bearer token-3"
+        );
+        client.stop().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn access_token_factory_stateful_resumes_after_a_redirect_send_its_token() {
+        let mut calls = None;
+        let (server, client) = loopback(
+            LoopbackOptions {
+                stateful: true,
+                redirect_token: Some("redirect-token"),
+                ..LoopbackOptions::default()
+            },
+            |configuration| {
+                calls = Some(token_factory(configuration));
+                configuration.with_stateful_reconnect(StatefulReconnectConfig::default());
+            },
+        )
+        .await;
+        let calls = calls.unwrap();
+        client.start().await.unwrap();
+        server.wait_for_connections(1).await;
+        let negotiates = server.negotiate_requests();
+        assert_eq!(authorization(&negotiates[0]), "Bearer token-1");
+        assert_eq!(authorization(&negotiates[1]), "Bearer redirect-token");
+        assert_eq!(
+            authorization(&server.upgrade_requests()[0]),
+            "Bearer redirect-token"
+        );
+
+        server.drop_connection();
+        until(|| server.upgrade_requests().len() == 2).await;
+        assert_eq!(server.resumes(), (1, 0));
+        assert_eq!(
+            authorization(&server.upgrade_requests()[1]),
+            "Bearer redirect-token",
+            "the resume sends the redirect's token"
+        );
+        assert_eq!(
+            calls.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "the redirect's token is not replaced"
+        );
+        client.stop().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn access_token_factory_an_error_fails_start_before_negotiate() {
+        let (server, client) = loopback(LoopbackOptions::default(), |configuration| {
+            configuration.with_access_token_factory(|| async {
+                Err::<String, _>("the identity provider is down".to_string())
+            });
+        })
+        .await;
+        let error = client.start().await.unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::Authentication);
+        assert!(
+            error.to_string().contains("the identity provider is down"),
+            "{error}"
+        );
+        assert_eq!(server.negotiations(), 0);
+        assert_eq!(client.status(), ConnectionStatus::Disconnected);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

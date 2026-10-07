@@ -39,6 +39,9 @@ pub(crate) struct LoopbackOptions {
     /// A stateful resume is answered with 404, as ASP.NET Core answers one for a connection it
     /// disposed.
     pub(crate) reject_resumes: bool,
+    /// The first negotiate of each pair answers with a redirect to this server's `/redirected`
+    /// path carrying this access token (as Azure SignalR Service redirects).
+    pub(crate) redirect_token: Option<&'static str>,
 }
 
 /// One WebSocket frame a client sent.
@@ -279,6 +282,10 @@ async fn request_token(stream: &TcpStream) -> Option<String> {
 
 /// Answers one negotiate request with a new connection id and token.
 async fn negotiate(mut stream: TcpStream, state: &Arc<Mutex<State>>, options: LoopbackOptions) {
+    let port = stream
+        .local_addr()
+        .map(|address| address.port())
+        .unwrap_or_default();
     let mut request = Vec::new();
     let mut buffer = [0u8; 1024];
     while !request.windows(4).any(|window| window == b"\r\n\r\n") {
@@ -307,6 +314,25 @@ async fn negotiate(mut stream: TcpStream, state: &Arc<Mutex<State>>, options: Lo
             .push(RequestHead { target, headers });
         state.negotiations
     };
+    let redirected_request = state
+        .lock()
+        .unwrap()
+        .negotiate_requests
+        .last()
+        .is_some_and(|request| request.target.starts_with("/redirected"));
+    if let (Some(token), false) = (options.redirect_token, redirected_request) {
+        let body = format!(
+            "{{\"url\":\"http://127.0.0.1:{port}/redirected\",\"accessToken\":\"{token}\"}}"
+        );
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\
+             Connection: close\r\n\r\n{body}",
+            body.len()
+        );
+        let _ = stream.write_all(response.as_bytes()).await;
+        let _ = stream.shutdown().await;
+        return;
+    }
     if options.reject_after.is_some_and(|limit| number > limit) {
         tokio::time::sleep(options.rejection_delay).await;
         let _ = stream

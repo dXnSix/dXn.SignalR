@@ -28,7 +28,35 @@ pub(crate) enum Authentication {
     Bearer {
         token: String,
     },
+    /// `with_access_token_factory`: asked for a fresh Bearer token per request (`resolve`).
+    Factory(AccessTokenFactory),
 }
+
+/// Logged when a browser client is configured with Basic credentials: as with the .NET client,
+/// they go with negotiate, but a browser WebSocket cannot carry an `Authorization` header.
+pub(crate) const BROWSER_BASIC_WARNING: &str = "Basic credentials are sent with negotiate only: \
+browsers cannot set the WebSocket's Authorization header, so the server must authenticate the \
+WebSocket otherwise; use authenticate_bearer or with_access_token_factory, which browsers send as \
+the WebSocket's access_token";
+
+/// Logs [`BROWSER_BASIC_WARNING`] when a browser (`browser`) is configured with Basic credentials;
+/// shared by both targets so the decision is tested natively. Returns whether it warned.
+pub(crate) fn warn_browser_basic(authentication: &Authentication, browser: bool) -> bool {
+    let warn = browser && matches!(authentication, Authentication::Basic { .. });
+    if warn {
+        log::warn!("{BROWSER_BASIC_WARNING}");
+    }
+    warn
+}
+
+/// The access-token factory of `with_access_token_factory`.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) type AccessTokenFactory = std::sync::Arc<
+    dyn Fn() -> futures::future::BoxFuture<'static, Result<String, String>> + Send + Sync,
+>;
+#[cfg(target_arch = "wasm32")]
+pub(crate) type AccessTokenFactory =
+    std::rc::Rc<dyn Fn() -> futures::future::LocalBoxFuture<'static, Result<String, String>>>;
 
 pub struct ConnectionConfiguration {
     _secure: bool,
@@ -36,6 +64,7 @@ pub struct ConnectionConfiguration {
     _hub: String,
     _port: Option<i32>,
     _authentication: Authentication,
+    _access_token_factory: Option<AccessTokenFactory>,
     #[cfg(not(target_arch = "wasm32"))]
     _disconnection: Option<Box<dyn DisconnectionHandler + Send + Sync>>,
     #[cfg(target_arch = "wasm32")]
@@ -71,6 +100,29 @@ impl Authentication {
                 ))
             }
             Authentication::Bearer { token } => Some(format!("Bearer {token}")),
+            // Resolved per request (`resolve`) before any header is built.
+            Authentication::Factory(_) => None,
+        }
+    }
+
+    /// The credentials for one request: a factory is asked for a fresh token, sent as Bearer, as
+    /// the .NET client asks its `AccessTokenProvider`; its error fails the request with the
+    /// factory's message, redacted.
+    pub(crate) async fn resolve(&self) -> Result<Authentication, crate::Error> {
+        match self {
+            Authentication::Factory(factory) => factory()
+                .await
+                .map(|token| Authentication::Bearer { token })
+                .map_err(|message| {
+                    crate::Error::authentication(
+                        None,
+                        format!(
+                            "access token factory failed: {}",
+                            crate::error::redact(&message)
+                        ),
+                    )
+                }),
+            other => Ok(other.clone()),
         }
     }
 }
@@ -155,12 +207,40 @@ impl ConnectionRecipe {
     }
 
     /// The `Authorization` value for the WebSocket: negotiated credentials, else configured ones.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(all(not(target_arch = "wasm32"), test))]
     pub(crate) fn transport_authorization(&self) -> Option<String> {
         self.transport_authentication
             .as_ref()
             .unwrap_or(&self.authentication)
             .header_value()
+    }
+
+    /// The `Authorization` value for a WebSocket being opened: a negotiate redirect's token, else
+    /// the configured credentials, asking an access-token factory for a fresh token, as the .NET
+    /// client asks its `AccessTokenProvider` whenever it opens a WebSocket.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) async fn current_transport_authorization(
+        &self,
+    ) -> Result<Option<String>, crate::Error> {
+        match &self.transport_authentication {
+            Some(negotiated) => Ok(negotiated.header_value()),
+            None => Ok(self.authentication.resolve().await?.header_value()),
+        }
+    }
+
+    /// A fresh token for a browser WebSocket's `access_token` query when an access-token factory
+    /// is configured and no negotiate redirect issued the transport's token.
+    #[cfg(any(target_arch = "wasm32", test))]
+    pub(crate) async fn fresh_transport_token(&self) -> Result<Option<String>, crate::Error> {
+        if self.transport_authentication.is_some()
+            || !matches!(self.authentication, Authentication::Factory(_))
+        {
+            return Ok(None);
+        }
+        match self.authentication.resolve().await? {
+            Authentication::Bearer { token } => Ok(Some(token)),
+            _ => Ok(None),
+        }
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -242,6 +322,7 @@ impl ConnectionConfiguration {
     pub(crate) fn new(domain: String, hub: String) -> Self {
         ConnectionConfiguration {
             _authentication: Authentication::None,
+            _access_token_factory: None,
             _domain: domain,
             _secure: true,
             _hub: hub,
@@ -395,6 +476,69 @@ impl ConnectionConfiguration {
         self._authentication = Authentication::Bearer { token };
 
         self
+    }
+
+    /// Authenticates with Bearer tokens from `factory`, as the official .NET client's
+    /// `HttpConnectionOptions.AccessTokenProvider`: it is called before every negotiate (the
+    /// initial connect, every reconnect that negotiates) and again whenever a WebSocket is opened,
+    /// including every stateful resume, so a token can be refreshed between them. The token is
+    /// sent as `Authorization: Bearer` (natively on negotiate and the WebSocket upgrade; browsers
+    /// send it on negotiate and as the `access_token` query of the WebSocket). A token from a
+    /// negotiate redirect is used instead. An `Err` fails that attempt with
+    /// [`ErrorKind::Authentication`](crate::ErrorKind::Authentication) carrying the message
+    /// (redacted). Combining it with [`authenticate_basic`](Self::authenticate_basic) or
+    /// [`authenticate_bearer`](Self::authenticate_bearer) fails
+    /// [`SignalRClient::new`](crate::SignalRClient::new) with
+    /// [`ErrorKind::Configuration`](crate::ErrorKind::Configuration).
+    ///
+    /// ```no_run
+    /// # async fn example() -> Result<(), rayx_signalr::Error> {
+    /// let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+    ///     c.with_access_token_factory(|| async { Ok::<_, String>("a fresh token".to_string()) });
+    /// })?;
+    /// client.start().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_access_token_factory<F, Fut>(&mut self, factory: F) -> &ConnectionConfiguration
+    where
+        F: Fn() -> Fut + Send + Sync + 'static,
+        Fut: std::future::Future<Output = Result<String, String>> + Send + 'static,
+    {
+        self._access_token_factory = Some(std::sync::Arc::new(move || Box::pin(factory())));
+        self
+    }
+
+    /// Authenticates with Bearer tokens from `factory`, as the official .NET client's
+    /// `HttpConnectionOptions.AccessTokenProvider`: it is called before every negotiate and again
+    /// whenever a WebSocket is opened, including every stateful resume. Browsers send the token
+    /// with negotiate and as the `access_token` query of the WebSocket; a token from a negotiate
+    /// redirect is used instead. An `Err` fails that attempt with
+    /// [`ErrorKind::Authentication`](crate::ErrorKind::Authentication); combining it with Basic or
+    /// Bearer credentials fails [`SignalRClient::new`](crate::SignalRClient::new).
+    #[cfg(target_arch = "wasm32")]
+    pub fn with_access_token_factory<F, Fut>(&mut self, factory: F) -> &ConnectionConfiguration
+    where
+        F: Fn() -> Fut + 'static,
+        Fut: std::future::Future<Output = Result<String, String>> + 'static,
+    {
+        self._access_token_factory = Some(std::rc::Rc::new(move || Box::pin(factory())));
+        self
+    }
+
+    /// Fails when an access-token factory is combined with static credentials.
+    pub(crate) fn validate_authentication(&self) -> Result<(), crate::Error> {
+        if self._access_token_factory.is_some()
+            && !matches!(self._authentication, Authentication::None)
+        {
+            return Err(crate::Error::configuration(
+                "with_access_token_factory",
+                "an access token factory cannot be combined with authenticate_basic or \
+                 authenticate_bearer",
+            ));
+        }
+        Ok(())
     }
 
     /// Sets a disconnection handler for the connection.
@@ -601,7 +745,10 @@ impl ConnectionConfiguration {
             domain: self._domain.clone(),
             hub: self._hub.clone(),
             port: self._port,
-            authentication: self._authentication.clone(),
+            authentication: match &self._access_token_factory {
+                Some(factory) => Authentication::Factory(factory.clone()),
+                None => self._authentication.clone(),
+            },
             protocol: self._protocol,
             stateful_reconnect: self._stateful_reconnect,
             skip_negotiation: self._skip_negotiation,
@@ -695,5 +842,57 @@ mod stateful_configuration_tests {
             .connection_recipe()
             .negotiate_url()
             .ends_with("&useStatefulReconnect=true"));
+    }
+}
+
+/// Browser Basic credentials (R4.C2): sent with negotiate as in the .NET client, with a warning
+/// that names the Bearer alternatives; native clients do not warn.
+#[cfg(test)]
+mod browser_basic {
+    use super::{warn_browser_basic, Authentication, BROWSER_BASIC_WARNING};
+
+    fn basic() -> Authentication {
+        Authentication::Basic {
+            user: "user".into(),
+            password: Some("password".into()),
+        }
+    }
+
+    #[test]
+    fn browser_basic_credentials_warn_in_browsers_only() {
+        let (warned, records) = crate::test_logging::capture(|| warn_browser_basic(&basic(), true));
+        assert!(warned);
+        let warnings: Vec<_> = records
+            .iter()
+            .filter(|record| record.level == log::Level::Warn)
+            .collect();
+        assert_eq!(warnings.len(), 1);
+        assert_eq!(warnings[0].message, BROWSER_BASIC_WARNING);
+        assert!(warnings[0].message.contains("with_access_token_factory"));
+        assert!(warnings[0].message.contains("authenticate_bearer"));
+        assert!(!warnings[0].message.contains("password"), "no credential");
+
+        let (warned, records) =
+            crate::test_logging::capture(|| warn_browser_basic(&basic(), false));
+        assert!(
+            !warned,
+            "native clients send Basic on the WebSocket upgrade too"
+        );
+        assert!(records.is_empty());
+    }
+
+    #[test]
+    fn browser_basic_other_credentials_never_warn() {
+        for authentication in [
+            Authentication::None,
+            Authentication::Bearer {
+                token: "token".into(),
+            },
+        ] {
+            let (warned, records) =
+                crate::test_logging::capture(|| warn_browser_basic(&authentication, true));
+            assert!(!warned);
+            assert!(records.is_empty());
+        }
     }
 }

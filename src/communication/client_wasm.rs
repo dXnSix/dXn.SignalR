@@ -163,6 +163,8 @@ struct Shared {
     recipe: ConnectionRecipe,
     /// The negotiated transport URL a stateful resume reconnects to.
     transport_endpoint: RefCell<String>,
+    /// The recipe the stateful logical connection negotiated (a redirect's token), for resumes.
+    transport_recipe: RefCell<Option<ConnectionRecipe>>,
     protocol_kind: HubProtocolKind,
     stateful: Option<SharedStatefulBuffer>,
     reconnection_config: RefCell<ReconnectionConfig>,
@@ -201,6 +203,15 @@ impl Shared {
 
     fn superseded(&self) -> Error {
         self.lifecycle.get().superseded()
+    }
+
+    /// The recipe a stateful resume opens its WebSocket with: the negotiated one (whose redirect
+    /// token wins), else the configured one.
+    fn resume_recipe(&self) -> ConnectionRecipe {
+        self.transport_recipe
+            .borrow()
+            .clone()
+            .unwrap_or_else(|| self.recipe.clone())
     }
 
     /// The negotiated id of the current connection, while connected.
@@ -367,13 +378,16 @@ async fn attempt_once(shared: &Rc<Shared>, generation: u64) -> Result<(), Error>
     let resumed = resume.is_some();
     let (opened, fresh_stateful, fresh_id) = if let Some(buffer) = resume {
         let endpoint = shared.transport_endpoint.borrow().clone();
+        let endpoint = with_fresh_token(&shared.resume_recipe(), endpoint).await?;
         let opened = resume_socket(&endpoint, shared.protocol_kind, &buffer, &liveness).await?;
         (opened, None, None)
     } else {
         let configuration = HttpClient::negotiate(&shared.recipe).await?;
         let stateful = configuration.stateful_reconnect();
+        let endpoint =
+            with_fresh_token(&configuration.get_recipe(), configuration.get_endpoint()).await?;
         let opened = open_socket(
-            &configuration.get_endpoint(),
+            &endpoint,
             shared.protocol_kind,
             stateful.is_some(),
             &liveness,
@@ -382,7 +396,7 @@ async fn attempt_once(shared: &Rc<Shared>, generation: u64) -> Result<(), Error>
         let connection_id = configuration.get_connection_id();
         (
             opened,
-            stateful.map(|_| configuration.get_endpoint()),
+            stateful.map(|_| (configuration.get_endpoint(), configuration.get_recipe())),
             Some((!connection_id.is_empty()).then_some(connection_id)),
         )
     };
@@ -392,9 +406,10 @@ async fn attempt_once(shared: &Rc<Shared>, generation: u64) -> Result<(), Error>
         return Err(shared.superseded());
     }
     // A fresh stateful logical connection starts with a fresh replay buffer.
-    if let (Some(buffer), Some(endpoint)) = (&shared.stateful, fresh_stateful) {
+    if let (Some(buffer), Some((endpoint, recipe))) = (&shared.stateful, fresh_stateful) {
         buffer.borrow_mut().renew();
         shared.transport_endpoint.replace(endpoint);
+        shared.transport_recipe.replace(Some(recipe));
     }
     // Every connection but a stateful resume starts a new logical connection with its own id.
     if let Some(connection_id) = fresh_id {
@@ -577,6 +592,16 @@ async fn open_socket(
         socket: Rc::new(LiveSocket::new(socket, liveness)),
         events,
         pending,
+    })
+}
+
+/// The WebSocket URL with a fresh `access_token` from the access-token factory, as the .NET client
+/// asks its `AccessTokenProvider` whenever it opens a WebSocket (unless a negotiate redirect
+/// issued the token).
+async fn with_fresh_token(recipe: &ConnectionRecipe, endpoint: String) -> Result<String, Error> {
+    Ok(match recipe.fresh_transport_token().await? {
+        Some(token) => super::negotiation::with_access_token(&endpoint, &token),
+        None => endpoint,
     })
 }
 
@@ -933,12 +958,10 @@ async fn resume_transparently(shared: Rc<Shared>, generation: u64, buffer: Share
     let endpoint = shared.transport_endpoint.borrow().clone();
     let liveness = shared.recipe.liveness();
     let resumed = shared
-        .supervise(resume_socket(
-            &endpoint,
-            shared.protocol_kind,
-            &buffer,
-            &liveness,
-        ))
+        .supervise(async {
+            let endpoint = with_fresh_token(&shared.resume_recipe(), endpoint).await?;
+            resume_socket(&endpoint, shared.protocol_kind, &buffer, &liveness).await
+        })
         .await;
     let lifecycle = shared.lifecycle.get();
     let current = lifecycle.generation() == generation
@@ -1282,6 +1305,7 @@ impl CommunicationClient {
             protocol_kind: recipe.protocol(),
             recipe,
             transport_endpoint: RefCell::new(String::new()),
+            transport_recipe: RefCell::new(None),
             stateful,
             reconnection_config: RefCell::new(ReconnectionConfig::default()),
             disconnection_handler: RefCell::new(None),
