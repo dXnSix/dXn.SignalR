@@ -101,6 +101,8 @@ pub struct ConnectionData {
     #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     recipe: ConnectionRecipe,
     stateful_reconnect: Option<crate::StatefulReconnectConfig>,
+    /// The transports to try, in the server's order, and the offered ones skipped (with why).
+    selection: super::negotiation::TransportSelection,
 }
 
 impl ConnectionData {
@@ -109,13 +111,32 @@ impl ConnectionData {
         connection_id: String,
         recipe: ConnectionRecipe,
         stateful_reconnect: Option<crate::StatefulReconnectConfig>,
+        selection: super::negotiation::TransportSelection,
     ) -> Self {
         Self {
             endpoint,
             connection_id,
             recipe,
             stateful_reconnect,
+            selection,
         }
+    }
+
+    /// The first transport to try that is not among `failed`.
+    pub(crate) fn next_transport(
+        &self,
+        failed: &[crate::TransportAttempt],
+    ) -> Option<super::transport::TransportKind> {
+        self.selection
+            .candidates
+            .iter()
+            .copied()
+            .find(|kind| !failed.iter().any(|attempt| attempt.transport() == *kind))
+    }
+
+    /// The offered transports the client skipped, with why.
+    pub(crate) fn skipped(&self) -> Vec<crate::TransportAttempt> {
+        self.selection.skipped.clone()
     }
 
     pub fn get_endpoint(&self) -> String {

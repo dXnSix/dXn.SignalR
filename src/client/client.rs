@@ -396,6 +396,7 @@ impl SignalRClient {
         let mut config = ConnectionConfiguration::new(domain.to_string(), hub.to_string());
         configure(&mut config);
         config.validate_authentication()?;
+        config.validate_transports()?;
         // Every liveness duration is accepted, as the .NET client accepts them; values that
         // cannot work are logged.
         config.liveness().warn();
@@ -1836,6 +1837,7 @@ mod client_lifecycle_api {
             configuration.unsecure();
             configuration.with_port(port);
             configuration.skip_negotiation();
+            configuration.with_transports(crate::Transports::WEB_SOCKETS);
             configuration.with_stateful_reconnect(StatefulReconnectConfig::default());
         })
         .is_ok());
@@ -2633,6 +2635,7 @@ mod client_lifecycle_api {
             configuration.unsecure();
             configuration.with_port(port);
             configuration.skip_negotiation();
+            configuration.with_transports(crate::Transports::WEB_SOCKETS);
             configuration.with_connect_timeout(Duration::from_millis(300));
         })
         .unwrap();

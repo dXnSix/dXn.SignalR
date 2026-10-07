@@ -277,6 +277,129 @@ fn bearer_parameter(authentication: &Authentication) -> Option<&str> {
     }
 }
 
+/// The transports to try for one negotiation, in the server's `availableTransports` order (as
+/// the .NET client tries them), and the offered transports the client skips, each with why.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct TransportSelection {
+    pub(crate) candidates: Vec<TransportKind>,
+    pub(crate) skipped: Vec<TransportAttempt>,
+}
+
+/// Selects the transports to try from the server's offers: those in `configured` that carry
+/// `format` (Server-Sent Events: text only) and that this client can start; unknown transports
+/// are ignored, as the .NET client ignores them.
+pub(crate) fn select_transports(
+    offered: &[crate::protocol::negotiate::TransportSpec],
+    configured: crate::Transports,
+    format: &str,
+) -> TransportSelection {
+    let mut selection = TransportSelection::default();
+    for spec in offered {
+        let Some(kind) = TransportKind::from_name(&spec.transport) else {
+            continue;
+        };
+        if selection.candidates.contains(&kind)
+            || selection
+                .skipped
+                .iter()
+                .any(|attempt| attempt.transport() == kind)
+        {
+            continue;
+        }
+        let skip = if !configured.contains(kind) {
+            Some("the transport is disabled by the client".to_string())
+        } else if (kind == TransportKind::ServerSentEvents && format != "Text")
+            || !spec
+                .transfer_formats
+                .iter()
+                .any(|offered| offered == format)
+        {
+            Some(format!(
+                "the transport does not support the {format} transfer format"
+            ))
+        } else if !kind.implemented() {
+            Some("this client cannot start the transport yet".to_string())
+        } else {
+            None
+        };
+        match skip {
+            Some(reason) => selection.skipped.push(TransportAttempt::new(
+                kind,
+                Error::transport_failure(Some(kind), reason),
+            )),
+            None => selection.candidates.push(kind),
+        }
+    }
+    selection
+}
+
+/// The error of a connection whose transports could not be started: a single failed attempt
+/// keeps its own error; several, or none at all, become `TransportUnavailable` listing every
+/// skipped and failed transport.
+pub(crate) fn transports_failed(
+    skipped: Vec<TransportAttempt>,
+    mut failed: Vec<TransportAttempt>,
+) -> Error {
+    if failed.len() == 1 {
+        if let Some(attempt) = failed.pop() {
+            return attempt.error().clone();
+        }
+    }
+    let message = if failed.is_empty() {
+        "the server offers no transport this client can use"
+    } else {
+        "no transport could be started"
+    };
+    let mut attempts = skipped;
+    attempts.extend(failed);
+    Error::transport_unavailable(message, attempts)
+}
+
+/// Negotiates and starts the first transport that starts, as the .NET client's
+/// `SelectAndStartTransport`: the negotiated transports in the server's order; after a failed
+/// start the next one is tried with a fresh negotiation (a new connection token), which requests
+/// stateful reconnect only for WebSockets; a failed renegotiation counts as that transport's
+/// failure. The first negotiation's errors are returned as they are; when no transport starts,
+/// [`transports_failed`] reports every skipped and failed one.
+pub(crate) async fn start_with_fallback<N, NF, S, SF, T>(
+    recipe: &ConnectionRecipe,
+    mut negotiate: N,
+    mut start: S,
+) -> Result<(ConnectionData, TransportKind, T), Error>
+where
+    N: FnMut(ConnectionRecipe) -> NF,
+    NF: Future<Output = Result<ConnectionData, Error>>,
+    S: FnMut(ConnectionData, TransportKind) -> SF,
+    SF: Future<Output = Result<T, Error>>,
+{
+    let mut failed: Vec<TransportAttempt> = Vec::new();
+    let mut configuration = negotiate(recipe.clone()).await?;
+    let mut negotiated = true;
+    loop {
+        let Some(transport) = configuration.next_transport(&failed) else {
+            return Err(transports_failed(configuration.skipped(), failed));
+        };
+        if !negotiated {
+            match negotiate(recipe.for_transport(transport)).await {
+                Ok(fresh) => {
+                    configuration = fresh;
+                    negotiated = true;
+                }
+                Err(error) => failed.push(TransportAttempt::new(transport, error)),
+            }
+            continue;
+        }
+        negotiated = false;
+        match start(configuration.clone(), transport).await {
+            Ok(started) => return Ok((configuration, transport, started)),
+            Err(error) => {
+                log::info!("The {transport} transport could not be started: {error}");
+                failed.push(TransportAttempt::new(transport, error));
+            }
+        }
+    }
+}
+
 fn connection_data(
     recipe: &ConnectionRecipe,
     base: &str,
@@ -287,32 +410,15 @@ fn connection_data(
 ) -> Result<ConnectionData, Error> {
     let protocol = recipe.protocol();
     let format = protocol.transfer_format();
-    let supported = response.available_transports().iter().any(|transport| {
-        transport.transport == TransportKind::WebSockets.name()
-            && transport
-                .transfer_formats
-                .iter()
-                .any(|candidate| candidate == format)
-    });
-    if !supported {
-        let transport = TransportKind::WebSockets;
-        return Err(Error::transport_unavailable(
-            format!(
-                "the server offers no transport this client supports for the {format} transfer \
-                 format"
-            ),
-            vec![TransportAttempt::new(
-                transport,
-                Error::transport_failure(
-                    Some(transport),
-                    format!(
-                        "the server does not offer {transport} with the {format} transfer format"
-                    ),
-                ),
-            )],
-        ));
+    let selection = select_transports(response.available_transports(), recipe.transports(), format);
+    if selection.candidates.is_empty() {
+        return Err(transports_failed(selection.skipped, Vec::new()));
     }
-    let stateful = if response.use_stateful_reconnect() {
+    // Stateful reconnect only over WebSockets, as the .NET client uses it (the server accepts the
+    // request whatever transport follows).
+    let stateful = if response.use_stateful_reconnect()
+        && selection.candidates.first() == Some(&TransportKind::WebSockets)
+    {
         recipe.stateful_reconnect()
     } else {
         None
@@ -337,6 +443,7 @@ fn connection_data(
         response.connection_id().to_string(),
         transport_recipe,
         stateful,
+        selection,
     ))
 }
 
@@ -378,6 +485,10 @@ fn direct_connection(
         String::new(),
         recipe.clone(),
         None,
+        TransportSelection {
+            candidates: vec![TransportKind::WebSockets],
+            skipped: Vec::new(),
+        },
     ))
 }
 
@@ -912,5 +1023,452 @@ mod access_token_factory {
             with_access_token("wss://host/hub?id=abc", "t"),
             "wss://host/hub?id=abc&access_token=t"
         );
+    }
+}
+
+/// Transport selection (R5.C1): the server's order, the configured set, the transfer format the
+/// hub protocol needs (Server-Sent Events: text only), and the errors when nothing can be used.
+#[cfg(test)]
+mod transport_selection {
+    use super::{select_transports, transports_failed, TransportSelection};
+    use crate::{
+        protocol::negotiate::TransportSpec, Error, ErrorKind, TransportAttempt, TransportKind,
+        Transports,
+    };
+
+    fn offer(transports: &[(&str, &[&str])]) -> Vec<TransportSpec> {
+        transports
+            .iter()
+            .map(|(name, formats)| TransportSpec {
+                transport: (*name).to_string(),
+                transfer_formats: formats.iter().map(|format| (*format).to_string()).collect(),
+            })
+            .collect()
+    }
+
+    fn all_offered() -> Vec<TransportSpec> {
+        offer(&[
+            ("WebSockets", &["Text", "Binary"]),
+            ("ServerSentEvents", &["Text"]),
+            ("LongPolling", &["Text", "Binary"]),
+        ])
+    }
+
+    fn skipped(selection: &TransportSelection) -> Vec<TransportKind> {
+        selection
+            .skipped
+            .iter()
+            .map(TransportAttempt::transport)
+            .collect()
+    }
+
+    #[test]
+    fn transport_selection_follows_the_server_order() {
+        let offered = offer(&[("LongPolling", &["Text"]), ("WebSockets", &["Text"])]);
+        let selection = select_transports(&offered, Transports::all(), "Text");
+        assert_eq!(selection.candidates, [TransportKind::WebSockets]);
+        assert_eq!(skipped(&selection), [TransportKind::LongPolling]);
+    }
+
+    #[test]
+    fn transport_selection_keeps_the_configured_set() {
+        let selection = select_transports(&all_offered(), Transports::LONG_POLLING, "Text");
+        assert!(selection.candidates.is_empty());
+        assert_eq!(
+            skipped(&selection),
+            [
+                TransportKind::WebSockets,
+                TransportKind::ServerSentEvents,
+                TransportKind::LongPolling
+            ]
+        );
+        assert!(selection.skipped[0]
+            .error()
+            .to_string()
+            .contains("disabled by the client"));
+    }
+
+    #[test]
+    fn transport_selection_never_pairs_server_sent_events_with_binary() {
+        let lying = offer(&[("ServerSentEvents", &["Text", "Binary"])]);
+        let selection = select_transports(&lying, Transports::all(), "Binary");
+        assert!(selection.candidates.is_empty());
+        assert!(selection.skipped[0]
+            .error()
+            .to_string()
+            .contains("Binary transfer format"));
+    }
+
+    #[test]
+    fn transport_selection_requires_the_transfer_format() {
+        let offered = offer(&[("WebSockets", &["Text"])]);
+        let selection = select_transports(&offered, Transports::all(), "Binary");
+        assert!(selection.candidates.is_empty());
+        let text = select_transports(&offered, Transports::all(), "Text");
+        assert_eq!(text.candidates, [TransportKind::WebSockets]);
+    }
+
+    #[test]
+    fn transport_selection_ignores_unknown_and_repeated_transports() {
+        let offered = offer(&[
+            ("WebTransport", &["Binary"]),
+            ("WebSockets", &["Text"]),
+            ("WebSockets", &["Text"]),
+        ]);
+        let selection = select_transports(&offered, Transports::all(), "Text");
+        assert_eq!(selection.candidates, [TransportKind::WebSockets]);
+        assert!(selection.skipped.is_empty());
+    }
+
+    #[test]
+    fn transport_selection_covers_every_set_format_and_offer() {
+        let sets = [
+            Transports::WEB_SOCKETS,
+            Transports::SERVER_SENT_EVENTS,
+            Transports::LONG_POLLING,
+            Transports::WEB_SOCKETS | Transports::LONG_POLLING,
+            Transports::all(),
+        ];
+        let offers = [
+            all_offered(),
+            offer(&[("WebSockets", &["Text", "Binary"])]),
+            offer(&[("LongPolling", &["Text", "Binary"])]),
+            offer(&[("ServerSentEvents", &["Text"])]),
+            Vec::new(),
+        ];
+        for set in sets {
+            for offered in &offers {
+                for format in ["Text", "Binary"] {
+                    let selection = select_transports(offered, set, format);
+                    for kind in &selection.candidates {
+                        assert!(set.contains(*kind));
+                        assert!(kind.implemented());
+                        assert!(!(*kind == TransportKind::ServerSentEvents && format == "Binary"));
+                    }
+                    // Every offered, known transport is either a candidate or skipped, once.
+                    assert_eq!(
+                        selection.candidates.len() + selection.skipped.len(),
+                        offered.len()
+                    );
+                }
+            }
+        }
+    }
+
+    /// Every configured set, every order of every subset of the server's offers (with the
+    /// formats ASP.NET Core offers) and both transfer formats, against an expected outcome
+    /// written out independently of `select_transports`.
+    #[test]
+    fn transport_selection_every_set_offer_order_and_format() {
+        const KINDS: [TransportKind; 3] = [
+            TransportKind::WebSockets,
+            TransportKind::ServerSentEvents,
+            TransportKind::LongPolling,
+        ];
+        fn formats(kind: TransportKind) -> &'static [&'static str] {
+            if kind == TransportKind::ServerSentEvents {
+                &["Text"]
+            } else {
+                &["Text", "Binary"]
+            }
+        }
+        fn orders(remaining: &[TransportKind]) -> Vec<Vec<TransportKind>> {
+            let mut all = vec![Vec::new()];
+            for (index, kind) in remaining.iter().enumerate() {
+                let mut rest = remaining.to_vec();
+                rest.remove(index);
+                for mut tail in orders(&rest) {
+                    tail.insert(0, *kind);
+                    all.push(tail);
+                }
+            }
+            all
+        }
+        let sets: Vec<(Transports, Vec<TransportKind>)> = (1u8..8)
+            .map(|bits| {
+                let members: Vec<_> = KINDS
+                    .iter()
+                    .enumerate()
+                    .filter(|(index, _)| bits & (1 << index) != 0)
+                    .map(|(_, kind)| *kind)
+                    .collect();
+                let set = members
+                    .iter()
+                    .map(|kind| Transports::from(*kind))
+                    .reduce(|left, right| left | right)
+                    .unwrap();
+                (set, members)
+            })
+            .collect();
+        let mut combinations = 0;
+        for (set, members) in &sets {
+            for order in orders(&KINDS) {
+                for format in ["Text", "Binary"] {
+                    let offered: Vec<_> = order
+                        .iter()
+                        .map(|kind| (kind.name(), formats(*kind)))
+                        .collect();
+                    let selection = select_transports(&offer(&offered), *set, format);
+                    let mut expected_candidates = Vec::new();
+                    let mut expected_skipped = Vec::new();
+                    for kind in &order {
+                        let reason = if !members.contains(kind) {
+                            Some("disabled by the client")
+                        } else if !formats(*kind).contains(&format) {
+                            Some("transfer format")
+                        } else if *kind != TransportKind::WebSockets {
+                            Some("cannot start")
+                        } else {
+                            None
+                        };
+                        match reason {
+                            Some(reason) => expected_skipped.push((*kind, reason)),
+                            None => expected_candidates.push(*kind),
+                        }
+                    }
+                    assert_eq!(
+                        selection.candidates, expected_candidates,
+                        "{order:?} {format}"
+                    );
+                    assert_eq!(selection.skipped.len(), expected_skipped.len());
+                    for (attempt, (kind, reason)) in selection.skipped.iter().zip(&expected_skipped)
+                    {
+                        assert_eq!(attempt.transport(), *kind, "{order:?} {format}");
+                        assert!(
+                            attempt.error().to_string().contains(reason),
+                            "{kind}: {}",
+                            attempt.error()
+                        );
+                    }
+                    combinations += 1;
+                }
+            }
+        }
+        // 7 sets x 16 ordered offers x 2 formats.
+        assert_eq!(combinations, 7 * 16 * 2);
+    }
+
+    #[test]
+    fn transport_selection_skips_transports_this_client_cannot_start() {
+        let selection = select_transports(&all_offered(), Transports::all(), "Text");
+        assert_eq!(selection.candidates, [TransportKind::WebSockets]);
+        assert_eq!(
+            skipped(&selection),
+            [TransportKind::ServerSentEvents, TransportKind::LongPolling]
+        );
+    }
+
+    #[test]
+    fn transport_selection_errors_list_every_attempt() {
+        let failure =
+            |kind| TransportAttempt::new(kind, Error::transport_failure(Some(kind), "refused"));
+        let none = transports_failed(vec![failure(TransportKind::LongPolling)], Vec::new());
+        assert_eq!(none.kind(), ErrorKind::TransportUnavailable);
+        assert_eq!(none.attempts().len(), 1);
+
+        // One failed start keeps its own error.
+        let one = transports_failed(
+            vec![failure(TransportKind::LongPolling)],
+            vec![TransportAttempt::new(
+                TransportKind::WebSockets,
+                Error::timed_out(
+                    crate::TimeoutOperation::Connect,
+                    std::time::Duration::from_secs(1),
+                ),
+            )],
+        );
+        assert_eq!(one.kind(), ErrorKind::Timeout);
+
+        let several = transports_failed(
+            vec![failure(TransportKind::ServerSentEvents)],
+            vec![
+                failure(TransportKind::WebSockets),
+                failure(TransportKind::LongPolling),
+            ],
+        );
+        assert_eq!(several.kind(), ErrorKind::TransportUnavailable);
+        assert_eq!(
+            several
+                .attempts()
+                .iter()
+                .map(TransportAttempt::transport)
+                .collect::<Vec<_>>(),
+            [
+                TransportKind::ServerSentEvents,
+                TransportKind::WebSockets,
+                TransportKind::LongPolling
+            ]
+        );
+    }
+
+    #[test]
+    fn transport_selection_skip_negotiation_needs_web_sockets_alone() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let _entered = runtime.enter();
+        let error = crate::SignalRClient::new("127.0.0.1", "hub", |configuration| {
+            configuration.skip_negotiation();
+        })
+        .err()
+        .expect("the default transports include more than WebSockets");
+        assert_eq!(error.kind(), ErrorKind::Configuration);
+        assert_eq!(error.setting(), Some("skip_negotiation"));
+        assert!(
+            crate::SignalRClient::new("127.0.0.1", "hub", |configuration| {
+                configuration.skip_negotiation();
+                configuration.with_transports(Transports::WEB_SOCKETS);
+            })
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn transport_selection_stateful_reconnect_needs_web_sockets() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let _entered = runtime.enter();
+        let error = crate::SignalRClient::new("127.0.0.1", "hub", |configuration| {
+            configuration.with_stateful_reconnect(crate::StatefulReconnectConfig::default());
+            configuration.with_transports(Transports::LONG_POLLING);
+        })
+        .err()
+        .expect("stateful reconnect without WebSockets is rejected");
+        assert_eq!(error.setting(), Some("with_stateful_reconnect"));
+    }
+
+    /// Negotiation results offering `candidates`, numbered by negotiation.
+    fn negotiated(
+        recipe: &crate::client::ConnectionRecipe,
+        candidates: &[TransportKind],
+        number: usize,
+    ) -> super::ConnectionData {
+        super::ConnectionData::new(
+            format!("ws://host/hub?id={number}"),
+            format!("connection-{number}"),
+            recipe.clone(),
+            recipe.stateful_reconnect(),
+            TransportSelection {
+                candidates: candidates.to_vec(),
+                skipped: Vec::new(),
+            },
+        )
+    }
+
+    fn stateful_recipe() -> crate::client::ConnectionRecipe {
+        let mut configuration =
+            crate::client::ConnectionConfiguration::new("host".into(), "hub".into());
+        configuration.with_stateful_reconnect(crate::StatefulReconnectConfig::default());
+        configuration.connection_recipe()
+    }
+
+    #[test]
+    fn transport_selection_a_fallback_renegotiates_without_stateful_reconnect() {
+        use std::cell::RefCell;
+        let recipe = stateful_recipe();
+        let requests = RefCell::new(Vec::new());
+        let result = futures::executor::block_on(super::start_with_fallback(
+            &recipe,
+            |recipe: crate::client::ConnectionRecipe| {
+                let number = {
+                    let mut requests = requests.borrow_mut();
+                    requests.push(recipe.stateful_reconnect().is_some());
+                    requests.len()
+                };
+                let data = negotiated(
+                    &recipe,
+                    &[TransportKind::WebSockets, TransportKind::LongPolling],
+                    number,
+                );
+                async move { Ok(data) }
+            },
+            |_, transport| async move {
+                match transport {
+                    TransportKind::WebSockets => Err(Error::transport_failure(
+                        Some(transport),
+                        "the upgrade was refused",
+                    )),
+                    other => Ok(other),
+                }
+            },
+        ));
+        let (data, transport, started) = result.unwrap();
+        assert_eq!(
+            (transport, started),
+            (TransportKind::LongPolling, TransportKind::LongPolling)
+        );
+        assert_eq!(
+            data.get_connection_id(),
+            "connection-2",
+            "a fresh connection token"
+        );
+        assert_eq!(
+            *requests.borrow(),
+            [true, false],
+            "stateful reconnect is requested only for WebSockets"
+        );
+    }
+
+    #[test]
+    fn transport_selection_a_failed_renegotiation_counts_for_its_transport() {
+        use std::cell::Cell;
+        let recipe = stateful_recipe();
+        let negotiations = Cell::new(0);
+        let candidates = [
+            TransportKind::WebSockets,
+            TransportKind::LongPolling,
+            TransportKind::ServerSentEvents,
+        ];
+        let result = futures::executor::block_on(super::start_with_fallback(
+            &recipe,
+            |recipe: crate::client::ConnectionRecipe| {
+                negotiations.set(negotiations.get() + 1);
+                let number = negotiations.get();
+                // The renegotiation for Long Polling fails.
+                let outcome = if number == 2 {
+                    Err(Error::negotiate(Some(503), "unavailable"))
+                } else {
+                    Ok(negotiated(&recipe, &candidates, number))
+                };
+                async move { outcome }
+            },
+            |_, transport| async move {
+                Err::<(), _>(Error::transport_failure(Some(transport), "refused"))
+            },
+        ));
+        let Err(error) = result else {
+            panic!("no transport started")
+        };
+        assert_eq!(error.kind(), ErrorKind::TransportUnavailable);
+        let attempts: Vec<_> = error
+            .attempts()
+            .iter()
+            .map(|attempt| (attempt.transport(), attempt.error().kind()))
+            .collect();
+        assert_eq!(
+            attempts,
+            [
+                (TransportKind::WebSockets, ErrorKind::Transport),
+                (TransportKind::LongPolling, ErrorKind::Negotiate),
+                (TransportKind::ServerSentEvents, ErrorKind::Transport),
+            ]
+        );
+        assert_eq!(negotiations.get(), 3);
+    }
+
+    #[test]
+    fn transport_selection_stateful_reconnect_only_over_web_sockets() {
+        let (result, _) = super::negotiation_tests::negotiate_as(
+            false,
+            |configuration| {
+                configuration.with_stateful_reconnect(crate::StatefulReconnectConfig::default());
+            },
+            vec![
+                r#"{"connectionId":"c","connectionToken":"t","negotiateVersion":1,"useStatefulReconnect":true,
+                "availableTransports":[{"transport":"WebSockets","transferFormats":["Text","Binary"]}]}"#,
+            ],
+        );
+        assert!(result.unwrap().stateful_reconnect().is_some());
     }
 }

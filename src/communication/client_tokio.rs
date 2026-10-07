@@ -46,12 +46,7 @@ use super::{
     transport::TransportKind,
     Communication, HttpClient,
 };
-use futures::{
-    channel::mpsc,
-    future::Either,
-    stream::{SplitSink, SplitStream},
-    SinkExt, StreamExt,
-};
+use futures::{channel::mpsc, future::Either, SinkExt, StreamExt};
 use http::Uri;
 use log::{debug, error, info};
 use tokio::{net::TcpStream, runtime::Handle, sync::Mutex, task::JoinHandle};
@@ -64,8 +59,7 @@ trait CommunicationDisconnectionHandler: Send {
 
 type UserDisconnectionHandler = Arc<Box<dyn Fn(ReconnectionContext) + Send + Sync>>;
 type SharedStatefulBuffer = Arc<StdMutex<StatefulMessageBuffer>>;
-type SocketSink = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
-type SocketStream = SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>;
+use super::transport_tokio::{TransportReceiver, TransportSender};
 /// The negotiated transport of a stateful logical connection, which its resumes reconnect to: the
 /// WebSocket URL and the recipe negotiation produced (it carries a negotiate redirect's token,
 /// which every resume sends, as the .NET client keeps a redirect's access token).
@@ -93,16 +87,16 @@ const OUTBOUND_CAPACITY: usize = 64;
 /// The most bytes of queued frames the writer coalesces into one WebSocket message.
 const COALESCE_LIMIT: usize = 64 * 1024;
 
-/// An open physical WebSocket after its handshake or stateful resume.
+/// An open physical transport after its handshake or stateful resume.
 struct OpenSocket {
-    sink: SocketSink,
-    stream: SocketStream,
+    sink: TransportSender,
+    stream: TransportReceiver,
     /// Hub messages the server sent in the handshake frame; processed before the stream.
     pending: Option<Message>,
 }
 
 impl OpenSocket {
-    fn new(sink: SocketSink, stream: SocketStream) -> Self {
+    fn new(sink: TransportSender, stream: TransportReceiver) -> Self {
         Self {
             sink,
             stream,
@@ -184,14 +178,14 @@ fn websocket_error(message: impl Into<String>) -> Error {
     Error::transport_failure(Some(TransportKind::WebSockets), message)
 }
 
-/// A failed WebSocket send.
-fn send_failed(error: tokio_websockets::Error) -> Error {
-    websocket_error(format!("the WebSocket send failed: {error}")).with_source(error)
+/// A connection-state error that no particular transport caused.
+fn connection_error(message: impl Into<String>) -> Error {
+    Error::transport_failure(None, message)
 }
 
 /// The error a send fails with when its connection stopped before the frame went out.
 fn closed_before_sent() -> Error {
-    websocket_error("the connection closed before the message was sent")
+    connection_error("the connection closed before the message was sent")
 }
 
 /// The protocol violation a WebSocket frame of the wrong kind is.
@@ -203,12 +197,16 @@ fn unexpected_frame(kind: &str, protocol: &str) -> Error {
 
 /// The error ordinary pending work fails with when the transport that carried it ended.
 fn transport_lost(cause: &Error) -> Error {
-    websocket_error("the connection was lost before the call completed").with_source(cause.clone())
+    Error::transport_failure(
+        cause.transport(),
+        "the connection was lost before the call completed",
+    )
+    .with_source(cause.clone())
 }
 
 /// The error ordinary pending work fails with when a reconnect starts a new logical connection.
 fn replaced_by_reconnect() -> Error {
-    websocket_error("the connection was replaced by a new logical connection")
+    connection_error("the connection was replaced by a new logical connection")
 }
 
 /// What woke the writer task.
@@ -1237,7 +1235,7 @@ impl CommunicationConnection {
     /// the server timeout is a dropped transport: the reconnect path runs as for a socket error.
     #[allow(clippy::too_many_arguments)]
     async fn run_receiver(
-        mut stream: SocketStream,
+        mut stream: TransportReceiver,
         mut pending: Option<Message>,
         liveness: ConnectionLiveness,
         mut storage: impl Storage + Send + 'static,
@@ -1278,7 +1276,11 @@ impl CommunicationConnection {
                         match tokio::time::timeout_at(wake, stream.next()).await {
                             Ok(Some(item)) => item,
                             Ok(None) => {
-                                break 'receive websocket_error("the server closed the WebSocket");
+                                let transport = stream.kind();
+                                break 'receive Error::transport_failure(
+                                    Some(transport),
+                                    format!("the server closed the {transport} transport"),
+                                );
                             }
                             Err(_) if tokio::time::Instant::now() < timeout => {
                                 if let Some(buffer) = stateful.as_ref() {
@@ -1306,10 +1308,6 @@ impl CommunicationConnection {
                 liveness.received();
                 match item {
                     Ok(ws_message) => {
-                        // WebSocket Ping/Pong frames are the transport's own liveness traffic.
-                        if ws_message.is_ping() || ws_message.is_pong() || ws_message.is_close() {
-                            continue 'receive;
-                        }
                         let mut context = RecordContext {
                             storage: &mut storage,
                             stateful: stateful.as_ref(),
@@ -1343,9 +1341,8 @@ impl CommunicationConnection {
                         }
                     }
                     Err(error) => {
-                        error!("WebSocket receive error: {error}");
-                        break 'receive websocket_error(format!("the WebSocket failed: {error}"))
-                            .with_source(error);
+                        error!("Transport receive error: {error}");
+                        break 'receive error;
                     }
                 }
             };
@@ -1476,15 +1473,15 @@ impl DisconnectionReason {
                 error.clone()
             }
             DisconnectionReason::RemoteClosed(error) => {
-                websocket_error("the connection is disconnected").with_source(error.clone())
+                connection_error("the connection is disconnected").with_source(error.clone())
             }
             DisconnectionReason::LocalClosed => Error::closed_locally(),
             DisconnectionReason::NotStarted => Error::not_started(),
             DisconnectionReason::Starting => Error::invalid_state("the connection is starting"),
             DisconnectionReason::Reconnecting | DisconnectionReason::Attempting(_) => {
-                websocket_error("the connection is reconnecting")
+                connection_error("the connection is reconnecting")
             }
-            DisconnectionReason::Resuming(_) => websocket_error("the connection is resuming"),
+            DisconnectionReason::Resuming(_) => connection_error("the connection is resuming"),
             DisconnectionReason::Paused => Error::paused(),
         }
     }
@@ -1899,15 +1896,31 @@ impl CommunicationClient {
         *self._disconnection_handler.write_locked() = Some(Arc::new(Box::new(handler)));
     }
 
-    async fn connect_to_server(
+    /// Starts the transport `kind` (natively WebSockets: TCP, TLS and the upgrade) within the
+    /// connection-setup bound.
+    async fn start_transport(
+        kind: TransportKind,
         endpoint: Uri,
+        recipe: &ConnectionRecipe,
+    ) -> Result<(TransportSender, TransportReceiver), Error> {
+        match kind {
+            TransportKind::WebSockets => Ok(super::transport_tokio::websockets(
+                Self::connect_socket(endpoint, recipe).await?,
+            )),
+            other => Err(Error::transport_failure(
+                Some(other),
+                format!("this client cannot start the {other} transport yet"),
+            )),
+        }
+    }
+
+    /// Performs the SignalR handshake over a started transport.
+    async fn handshake(
+        (mut write, mut read): (TransportSender, TransportReceiver),
         protocol_kind: HubProtocolKind,
         stateful_reconnect: bool,
         recipe: &ConnectionRecipe,
     ) -> Result<OpenSocket, Error> {
-        let ws = Self::connect_socket(endpoint, recipe).await?;
-        let (mut write, mut read) = ws.split();
-
         info!("Initiating handshake...");
         // Handshake is always JSON, even for MessagePack protocol
         let message = if stateful_reconnect {
@@ -1920,10 +1933,7 @@ impl CommunicationClient {
             MessageParser::to_json(&handshake)
         }
         .map_err(|error| Error::serialization(format!("cannot encode the handshake: {error}")))?;
-        write
-            .send(Message::text(message))
-            .await
-            .map_err(send_failed)?;
+        write.send(Message::text(message)).await?;
         let timeout = recipe.liveness().handshake_timeout;
         let response = tokio::time::timeout(timeout, async {
             loop {
@@ -2099,11 +2109,12 @@ impl CommunicationClient {
         recipe: &ConnectionRecipe,
         still_current: &(dyn Fn() -> bool + Sync),
     ) -> Result<OpenSocket, Error> {
-        let ws = Self::connect_socket(endpoint, recipe).await?;
+        // Stateful reconnect runs only over WebSockets.
+        let (mut write, read) =
+            Self::start_transport(TransportKind::WebSockets, endpoint, recipe).await?;
         if !still_current() {
             return Err(Error::canceled("the stateful resume was superseded"));
         }
-        let (mut write, read) = ws.split();
         let (sequence_id, frames) = buffer.locked().begin_resend()?;
 
         let resend_result = async {
@@ -2113,10 +2124,7 @@ impl CommunicationClient {
                         MessageParser::to_json(&Sequence::new(sequence_id)).map_err(|error| {
                             Error::serialization(format!("cannot encode a Sequence: {error}"))
                         })?;
-                    write
-                        .send(Message::text(sequence))
-                        .await
-                        .map_err(send_failed)?;
+                    write.send(Message::text(sequence)).await?;
                 }
                 #[cfg(feature = "messagepack")]
                 HubProtocolKind::MessagePack => {
@@ -2124,18 +2132,12 @@ impl CommunicationClient {
                         crate::protocol::negotiate::MessageType::Sequence,
                         sequence_id,
                     )?;
-                    write
-                        .send(Message::binary(sequence))
-                        .await
-                        .map_err(send_failed)?;
+                    write.send(Message::binary(sequence)).await?;
                 }
             }
 
             for frame in frames {
-                write
-                    .send(websocket_message(frame.payload))
-                    .await
-                    .map_err(send_failed)?;
+                write.send(websocket_message(frame.payload)).await?;
             }
             Ok::<(), Error>(())
         }
@@ -2146,21 +2148,42 @@ impl CommunicationClient {
         Ok(OpenSocket::new(write, read))
     }
 
-    /// Negotiates a new logical connection and opens its transport.
+    /// Negotiates a new logical connection and opens its transport: the negotiated transports are
+    /// tried in the server's order, as the .NET client tries them, and a transport that fails to
+    /// start is followed by the next one with a fresh negotiation (a new connection token).
     async fn connect_fresh(
         recipe: &ConnectionRecipe,
         protocol_kind: HubProtocolKind,
         stateful: bool,
     ) -> Result<(OpenSocket, FreshConnection), Error> {
-        // Boxed for the same reason as the WebSocket open.
-        let configuration = Box::pin(HttpClient::negotiate(recipe)).await?;
-        let endpoint = Uri::from_str(&configuration.get_endpoint()).map_err(|_| {
-            Error::negotiate(None, "the negotiated WebSocket endpoint is not a valid URI")
-        })?;
-        let stateful = stateful && configuration.stateful_reconnect().is_some();
-        // The negotiated recipe carries any credentials a redirect issued for the transport.
-        let socket = Self::connect_to_server(
-            endpoint.clone(),
+        let endpoint_of = |configuration: &super::common::ConnectionData| {
+            Uri::from_str(&configuration.get_endpoint()).map_err(|_| {
+                Error::negotiate(None, "the negotiated transport endpoint is not a valid URI")
+            })
+        };
+        let (configuration, transport, started) = super::negotiation::start_with_fallback(
+            recipe,
+            // Boxed for the same reason as the WebSocket open.
+            |recipe| Box::pin(async move { HttpClient::negotiate(&recipe).await }),
+            |configuration, transport| {
+                Box::pin(async move {
+                    // The negotiated recipe carries any credentials a redirect issued.
+                    Self::start_transport(
+                        transport,
+                        endpoint_of(&configuration)?,
+                        &configuration.get_recipe(),
+                    )
+                    .await
+                })
+            },
+        )
+        .await?;
+        let endpoint = endpoint_of(&configuration)?;
+        let stateful = stateful
+            && configuration.stateful_reconnect().is_some()
+            && transport == TransportKind::WebSockets;
+        let socket = Self::handshake(
+            started,
             protocol_kind,
             stateful,
             &configuration.get_recipe(),

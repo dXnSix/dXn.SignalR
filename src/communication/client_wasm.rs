@@ -24,7 +24,6 @@ use std::{
 };
 
 use futures::{
-    channel::mpsc,
     future::{select, Either},
     StreamExt,
 };
@@ -48,7 +47,8 @@ use crate::{
 };
 
 use super::{
-    browser_socket::{BrowserSocket, SocketEvent},
+    browser_socket::SocketEvent,
+    browser_transport::{BrowserTransport, TransportEvents},
     common::{Communication, Sequenced},
     hooks::LifecycleHooks,
     liveness::{
@@ -64,23 +64,27 @@ use super::{
     HttpClient,
 };
 
-/// A WebSocket transport error.
-fn websocket_error(message: impl Into<String>) -> Error {
-    Error::transport_failure(Some(TransportKind::WebSockets), message)
+/// A connection-state error that no particular transport caused.
+fn connection_error(message: impl Into<String>) -> Error {
+    Error::transport_failure(None, message)
 }
 
 /// The error ordinary pending work fails with when the transport that carried it ended.
 fn transport_lost(cause: &Error) -> Error {
-    websocket_error("the connection was lost before the call completed").with_source(cause.clone())
+    Error::transport_failure(
+        cause.transport(),
+        "the connection was lost before the call completed",
+    )
+    .with_source(cause.clone())
 }
 
 /// The error ordinary pending work fails with when a reconnect starts a new logical connection.
 fn replaced_by_reconnect() -> Error {
-    websocket_error("the connection was replaced by a new logical connection")
+    connection_error("the connection was replaced by a new logical connection")
 }
 
 type SharedStatefulBuffer = Rc<RefCell<StatefulMessageBuffer>>;
-type SocketEvents = mpsc::UnboundedReceiver<SocketEvent>;
+type SocketEvents = TransportEvents;
 
 /// One inbound WebSocket frame.
 enum Frame {
@@ -89,8 +93,8 @@ enum Frame {
     Binary(Vec<u8>),
 }
 
-/// Sends an encoded frame on a browser socket.
-fn send_serialized(socket: &BrowserSocket, frame: &SerializedFrame) -> Result<(), Error> {
+/// Sends an encoded frame on a browser transport.
+fn send_serialized(socket: &BrowserTransport, frame: &SerializedFrame) -> Result<(), Error> {
     match frame {
         SerializedFrame::Text(text) => socket.send_text(SerializedFrame::as_text(text)?),
         #[cfg(feature = "messagepack")]
@@ -118,12 +122,12 @@ fn now_ms() -> u64 {
 /// A connected browser socket and its liveness tracker: every frame sent through it postpones
 /// the next keep-alive Ping, and its receiver task records every frame received.
 struct LiveSocket {
-    socket: BrowserSocket,
+    socket: BrowserTransport,
     liveness: RefCell<LivenessTracker>,
 }
 
 impl LiveSocket {
-    fn new(socket: BrowserSocket, config: &LivenessConfig) -> Self {
+    fn new(socket: BrowserTransport, config: &LivenessConfig) -> Self {
         Self {
             socket,
             liveness: RefCell::new(LivenessTracker::new(config, now_ms())),
@@ -252,14 +256,14 @@ impl Shared {
         match self.state() {
             LifecycleState::Paused => Error::paused(),
             LifecycleState::LocalClosed => Error::closed_locally(),
-            LifecycleState::Reconnecting => websocket_error("the connection is reconnecting"),
+            LifecycleState::Reconnecting => connection_error("the connection is reconnecting"),
             LifecycleState::NotStarted => Error::not_started(),
             LifecycleState::Connecting => Error::invalid_state("the connection is starting"),
             LifecycleState::Disconnected | LifecycleState::Connected => {
                 match self.disconnect_reason.borrow().clone() {
                     Some(reason) if reason.kind() == crate::ErrorKind::ConnectionClosed => reason,
                     Some(reason) => {
-                        websocket_error("the connection is disconnected").with_source(reason)
+                        connection_error("the connection is disconnected").with_source(reason)
                     }
                     // A failed start.
                     None => Error::not_started(),
@@ -382,17 +386,24 @@ async fn attempt_once(shared: &Rc<Shared>, generation: u64) -> Result<(), Error>
         let opened = resume_socket(&endpoint, shared.protocol_kind, &buffer, &liveness).await?;
         (opened, None, None)
     } else {
-        let configuration = HttpClient::negotiate(&shared.recipe).await?;
-        let stateful = configuration.stateful_reconnect();
-        let endpoint =
-            with_fresh_token(&configuration.get_recipe(), configuration.get_endpoint()).await?;
-        let opened = open_socket(
-            &endpoint,
-            shared.protocol_kind,
-            stateful.is_some(),
-            &liveness,
+        // The negotiated transports in the server's order, as the .NET client tries them; one
+        // that fails to start is followed by the next with a fresh negotiation.
+        let (configuration, transport, started) = super::negotiation::start_with_fallback(
+            &shared.recipe,
+            |recipe| async move { HttpClient::negotiate(&recipe).await },
+            |configuration, transport| async move {
+                let endpoint =
+                    with_fresh_token(&configuration.get_recipe(), configuration.get_endpoint())
+                        .await?;
+                start_transport(transport, &endpoint, &liveness).await
+            },
         )
         .await?;
+        let stateful = configuration
+            .stateful_reconnect()
+            .filter(|_| transport == TransportKind::WebSockets);
+        let opened =
+            handshake(started, shared.protocol_kind, stateful.is_some(), &liveness).await?;
         let connection_id = configuration.get_connection_id();
         (
             opened,
@@ -519,25 +530,25 @@ async fn with_timeout<T>(
     }
 }
 
-/// Opens a WebSocket and waits until it is open (the URL is never repeated in errors because it
-/// can carry a token).
-async fn open(endpoint: &str) -> Result<(BrowserSocket, SocketEvents), Error> {
-    info!(
-        "Connecting WASM transport to {}",
-        endpoint.split('?').next().unwrap_or(endpoint)
-    );
-    let (socket, mut events) = BrowserSocket::open(endpoint)?;
-    match events.next().await {
-        Some(SocketEvent::Open) => Ok((socket, events)),
-        _ => Err(websocket_error("the WebSocket connection failed")),
-    }
+/// Starts the transport `kind` within the connect timeout.
+async fn start_transport(
+    kind: TransportKind,
+    endpoint: &str,
+    liveness: &LivenessConfig,
+) -> Result<(BrowserTransport, SocketEvents), Error> {
+    with_timeout(
+        TimeoutOperation::Connect,
+        liveness.connect_timeout,
+        BrowserTransport::start(kind, endpoint),
+    )
+    .await
 }
 
-/// Opens a socket and completes the SignalR handshake within the handshake timeout. The
+/// Completes the SignalR handshake over a started transport within the handshake timeout. The
 /// response is JSON (in a binary frame for MessagePack); hub messages after it in the same frame
 /// are kept for the receiver.
-async fn open_socket(
-    endpoint: &str,
+async fn handshake(
+    (socket, mut events): (BrowserTransport, SocketEvents),
     protocol_kind: HubProtocolKind,
     stateful_reconnect: bool,
     liveness: &LivenessConfig,
@@ -551,13 +562,6 @@ async fn open_socket(
         MessageParser::to_json(&HandshakeRequest::new(protocol_kind.protocol_name()))
     }
     .map_err(|error| Error::serialization(format!("cannot encode the handshake: {error}")))?;
-
-    let (socket, mut events) = with_timeout(
-        TimeoutOperation::Connect,
-        liveness.connect_timeout,
-        open(endpoint),
-    )
-    .await?;
     socket.send_text(&handshake)?;
     let response = with_timeout(
         TimeoutOperation::Handshake,
@@ -612,12 +616,8 @@ async fn resume_socket(
     buffer: &SharedStatefulBuffer,
     liveness: &LivenessConfig,
 ) -> Result<Opened, Error> {
-    let (socket, events) = with_timeout(
-        TimeoutOperation::Connect,
-        liveness.connect_timeout,
-        open(endpoint),
-    )
-    .await?;
+    // Stateful reconnect runs only over WebSockets.
+    let (socket, events) = start_transport(TransportKind::WebSockets, endpoint, liveness).await?;
     let (sequence_id, frames) = buffer.borrow_mut().begin_resend()?;
     let resend = (|| {
         let sequence = match protocol_kind {
@@ -836,7 +836,11 @@ async fn run_receiver(
                     Some(SocketEvent::Binary(bytes)) => Frame::Binary(bytes),
                     Some(SocketEvent::Open) => continue,
                     Some(SocketEvent::Closed) | None => {
-                        break websocket_error("the WebSocket closed");
+                        let transport = socket.socket.kind();
+                        break Error::transport_failure(
+                            Some(transport),
+                            format!("the {transport} transport closed"),
+                        );
                     }
                 }
             }

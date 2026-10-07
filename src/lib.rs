@@ -27,7 +27,7 @@ pub use communication::reconnection::{
     ExponentialBackoffPolicy, LinearBackoffPolicy, NoReconnectPolicy, ReconnectionConfig,
     ReconnectionPolicy, RetryContext,
 };
-pub use communication::transport::TransportKind;
+pub use communication::transport::{TransportKind, Transports};
 pub use completer::{CompletedFuture, ManualFuture, ManualStream};
 pub use error::{CloseReason, Error, ErrorKind, TimeoutOperation, TransportAttempt};
 pub use execution::{ArgumentConfiguration, CallbackHandler};

@@ -73,6 +73,7 @@ pub struct ConnectionConfiguration {
     _protocol: HubProtocolKind,
     _stateful_reconnect: Option<StatefulReconnectConfig>,
     _skip_negotiation: bool,
+    _transports: crate::Transports,
     _liveness: LivenessConfig,
     _headers: Vec<(String, String)>,
     _invocation_headers: Option<InvocationHeaders>,
@@ -144,6 +145,8 @@ pub(crate) struct ConnectionRecipe {
     protocol: HubProtocolKind,
     stateful_reconnect: Option<StatefulReconnectConfig>,
     skip_negotiation: bool,
+    /// The transports the connection may use (`with_transports`).
+    transports: crate::Transports,
     liveness: LivenessConfig,
     /// Application headers for every HTTP request and the native WebSocket upgrade.
     headers: Vec<(String, String)>,
@@ -195,6 +198,10 @@ impl ConnectionRecipe {
 
     pub(crate) fn skips_negotiation(&self) -> bool {
         self.skip_negotiation
+    }
+
+    pub(crate) fn transports(&self) -> crate::Transports {
+        self.transports
     }
 
     pub(crate) fn liveness(&self) -> LivenessConfig {
@@ -277,6 +284,17 @@ impl ConnectionRecipe {
         self.protocol
     }
 
+    /// The recipe of a fallback negotiation for `transport`: stateful reconnect is requested only
+    /// for WebSockets, as the .NET client stops requesting it before a fallback to another
+    /// transport.
+    pub(crate) fn for_transport(&self, transport: crate::TransportKind) -> ConnectionRecipe {
+        let mut recipe = self.clone();
+        if transport != crate::TransportKind::WebSockets {
+            recipe.stateful_reconnect = None;
+        }
+        recipe
+    }
+
     pub(crate) fn stateful_reconnect(&self) -> Option<StatefulReconnectConfig> {
         self.stateful_reconnect
     }
@@ -332,6 +350,7 @@ impl ConnectionConfiguration {
             _protocol: HubProtocolKind::default(),
             _stateful_reconnect: None,
             _skip_negotiation: false,
+            _transports: crate::Transports::all(),
             _headers: Vec::new(),
             _invocation_headers: None,
             _maximum_message_size: None,
@@ -525,6 +544,43 @@ impl ConnectionConfiguration {
     {
         self._access_token_factory = Some(std::rc::Rc::new(move || Box::pin(factory())));
         self
+    }
+
+    /// Restricts the transports the connection may use, as the .NET client's
+    /// `HttpConnectionOptions.Transports`: every transport by default. Negotiation tries the ones
+    /// the server offers, in the server's order, keeping those in this set that carry the hub
+    /// protocol's transfer format (Server-Sent Events carry text only, so never MessagePack); a
+    /// transport that fails to start is followed by the next one with a fresh negotiation.
+    /// [`skip_negotiation`](Self::skip_negotiation) needs `Transports::WEB_SOCKETS` alone and
+    /// stateful reconnect needs WebSockets in the set; otherwise
+    /// [`SignalRClient::new`](crate::SignalRClient::new) fails with
+    /// [`ErrorKind::Configuration`](crate::ErrorKind::Configuration). In this release only
+    /// WebSockets can be started; the others are skipped.
+    pub fn with_transports(&mut self, transports: crate::Transports) -> &ConnectionConfiguration {
+        self._transports = transports;
+        self
+    }
+
+    /// Fails for transport sets that cannot work: `skip_negotiation` without WebSockets alone,
+    /// stateful reconnect without WebSockets, as the .NET client rejects them.
+    pub(crate) fn validate_transports(&self) -> Result<(), crate::Error> {
+        use crate::communication::transport::TransportKind;
+        if self._skip_negotiation && !self._transports.is_only(TransportKind::WebSockets) {
+            return Err(crate::Error::configuration(
+                "skip_negotiation",
+                "negotiation can only be skipped with the WebSockets transport alone: add \
+                 with_transports(Transports::WEB_SOCKETS)",
+            ));
+        }
+        if self._stateful_reconnect.is_some()
+            && !self._transports.contains(TransportKind::WebSockets)
+        {
+            return Err(crate::Error::configuration(
+                "with_stateful_reconnect",
+                "stateful reconnect needs the WebSockets transport",
+            ));
+        }
+        Ok(())
     }
 
     /// Fails when an access-token factory is combined with static credentials.
@@ -752,6 +808,7 @@ impl ConnectionConfiguration {
             protocol: self._protocol,
             stateful_reconnect: self._stateful_reconnect,
             skip_negotiation: self._skip_negotiation,
+            transports: self._transports,
             liveness: self._liveness,
             headers: self._headers.clone(),
             invocation_headers: self._invocation_headers.clone(),

@@ -1,5 +1,7 @@
 #[cfg(target_arch = "wasm32")]
 mod browser_socket;
+#[cfg(target_arch = "wasm32")]
+mod browser_transport;
 mod common;
 pub(crate) mod headers;
 pub(crate) mod hooks;
@@ -20,6 +22,8 @@ mod client_wasm;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod client_tokio;
+#[cfg(not(target_arch = "wasm32"))]
+mod transport_tokio;
 
 #[cfg(all(feature = "bench-internals", not(target_arch = "wasm32")))]
 pub(crate) use common::dispatch_decoded;
