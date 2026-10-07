@@ -35,7 +35,8 @@ let accepted: bool = client
 ```
 
 Arguments have no names: their order must match the hub method's parameters. A value that fails to
-serialize fails the call with `ErrorKind::Serialization` before anything is sent.
+serialize fails the call with `ErrorKind::Serialization` before anything is sent. The closure runs
+once (`FnOnce`), so it can move values, such as a stream, into the call.
 
 ## Invoking
 
@@ -189,8 +190,42 @@ thread or executor works.
 
 ## Client-to-server streams
 
-Uploading streams from the client to the server (hub methods that take `IAsyncEnumerable<T>` or
-`ChannelReader<T>` parameters) is not supported. See [Limitations](12-limitations.md).
+`stream(s)` adds a client-to-server stream argument, as the .NET client's `IAsyncEnumerable<T>` and
+`ChannelReader<T>` arguments: any `futures::Stream` whose items are `Serialize` (and `Send`
+natively). The hub method takes it as an `IAsyncEnumerable<T>` or `ChannelReader<T>` parameter. It
+works with `invoke_with_args`, `send_with_args` and `enumerate_with_args`:
+
+```rust
+use futures::stream;
+
+// public async Task<int> Sum(IAsyncEnumerable<int> numbers)
+let sum: i32 = client
+    .invoke_with_args("Sum".to_string(), |args| {
+        args.stream(stream::iter(1..=10));
+    })
+    .await?;
+```
+
+As in the .NET client:
+
+- **Wire format.** A stream is not one of the invocation's arguments: it takes the next id of the
+  connection's counter (before the invocation's own id) and is listed in the invocation's
+  `streamIds`. Stream parameters bind in order after the ordinary arguments are taken out, so
+  `args.argument(100).stream(numbers)` and `args.stream(numbers).argument(100)` both call
+  `Sum(int offset, IAsyncEnumerable<int> numbers)`.
+- **Items.** Once the call was sent, each item goes out as a StreamItem, in order, through the
+  connection's writer. The end of the stream sends a Completion.
+- **Errors.** An item that cannot be serialized ends the stream with an error Completion,
+  `Stream errored by client: '<error>'`; the hub method's enumeration throws with that message.
+- **Cancellation.** Dropping the `invoke` future before the result arrived, or the stream that
+  `enumerate_with_args` returned before it ended, ends the stream with
+  `Stream canceled by client.` (for `enumerate_with_args` before the CancelInvocation, so the hub
+  method sees its stream canceled). After a `send_with_args` the stream runs to its end.
+- **Connection end.** The stream stays on the connection its call was accepted on. When that
+  connection ends (a local close, an ordinary drop or pause, or a reconnect that starts a new
+  connection) the stream is dropped and nothing more of it is sent. While a stateful connection is
+  resuming, or natively paused and resumed, the stream waits and then continues on the resumed
+  transport; a browser `pause()` ends a stateful connection, so its streams end with it.
 
 ## Concurrency and clones
 

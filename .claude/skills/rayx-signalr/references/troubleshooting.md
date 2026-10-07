@@ -62,7 +62,6 @@ rejected Acks, Sequences or messages with the reason. Every record starts with `
 ## Limitations
 
 - No HTTP CONNECT or system proxy support natively.
-- No client-to-server streams.
 - No per-call timeout; no status-change events.
 - Browsers use the default `same-origin` credentials mode (no `withCredentials`, as the .NET
   browser client): no cookies to a hub on another origin.

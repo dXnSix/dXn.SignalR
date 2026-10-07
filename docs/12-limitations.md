@@ -12,8 +12,6 @@ prove. Each item says what to do instead where there is an alternative.
   a hub on another origin.
 - **Proxies.** Native clients connect directly; HTTP `CONNECT` proxies and system proxy settings
   are not used. Browsers use the browser's proxy configuration.
-- **Client-to-server streaming.** Hub methods with `IAsyncEnumerable<T>` or `ChannelReader<T>`
-  parameters cannot be called.
 - **Invocation timeout.** There is no per-call timeout; wrap calls in your runtime's timeout.
 - **Status events.** There is no status-change callback; use a disconnection handler or poll
   `status()`.

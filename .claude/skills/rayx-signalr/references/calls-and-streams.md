@@ -26,9 +26,8 @@ let total: f64 = client
 
 `argument<T: Serialize>(value)` appends one positional argument and returns
 `&mut ArgumentConfiguration`, so calls chain. Order must match the hub method's parameters. A value
-that fails to serialize fails the call with `Serialization` before anything is sent. Inside an
-`FnMut` closure,
-pass borrowed or cloned captures (`args.argument(&name)`), not moved ones.
+that fails to serialize fails the call with `Serialization` before anything is sent. The closure
+is `FnOnce` (it runs once), so captures may be moved in (`args.argument(name)`, a stream).
 
 ## Results
 
@@ -72,7 +71,29 @@ if let Some(error) = items.error() { /* Hub (server_message) or the connection's
 - Dropping an open stream removes it locally and sends one `CancelInvocation` (on the connection's
   runtime natively); the server's cancellation token fires. Dropping an ended stream sends nothing.
 - Partial consumption: `(&mut stream).take(n).collect::<Vec<_>>().await`, then `drop(stream)`.
-- Client-to-server (upload) streams are not supported.
+
+## Client-to-server streams
+
+```rust
+// public async Task<int> Sum(IAsyncEnumerable<int> numbers)  (or ChannelReader<int>)
+let sum: i32 = client
+    .invoke_with_args("Sum".to_string(), |c| { c.stream(futures::stream::iter(1..=10)); })
+    .await?;
+```
+
+- `ArgumentConfiguration::stream(impl Stream<Item = T>)` (`T: Serialize`, `Send` natively); works
+  with `invoke_with_args`, `send_with_args`, `enumerate_with_args` (argument closures are
+  `FnOnce`, so streams move in).
+- As .NET: the stream takes the next id of the connection's counter (before the invocation id),
+  is listed in `streamIds`, not in `arguments`; stream parameters bind after the ordinary ones.
+- Items go out as StreamItems in order after the call was sent, then a Completion; an unencodable
+  item ends it with `Stream errored by client: '<error>'`; dropping the `invoke` future or the
+  `enumerate` stream early ends it with `Stream canceled by client.`; after `send` it runs to its
+  end.
+- The stream stays on the connection its call was accepted on: a local close, an ordinary drop or
+  pause, or a new logical connection drops it and sends nothing more; a stateful resume (and a
+  native stateful pause/resume) makes it wait, then continue. Dropping an `enumerate` stream sends
+  the upload's canceled Completion before the CancelInvocation.
 
 ## Concurrency
 

@@ -30,6 +30,7 @@ the receive loop, and names the invariants that the tests protect.
 | `src/communication/reconnection.rs` | The lifecycle state machine, `ConnectionStatus`, the retry policies, and `FirstAttempt` scheduling. |
 | `src/communication/stateful.rs` | The bounded replay buffer: sequence numbers, Ack trimming, duplicate suppression, transport generations, backpressure. |
 | `src/execution/` | Action storage in two namespaces: pending invocations and streams (shared `UpdatableAction`s) by invocation id, and callbacks (`CallbackAction`) by target; `storage_tokio.rs` keeps them in `Arc<Mutex<HashMap>>` maps, `storage_wasm.rs` in `Rc<RefCell<HashMap>>` maps. |
+| `src/execution/upload.rs` | Client-to-server streams: stream ids from the connection's id counter, one pump per stream that sends StreamItems and the final Completion through the reply sink of the logical connection the call went out on, cancellation, and aborting the pumps on close or a new logical connection. |
 | `src/completer/` | `ManualFuture` and `ManualStream`: the bridges from incoming messages to caller futures and streams. |
 | `src/protocol/` | Wire types: negotiate, handshake, invocation, completion, cancel, ping, close, Ack, Sequence; `codec.rs` (single-pass inbound decoding and typed outbound messages for both hub protocols) and the MessagePack framing helpers. |
 
