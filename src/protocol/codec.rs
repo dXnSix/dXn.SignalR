@@ -19,6 +19,7 @@ use super::{
 use crate::error::Error;
 
 /// The JSON hub protocol's record separator.
+#[cfg(any(test, all(feature = "bench-internals", not(target_arch = "wasm32"))))]
 pub(crate) const RECORD_SEPARATOR: char = '\u{1e}';
 
 /// The member of a JSON record that holds its payload.
@@ -73,16 +74,34 @@ fn json_decode_error<T>(error: serde_json::Error) -> Error {
     ))
 }
 
+/// Decodes a JSON payload again with member names matched case-insensitively, as the official
+/// .NET client's System.Text.Json web defaults read them; `member` selects a member of the record.
+fn retry_case_insensitive<T: DeserializeOwned>(json: &str, member: Option<&str>) -> Option<T> {
+    let value: serde_json::Value = serde_json::from_str(json).ok()?;
+    let value = match member {
+        Some(member) => value
+            .get(member)
+            .cloned()
+            .unwrap_or(serde_json::Value::Null),
+        None => value,
+    };
+    super::case_insensitive::decode(value).ok()
+}
+
 impl Payload<'_> {
-    /// Deserializes the payload into `T`; a mismatch is a `Serialization` error.
+    /// Deserializes the payload into `T`; a mismatch is a `Serialization` error. A JSON payload
+    /// whose member names differ from `T`'s only in case decodes on a second attempt.
     pub(crate) fn decode<T: DeserializeOwned>(self) -> Result<T, Error> {
         match self {
-            Payload::Json(raw) => serde_json::from_str(raw.get()).map_err(json_decode_error::<T>),
+            Payload::Json(raw) => serde_json::from_str(raw.get())
+                .or_else(|exact| retry_case_insensitive(raw.get(), None).ok_or(exact))
+                .map_err(json_decode_error::<T>),
             Payload::JsonMember {
                 record,
                 member: JsonMember::Item,
             } => serde_json::from_str::<ItemMember<T>>(record)
                 .map(|member| member.item)
+                .or_else(|exact| retry_case_insensitive(record, Some("item")).ok_or(exact))
                 .map_err(json_decode_error::<T>),
             Payload::JsonMember {
                 record,
@@ -99,7 +118,8 @@ impl Payload<'_> {
                 Ok(ResultMember { result: None, .. }) => {
                     serde_json::from_str("null").map_err(json_decode_error::<T>)
                 }
-                Err(error) => Err(json_decode_error::<T>(error)),
+                Err(exact) => retry_case_insensitive(record, Some("result"))
+                    .ok_or_else(|| json_decode_error::<T>(exact)),
             },
             #[cfg(feature = "messagepack")]
             Payload::MessagePack(bytes) => super::msgpack::decode_payload(bytes),
@@ -252,6 +272,7 @@ fn malformed(message_type: MessageType, field: &str) -> Error {
 // ── JSON ────────────────────────────────────────────────────────────────
 
 /// Splits a JSON text frame into its records without copying.
+#[cfg(any(test, all(feature = "bench-internals", not(target_arch = "wasm32"))))]
 pub(crate) fn json_records(frame: &str) -> impl Iterator<Item = &str> {
     frame
         .split(RECORD_SEPARATOR)
@@ -407,16 +428,19 @@ pub(crate) fn decode_json(record: &str) -> Result<InboundMessage<'_>, Error> {
 
 /// Splits a binary frame into its varint-prefixed MessagePack messages without copying.
 #[cfg(feature = "messagepack")]
+#[cfg(any(test, all(feature = "bench-internals", not(target_arch = "wasm32"))))]
 pub(crate) fn messagepack_records(frame: &[u8]) -> MessagePackRecords<'_> {
     MessagePackRecords { rest: frame }
 }
 
 #[cfg(feature = "messagepack")]
+#[cfg(any(test, all(feature = "bench-internals", not(target_arch = "wasm32"))))]
 pub(crate) struct MessagePackRecords<'a> {
     rest: &'a [u8],
 }
 
 #[cfg(feature = "messagepack")]
+#[cfg(any(test, all(feature = "bench-internals", not(target_arch = "wasm32"))))]
 impl<'a> Iterator for MessagePackRecords<'a> {
     type Item = Result<&'a [u8], Error>;
 
@@ -1839,5 +1863,184 @@ mod robustness {
                 prop_assert!(matches!(decode_messagepack(last), Ok(InboundMessage::Ping)));
             }
         }
+    }
+}
+
+/// Invocation headers as the .NET client sends them (R16.C31): golden frames for Invocation and
+/// StreamInvocation in both protocols.
+#[cfg(test)]
+mod invocation_headers {
+    use std::collections::BTreeMap;
+
+    use super::OutboundMessage;
+    use crate::protocol::{hub_protocol::HubProtocolKind, invoke::Invocation};
+
+    fn headers() -> BTreeMap<String, String> {
+        [("traceparent", "00-trace-span-01"), ("a", "1")]
+            .into_iter()
+            .map(|(name, value)| (name.to_string(), value.to_string()))
+            .collect()
+    }
+
+    fn message(protocol: HubProtocolKind, streaming: bool, with_headers: bool) -> OutboundMessage {
+        let mut invocation = if streaming {
+            Invocation::create_multiple("Numbers", protocol)
+        } else {
+            Invocation::create_single("Echo", protocol)
+        };
+        invocation.with_invocation_id("1");
+        if with_headers {
+            invocation.with_headers(headers());
+        }
+        invocation.with_argument(5).unwrap();
+        OutboundMessage::invocation(&invocation).unwrap()
+    }
+
+    #[test]
+    fn invocation_headers_json_invocation_golden_frame() {
+        let message = message(HubProtocolKind::Json, false, true);
+        assert_eq!(
+            &message.frame.bytes()[..],
+            "{\"type\":1,\"headers\":{\"a\":\"1\",\"traceparent\":\"00-trace-span-01\"},\
+             \"invocationId\":\"1\",\"target\":\"Echo\",\"arguments\":[5]}\u{1e}"
+                .as_bytes()
+        );
+    }
+
+    #[test]
+    fn invocation_headers_json_stream_invocation_golden_frame() {
+        let message = message(HubProtocolKind::Json, true, true);
+        assert_eq!(
+            &message.frame.bytes()[..],
+            "{\"type\":4,\"headers\":{\"a\":\"1\",\"traceparent\":\"00-trace-span-01\"},\
+             \"invocationId\":\"1\",\"target\":\"Numbers\",\"arguments\":[5]}\u{1e}"
+                .as_bytes()
+        );
+        let plain = message_without_headers(HubProtocolKind::Json);
+        assert!(
+            !String::from_utf8_lossy(&plain).contains("headers"),
+            "no hook, no headers member"
+        );
+    }
+
+    fn message_without_headers(protocol: HubProtocolKind) -> Vec<u8> {
+        message(protocol, false, false).frame.bytes().to_vec()
+    }
+
+    /// `[type, {"a": "1", "traceparent": "00-trace-span-01"}, "1", target, [5], []]`, framed.
+    #[cfg(feature = "messagepack")]
+    fn messagepack_frame(message_type: u8, target: &str) -> Vec<u8> {
+        let mut payload = vec![0x96, message_type, 0x82, 0xa1, b'a', 0xa1, b'1', 0xab];
+        payload.extend_from_slice(b"traceparent");
+        payload.push(0xa0 | 16);
+        payload.extend_from_slice(b"00-trace-span-01");
+        payload.extend_from_slice(&[0xa1, b'1', 0xa0 | target.len() as u8]);
+        payload.extend_from_slice(target.as_bytes());
+        payload.extend_from_slice(&[0x91, 0x05, 0x90]);
+        let mut framed = vec![payload.len() as u8];
+        framed.extend(payload);
+        framed
+    }
+
+    #[cfg(feature = "messagepack")]
+    #[test]
+    fn invocation_headers_messagepack_invocation_golden_frame() {
+        let message = message(HubProtocolKind::MessagePack, false, true);
+        assert_eq!(&message.frame.bytes()[..], messagepack_frame(1, "Echo"));
+    }
+
+    #[cfg(feature = "messagepack")]
+    #[test]
+    fn invocation_headers_messagepack_stream_invocation_golden_frame() {
+        let message = message(HubProtocolKind::MessagePack, true, true);
+        assert_eq!(&message.frame.bytes()[..], messagepack_frame(4, "Numbers"));
+        // Without headers the map stays empty, as before.
+        let plain = message_without_headers(HubProtocolKind::MessagePack);
+        assert_eq!(plain.get(2..4), Some(&[0x01, 0x80][..]));
+    }
+}
+
+/// JSON payloads whose member names differ only in case decode, as the .NET client reads them
+/// (R16.C33); outbound names stay the application's.
+#[cfg(test)]
+mod case_insensitive_payload {
+    use serde::{Deserialize, Serialize};
+
+    use super::{decode_json, CompletionOutcome, InboundMessage};
+    use crate::ErrorKind;
+
+    #[derive(Debug, Deserialize, PartialEq, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Entity {
+        entity_id: u32,
+        display_name: String,
+    }
+
+    fn expected() -> Entity {
+        Entity {
+            entity_id: 7,
+            display_name: "seven".into(),
+        }
+    }
+
+    #[test]
+    fn case_insensitive_payload_results_stream_items_and_arguments_decode() {
+        let InboundMessage::Completion {
+            outcome: CompletionOutcome::Result(result),
+            ..
+        } = decode_json(
+            r#"{"type":3,"invocationId":"1","result":{"EntityId":7,"DisplayName":"seven"}}"#,
+        )
+        .unwrap()
+        else {
+            panic!("a result completion");
+        };
+        assert_eq!(result.decode::<Entity>().unwrap(), expected());
+
+        let InboundMessage::StreamItem { item, .. } = decode_json(
+            r#"{"type":2,"invocationId":"1","item":{"ENTITYID":7,"displayname":"seven"}}"#,
+        )
+        .unwrap() else {
+            panic!("a stream item");
+        };
+        assert_eq!(item.decode::<Entity>().unwrap(), expected());
+
+        let InboundMessage::Invocation(invocation) = decode_json(
+            r#"{"type":1,"target":"Notify","arguments":[{"EntityId":7,"DisplayName":"seven"}]}"#,
+        )
+        .unwrap() else {
+            panic!("an invocation");
+        };
+        let argument = invocation.arguments.into_iter().next().unwrap();
+        assert_eq!(
+            argument
+                .into_owned()
+                .as_payload()
+                .decode::<Entity>()
+                .unwrap(),
+            expected()
+        );
+    }
+
+    #[test]
+    fn case_insensitive_payload_type_mismatches_still_fail_and_outbound_names_are_kept() {
+        let InboundMessage::Completion {
+            outcome: CompletionOutcome::Result(result),
+            ..
+        } = decode_json(
+            r#"{"type":3,"invocationId":"1","result":{"EntityId":"x","DisplayName":1}}"#,
+        )
+        .unwrap()
+        else {
+            panic!("a result completion");
+        };
+        assert_eq!(
+            result.decode::<Entity>().unwrap_err().kind(),
+            ErrorKind::Serialization
+        );
+        assert_eq!(
+            serde_json::to_string(&expected()).unwrap(),
+            r#"{"entityId":7,"displayName":"seven"}"#
+        );
     }
 }

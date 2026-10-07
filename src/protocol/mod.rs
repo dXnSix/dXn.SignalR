@@ -9,7 +9,9 @@
     )
 )]
 
+pub(crate) mod case_insensitive;
 pub(crate) mod codec;
+pub(crate) mod framing;
 pub mod hub_protocol;
 pub(crate) mod invoke;
 pub(crate) mod messages;

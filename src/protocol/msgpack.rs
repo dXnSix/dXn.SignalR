@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::io::Cursor;
 
 #[cfg(test)]
@@ -30,6 +30,7 @@ pub fn encode_varint(mut value: usize) -> Vec<u8> {
 }
 
 /// Decode a VarInt from a byte slice. Returns (value, bytes_consumed).
+#[cfg(any(test, all(feature = "bench-internals", not(target_arch = "wasm32"))))]
 pub fn decode_varint(data: &[u8]) -> Result<(usize, usize), Error> {
     let mut result: usize = 0;
     let mut shift = 0;
@@ -104,7 +105,7 @@ pub fn read_message_type(data: &[u8]) -> Result<MessageType, Error> {
 /// Encode headers as a MessagePack map. Empty headers = fixmap 0 (0x80).
 fn encode_headers(
     buf: &mut Vec<u8>,
-    headers: &Option<HashMap<String, String>>,
+    headers: &Option<BTreeMap<String, String>>,
 ) -> Result<(), Error> {
     match headers {
         Some(h) if !h.is_empty() => {
@@ -127,7 +128,7 @@ fn encode_headers(
 /// Always writes 6 elements to match the .NET SignalR MessagePack protocol.
 fn write_invocation(
     msg_type: u8,
-    headers: &Option<HashMap<String, String>>,
+    headers: &Option<BTreeMap<String, String>>,
     invocation_id: Option<&str>,
     target: &str,
     arguments: &[impl AsRef<[u8]>],
@@ -176,7 +177,7 @@ pub(crate) fn encode_invocation_frame(
 ) -> Result<Vec<u8>, Error> {
     let payload = write_invocation(
         invocation.message_type() as u8,
-        &None,
+        invocation.headers(),
         invocation.invocation_id(),
         invocation.target(),
         invocation.msgpack_arguments(),
@@ -189,7 +190,7 @@ pub(crate) fn encode_invocation_frame(
 #[cfg(test)]
 pub fn encode_invocation(
     msg_type: u8,
-    headers: &Option<HashMap<String, String>>,
+    headers: &Option<BTreeMap<String, String>>,
     invocation_id: &Option<String>,
     target: &str,
     arguments: &[rmpv::Value],

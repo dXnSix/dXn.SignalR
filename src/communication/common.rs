@@ -15,8 +15,36 @@ use crate::execution::{Storage, UpdatableActionStorage};
 use crate::protocol::codec::{InboundMessage, OutboundMessage};
 use crate::protocol::hub_protocol::HubProtocolKind;
 
-/// Hands one decoded message to the action storage; returns the error a server Close ends the
-/// connection with (its optional error text and its reconnect permission).
+/// What stateful sequencing decided for one inbound message.
+pub(crate) struct Sequenced {
+    /// Whether the message is new and must be dispatched (a replayed duplicate is not).
+    pub(crate) process: bool,
+    /// The Ack that is due. It is sent after the message is dispatched: the message already
+    /// counts as received, so it must reach the application even when the Ack cannot be sent
+    /// (the dying transport then ends, still resumable).
+    pub(crate) acknowledgement: Option<u64>,
+}
+
+impl Sequenced {
+    /// A stateful control message (Ack, Sequence): consumed by the replay buffer.
+    pub(crate) const CONSUMED: Self = Self {
+        process: false,
+        acknowledgement: None,
+    };
+}
+
+/// Whether a transport that ended for `reason` ends the stateful logical connection: as in the
+/// .NET client, a protocol violation (a malformed, oversized, unexpected or out-of-sequence
+/// message, or a frame of the wrong kind) is never resumed, since the server would replay the
+/// offending message; the reconnect negotiates afresh.
+pub(crate) fn ends_stateful_connection(reason: &Error) -> bool {
+    reason.kind() == crate::ErrorKind::Protocol
+}
+
+/// Hands one decoded message to the action storage; returns the error that ends the transport: a
+/// server Close (its optional error text and its reconnect permission), or a message type a
+/// server never sends to a client (StreamInvocation, CancelInvocation), which the .NET client
+/// rejects as unexpected. Unknown message types are ignored.
 pub(crate) fn dispatch_decoded<S: Storage>(
     storage: &mut S,
     message: InboundMessage<'_>,
@@ -29,6 +57,12 @@ pub(crate) fn dispatch_decoded<S: Storage>(
             error.map(std::borrow::Cow::into_owned),
             allow_reconnect,
         )),
+        InboundMessage::Ignored(
+            message_type @ (crate::protocol::negotiate::MessageType::StreamInvocation
+            | crate::protocol::negotiate::MessageType::CancelInvocation),
+        ) => Some(Error::protocol(format!(
+            "the server sent an unexpected {message_type:?} message"
+        ))),
         message => {
             storage.dispatch(message);
             None
@@ -36,11 +70,16 @@ pub(crate) fn dispatch_decoded<S: Storage>(
     }
 }
 
-/// Logs a record that could not be decoded; decoder messages can quote payload fragments, so
-/// they are logged only at `trace`.
-pub(crate) fn log_undecodable(error: &Error) {
-    log::error!("A message could not be decoded ({:?})", error.kind());
+/// The error a malformed message ends the transport with, as in the .NET client (the reconnection
+/// policy then runs). Decoder messages can quote payload fragments, so they are logged only at
+/// `trace` and never become part of the error.
+pub(crate) fn protocol_violation(error: &Error) -> Error {
+    log::error!(
+        "The server sent a message that could not be decoded ({:?}); the transport ends",
+        error.kind()
+    );
     log::trace!("Undecodable message: {error}");
+    Error::protocol("the server sent a message that could not be decoded")
 }
 
 #[derive(Clone)]
@@ -109,9 +148,11 @@ pub struct HttpClient {}
 impl HttpClient {
     /// Negotiates (following redirects) or connects directly when negotiation is skipped.
     pub(crate) async fn negotiate(recipe: &ConnectionRecipe) -> Result<ConnectionData, Error> {
-        super::negotiation::negotiate_with(recipe, |url, authorization| {
-            Self::post_text(url, authorization, recipe)
-        })
+        super::negotiation::negotiate_with(
+            recipe,
+            cfg!(target_arch = "wasm32"),
+            |url, authorization| Self::post_text(url, authorization, recipe),
+        )
         .await
     }
 
@@ -124,7 +165,14 @@ impl HttpClient {
         recipe: &ConnectionRecipe,
     ) -> Result<String, Error> {
         let timeout = recipe.liveness().connect_timeout;
-        super::negotiate_http::post(&endpoint, authorization, recipe.tls(), timeout).await
+        super::negotiate_http::post(
+            &endpoint,
+            authorization,
+            recipe.headers(),
+            recipe.tls(),
+            timeout,
+        )
+        .await
     }
 
     /// Browser negotiate: `fetch` on the global scope, so it also works in Web Workers. The
@@ -150,7 +198,12 @@ impl HttpClient {
         let controller = web_sys::AbortController::new().map_err(|_| {
             Error::transport_failure(None, "the browser cannot create an AbortController")
         })?;
-        let request = Self::fetch_text(endpoint, authorization, controller.signal());
+        let request = Self::fetch_text(
+            endpoint,
+            authorization,
+            recipe.headers(),
+            controller.signal(),
+        );
         let _abort = AbortOnDrop(controller);
         let timer = gloo_timers::future::sleep(timeout);
         match select(std::pin::pin!(request), std::pin::pin!(timer)).await {
@@ -166,11 +219,18 @@ impl HttpClient {
     async fn fetch_text(
         endpoint: String,
         authorization: Option<String>,
+        headers: &[(String, String)],
         signal: web_sys::AbortSignal,
     ) -> Result<String, Error> {
+        use super::headers::{compose, user_agent, BROWSER_USER_AGENT_HEADER};
+        // Browsers forbid `User-Agent`, so the official format travels in its own header.
         let mut request = gloo_net::http::Request::post(&endpoint).abort_signal(Some(&signal));
-        if let Some(value) = authorization {
-            request = request.header("Authorization", &value);
+        for (name, value) in compose(
+            &[(BROWSER_USER_AGENT_HEADER, user_agent())],
+            headers,
+            authorization,
+        ) {
+            request = request.header(&name, &value);
         }
         let response = request.send().await.map_err(|error| {
             Error::transport_failure(None, format!("the negotiate request failed: {error}"))
@@ -197,7 +257,7 @@ impl HttpClient {
 mod log_policy {
     use futures::{FutureExt, StreamExt};
 
-    use super::{dispatch_decoded, log_undecodable};
+    use super::{dispatch_decoded, protocol_violation};
     use crate::{
         client::SignalRClient,
         execution::{Callback, Storage, UpdatableActionStorage},
@@ -214,7 +274,9 @@ mod log_policy {
             Ok(message) => {
                 dispatch_decoded(storage, message);
             }
-            Err(error) => log_undecodable(&error),
+            Err(error) => {
+                protocol_violation(&error);
+            }
         }
     }
 

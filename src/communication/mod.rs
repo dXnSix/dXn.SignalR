@@ -1,6 +1,7 @@
 #[cfg(target_arch = "wasm32")]
 mod browser_socket;
 mod common;
+pub(crate) mod headers;
 pub(crate) mod hooks;
 pub(crate) mod liveness;
 #[cfg(all(test, not(target_arch = "wasm32")))]

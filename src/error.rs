@@ -208,8 +208,10 @@ impl Error {
         self.inner.allows_reconnect
     }
 
-    /// The server's message: the hub method's error for [`Hub`](ErrorKind::Hub), the Close
-    /// message's error for a server close.
+    /// The server's message, verbatim (as `HubException.Message` in the official .NET client):
+    /// the hub method's error for [`Hub`](ErrorKind::Hub), the Close message's error for a server
+    /// close. Unlike `Display`, it is not redacted: it is whatever the server sent, so log it
+    /// with the care the server's messages need.
     pub fn server_message(&self) -> Option<&str> {
         self.inner.server_message.as_deref()
     }
@@ -309,8 +311,13 @@ impl Error {
     }
 
     pub(crate) fn hub(message: impl Into<String>) -> Self {
-        let message = redact(&message.into());
-        let mut inner = Inner::new(ErrorKind::Hub, format!("the hub method failed: {message}"));
+        // `server_message()` is the server's text verbatim, as `HubException.Message`; the
+        // `Display` text is redacted.
+        let message = message.into();
+        let mut inner = Inner::new(
+            ErrorKind::Hub,
+            format!("the hub method failed: {}", redact(&message)),
+        );
         inner.server_message = Some(message);
         Self::build(inner)
     }
@@ -325,11 +332,10 @@ impl Error {
     }
 
     pub(crate) fn closed_by_server(message: Option<String>, allows_reconnect: bool) -> Self {
-        let message = message
-            .filter(|message| !message.is_empty())
-            .map(|message| redact(&message));
+        // `server_message()` is the server's text verbatim; the `Display` text is redacted.
+        let message = message.filter(|message| !message.is_empty());
         let text = match &message {
-            Some(message) => format!("the server closed the connection: {message}"),
+            Some(message) => format!("the server closed the connection: {}", redact(message)),
             None => "the server closed the connection".to_string(),
         };
         let mut inner = Inner::new(ErrorKind::ConnectionClosed, text);
@@ -412,10 +418,6 @@ impl Error {
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn with_transport(self, transport: TransportKind) -> Self {
         self.edit(|inner| inner.transport = Some(transport))
-    }
-
-    pub(crate) fn with_server_allows_reconnect(self, allows_reconnect: bool) -> Self {
-        self.edit(|inner| inner.allows_reconnect = Some(allows_reconnect))
     }
 
     /// Whether the transport this error ended may be replaced by a reconnect: everything except
@@ -782,14 +784,32 @@ mod error_model {
             ] {
                 assert!(!error.to_string().contains(TOKEN), "{error}");
                 assert!(!format!("{error:?}").contains(TOKEN), "{error:?}");
-                assert!(error
-                    .server_message()
-                    .is_none_or(|server| !server.contains(TOKEN)));
             }
         }
         assert_eq!(
             redact("proxy http://user:pw@host:8080/x and https://plain.example/"),
             "proxy http://[REDACTED]@host:8080/x and https://plain.example/"
+        );
+    }
+
+    #[test]
+    fn server_text_hub_errors_keep_the_server_text_verbatim() {
+        let text = format!("access_token={TOKEN} expired; Authorization: Bearer {TOKEN}");
+        let error = Error::hub(text.clone());
+        assert_eq!(error.server_message(), Some(text.as_str()));
+        assert!(!error.to_string().contains(TOKEN), "{error}");
+        assert!(!format!("{error:?}").contains(TOKEN), "{error:?}");
+    }
+
+    #[test]
+    fn server_text_close_messages_keep_the_server_text_verbatim() {
+        let text = format!("closing ws://host/hub?access_token={TOKEN}");
+        let error = Error::closed_by_server(Some(text.clone()), true);
+        assert_eq!(error.server_message(), Some(text.as_str()));
+        assert!(!error.to_string().contains(TOKEN), "{error}");
+        assert_eq!(
+            Error::closed_by_server(Some(String::new()), false).server_message(),
+            None
         );
     }
 

@@ -55,6 +55,10 @@ pub(crate) fn parse_outcome(text: &str, endpoint: &str) -> Result<NegotiateOutco
     if let Some(error) = value.get("error").and_then(serde_json::Value::as_str) {
         return Ok(NegotiateOutcome::Error(error.to_string()));
     }
+    // A classic ASP.NET SignalR server answers negotiate with `ProtocolVersion`.
+    if value.get("ProtocolVersion").is_some() {
+        return Err(Error::negotiate(None, CLASSIC_SIGNALR));
+    }
     if let Some(url) = value.get("url").and_then(serde_json::Value::as_str) {
         return Ok(NegotiateOutcome::Redirect {
             url: url.to_string(),
@@ -73,6 +77,11 @@ pub(crate) fn parse_outcome(text: &str, endpoint: &str) -> Result<NegotiateOutco
         "no connectionId, url or error field".to_string(),
     ))
 }
+
+/// The official clients' error for a classic ASP.NET SignalR server.
+pub(crate) const CLASSIC_SIGNALR: &str = "Detected a connection attempt to an ASP.NET SignalR \
+Server. This client only supports connecting to an ASP.NET Core SignalR Server. See \
+https://aka.ms/signalr-core-differences for details.";
 
 /// The longest body excerpt a negotiate failure reports.
 pub(crate) const EXCERPT_BYTES: usize = 256;
@@ -177,8 +186,12 @@ fn with_trailing_slash(path: &str) -> String {
 /// Negotiates (following redirects) or, with `skip_negotiation`, connects directly.
 ///
 /// `request(url, authorization)` performs one negotiate POST and returns the body text.
+/// Negotiates through `request`. `bearer_in_query` puts a bearer token into the WebSocket URL as
+/// `access_token` (browsers, which cannot set WebSocket headers); natively the token travels only
+/// in the `Authorization` header, as the official .NET client sends it outside browsers.
 pub(crate) async fn negotiate_with<F, Fut>(
     recipe: &ConnectionRecipe,
+    bearer_in_query: bool,
     mut request: F,
 ) -> Result<ConnectionData, Error>
 where
@@ -186,7 +199,7 @@ where
     Fut: Future<Output = Result<String, Error>>,
 {
     if recipe.skips_negotiation() {
-        return direct_connection(recipe);
+        return direct_connection(recipe, bearer_in_query);
     }
 
     let stateful = recipe.stateful_reconnect().is_some();
@@ -202,7 +215,7 @@ where
             })?;
         match parse_outcome(&text, &display(&base))? {
             NegotiateOutcome::Connection(response) => {
-                return connection_data(recipe, &base, &authentication, response);
+                return connection_data(recipe, &base, &authentication, response, bearer_in_query);
             }
             NegotiateOutcome::Redirect { url, access_token } => {
                 redirects += 1;
@@ -250,6 +263,7 @@ fn connection_data(
     base: &str,
     authentication: &Authentication,
     response: NegotiateResponse,
+    bearer_in_query: bool,
 ) -> Result<ConnectionData, Error> {
     let protocol = recipe.protocol();
     let format = protocol.transfer_format();
@@ -285,7 +299,7 @@ fn connection_data(
     };
     let mut parameters = vec![("id", response.transport_id())];
     // Browsers cannot set WebSocket headers, so bearer tokens travel as `access_token`.
-    if let Some(token) = bearer_parameter(authentication) {
+    if let Some(token) = bearer_parameter(authentication).filter(|_| bearer_in_query) {
         parameters.push(("access_token", token));
     }
     Ok(ConnectionData::new(
@@ -299,12 +313,17 @@ fn connection_data(
 }
 
 /// Builds the WebSocket connection directly from the configured endpoint, without negotiating.
-fn direct_connection(recipe: &ConnectionRecipe) -> Result<ConnectionData, Error> {
+fn direct_connection(
+    recipe: &ConnectionRecipe,
+    bearer_in_query: bool,
+) -> Result<ConnectionData, Error> {
     if recipe.stateful_reconnect().is_some() {
-        return Err(Error::configuration("skip_negotiation", SKIP_WITH_STATEFUL));
+        // As the .NET client: stateful reconnect needs the token negotiation issues.
+        log::warn!("{SKIP_WITH_STATEFUL}");
     }
     let authentication = recipe.authentication();
     let parameters: Vec<(&str, &str)> = bearer_parameter(&authentication)
+        .filter(|_| bearer_in_query)
         .map(|token| vec![("access_token", token)])
         .unwrap_or_default();
     Ok(ConnectionData::new(
@@ -316,7 +335,7 @@ fn direct_connection(recipe: &ConnectionRecipe) -> Result<ConnectionData, Error>
 }
 
 /// Returned when `skip_negotiation` and stateful reconnect are combined.
-pub(crate) const SKIP_WITH_STATEFUL: &str = "skip_negotiation() cannot be combined with \
+pub(crate) const SKIP_WITH_STATEFUL: &str = "skip_negotiation() disables \
 with_stateful_reconnect(): stateful reconnect needs the connection token issued by negotiation";
 
 #[cfg(test)]
@@ -329,8 +348,17 @@ mod negotiation_tests {
 
     type Requests = Rc<RefCell<Vec<(String, Option<String>)>>>;
 
-    /// Runs `negotiate_with` against canned responses, recording each request.
-    fn negotiate(
+    /// Runs `negotiate_with` against canned responses, recording each request, with the
+    /// browser's token placement (an `access_token` query parameter).
+    pub(super) fn negotiate(
+        configure: impl FnOnce(&mut ConnectionConfiguration),
+        responses: Vec<&str>,
+    ) -> (Result<super::ConnectionData, crate::Error>, Requests) {
+        negotiate_as(true, configure, responses)
+    }
+
+    pub(super) fn negotiate_as(
+        bearer_in_query: bool,
         configure: impl FnOnce(&mut ConnectionConfiguration),
         responses: Vec<&str>,
     ) -> (Result<super::ConnectionData, crate::Error>, Requests) {
@@ -347,15 +375,19 @@ mod negotiation_tests {
                 .map(str::to_string)
                 .collect::<Vec<_>>(),
         ));
-        let result = futures::executor::block_on(negotiate_with(&recipe, move |url, auth| {
-            recorded.borrow_mut().push((url, auth));
-            let next = responses.borrow_mut().remove(0);
-            async move { Ok(next) }
-        }));
+        let result = futures::executor::block_on(negotiate_with(
+            &recipe,
+            bearer_in_query,
+            move |url, auth| {
+                recorded.borrow_mut().push((url, auth));
+                let next = responses.borrow_mut().remove(0);
+                async move { Ok(next) }
+            },
+        ));
         (result, requests)
     }
 
-    const V1: &str = r#"{"connectionId":"cid","connectionToken":"token","negotiateVersion":1,
+    pub(super) const V1: &str = r#"{"connectionId":"cid","connectionToken":"token","negotiateVersion":1,
         "availableTransports":[{"transport":"WebSockets","transferFormats":["Text","Binary"]}]}"#;
 
     #[test]
@@ -519,6 +551,7 @@ mod negotiation_tests {
 
 #[cfg(test)]
 mod skip_negotiation {
+    use super::negotiation_tests::{negotiate, negotiate_as, V1};
     use super::{negotiate_with, SKIP_WITH_STATEFUL};
     use crate::client::ConnectionConfiguration;
     use crate::StatefulReconnectConfig;
@@ -532,7 +565,7 @@ mod skip_negotiation {
         configure(&mut configuration);
         let recipe = configuration.connection_recipe();
         let mut requests = 0;
-        let result = futures::executor::block_on(negotiate_with(&recipe, |_, _| {
+        let result = futures::executor::block_on(negotiate_with(&recipe, true, |_, _| {
             requests += 1;
             async {
                 Err(crate::Error::negotiate(
@@ -578,13 +611,120 @@ mod skip_negotiation {
     }
 
     #[test]
-    fn skip_negotiation_rejects_stateful_reconnect_before_io() {
-        let (result, requests) = direct(|configuration| {
-            configuration.with_stateful_reconnect(StatefulReconnectConfig::default());
+    fn negotiate_parity_skip_negotiation_disables_stateful_reconnect_with_a_warning() {
+        let ((result, requests), records) = crate::test_logging::capture(|| {
+            direct(|configuration| {
+                configuration.with_stateful_reconnect(StatefulReconnectConfig::default());
+            })
         });
         assert_eq!(requests, 0);
-        let error = result.err().unwrap();
-        assert_eq!(error.setting(), Some("skip_negotiation"));
-        assert!(error.to_string().contains(SKIP_WITH_STATEFUL), "{error}");
+        let data = result.unwrap();
+        assert_eq!(data.get_endpoint(), "wss://localhost:5001/hub");
+        assert!(
+            data.stateful_reconnect().is_none(),
+            "the connection is ordinary"
+        );
+        assert!(
+            records.iter().any(|record| record.level == log::Level::Warn
+                && record.message.contains(SKIP_WITH_STATEFUL)),
+            "a warning explains why"
+        );
+    }
+
+    #[test]
+    fn negotiate_parity_a_response_without_a_version_is_version_0() {
+        let (result, _) = negotiate(
+            |_| {},
+            vec![
+                r#"{"connectionId":"legacy-id","availableTransports":[{"transport":"WebSockets","transferFormats":["Text","Binary"]}]}"#,
+            ],
+        );
+        assert_eq!(
+            result.unwrap().get_endpoint(),
+            "ws://localhost:5000/hub?id=legacy-id",
+            "version 0 connects with the connection id"
+        );
+    }
+
+    #[test]
+    fn negotiate_parity_a_classic_signalr_server_gets_its_own_error() {
+        let (result, _) = negotiate(
+            |_| {},
+            vec![
+                r#"{"Url":"/signalr","ConnectionToken":"t","ConnectionId":"c","KeepAliveTimeout":20.0,"ProtocolVersion":"1.5"}"#,
+            ],
+        );
+        let Err(error) = result else {
+            panic!("a classic server must be rejected");
+        };
+        assert_eq!(error.kind(), crate::ErrorKind::Negotiate, "{error}");
+        assert!(
+            error.to_string().contains(super::CLASSIC_SIGNALR),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn token_placement_native_websockets_carry_the_bearer_token_only_in_the_header() {
+        let (result, requests) = negotiate_as(
+            false,
+            |configuration| {
+                configuration.authenticate_bearer("native-token".to_string());
+            },
+            vec![V1],
+        );
+        let data = result.unwrap();
+        assert_eq!(data.get_endpoint(), "ws://localhost:5000/hub?id=token");
+        assert_eq!(
+            data.get_recipe().transport_authorization().as_deref(),
+            Some("Bearer native-token")
+        );
+        assert_eq!(
+            requests.borrow()[0].1.as_deref(),
+            Some("Bearer native-token")
+        );
+
+        // Browsers cannot set WebSocket headers: the token travels as `access_token`.
+        let (browser, _) = negotiate(
+            |configuration| {
+                configuration.authenticate_bearer("native-token".to_string());
+            },
+            vec![V1],
+        );
+        assert!(browser
+            .unwrap()
+            .get_endpoint()
+            .ends_with("&access_token=native-token"));
+    }
+
+    #[test]
+    fn token_placement_a_redirect_token_travels_in_the_header_natively() {
+        let redirect = r#"{"url":"https://demo.service.signalr.net/client/?hub=chat","accessToken":"redirect-token"}"#;
+        let (result, _) = negotiate_as(false, |_| {}, vec![redirect, V1]);
+        let data = result.unwrap();
+        assert!(
+            !data.get_endpoint().contains("access_token"),
+            "{}",
+            data.get_endpoint()
+        );
+        assert_eq!(
+            data.get_recipe().transport_authorization().as_deref(),
+            Some("Bearer redirect-token")
+        );
+    }
+
+    #[test]
+    fn token_placement_skip_negotiation_keeps_the_token_out_of_the_native_url() {
+        let mut configuration = ConnectionConfiguration::new("localhost".into(), "hub".into());
+        configuration.with_port(5001);
+        configuration.skip_negotiation();
+        configuration.authenticate_bearer("direct-token".to_string());
+        let recipe = configuration.connection_recipe();
+        let result = futures::executor::block_on(negotiate_with(&recipe, false, |_, _| {
+            std::future::ready(Err(crate::Error::protocol(
+                "negotiate must not be requested",
+            )))
+        }));
+        assert_eq!(result.unwrap().get_endpoint(), "wss://localhost:5001/hub");
     }
 }

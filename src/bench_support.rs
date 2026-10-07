@@ -243,6 +243,9 @@ pub fn encode_invocation<T: Serialize>(
 pub struct Receiver {
     protocol: Protocol,
     storage: UpdatableActionStorage,
+    text_records: crate::protocol::framing::TextRecords,
+    #[cfg(feature = "messagepack")]
+    binary_records: crate::protocol::framing::BinaryRecords,
 }
 
 impl Receiver {
@@ -250,6 +253,9 @@ impl Receiver {
         Self {
             protocol,
             storage: UpdatableActionStorage::new(),
+            text_records: crate::protocol::framing::TextRecords::new(None),
+            #[cfg(feature = "messagepack")]
+            binary_records: crate::protocol::framing::BinaryRecords::new(None),
         }
     }
 
@@ -294,33 +300,31 @@ impl Receiver {
     }
 
     /// Dispatches one received frame as the native receiver task does for a connection without
-    /// stateful reconnect (`client_tokio::RecordContext::handle`): split the records, decode each
-    /// once, and hand it to the action storage; server-to-client calls then run as the dispatch
-    /// task runs them.
+    /// stateful reconnect (`client_tokio::RecordContext::handle`): frame the records (carrying an
+    /// incomplete rest to the next frame), decode each once, and hand it to the action storage;
+    /// server-to-client calls then run as the dispatch task runs them.
     pub fn receive(&mut self, frame: &Frame) {
+        let storage = &mut self.storage;
+        let mut dispatch = |message: Result<codec::InboundMessage<'_>, crate::Error>| {
+            message
+                .ok()
+                .and_then(|message| dispatch_decoded(storage, message))
+        };
         match self.protocol {
             Protocol::Json => {
                 let Some(text) = frame.message.as_text() else {
                     return;
                 };
-                for record in codec::json_records(text) {
-                    if let Ok(message) = codec::decode_json(record) {
-                        if dispatch_decoded(&mut self.storage, message).is_some() {
-                            break;
-                        }
-                    }
-                }
+                let _ = self
+                    .text_records
+                    .feed(text, |record| dispatch(codec::decode_json(record)));
             }
             #[cfg(feature = "messagepack")]
             Protocol::MessagePack => {
                 let bytes: &[u8] = frame.message.as_payload();
-                for record in codec::messagepack_records(bytes) {
-                    if let Ok(message) = record.and_then(codec::decode_messagepack) {
-                        if dispatch_decoded(&mut self.storage, message).is_some() {
-                            break;
-                        }
-                    }
-                }
+                let _ = self
+                    .binary_records
+                    .feed(bytes, |record| dispatch(codec::decode_messagepack(record)));
             }
         }
         // Server-to-client calls run as the connection's dispatch task runs them.

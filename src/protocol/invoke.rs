@@ -2,7 +2,7 @@ use super::{hub_protocol::HubProtocolKind, negotiate::MessageType};
 use crate::error::Error;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
-use std::{collections::HashMap, fmt::Debug};
+use std::{collections::BTreeMap, fmt::Debug};
 
 /// Indicates a request to invoke a particular method (the Target) with provided Arguments on the remote endpoint.
 ///
@@ -13,7 +13,7 @@ use std::{collections::HashMap, fmt::Debug};
 pub struct Invocation {
     r#type: MessageType,
     #[serde(skip_serializing_if = "Option::is_none")]
-    headers: Option<HashMap<String, String>>,
+    headers: Option<BTreeMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     invocation_id: Option<String>,
     target: String,
@@ -75,6 +75,19 @@ impl Invocation {
         Ok(())
     }
 
+    /// Sets the message headers (none when `headers` is empty), as the .NET client adds them to
+    /// Invocation and StreamInvocation messages.
+    pub fn with_headers(&mut self, headers: BTreeMap<String, String>) -> &mut Self {
+        self.headers = (!headers.is_empty()).then_some(headers);
+        self
+    }
+
+    /// The message headers, if any.
+    #[cfg_attr(not(feature = "messagepack"), allow(dead_code))]
+    pub fn headers(&self) -> &Option<BTreeMap<String, String>> {
+        &self.headers
+    }
+
     pub fn with_invocation_id(&mut self, invocation_id: impl ToString) -> &mut Self {
         self.invocation_id = Some(invocation_id.to_string());
         self
@@ -126,7 +139,7 @@ impl Invocation {
 pub struct Completion<R> {
     r#type: MessageType,
     #[serde(skip_serializing_if = "Option::is_none")]
-    headers: Option<HashMap<String, String>>,
+    headers: Option<BTreeMap<String, String>>,
     invocation_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     result: Option<R>,
@@ -165,7 +178,7 @@ impl Completion<()> {
 pub(crate) struct CancelInvocation {
     r#type: MessageType,
     #[serde(skip_serializing_if = "Option::is_none")]
-    headers: Option<HashMap<String, String>>,
+    headers: Option<BTreeMap<String, String>>,
     invocation_id: String,
 }
 

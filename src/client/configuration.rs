@@ -45,6 +45,9 @@ pub struct ConnectionConfiguration {
     _stateful_reconnect: Option<StatefulReconnectConfig>,
     _skip_negotiation: bool,
     _liveness: LivenessConfig,
+    _headers: Vec<(String, String)>,
+    _invocation_headers: Option<InvocationHeaders>,
+    _maximum_message_size: Option<usize>,
     #[cfg(not(target_arch = "wasm32"))]
     _tls: crate::communication::tls::TlsSettings,
     #[cfg(not(target_arch = "wasm32"))]
@@ -72,6 +75,13 @@ impl Authentication {
     }
 }
 
+/// The invocation-header hook of `with_invocation_headers`.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) type InvocationHeaders =
+    std::sync::Arc<dyn Fn(&str) -> Vec<(String, String)> + Send + Sync>;
+#[cfg(target_arch = "wasm32")]
+pub(crate) type InvocationHeaders = std::rc::Rc<dyn Fn(&str) -> Vec<(String, String)>>;
+
 #[derive(Clone)]
 pub(crate) struct ConnectionRecipe {
     secure: bool,
@@ -83,6 +93,12 @@ pub(crate) struct ConnectionRecipe {
     stateful_reconnect: Option<StatefulReconnectConfig>,
     skip_negotiation: bool,
     liveness: LivenessConfig,
+    /// Application headers for every HTTP request and the native WebSocket upgrade.
+    headers: Vec<(String, String)>,
+    /// Headers for Invocation and StreamInvocation messages, per target.
+    invocation_headers: Option<InvocationHeaders>,
+    /// The largest inbound hub message accepted (`None`: unbounded).
+    maximum_message_size: Option<usize>,
     /// Credentials for the transport when negotiation replaced them (a redirect access token).
     transport_authentication: Option<Authentication>,
     #[cfg(not(target_arch = "wasm32"))]
@@ -102,6 +118,27 @@ impl ConnectionRecipe {
     pub(crate) fn with_runtime(mut self, runtime: tokio::runtime::Handle) -> Self {
         self.runtime = Some(runtime);
         self
+    }
+
+    /// The headers the invocation-header hook gives a message to `target`.
+    pub(crate) fn invocation_headers(
+        &self,
+        target: &str,
+    ) -> std::collections::BTreeMap<String, String> {
+        self.invocation_headers
+            .as_ref()
+            .map(|hook| hook(target).into_iter().collect())
+            .unwrap_or_default()
+    }
+
+    /// The largest inbound hub message accepted (`None`: unbounded).
+    pub(crate) fn maximum_message_size(&self) -> Option<usize> {
+        self.maximum_message_size
+    }
+
+    /// The application headers (`with_header`), validated when the client was built.
+    pub(crate) fn headers(&self) -> &[(String, String)] {
+        &self.headers
     }
 
     pub(crate) fn skips_negotiation(&self) -> bool {
@@ -214,6 +251,9 @@ impl ConnectionConfiguration {
             _protocol: HubProtocolKind::default(),
             _stateful_reconnect: None,
             _skip_negotiation: false,
+            _headers: Vec::new(),
+            _invocation_headers: None,
+            _maximum_message_size: None,
             _liveness: LivenessConfig::default(),
             #[cfg(not(target_arch = "wasm32"))]
             _tls: Default::default(),
@@ -417,10 +457,12 @@ impl ConnectionConfiguration {
     }
 
     /// Connects the WebSocket directly to `ws(s)://host[:port]/hub` without a negotiate request,
-    /// as the official clients' `skipNegotiation` does; a bearer token is sent as `access_token`.
-    /// The server must allow WebSockets-only connections. Ordinary reconnects connect directly
-    /// too. Cannot be combined with [`with_stateful_reconnect`](Self::with_stateful_reconnect),
-    /// which needs the connection token negotiation issues: `connect` then fails before any I/O.
+    /// as the official clients' `skipNegotiation` does; a bearer token is sent in the
+    /// `Authorization` header (browsers, which cannot set WebSocket headers, send it as
+    /// `access_token`). The server must allow WebSockets-only connections. Ordinary reconnects
+    /// connect directly too. As in the .NET client, it disables
+    /// [`with_stateful_reconnect`](Self::with_stateful_reconnect), which needs the connection
+    /// token negotiation issues; a warning is logged.
     pub fn skip_negotiation(&mut self) -> &ConnectionConfiguration {
         self._skip_negotiation = true;
         self
@@ -476,6 +518,66 @@ impl ConnectionConfiguration {
         self
     }
 
+    /// Adds a header to every HTTP request (negotiate and the HTTP transports) and natively to the
+    /// WebSocket upgrade, as the official .NET client's `HttpConnectionOptions.Headers` does.
+    /// Browsers cannot set WebSocket headers: there the header reaches negotiate only, and
+    /// building the client logs a warning. As in the .NET client, the header replaces a default
+    /// of the same name (an empty `User-Agent` removes it), while `X-Requested-With` and the
+    /// credentials' `Authorization` always win. An invalid name or value, or a header the
+    /// transport owns (`Host`, `Content-Length`, `Connection`, `Upgrade`, `Transfer-Encoding`,
+    /// `TE`, `Trailer`, `Keep-Alive`, `Proxy-Connection`, `Sec-WebSocket-*`), fails
+    /// [`SignalRClient::new`](crate::SignalRClient::new) before any I/O with
+    /// [`ErrorKind::Configuration`](crate::ErrorKind::Configuration) naming `with_header`.
+    pub fn with_header(
+        &mut self,
+        name: impl Into<String>,
+        value: impl Into<String>,
+    ) -> &ConnectionConfiguration {
+        self._headers.push((name.into(), value.into()));
+        self
+    }
+
+    /// Adds headers to every Invocation and StreamInvocation message (`invoke`, `send` and
+    /// `enumerate`), as the official .NET client adds the W3C `traceparent` and `tracestate`
+    /// headers of the current activity. The hook receives the hub method's name and runs on the
+    /// calling task each time a message is built. ASP.NET Core uses `traceparent` and `tracestate`
+    /// to parent the activity of the hub method's invocation (hub code sees it as
+    /// `Activity.Current`); it does not expose other invocation headers to hub methods.
+    /// Headers with the same name keep the last value.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(configuration: &mut rayx_signalr::ConnectionConfiguration) {
+    /// configuration.with_invocation_headers(|_target| {
+    ///     vec![(
+    ///         "traceparent".to_string(),
+    ///         "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01".to_string(),
+    ///     )]
+    /// });
+    /// # }
+    /// ```
+    pub fn with_invocation_headers(
+        &mut self,
+        hook: impl Fn(&str) -> Vec<(String, String)> + crate::platform::MaybeSendSync + 'static,
+    ) -> &ConnectionConfiguration {
+        #[cfg(not(target_arch = "wasm32"))]
+        let hook: InvocationHeaders = std::sync::Arc::new(hook);
+        #[cfg(target_arch = "wasm32")]
+        let hook: InvocationHeaders = std::rc::Rc::new(hook);
+        self._invocation_headers = Some(hook);
+        self
+    }
+
+    /// Bounds the size of an inbound hub message (a JSON record or a MessagePack message, which may
+    /// span several WebSocket messages); a larger one ends the transport with
+    /// [`ErrorKind::Protocol`](crate::ErrorKind::Protocol) and the reconnection policy runs. Unbounded
+    /// by default, as in the official .NET client.
+    pub fn with_maximum_message_size(&mut self, bytes: usize) -> &ConnectionConfiguration {
+        self._maximum_message_size = Some(bytes);
+        self
+    }
+
     /// Enables ASP.NET Core stateful reconnect for this connection.
     pub fn with_stateful_reconnect(
         &mut self,
@@ -504,6 +606,9 @@ impl ConnectionConfiguration {
             stateful_reconnect: self._stateful_reconnect,
             skip_negotiation: self._skip_negotiation,
             liveness: self._liveness,
+            headers: self._headers.clone(),
+            invocation_headers: self._invocation_headers.clone(),
+            maximum_message_size: self._maximum_message_size,
             transport_authentication: None,
             #[cfg(not(target_arch = "wasm32"))]
             tls: Default::default(),

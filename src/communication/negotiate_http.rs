@@ -29,10 +29,11 @@ use crate::error::{Error, TimeoutOperation};
 pub(crate) async fn post(
     url: &str,
     authorization: Option<String>,
+    headers: &[(String, String)],
     tls: &TlsContext,
     timeout: std::time::Duration,
 ) -> Result<String, Error> {
-    tokio::time::timeout(timeout, post_unbounded(url, authorization, tls))
+    tokio::time::timeout(timeout, post_unbounded(url, authorization, headers, tls))
         .await
         .map_err(|_| Error::timed_out(TimeoutOperation::Negotiate, timeout))?
 }
@@ -40,6 +41,7 @@ pub(crate) async fn post(
 async fn post_unbounded(
     url: &str,
     authorization: Option<String>,
+    headers: &[(String, String)],
     tls: &TlsContext,
 ) -> Result<String, Error> {
     let uri: Uri = url.parse().map_err(|error| {
@@ -71,11 +73,21 @@ async fn post_unbounded(
         .map(|path| path.as_str())
         .unwrap_or("/");
 
+    // The official clients' headers, composed as the .NET client does (application headers
+    // replace defaults; the credentials' Authorization wins).
     let mut request = Request::post(path)
         .header(header::HOST, authority.as_str())
         .header(header::CONTENT_LENGTH, 0);
-    if let Some(value) = authorization {
-        request = request.header(header::AUTHORIZATION, value);
+    let composed = super::headers::compose(
+        &[
+            ("User-Agent", super::headers::user_agent()),
+            ("Accept", "*/*".to_string()),
+        ],
+        headers,
+        authorization,
+    );
+    for (name, value) in composed {
+        request = request.header(name.as_str(), value.as_str());
     }
     let request = request.body(Empty::<Bytes>::new()).map_err(|_| {
         Error::configuration(
@@ -381,6 +393,7 @@ mod connection_setup_bounds {
         let error = post(
             &format!("http://127.0.0.1:{port}/hub/negotiate?access_token=secret"),
             None,
+            &[],
             &tls,
             Duration::from_millis(300),
         )

@@ -49,7 +49,7 @@ use crate::{
 
 use super::{
     browser_socket::{BrowserSocket, SocketEvent},
-    common::Communication,
+    common::{Communication, Sequenced},
     hooks::LifecycleHooks,
     liveness::{
         close_frame, parse_handshake_response, ping_frame, LivenessAction, LivenessConfig,
@@ -407,7 +407,8 @@ async fn attempt_once(shared: &Rc<Shared>, generation: u64) -> Result<(), Error>
         shared.storage.callbacks().new_logical_connection();
     }
     shared.disconnect_reason.replace(None);
-    install(shared, opened, generation);
+    // As the .NET client, a Ping follows every handshake (not a stateful resume).
+    install(shared, opened, generation, !resumed);
     shared.hooks.opened();
     info!("WASM connection established");
     Ok(())
@@ -712,7 +713,13 @@ impl ReplySink for TransportReplies {
 }
 
 /// Makes a connected socket of `generation` current and spawns its receiver task.
-fn install(shared: &Rc<Shared>, opened: Opened, generation: u64) {
+fn install(shared: &Rc<Shared>, opened: Opened, generation: u64, initial_ping: bool) {
+    let ping = ping_frame(shared.protocol_kind);
+    if initial_ping {
+        if let Err(error) = opened.socket.send(&ping) {
+            log::debug!("Cannot send the initial Ping: {error}");
+        }
+    }
     // Server-to-client calls run on the client's dispatch task and are answered here.
     shared
         .storage
@@ -728,7 +735,7 @@ fn install(shared: &Rc<Shared>, opened: Opened, generation: u64) {
         opened.events,
         opened.socket.clone(),
         opened.pending,
-        ping_frame(shared.protocol_kind),
+        ping,
     ));
     if let Some(previous) = shared.socket.replace(Some(Socket {
         socket: opened.socket,
@@ -749,8 +756,11 @@ async fn run_receiver(
     mut pending: Option<Frame>,
     ping: SerializedFrame,
 ) {
-    let server_timeout = match shared.upgrade() {
-        Some(state) => state.recipe.liveness().server_timeout,
+    let (server_timeout, mut records) = match shared.upgrade() {
+        Some(state) => (
+            state.recipe.liveness().server_timeout,
+            InboundRecords::new(state.recipe.maximum_message_size()),
+        ),
         None => return,
     };
     let reason = loop {
@@ -774,6 +784,24 @@ async fn run_receiver(
                     }
                     LivenessAction::Idle { next_deadline } => next_deadline,
                 };
+                // A deferred stateful Ack is due (the 1-second cadence).
+                let ack_due = shared.upgrade().and_then(|state| {
+                    state
+                        .active_stateful()
+                        .and_then(|buffer| buffer.borrow().acknowledgement_due())
+                });
+                if ack_due.is_some_and(|due| due <= now_ms()) {
+                    let Some(state) = shared.upgrade() else {
+                        return;
+                    };
+                    if let Some(buffer) = state.active_stateful() {
+                        if let Err(error) = flush_ack(&buffer, state.protocol_kind, &socket) {
+                            break error;
+                        }
+                    }
+                    continue;
+                }
+                let next_deadline = ack_due.map_or(next_deadline, |due| due.min(next_deadline));
                 let wait = Duration::from_millis(next_deadline.saturating_sub(now_ms()));
                 let event = {
                     let timer = std::pin::pin!(sleep(wait));
@@ -799,12 +827,17 @@ async fn run_receiver(
         if state.lifecycle.get().generation() != generation {
             return;
         }
-        if let Some(reason) = process_frame(&state, frame, &socket) {
+        if let Some(reason) = process_frame(&state, frame, &socket, &mut records) {
             break reason;
         }
     };
     socket.close();
     if let Some(state) = shared.upgrade() {
+        if super::common::ends_stateful_connection(&reason) {
+            if let Some(buffer) = state.active_stateful() {
+                buffer.borrow_mut().dispose();
+            }
+        }
         socket_closed(&state, generation, reason);
     }
 }
@@ -909,30 +942,72 @@ fn terminal_close(shared: &Rc<Shared>, reason: Error) {
     }
 }
 
+/// Frames hub messages across WebSocket messages (the incomplete rest is kept).
+struct InboundRecords {
+    text: crate::protocol::framing::TextRecords,
+    #[cfg(feature = "messagepack")]
+    binary: crate::protocol::framing::BinaryRecords,
+}
+
+impl InboundRecords {
+    fn new(limit: Option<usize>) -> Self {
+        Self {
+            text: crate::protocol::framing::TextRecords::new(limit),
+            #[cfg(feature = "messagepack")]
+            binary: crate::protocol::framing::BinaryRecords::new(limit),
+        }
+    }
+}
+
 /// Processes one WebSocket frame; returns the reason the transport must end, when it must.
-fn process_frame(shared: &Shared, frame: Frame, socket: &LiveSocket) -> Option<Error> {
+fn process_frame(
+    shared: &Shared,
+    frame: Frame,
+    socket: &LiveSocket,
+    records: &mut InboundRecords,
+) -> Option<Error> {
     let mut storage = shared.storage.clone();
     match (shared.protocol_kind, frame) {
-        (HubProtocolKind::Json, Frame::Text(text)) => {
-            codec::json_records(&text).find_map(|record| {
+        (HubProtocolKind::Json, Frame::Text(text)) => records
+            .text
+            .feed(&text, |record| {
                 handle_record(&mut storage, codec::decode_json(record), shared, socket)
             })
-        }
+            .unwrap_or_else(Some),
         #[cfg(feature = "messagepack")]
-        (HubProtocolKind::MessagePack, Frame::Binary(bytes)) => codec::messagepack_records(&bytes)
-            .find_map(|record| {
+        (HubProtocolKind::MessagePack, Frame::Binary(bytes)) => records
+            .binary
+            .feed(&bytes, |record| {
                 handle_record(
                     &mut storage,
-                    record.and_then(codec::decode_messagepack),
+                    codec::decode_messagepack(record),
                     shared,
                     socket,
                 )
-            }),
-        _ => {
-            warn!("Ignoring a WebSocket frame that does not match the hub protocol");
-            None
-        }
+            })
+            .unwrap_or_else(Some),
+        // As in the .NET client, an unexpected frame is a protocol violation.
+        (HubProtocolKind::Json, _) => Some(Error::protocol(
+            "the server sent a binary frame on a JSON hub protocol connection",
+        )),
+        #[cfg(feature = "messagepack")]
+        (HubProtocolKind::MessagePack, _) => Some(Error::protocol(
+            "the server sent a text frame on a MessagePack hub protocol connection",
+        )),
     }
+}
+
+/// Sends the stateful Ack that is due, if any (the 1-second cadence).
+fn flush_ack(
+    buffer: &SharedStatefulBuffer,
+    protocol_kind: HubProtocolKind,
+    socket: &LiveSocket,
+) -> Result<(), Error> {
+    let acknowledgement = buffer.borrow_mut().take_acknowledgement(now_ms())?;
+    if let Some(sequence_id) = acknowledgement {
+        ack_message(protocol_kind, sequence_id).and_then(|ack| socket.send(&ack))?;
+    }
+    Ok(())
 }
 
 /// Sequences (with stateful reconnect) and dispatches one decoded record; returns the error
@@ -945,33 +1020,43 @@ fn handle_record(
 ) -> Option<Error> {
     let message = match message {
         Ok(message) => message,
+        // As in the .NET client, a malformed message ends the transport; the reconnection
+        // policy runs.
+        Err(error) => return Some(super::common::protocol_violation(&error)),
+    };
+    let Some(buffer) = shared.active_stateful() else {
+        return super::common::dispatch_decoded(storage, message);
+    };
+    let sequenced = match sequence(&buffer, &message) {
+        Ok(sequenced) => sequenced,
         Err(error) => {
-            super::common::log_undecodable(&error);
-            return None;
+            error!("WASM stateful protocol error: {}", error);
+            // The logical connection cannot be resumed: the reconnect negotiates afresh.
+            buffer.borrow_mut().dispose();
+            return Some(error);
         }
     };
-    if let Some(buffer) = shared.active_stateful() {
-        match sequence(&buffer, &message, shared, socket) {
-            Ok(true) => {}
-            Ok(false) => return None,
-            Err(error) => {
-                error!("WASM stateful protocol error: {}", error);
-                return Some(error.with_server_allows_reconnect(false));
-            }
-        }
-    }
-    super::common::dispatch_decoded(storage, message)
+    let ended = if sequenced.process {
+        super::common::dispatch_decoded(storage, message)
+    } else {
+        None
+    };
+    // A due Ack goes out after the dispatch; a failure is a dying transport, still resumable.
+    ended.or_else(|| {
+        let sequence_id = sequenced.acknowledgement?;
+        ack_message(shared.protocol_kind, sequence_id)
+            .and_then(|ack| socket.send(&ack))
+            .err()
+    })
 }
 
 /// Applies stateful sequencing: Ack and Sequence update the replay buffer; every other message
-/// is counted and acknowledged. Returns whether the message is new and dispatched (a replayed
-/// duplicate is not). No borrow of the buffer outlives the call.
+/// is counted. An error is a violation of the stateful protocol. No borrow of the buffer
+/// outlives the call.
 fn sequence(
     buffer: &SharedStatefulBuffer,
     message: &InboundMessage<'_>,
-    shared: &Shared,
-    socket: &LiveSocket,
-) -> Result<bool, Error> {
+) -> Result<Sequenced, Error> {
     if let InboundMessage::Control {
         message_type,
         record,
@@ -989,19 +1074,13 @@ fn sequence(
         buffer
             .borrow_mut()
             .receive_control(*message_type, sequence_id)?;
-        return Ok(false);
+        return Ok(Sequenced::CONSUMED);
     }
-    let (should_process, acknowledgement) = {
-        let mut buffer = buffer.borrow_mut();
-        (
-            buffer.should_process(message.message_type())?,
-            buffer.take_acknowledgement()?,
-        )
-    };
-    if let Some(sequence_id) = acknowledgement {
-        ack_message(shared.protocol_kind, sequence_id).and_then(|ack| socket.send(&ack))?;
-    }
-    Ok(should_process)
+    let mut buffer = buffer.borrow_mut();
+    Ok(Sequenced {
+        process: buffer.should_process(message.message_type())?,
+        acknowledgement: buffer.take_acknowledgement(now_ms())?,
+    })
 }
 
 fn ack_message(protocol_kind: HubProtocolKind, sequence_id: u64) -> Result<SerializedFrame, Error> {
@@ -1286,6 +1365,14 @@ impl CommunicationClient {
 
     pub(crate) fn hooks(&self) -> &LifecycleHooks {
         &self.shared.hooks
+    }
+
+    /// The headers the invocation-header hook gives a message to `target`.
+    pub(crate) fn invocation_headers(
+        &self,
+        target: &str,
+    ) -> std::collections::BTreeMap<String, String> {
+        self.shared.recipe.invocation_headers(target)
     }
 
     /// The negotiated id of the current connection, while connected.

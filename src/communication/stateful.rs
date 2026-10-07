@@ -47,6 +47,8 @@ pub(crate) struct StatefulMessageBuffer {
     next_incoming: u64,
     highest_incoming: u64,
     last_acknowledgement_sent: u64,
+    /// When the last Ack went out, on the transport's millisecond clock.
+    last_acknowledgement_at: Option<u64>,
     awaiting_sequence: bool,
     resending: bool,
     disposed: bool,
@@ -61,6 +63,9 @@ pub(crate) const STALE_TRANSPORT: &str = "the connection was lost before the mes
 
 /// The configuration setting that sizes the replay buffer.
 const BUFFER_SETTING: &str = "StatefulReconnectConfig::buffer_size_bytes";
+
+/// Acks go out at most this often, as the .NET client's `MessageBuffer.AckRate`.
+pub(crate) const ACK_INTERVAL_MS: u64 = 1_000;
 
 fn overflow(counter: &str) -> Error {
     Error::protocol(format!(
@@ -89,6 +94,7 @@ impl StatefulMessageBuffer {
             next_incoming: 1,
             highest_incoming: 0,
             last_acknowledgement_sent: 0,
+            last_acknowledgement_at: None,
             awaiting_sequence: false,
             resending: false,
             disposed: false,
@@ -130,16 +136,10 @@ impl StatefulMessageBuffer {
             return Ok(TrackResult::Bypass);
         }
         let bytes = payload.len();
-        if bytes > self.capacity {
-            return Err(Error::configuration(
-                BUFFER_SETTING,
-                format!(
-                    "a {bytes}-byte message exceeds the {}-byte stateful reconnect buffer",
-                    self.capacity
-                ),
-            ));
-        }
-        if self.resending || self.buffered_bytes + bytes > self.capacity {
+        // As the .NET client's `MessageBuffer`: a send waits only while the buffer already holds
+        // more than its limit, so a message larger than the limit is still sent, and the limit
+        // applies to the next send.
+        if self.resending || self.buffered_bytes > self.capacity {
             trace!(
                 target: TRACE_TARGET,
                 "generation={} backpressure bytes={bytes} buffered={} capacity={} resending={}",
@@ -255,8 +255,10 @@ impl StatefulMessageBuffer {
         self.transport_generation = self.transport_generation.wrapping_add(1);
         self.awaiting_sequence = true;
         // The final Ack may have been lost with the transport. Allow the
-        // resumed connection to acknowledge the cumulative high-water mark.
+        // resumed connection to acknowledge the cumulative high-water mark at once (its clock
+        // starts again).
         self.last_acknowledgement_sent = 0;
+        self.last_acknowledgement_at = None;
         Ok(())
     }
 
@@ -329,12 +331,19 @@ impl StatefulMessageBuffer {
         Ok(true)
     }
 
-    pub(crate) fn take_acknowledgement(&mut self) -> Result<Option<u64>, Error> {
+    /// The Ack to send at `now_ms` (the transport's millisecond clock): the highest received id
+    /// when something new arrived since the last Ack and at least [`ACK_INTERVAL_MS`] passed
+    /// since it, as the .NET client's 1-second Ack timer does.
+    pub(crate) fn take_acknowledgement(&mut self, now_ms: u64) -> Result<Option<u64>, Error> {
         self.ensure_active()?;
-        if self.highest_incoming == 0 || self.highest_incoming <= self.last_acknowledgement_sent {
+        let Some(due) = self.acknowledgement_due() else {
+            return Ok(None);
+        };
+        if now_ms < due {
             return Ok(None);
         }
         self.last_acknowledgement_sent = self.highest_incoming;
+        self.last_acknowledgement_at = Some(now_ms);
         debug!(
             target: TRACE_TARGET,
             "generation={} ack-sent sequence={}",
@@ -342,6 +351,22 @@ impl StatefulMessageBuffer {
             self.highest_incoming
         );
         Ok(Some(self.highest_incoming))
+    }
+
+    /// When the next Ack is due, while something new arrived since the last one: at once for the
+    /// first, then a second after the previous (so the last messages of a burst are acknowledged
+    /// once the connection is quiet).
+    pub(crate) fn acknowledgement_due(&self) -> Option<u64> {
+        if self.disposed
+            || self.highest_incoming == 0
+            || self.highest_incoming <= self.last_acknowledgement_sent
+        {
+            return None;
+        }
+        Some(
+            self.last_acknowledgement_at
+                .map_or(0, |at| at.saturating_add(ACK_INTERVAL_MS)),
+        )
     }
 
     pub(crate) fn begin_resend(&mut self) -> Result<(u64, Vec<BufferedFrame>), Error> {
@@ -484,26 +509,92 @@ mod stateful_buffer_tests {
             buffer.track(MessageType::Completion, text("def")).unwrap(),
             TrackResult::Buffered(2)
         );
-        assert_eq!(
-            buffer.track(MessageType::Invocation, text("x")).unwrap(),
-            TrackResult::Backpressured
-        );
-        assert_eq!(buffer.acknowledge(1).unwrap(), 3);
-        assert_eq!(buffer.buffered_bytes(), 3);
+        // As the .NET `MessageBuffer`: a send waits only once the buffer holds more than its
+        // limit, so a full buffer still takes one more message.
         assert_eq!(
             buffer.track(MessageType::Invocation, text("x")).unwrap(),
             TrackResult::Buffered(3)
         );
+        assert_eq!(
+            buffer.track(MessageType::Invocation, text("y")).unwrap(),
+            TrackResult::Backpressured
+        );
+        assert_eq!(buffer.acknowledge(1).unwrap(), 3);
+        assert_eq!(buffer.buffered_bytes(), 4);
+        assert_eq!(
+            buffer.track(MessageType::Invocation, text("y")).unwrap(),
+            TrackResult::Buffered(4)
+        );
     }
 
     #[test]
-    fn stateful_buffer_bypasses_control_and_rejects_oversized_frames() {
+    fn stateful_ack_cadence_bypasses_control_and_sends_an_oversized_message() {
         let mut buffer = StatefulMessageBuffer::new(3).unwrap();
         assert_eq!(
             buffer.track(MessageType::Ack, text("control")).unwrap(),
             TrackResult::Bypass
         );
-        assert!(buffer.track(MessageType::Invocation, text("four")).is_err());
+        assert_eq!(
+            buffer.track(MessageType::Invocation, text("four")).unwrap(),
+            TrackResult::Buffered(1),
+            "a message larger than the limit is still sent"
+        );
+        assert_eq!(
+            buffer.track(MessageType::Invocation, text("x")).unwrap(),
+            TrackResult::Backpressured,
+            "the limit applies to the next send"
+        );
+        buffer.acknowledge(1).unwrap();
+        assert_eq!(
+            buffer.track(MessageType::Invocation, text("x")).unwrap(),
+            TrackResult::Buffered(2)
+        );
+    }
+
+    #[test]
+    fn stateful_ack_cadence_acks_at_most_once_per_second_and_only_for_new_messages() {
+        let mut buffer = StatefulMessageBuffer::new(100).unwrap();
+        assert_eq!(buffer.acknowledgement_due(), None, "nothing arrived yet");
+        assert!(buffer.should_process(MessageType::Invocation).unwrap());
+        assert_eq!(buffer.acknowledgement_due(), Some(0));
+        assert_eq!(buffer.take_acknowledgement(100).unwrap(), Some(1));
+        assert_eq!(buffer.acknowledgement_due(), None, "nothing new");
+        assert_eq!(buffer.take_acknowledgement(5_000).unwrap(), None);
+
+        assert!(buffer.should_process(MessageType::StreamItem).unwrap());
+        assert_eq!(buffer.acknowledgement_due(), Some(1_100));
+        assert_eq!(
+            buffer.take_acknowledgement(600).unwrap(),
+            None,
+            "within a second of the last Ack"
+        );
+        assert_eq!(buffer.take_acknowledgement(1_100).unwrap(), Some(2));
+    }
+
+    #[test]
+    fn stateful_ack_cadence_acknowledges_the_end_of_a_burst_once_quiet() {
+        let mut buffer = StatefulMessageBuffer::new(100).unwrap();
+        assert!(buffer.should_process(MessageType::Invocation).unwrap());
+        assert_eq!(buffer.take_acknowledgement(0).unwrap(), Some(1));
+        for now in [10, 20, 30] {
+            assert!(buffer.should_process(MessageType::StreamItem).unwrap());
+            assert_eq!(buffer.take_acknowledgement(now).unwrap(), None);
+        }
+        // The receive loop wakes when the deferred Ack is due, with no further message.
+        assert_eq!(buffer.acknowledgement_due(), Some(1_000));
+        assert_eq!(buffer.take_acknowledgement(1_000).unwrap(), Some(4));
+        assert_eq!(buffer.acknowledgement_due(), None);
+    }
+
+    #[test]
+    fn stateful_ack_cadence_a_resumed_transport_acknowledges_at_once() {
+        let mut buffer = StatefulMessageBuffer::new(100).unwrap();
+        assert!(buffer.should_process(MessageType::Invocation).unwrap());
+        assert_eq!(buffer.take_acknowledgement(500).unwrap(), Some(1));
+        buffer.disconnected().unwrap();
+        // The resumed transport's clock starts again; the high-water mark is acknowledged at once.
+        assert_eq!(buffer.acknowledgement_due(), Some(0));
+        assert_eq!(buffer.take_acknowledgement(0).unwrap(), Some(1));
     }
 
     #[test]
@@ -574,17 +665,17 @@ mod stateful_buffer_tests {
     #[test]
     fn production_stateful_protocol_repairs_emit_cumulative_ack() {
         let mut buffer = StatefulMessageBuffer::new(10).unwrap();
-        assert_eq!(buffer.take_acknowledgement().unwrap(), None);
+        assert_eq!(buffer.take_acknowledgement(u64::MAX).unwrap(), None);
 
         assert!(buffer.should_process(MessageType::Invocation).unwrap());
-        assert_eq!(buffer.take_acknowledgement().unwrap(), Some(1));
-        assert_eq!(buffer.take_acknowledgement().unwrap(), None);
+        assert_eq!(buffer.take_acknowledgement(u64::MAX).unwrap(), Some(1));
+        assert_eq!(buffer.take_acknowledgement(u64::MAX).unwrap(), None);
 
         assert!(buffer.should_process(MessageType::StreamItem).unwrap());
-        assert_eq!(buffer.take_acknowledgement().unwrap(), Some(2));
+        assert_eq!(buffer.take_acknowledgement(u64::MAX).unwrap(), Some(2));
 
         buffer.disconnected().unwrap();
-        assert_eq!(buffer.take_acknowledgement().unwrap(), Some(2));
+        assert_eq!(buffer.take_acknowledgement(u64::MAX).unwrap(), Some(2));
     }
 
     #[test]
@@ -730,12 +821,12 @@ mod sequence_trace {
             assert!(buffer.should_process(MessageType::Invocation).unwrap());
             assert!(buffer.should_process(MessageType::StreamItem).unwrap());
             assert!(buffer.should_process(MessageType::Ping).unwrap());
-            assert_eq!(buffer.take_acknowledgement().unwrap(), Some(2));
+            assert_eq!(buffer.take_acknowledgement(u64::MAX).unwrap(), Some(2));
             buffer.disconnected().unwrap();
             buffer.reset_incoming_sequence(2).unwrap();
             assert!(!buffer.should_process(MessageType::StreamItem).unwrap());
             assert!(buffer.should_process(MessageType::Completion).unwrap());
-            assert_eq!(buffer.take_acknowledgement().unwrap(), Some(3));
+            assert_eq!(buffer.take_acknowledgement(u64::MAX).unwrap(), Some(3));
         });
         let records = sequencing(&records);
         assert_eq!(
@@ -761,7 +852,7 @@ mod sequence_trace {
                 buffer.track(MessageType::Invocation, frame()).unwrap();
             }
             assert!(buffer.should_process(MessageType::Completion).unwrap());
-            buffer.take_acknowledgement().unwrap();
+            buffer.take_acknowledgement(u64::MAX).unwrap();
             buffer.acknowledge(1).unwrap();
             buffer.disconnected().unwrap();
 
@@ -959,7 +1050,7 @@ mod sequence_trace {
             let mut buffer = StatefulMessageBuffer::new(10_000).unwrap();
             buffer.track(MessageType::Invocation, frame()).unwrap();
             buffer.should_process(MessageType::Invocation).unwrap();
-            buffer.take_acknowledgement().unwrap();
+            buffer.take_acknowledgement(u64::MAX).unwrap();
             buffer.disconnected().unwrap();
             buffer.begin_resend().unwrap();
         });

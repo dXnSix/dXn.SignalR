@@ -369,8 +369,8 @@ impl SignalRClient {
     /// # Errors
     ///
     /// [`ErrorKind::Configuration`](crate::ErrorKind::Configuration), naming the rejected setting
-    /// (for example `skip_negotiation` with stateful reconnect, a zero replay buffer, a missing
-    /// Tokio runtime, or a secure endpoint without TLS features). Liveness durations are never
+    /// (for example a zero replay buffer, an invalid `with_header`, a missing Tokio runtime, or a
+    /// secure endpoint without TLS features). Liveness durations are never
     /// rejected; values that cannot work are logged as warnings.
     ///
     /// # Examples
@@ -424,11 +424,15 @@ impl SignalRClient {
                 "the stateful reconnect buffer size must be greater than zero",
             ));
         }
-        if recipe.skips_negotiation() && recipe.stateful_reconnect().is_some() {
-            return Err(Error::configuration(
-                "skip_negotiation",
-                crate::communication::negotiation::SKIP_WITH_STATEFUL,
-            ));
+        for (name, value) in recipe.headers() {
+            crate::communication::headers::validate(name, value)?;
+        }
+        #[cfg(target_arch = "wasm32")]
+        if !recipe.headers().is_empty() {
+            log::warn!(
+                "Browsers cannot set WebSocket headers: the headers from with_header reach \
+                 negotiate only"
+            );
         }
 
         let mut connection = CommunicationClient::create(recipe)?;
@@ -754,9 +758,9 @@ impl SignalRClient {
     ///   reconnecting (ordinary connections; stateful ones resume the call).
     /// - [`ErrorKind::Canceled`](crate::ErrorKind::Canceled) when the call ended before the server
     ///   completed it.
-    /// - [`ErrorKind::Configuration`](crate::ErrorKind::Configuration) with stateful reconnect when
-    ///   the encoded message is larger than the replay buffer (`setting()` names
-    ///   `StatefulReconnectConfig::buffer_size_bytes`).
+    /// - [`ErrorKind::InvalidState`](crate::ErrorKind::InvalidState) on a client that is not
+    ///   started; a call made while a start or reconnect attempt is in flight waits for it and
+    ///   fails with the attempt's error.
     ///
     /// # Type Parameters
     ///
@@ -812,6 +816,7 @@ impl SignalRClient {
         let invocation_id = self._actions.create_key();
         let mut invocation = Invocation::create_single(target.clone(), self.protocol());
         invocation.with_invocation_id(invocation_id.clone());
+        self.add_invocation_headers(&mut invocation, &target);
         let invocation = Self::with_arguments(invocation, configuration)?;
 
         let Some(ref mut conn) = self._connection else {
@@ -828,6 +833,13 @@ impl SignalRClient {
             return Err(error);
         }
         ret.await
+    }
+
+    /// Adds the headers of the configured invocation-header hook (`with_invocation_headers`).
+    fn add_invocation_headers(&self, invocation: &mut Invocation, target: &str) {
+        if let Some(connection) = &self._connection {
+            invocation.with_headers(connection.invocation_headers(target));
+        }
     }
 
     /// Applies the caller's argument configuration; an argument that cannot be encoded fails the
@@ -902,9 +914,8 @@ impl SignalRClient {
     ///   [`ErrorKind::ConnectionClosed`](crate::ErrorKind::ConnectionClosed) after a local or server
     ///   close; [`ErrorKind::Transport`](crate::ErrorKind::Transport) when the transport is lost or
     ///   reconnecting.
-    /// - [`ErrorKind::Configuration`](crate::ErrorKind::Configuration) with stateful reconnect when
-    ///   the encoded message is larger than the replay buffer (`setting()` names
-    ///   `StatefulReconnectConfig::buffer_size_bytes`).
+    /// - [`ErrorKind::InvalidState`](crate::ErrorKind::InvalidState) on a client that is not
+    ///   started.
     ///
     /// # Examples
     ///
@@ -937,10 +948,9 @@ impl SignalRClient {
     where
         F: FnMut(&mut ArgumentConfiguration),
     {
-        let invocation = Self::with_arguments(
-            Invocation::create_single(target.clone(), self.protocol()),
-            configuration,
-        )?;
+        let mut invocation = Invocation::create_single(target.clone(), self.protocol());
+        self.add_invocation_headers(&mut invocation, &target);
+        let invocation = Self::with_arguments(invocation, configuration)?;
 
         if let Some(ref mut conn) = self._connection {
             Self::send_invocation(conn, &invocation).await
@@ -1081,6 +1091,7 @@ impl SignalRClient {
             .add_stream::<T>(invocation_id.clone(), drop_handler);
         let mut invocation = Invocation::create_multiple(target.clone(), self.protocol());
         invocation.with_invocation_id(invocation_id.clone());
+        self.add_invocation_headers(&mut invocation, &target);
 
         let sent = match Self::with_arguments(invocation, configuration) {
             Ok(invocation) => match self._connection {
@@ -1815,16 +1826,14 @@ mod client_lifecycle_api {
         assert_eq!(zero_buffer.kind(), ErrorKind::Configuration);
         assert_eq!(zero_buffer.setting(), Some("with_stateful_reconnect"));
 
-        let direct_stateful = SignalRClient::new("127.0.0.1", "hub", |configuration| {
+        // As the .NET client, skip_negotiation disables stateful reconnect with a warning.
+        assert!(SignalRClient::new("127.0.0.1", "hub", |configuration| {
             configuration.unsecure();
             configuration.with_port(port);
             configuration.skip_negotiation();
             configuration.with_stateful_reconnect(StatefulReconnectConfig::default());
         })
-        .err()
-        .unwrap();
-        assert_eq!(direct_stateful.kind(), ErrorKind::Configuration);
-        assert_eq!(direct_stateful.setting(), Some("skip_negotiation"));
+        .is_ok());
         drop(entered);
 
         // Natively the connection's runtime is resolved by `new`.
@@ -2399,5 +2408,373 @@ mod client_lifecycle_api {
             started.elapsed()
         );
         assert_eq!(client.status(), ConnectionStatus::Closed);
+    }
+}
+
+/// Wire details as in the .NET client against a loopback server (R16.C13, R16.C17).
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod wire_parity {
+    use std::{
+        sync::{Arc, Mutex},
+        time::Duration,
+    };
+
+    use super::SignalRClient;
+    use crate::{
+        communication::loopback_server::{Frame, LoopbackOptions, LoopbackServer},
+        CallbackHandler, ConnectionStatus, ConstantDelayPolicy, ReconnectionConfig,
+    };
+
+    async fn loopback(
+        configure: impl FnOnce(&mut crate::ConnectionConfiguration),
+    ) -> (LoopbackServer, SignalRClient) {
+        loopback_with(LoopbackOptions::default(), configure).await
+    }
+
+    async fn loopback_with(
+        options: LoopbackOptions,
+        configure: impl FnOnce(&mut crate::ConnectionConfiguration),
+    ) -> (LoopbackServer, SignalRClient) {
+        let server = LoopbackServer::start(options).await;
+        let port = i32::from(server.port);
+        let client = SignalRClient::new("127.0.0.1", "hub", |configuration| {
+            configuration.unsecure();
+            configuration.with_port(port);
+            configuration.with_reconnection_policy(ReconnectionConfig {
+                policy: Arc::new(ConstantDelayPolicy::new(
+                    Duration::from_millis(10),
+                    Some(50),
+                )),
+            });
+            configure(configuration);
+        })
+        .unwrap();
+        (server, client)
+    }
+
+    /// Records why the transport ended, from `on_reconnecting`.
+    fn reconnect_reasons(client: &SignalRClient) -> Arc<Mutex<Vec<crate::ErrorKind>>> {
+        let reasons = Arc::new(Mutex::new(Vec::new()));
+        let recorded = reasons.clone();
+        std::mem::forget(client.on_reconnecting(move |error| {
+            recorded.lock().unwrap().push(error.kind());
+        }));
+        reasons
+    }
+
+    async fn reconnected_after(
+        server: &LoopbackServer,
+        reasons: &Arc<Mutex<Vec<crate::ErrorKind>>>,
+    ) -> crate::ErrorKind {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while reasons.lock().unwrap().is_empty() || server.negotiations() < 2 {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("the transport never ended and reconnected");
+        reasons.lock().unwrap()[0]
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn request_headers_negotiate_and_upgrade_carry_the_official_and_application_headers() {
+        let (server, client) = loopback(|configuration| {
+            configuration.authenticate_bearer("header-token".to_string());
+            configuration.with_header("X-Tenant", "blue");
+        })
+        .await;
+        client.start().await.unwrap();
+        let agent = crate::communication::headers::user_agent();
+
+        let negotiate = server.negotiate_requests().remove(0);
+        assert_eq!(negotiate.header("user-agent"), Some(agent.as_str()));
+        assert_eq!(negotiate.header("x-requested-with"), Some("XMLHttpRequest"));
+        assert_eq!(negotiate.header("accept"), Some("*/*"));
+        assert_eq!(negotiate.header("x-tenant"), Some("blue"));
+        assert_eq!(
+            negotiate.header("authorization"),
+            Some("Bearer header-token")
+        );
+
+        let upgrade = server.upgrade_requests().remove(0);
+        assert_eq!(upgrade.header("user-agent"), Some(agent.as_str()));
+        assert_eq!(upgrade.header("x-requested-with"), Some("XMLHttpRequest"));
+        assert_eq!(upgrade.header("x-tenant"), Some("blue"));
+        assert_eq!(upgrade.header("authorization"), Some("Bearer header-token"));
+        assert!(
+            !upgrade.target.contains("access_token"),
+            "the native WebSocket URL carries no token: {}",
+            upgrade.target
+        );
+        client.disconnect();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn request_headers_application_headers_replace_defaults_without_duplicates() {
+        let (server, client) = loopback(|configuration| {
+            configuration.authenticate_bearer("header-token".to_string());
+            configuration.with_header("User-Agent", "custom-agent");
+            configuration.with_header("x-requested-with", "spoofed");
+            configuration.with_header("Accept", "application/json");
+            configuration.with_header("Authorization", "Basic overridden");
+        })
+        .await;
+        client.start().await.unwrap();
+
+        let negotiate = server.negotiate_requests().remove(0);
+        let upgrade = server.upgrade_requests().remove(0);
+        for (request, kind) in [(&negotiate, "negotiate"), (&upgrade, "upgrade")] {
+            assert_eq!(
+                request.header_values("user-agent"),
+                ["custom-agent"],
+                "{kind}"
+            );
+            assert_eq!(
+                request.header_values("x-requested-with"),
+                ["XMLHttpRequest"],
+                "{kind}"
+            );
+            assert_eq!(
+                request.header_values("authorization"),
+                ["Bearer header-token"],
+                "{kind}: the credentials win"
+            );
+        }
+        assert_eq!(negotiate.header_values("accept"), ["application/json"]);
+        client.disconnect();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn request_headers_an_empty_user_agent_removes_it() {
+        let (server, client) = loopback(|configuration| {
+            configuration.with_header("User-Agent", "");
+        })
+        .await;
+        client.start().await.unwrap();
+        assert!(server.negotiate_requests()[0]
+            .header("user-agent")
+            .is_none());
+        assert!(server.upgrade_requests()[0].header("user-agent").is_none());
+        client.disconnect();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn framing_carryover_a_record_split_across_websocket_messages_is_dispatched() {
+        let (server, mut client) = loopback(|_| {}).await;
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let recorded = calls.clone();
+        let registration = client.register_typed("Notify", move |_context, (text,): (String,)| {
+            recorded.lock().unwrap().push(text);
+        });
+        client.start().await.unwrap();
+        server.wait_for_connections(1).await;
+        server.send(Frame::Text("{\"type\":1,\"target\":\"Notify\",".into()));
+        server.send(Frame::Text("\"arguments\":[\"split\"]}\u{1e}".into()));
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while calls.lock().unwrap().is_empty() {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("the split record was dispatched");
+        assert_eq!(*calls.lock().unwrap(), ["split"]);
+        assert_eq!(server.negotiations(), 1, "the transport stayed up");
+        registration.unregister();
+        client.disconnect();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn invocation_headers_the_hook_adds_headers_to_every_invocation() {
+        let (server, mut client) = loopback(|configuration| {
+            configuration.with_invocation_headers(|target| {
+                vec![("x-target".to_string(), target.to_string())]
+            });
+        })
+        .await;
+        client.start().await.unwrap();
+        client.send("Record".to_string()).await.unwrap();
+        let record = server.next_record().await;
+        assert!(
+            record.contains("\"headers\":{\"x-target\":\"Record\"}"),
+            "{record}"
+        );
+        client.disconnect();
+    }
+
+    #[test]
+    fn request_headers_an_invalid_header_fails_new_before_io() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let _entered = runtime.enter();
+        for (name, value) in [
+            ("X-Secret", "value\r\nInjected: yes"),
+            // The transport owns framing, connection and WebSocket upgrade headers.
+            ("Host", "elsewhere.test"),
+            ("Sec-WebSocket-Protocol", "x"),
+        ] {
+            let error = SignalRClient::new("127.0.0.1", "hub", |configuration| {
+                configuration.with_header(name, value);
+            })
+            .err()
+            .unwrap();
+            assert_eq!(error.kind(), crate::ErrorKind::Configuration, "{name}");
+            assert_eq!(error.setting(), Some("with_header"), "{name}");
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn liveness_initial_ping_follows_every_json_handshake() {
+        let (server, client) = loopback(|_| {}).await;
+        client.start().await.unwrap();
+        assert_eq!(
+            server.next_frame().await,
+            Frame::Text("{\"type\":6}\u{1e}".into())
+        );
+        server.wait_for_connections(1).await;
+        server.drop_connection();
+        // The ordinary reconnect's handshake is followed by a Ping too.
+        assert_eq!(
+            server.next_frame().await,
+            Frame::Text("{\"type\":6}\u{1e}".into())
+        );
+        client.disconnect();
+    }
+
+    #[cfg(feature = "messagepack")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn liveness_initial_ping_follows_every_messagepack_handshake() {
+        let (server, client) = loopback(|configuration| {
+            configuration.with_messagepack_protocol();
+        })
+        .await;
+        client.start().await.unwrap();
+        assert_eq!(
+            server.next_frame().await,
+            Frame::Binary(vec![0x02, 0x91, 0x06])
+        );
+        client.disconnect();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn protocol_violation_a_malformed_message_ends_the_transport_and_reconnects() {
+        let (server, client) = loopback(|_| {}).await;
+        let reasons = reconnect_reasons(&client);
+        client.start().await.unwrap();
+        server.wait_for_connections(1).await;
+        server.send(Frame::Text("{\"type\":1,\"target\u{1e}".into()));
+        assert_eq!(
+            reconnected_after(&server, &reasons).await,
+            crate::ErrorKind::Protocol
+        );
+        client.disconnect();
+    }
+
+    /// A stateful client of a stateful loopback server, connected; the number of WebSocket
+    /// upgrades it made is `server.upgrade_requests().len()`.
+    async fn stateful_loopback() -> (LoopbackServer, SignalRClient) {
+        let (server, client) = loopback_with(
+            LoopbackOptions {
+                stateful: true,
+                ..LoopbackOptions::default()
+            },
+            |configuration| {
+                configuration.with_stateful_reconnect(crate::StatefulReconnectConfig::default());
+            },
+        )
+        .await;
+        client.start().await.unwrap();
+        server.wait_for_connections(1).await;
+        (server, client)
+    }
+
+    async fn wait_for_upgrades(server: &LoopbackServer, count: usize) {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while server.upgrade_requests().len() < count {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("the client never opened another transport");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn protocol_violation_a_lost_stateful_transport_is_resumed_without_negotiate() {
+        let (server, client) = stateful_loopback().await;
+        server.drop_connection();
+        wait_for_upgrades(&server, 2).await;
+        assert_eq!(server.negotiations(), 1, "an ordinary loss resumes");
+        client.disconnect();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn protocol_violation_on_a_stateful_connection_negotiates_afresh() {
+        let malformed = Frame::Text("{\"type\":1,\"target\u{1e}".into());
+        let oversized = Frame::Text(format!("{}\u{1e}", "x".repeat(64)));
+        let wrong_kind = Frame::Binary(vec![0x01, 0x90]);
+        let unexpected = Frame::Text("{\"type\":5,\"invocationId\":\"1\"}\u{1e}".into());
+        for violation in [malformed, oversized, wrong_kind, unexpected] {
+            let (server, client) = loopback_with(
+                LoopbackOptions {
+                    stateful: true,
+                    ..LoopbackOptions::default()
+                },
+                |configuration| {
+                    configuration
+                        .with_stateful_reconnect(crate::StatefulReconnectConfig::default());
+                    configuration.with_maximum_message_size(32);
+                },
+            )
+            .await;
+            client.start().await.unwrap();
+            server.wait_for_connections(1).await;
+            server.send(violation.clone());
+            wait_for_upgrades(&server, 2).await;
+            assert_eq!(
+                server.negotiations(),
+                2,
+                "{violation:?}: the server would replay the offending message to a resume"
+            );
+            client.disconnect();
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn protocol_violation_a_frame_of_the_wrong_kind_ends_the_transport() {
+        let (server, client) = loopback(|_| {}).await;
+        let reasons = reconnect_reasons(&client);
+        client.start().await.unwrap();
+        server.wait_for_connections(1).await;
+        server.send(Frame::Binary(vec![0x01, 0x90]));
+        assert_eq!(
+            reconnected_after(&server, &reasons).await,
+            crate::ErrorKind::Protocol
+        );
+        client.disconnect();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn protocol_violation_unknown_message_types_are_ignored() {
+        let (server, mut client) = loopback(|_| {}).await;
+        let calls = Arc::new(Mutex::new(0));
+        let counted = calls.clone();
+        let registration = client.register("Notify", move |_| *counted.lock().unwrap() += 1);
+        client.start().await.unwrap();
+        server.wait_for_connections(1).await;
+        server.send(Frame::Text(
+            "{\"type\":42,\"future\":true}\u{1e}{\"type\":1,\"target\":\"Notify\",\"arguments\":[]}\u{1e}"
+                .into(),
+        ));
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while *calls.lock().unwrap() == 0 {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("the message after the unknown one was dispatched");
+        assert_eq!(client.status(), ConnectionStatus::Connected);
+        assert_eq!(server.negotiations(), 1, "nothing reconnected");
+        registration.unregister();
+        client.disconnect();
     }
 }

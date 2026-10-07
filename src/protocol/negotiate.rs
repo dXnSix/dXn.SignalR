@@ -21,6 +21,8 @@ pub enum MessageType {
 #[serde(rename_all = "camelCase")]
 pub struct NegotiateResponseV0 {
     pub connection_id: String,
+    /// Absent in responses of servers that predate negotiate versions: version 0.
+    #[serde(default)]
     pub negotiate_version: u8,
     pub available_transports: Vec<TransportSpec>,
     #[serde(default)]
@@ -50,6 +52,8 @@ pub enum NegotiateResponse {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct NegotiateVersionProbe {
+    /// A response without `negotiateVersion` is version 0, as in the official clients.
+    #[serde(default)]
     negotiate_version: u8,
 }
 

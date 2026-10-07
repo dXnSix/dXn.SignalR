@@ -19,6 +19,7 @@ use crate::platform::{LockExt, RwLockExt};
 
 use crate::{
     client::ConnectionRecipe,
+    communication::common::Sequenced,
     error::{Error, TimeoutOperation},
     execution::{
         call_connection_replaced, ReplyFuture, ReplySink, Storage, UpdatableActionStorage,
@@ -182,6 +183,13 @@ fn send_failed(error: tokio_websockets::Error) -> Error {
 /// The error a send fails with when its connection stopped before the frame went out.
 fn closed_before_sent() -> Error {
     websocket_error("the connection closed before the message was sent")
+}
+
+/// The protocol violation a WebSocket frame of the wrong kind is.
+fn unexpected_frame(kind: &str, protocol: &str) -> Error {
+    Error::protocol(format!(
+        "the server sent {kind} on a {protocol} hub protocol connection"
+    ))
 }
 
 /// The error ordinary pending work fails with when the transport that carried it ended.
@@ -475,6 +483,7 @@ impl ReconnectionContext {
         let state = self.state.upgrade().ok_or_else(Error::closed_locally)?;
         let mut guard = state.lock().await;
         let connection_id = fresh.as_ref().map(|fresh| fresh.connection_id.clone());
+        let initial_ping = fresh.is_some();
         if !self
             .coordinator
             .complete_connection(generation, connection_id)
@@ -502,6 +511,7 @@ impl ReconnectionContext {
             self.disconnection_handler(generation),
             self.protocol_kind,
             active(&self.stateful),
+            initial_ping,
         );
         *guard = ConnectionState::Connected(Arc::new(Mutex::new(connection)));
         info!("Connected to {}", self.endpoint);
@@ -786,12 +796,15 @@ pub(crate) struct CommunicationConnection {
 
 impl CommunicationConnection {
     /// Spawns the writer and receiver tasks on the connection's runtime.
+    /// `initial_ping` sends a Ping first, as the .NET client does after every handshake so the
+    /// server arms its client timeout (not after a stateful resume, which has no handshake).
     fn start(
         socket: OpenSocket,
         storage: impl Storage + Send + 'static,
         disconnection_handler: ClientDisconnectionHandler,
         protocol_kind: HubProtocolKind,
         stateful: Option<SharedStatefulBuffer>,
+        initial_ping: bool,
     ) -> Self {
         let runtime = disconnection_handler
             .recipe
@@ -823,6 +836,7 @@ impl CommunicationConnection {
             [ping_frame(protocol_kind), close_frame(protocol_kind)],
             liveness.clone(),
             stop_mode.clone(),
+            initial_ping,
         ));
         let receiver = runtime.spawn(Self::run_receiver(
             socket.stream,
@@ -854,8 +868,16 @@ impl CommunicationConnection {
         [ping, close]: [SerializedFrame; 2],
         liveness: ConnectionLiveness,
         stop_mode: Arc<std::sync::atomic::AtomicU8>,
+        initial_ping: bool,
     ) {
         let stopping = || stop_mode.load(std::sync::atomic::Ordering::Acquire) != WRITER_RUNNING;
+        if initial_ping {
+            if sink.send(websocket_message(ping.clone())).await.is_err() {
+                data.close();
+                return;
+            }
+            liveness.sent();
+        }
         // A frame that did not fit the previous coalesced message.
         let mut carried: Option<SerializedFrame> = None;
         loop {
@@ -1003,16 +1025,36 @@ impl CommunicationConnection {
         storage.callbacks().start();
         {
             let server_timeout = disconnection_handler.recipe.liveness().server_timeout;
+            // Hub messages may span WebSocket messages; the incomplete rest is kept.
+            let limit = disconnection_handler.recipe.maximum_message_size();
+            let mut text_records = crate::protocol::framing::TextRecords::new(limit);
+            #[cfg(feature = "messagepack")]
+            let mut binary_records = crate::protocol::framing::BinaryRecords::new(limit);
             let reason = 'receive: loop {
                 let item = match pending.take() {
                     Some(message) => Ok(message),
                     None => {
-                        match tokio::time::timeout_at(liveness.timeout_deadline(), stream.next())
-                            .await
-                        {
+                        let timeout = liveness.timeout_deadline();
+                        // A deferred stateful Ack wakes the loop too (the 1-second cadence).
+                        let ack = stateful
+                            .as_ref()
+                            .and_then(|buffer| buffer.locked().acknowledgement_due())
+                            .map(|at| liveness.instant(at));
+                        let wake = ack.map_or(timeout, |ack| ack.min(timeout));
+                        match tokio::time::timeout_at(wake, stream.next()).await {
                             Ok(Some(item)) => item,
                             Ok(None) => {
                                 break 'receive websocket_error("the server closed the WebSocket");
+                            }
+                            Err(_) if tokio::time::Instant::now() < timeout => {
+                                if let Some(buffer) = stateful.as_ref() {
+                                    if let Err(error) =
+                                        Self::flush_ack(buffer, protocol_kind, &writer, &liveness)
+                                    {
+                                        break 'receive error;
+                                    }
+                                }
+                                continue 'receive;
                             }
                             Err(_) => {
                                 error!(
@@ -1030,27 +1072,37 @@ impl CommunicationConnection {
                 liveness.received();
                 match item {
                     Ok(ws_message) => {
+                        // WebSocket Ping/Pong frames are the transport's own liveness traffic.
+                        if ws_message.is_ping() || ws_message.is_pong() || ws_message.is_close() {
+                            continue 'receive;
+                        }
                         let mut context = RecordContext {
                             storage: &mut storage,
                             stateful: stateful.as_ref(),
                             protocol_kind,
                             writer: &writer,
+                            now: liveness.now(),
                         };
                         let ended = match protocol_kind {
                             HubProtocolKind::Json => match ws_message.as_text() {
-                                Some(text) => codec::json_records(text)
-                                    .find_map(|record| context.handle(codec::decode_json(record))),
-                                None => None,
+                                Some(text) => text_records
+                                    .feed(text, |record| context.handle(codec::decode_json(record)))
+                                    .unwrap_or_else(Some),
+                                None => Some(unexpected_frame("a binary frame", "JSON")),
                             },
                             #[cfg(feature = "messagepack")]
                             HubProtocolKind::MessagePack if ws_message.is_binary() => {
                                 let frame: &[u8] = ws_message.as_payload();
-                                codec::messagepack_records(frame).find_map(|record| {
-                                    context.handle(record.and_then(codec::decode_messagepack))
-                                })
+                                binary_records
+                                    .feed(frame, |record| {
+                                        context.handle(codec::decode_messagepack(record))
+                                    })
+                                    .unwrap_or_else(Some)
                             }
                             #[cfg(feature = "messagepack")]
-                            HubProtocolKind::MessagePack => None,
+                            HubProtocolKind::MessagePack => {
+                                Some(unexpected_frame("a text frame", "MessagePack"))
+                            }
                         };
                         if let Some(reason) = ended {
                             break 'receive reason;
@@ -1064,8 +1116,28 @@ impl CommunicationConnection {
                 }
             };
 
+            if super::common::ends_stateful_connection(&reason) {
+                if let Some(buffer) = &stateful {
+                    buffer.locked().dispose();
+                }
+            }
             disconnection_handler.on_connection_dropped(reason);
         }
+    }
+
+    /// Sends the stateful Ack that is due, if any (the 1-second cadence).
+    fn flush_ack(
+        buffer: &SharedStatefulBuffer,
+        protocol_kind: HubProtocolKind,
+        writer: &ConnectionWriter,
+        liveness: &ConnectionLiveness,
+    ) -> Result<(), Error> {
+        let acknowledgement = buffer.locked().take_acknowledgement(liveness.now())?;
+        if let Some(sequence_id) = acknowledgement {
+            Self::ack_message(protocol_kind, sequence_id)
+                .and_then(|ack| writer.send_control(ack))?;
+        }
+        Ok(())
     }
 
     fn ack_message(protocol_kind: HubProtocolKind, sequence_id: u64) -> Result<Message, Error> {
@@ -1501,6 +1573,14 @@ impl CommunicationClient {
         &self._hooks
     }
 
+    /// The headers the invocation-header hook gives a message to `target`.
+    pub(crate) fn invocation_headers(
+        &self,
+        target: &str,
+    ) -> std::collections::BTreeMap<String, String> {
+        self._recipe.invocation_headers(target)
+    }
+
     /// The negotiated id of the current connection, while connected.
     pub(crate) fn connection_id(&self) -> Option<String> {
         self._coordinator.connection_id()
@@ -1664,18 +1744,39 @@ impl CommunicationClient {
             "Connecting to endpoint {}",
             Self::display_endpoint(&endpoint)
         );
-        // Native clients authenticate the upgrade with the same header as negotiate.
-        let mut builder = ClientBuilder::from_uri(endpoint.clone());
-        if let Some(value) = recipe.transport_authorization() {
+        // The official clients' headers, then the application's (`with_header`).
+        let invalid_header = || {
+            Error::configuration(
+                "with_header",
+                "a header is not valid for the WebSocket upgrade",
+            )
+        };
+        // No WebSocket message size cap: hub messages are bounded by `with_maximum_message_size`.
+        let mut builder =
+            ClientBuilder::from_uri(endpoint.clone()).limits(tokio_websockets::Limits::unlimited());
+        // Composed as for negotiate; native clients authenticate the upgrade with the same
+        // Authorization header.
+        let composed = super::headers::compose(
+            &[("User-Agent", super::headers::user_agent())],
+            recipe.headers(),
+            recipe.transport_authorization(),
+        );
+        for (name, value) in composed {
             let invalid = || {
-                Error::configuration(
-                    "authentication",
-                    "the credentials are not a valid Authorization header value",
-                )
+                if name.eq_ignore_ascii_case("authorization") {
+                    Error::configuration(
+                        "authentication",
+                        "the credentials are not a valid Authorization header value",
+                    )
+                } else {
+                    invalid_header()
+                }
             };
-            let value = http::HeaderValue::from_str(&value).map_err(|_| invalid())?;
+            let header_name =
+                http::HeaderName::from_bytes(name.as_bytes()).map_err(|_| invalid())?;
+            let header_value = http::HeaderValue::from_str(&value).map_err(|_| invalid())?;
             builder = builder
-                .add_header(http::header::AUTHORIZATION, value)
+                .add_header(header_name, header_value)
                 .map_err(|_| invalid())?;
         }
 
@@ -1953,6 +2054,8 @@ struct RecordContext<'a, S: Storage> {
     stateful: Option<&'a SharedStatefulBuffer>,
     protocol_kind: HubProtocolKind,
     writer: &'a ConnectionWriter,
+    /// When the frame arrived, on the transport's millisecond clock.
+    now: u64,
 }
 
 impl<S: Storage> RecordContext<'_, S> {
@@ -1961,32 +2064,45 @@ impl<S: Storage> RecordContext<'_, S> {
     fn handle(&mut self, message: Result<InboundMessage<'_>, Error>) -> Option<Error> {
         let message = match message {
             Ok(message) => message,
+            // As in the .NET client, a malformed message ends the transport; the reconnection
+            // policy runs.
+            Err(error) => return Some(super::common::protocol_violation(&error)),
+        };
+        let Some(buffer) = self.stateful else {
+            return super::common::dispatch_decoded(self.storage, message);
+        };
+        let sequenced = match self.sequence(buffer, &message) {
+            Ok(sequenced) => sequenced,
             Err(error) => {
-                super::common::log_undecodable(&error);
-                return None;
+                error!("Stateful protocol error: {}", error);
+                // The logical connection cannot be resumed: the reconnect negotiates afresh.
+                buffer.locked().dispose();
+                return Some(error);
             }
         };
-        if let Some(buffer) = self.stateful {
-            match self.sequence(buffer, &message) {
-                Ok(true) => {}
-                Ok(false) => return None,
-                Err(error) => {
-                    error!("Stateful protocol error: {}", error);
-                    return Some(error.with_server_allows_reconnect(false));
-                }
-            }
-        }
-        super::common::dispatch_decoded(self.storage, message)
+        let ended = if sequenced.process {
+            super::common::dispatch_decoded(self.storage, message)
+        } else {
+            None
+        };
+        ended.or_else(|| self.acknowledge(sequenced.acknowledgement))
+    }
+
+    /// Sends a due Ack; a failure is a dying transport, which stays resumable.
+    fn acknowledge(&self, acknowledgement: Option<u64>) -> Option<Error> {
+        let sequence_id = acknowledgement?;
+        CommunicationConnection::ack_message(self.protocol_kind, sequence_id)
+            .and_then(|ack| self.writer.send_control(ack))
+            .err()
     }
 
     /// Applies stateful sequencing: Ack and Sequence update the replay buffer; every other
-    /// message is counted and acknowledged. Returns whether the message is new and dispatched
-    /// (a replayed duplicate is not).
+    /// message is counted. An error is a violation of the stateful protocol.
     fn sequence(
         &self,
         buffer: &SharedStatefulBuffer,
         message: &InboundMessage<'_>,
-    ) -> Result<bool, Error> {
+    ) -> Result<Sequenced, Error> {
         let mut buffer = buffer
             .lock()
             .map_err(|_| Error::protocol("the stateful replay buffer is unusable"))?;
@@ -2005,16 +2121,12 @@ impl<S: Storage> RecordContext<'_, S> {
                 }
             };
             buffer.receive_control(*message_type, sequence_id)?;
-            return Ok(false);
+            return Ok(Sequenced::CONSUMED);
         }
-        let should_process = buffer.should_process(message.message_type())?;
-        let acknowledgement = buffer.take_acknowledgement()?;
-        drop(buffer);
-        if let Some(sequence_id) = acknowledgement {
-            CommunicationConnection::ack_message(self.protocol_kind, sequence_id)
-                .and_then(|ack| self.writer.send_control(ack))?;
-        }
-        Ok(should_process)
+        Ok(Sequenced {
+            process: buffer.should_process(message.message_type())?,
+            acknowledgement: buffer.take_acknowledgement(self.now)?,
+        })
     }
 }
 
@@ -2501,31 +2613,32 @@ mod outbound_writer {
     async fn outbound_writer_waits_while_the_replay_buffer_is_full() {
         let buffer = buffer(8);
         let (writer, mut queued) = writer(4, Some(buffer.clone()), Handle::current());
+        // As the .NET client: a send waits only once the buffer holds more than its limit.
         writer.send(message("aaaaa")).await.unwrap();
-        let second = tokio::spawn({
+        writer.send(message("bbbbb")).await.unwrap();
+        let third = tokio::spawn({
             let writer = writer.clone();
-            async move { writer.send(message("bbbbb")).await }
+            async move { writer.send(message("ccccc")).await }
         });
         tokio::time::sleep(Duration::from_millis(30)).await;
         assert!(
-            !second.is_finished(),
+            !third.is_finished(),
             "the full replay buffer holds the send"
         );
-        assert_eq!(
-            queued.try_recv().unwrap(),
-            SerializedFrame::text("aaaaa\u{1e}")
-        );
+        for expected in ["aaaaa\u{1e}", "bbbbb\u{1e}"] {
+            assert_eq!(queued.try_recv().unwrap(), SerializedFrame::text(expected));
+        }
         assert!(queued.try_recv().is_err());
 
         buffer.locked().acknowledge(1).unwrap();
-        tokio::time::timeout(Duration::from_secs(5), second)
+        tokio::time::timeout(Duration::from_secs(5), third)
             .await
             .unwrap()
             .unwrap()
             .unwrap();
         assert_eq!(
             queued.try_recv().unwrap(),
-            SerializedFrame::text("bbbbb\u{1e}")
+            SerializedFrame::text("ccccc\u{1e}")
         );
     }
 
@@ -2558,12 +2671,24 @@ mod outbound_writer {
     }
 
     #[test]
-    fn outbound_writer_rejects_a_message_larger_than_the_replay_buffer() {
+    fn stateful_ack_cadence_a_message_larger_than_the_buffer_is_sent_and_holds_the_next() {
         let runtime = background_runtime();
-        let (writer, mut queued) = writer(4, Some(buffer(4)), runtime.handle().clone());
-        let error = futures::executor::block_on(writer.send(message("too large"))).unwrap_err();
-        assert_eq!(error.kind(), ErrorKind::Configuration, "{error}");
-        assert!(queued.try_recv().is_err());
+        let buffer = buffer(4);
+        let (writer, mut queued) = writer(4, Some(buffer.clone()), runtime.handle().clone());
+        futures::executor::block_on(writer.send(message("too large"))).unwrap();
+        assert_eq!(
+            queued.try_recv().unwrap(),
+            SerializedFrame::text("too large\u{1e}")
+        );
+        let next = runtime.spawn({
+            let writer = writer.clone();
+            async move { writer.send(message("x")).await }
+        });
+        std::thread::sleep(Duration::from_millis(50));
+        assert!(!next.is_finished(), "backpressure applies to the next send");
+        buffer.locked().acknowledge(1).unwrap();
+        futures::executor::block_on(next).unwrap().unwrap();
+        assert_eq!(queued.try_recv().unwrap(), SerializedFrame::text("x\u{1e}"));
     }
 
     #[test]
@@ -2636,6 +2761,7 @@ mod outbound_writer {
                 &crate::communication::liveness::LivenessConfig::default(),
             ),
             stop_mode.clone(),
+            false,
         ));
 
         let first = writes.next().await.unwrap();
@@ -2716,6 +2842,7 @@ mod graceful_stop {
             ],
             ConnectionLiveness::new(&crate::communication::liveness::LivenessConfig::default()),
             stop_mode,
+            false,
         )
         .await;
 
@@ -2748,5 +2875,262 @@ mod graceful_stop {
             // Length 4, then [7, nil, false].
             assert_eq!(&messagepack.bytes()[..], [0x04, 0x93, 0x07, 0xc0, 0xc2]);
         }
+    }
+}
+
+/// Wire details as in the .NET client (R16.C13, R16.C17): the Ping after a handshake and protocol
+/// violations of a stateful connection.
+#[cfg(test)]
+mod wire_parity {
+    use std::sync::{Arc, Mutex as StdMutex};
+
+    use futures::{channel::mpsc, StreamExt};
+    use tokio_websockets::Message;
+
+    use super::{
+        CommunicationConnection, ConnectionLiveness, ConnectionWriter, RecordContext,
+        SharedStatefulBuffer, WRITER_GRACEFUL,
+    };
+    use crate::{
+        communication::{
+            liveness::{close_frame, ping_frame},
+            stateful::{SerializedFrame, StatefulMessageBuffer},
+        },
+        execution::UpdatableActionStorage,
+        platform::LockExt,
+        protocol::{codec, hub_protocol::HubProtocolKind},
+        ErrorKind,
+    };
+
+    /// The frames a writer writes for one queued frame, with or without the initial Ping.
+    async fn written(initial_ping: bool) -> Vec<String> {
+        let (control, control_receiver) = mpsc::unbounded::<Message>();
+        let (data, data_receiver) = tokio::sync::mpsc::channel(4);
+        let (sink, writes) = mpsc::unbounded::<Message>();
+        data.try_send(SerializedFrame::text("{\"type\":1,\"target\":\"a\"}\u{1e}"))
+            .unwrap();
+        control.close_channel();
+        CommunicationConnection::run_writer(
+            sink,
+            control_receiver,
+            data_receiver,
+            [
+                ping_frame(HubProtocolKind::Json),
+                close_frame(HubProtocolKind::Json),
+            ],
+            ConnectionLiveness::new(&crate::communication::liveness::LivenessConfig::default()),
+            Arc::new(std::sync::atomic::AtomicU8::new(WRITER_GRACEFUL)),
+            initial_ping,
+        )
+        .await;
+        writes
+            .map(|message| message.as_text().unwrap_or_default().to_string())
+            .collect()
+            .await
+    }
+
+    #[tokio::test]
+    async fn liveness_initial_ping_is_written_first_and_never_after_a_stateful_resume() {
+        let fresh = written(true).await;
+        assert_eq!(
+            fresh.first().map(String::as_str),
+            Some("{\"type\":6}\u{1e}")
+        );
+        let resumed = written(false).await;
+        assert_eq!(
+            resumed.first().map(String::as_str),
+            Some("{\"type\":1,\"target\":\"a\"}\u{1e}"),
+            "a stateful resume has no handshake and sends no initial Ping"
+        );
+    }
+
+    fn stateful_context_parts() -> (
+        UpdatableActionStorage,
+        SharedStatefulBuffer,
+        ConnectionWriter,
+    ) {
+        let buffer = Arc::new(StdMutex::new(StatefulMessageBuffer::new(1_000).unwrap()));
+        let (control, _) = mpsc::unbounded();
+        let (data, _queued) = tokio::sync::mpsc::channel(4);
+        let writer = ConnectionWriter {
+            control,
+            data,
+            stateful: Some((buffer.clone(), 0)),
+            runtime: tokio::runtime::Handle::current(),
+        };
+        (UpdatableActionStorage::new(), buffer, writer)
+    }
+
+    #[tokio::test]
+    async fn protocol_violation_a_stateful_violation_ends_the_transport_for_a_fresh_negotiation() {
+        let (mut storage, buffer, writer) = stateful_context_parts();
+        // After a lost transport the server must send a Sequence first; an Invocation is a
+        // violation of the stateful protocol.
+        buffer.locked().disconnected().unwrap();
+        let mut context = RecordContext {
+            storage: &mut storage,
+            stateful: Some(&buffer),
+            protocol_kind: HubProtocolKind::Json,
+            writer: &writer,
+            now: 0,
+        };
+        let ended = context
+            .handle(codec::decode_json(
+                r#"{"type":1,"target":"Notify","arguments":[]}"#,
+            ))
+            .expect("the violation ends the transport");
+        assert_eq!(ended.kind(), ErrorKind::Protocol, "{ended}");
+        assert!(ended.allows_reconnect(), "the reconnection policy runs");
+        assert!(
+            buffer.locked().is_disposed(),
+            "the logical connection cannot be resumed: the reconnect negotiates afresh"
+        );
+    }
+
+    #[tokio::test]
+    async fn protocol_violation_an_undecodable_message_ends_the_transport_without_its_payload() {
+        let (mut storage, _, writer) = stateful_context_parts();
+        let mut context = RecordContext {
+            storage: &mut storage,
+            stateful: None,
+            protocol_kind: HubProtocolKind::Json,
+            writer: &writer,
+            now: 0,
+        };
+        let ended = context
+            .handle(codec::decode_json(
+                r#"{"type":3,"invocationId":"secret-payload"#,
+            ))
+            .expect("a malformed message ends the transport");
+        assert_eq!(ended.kind(), ErrorKind::Protocol, "{ended}");
+        assert!(ended.allows_reconnect());
+        assert!(!ended.to_string().contains("secret-payload"), "{ended}");
+    }
+
+    #[tokio::test]
+    async fn protocol_violation_a_failed_ack_ends_the_transport_but_stays_resumable() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        use crate::{
+            client::SignalRClient,
+            execution::{Callback, Storage},
+        };
+
+        // The parts' control channel has no receiver: the Ack cannot be sent.
+        let (mut storage, buffer, writer) = stateful_context_parts();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let counted = calls.clone();
+        storage.add_callback(
+            "Notify".to_string(),
+            Callback::sync(move |_| {
+                counted.fetch_add(1, Ordering::SeqCst);
+            }),
+            SignalRClient::detached(storage.clone()).downgrade(),
+        );
+        let notify = r#"{"type":1,"target":"Notify","arguments":[]}"#;
+        let mut context = RecordContext {
+            storage: &mut storage,
+            stateful: Some(&buffer),
+            protocol_kind: HubProtocolKind::Json,
+            writer: &writer,
+            now: 0,
+        };
+        let ended = context
+            .handle(codec::decode_json(notify))
+            .expect("the first message makes an Ack due, and its send fails");
+        assert_ne!(ended.kind(), ErrorKind::Protocol, "{ended}");
+        assert!(
+            !buffer.locked().is_disposed(),
+            "a dying transport is an ordinary loss: the logical connection stays resumable"
+        );
+        storage.callbacks().run_queued();
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            1,
+            "the message counted as received was dispatched before the transport ended"
+        );
+
+        // The resumed transport (its writer is live) gets the server's replay from its last Ack:
+        // the message is a duplicate now, and the cumulative Ack goes out again.
+        buffer.locked().disconnected().unwrap();
+        let (control, mut sent) = mpsc::unbounded();
+        let (data, _queued) = tokio::sync::mpsc::channel(4);
+        let resumed = ConnectionWriter {
+            control,
+            data,
+            stateful: Some((buffer.clone(), 0)),
+            runtime: tokio::runtime::Handle::current(),
+        };
+        let mut context = RecordContext {
+            storage: &mut storage,
+            stateful: Some(&buffer),
+            protocol_kind: HubProtocolKind::Json,
+            writer: &resumed,
+            now: 0,
+        };
+        assert!(context
+            .handle(codec::decode_json(r#"{"type":9,"sequenceId":1}"#))
+            .is_none());
+        assert!(context.handle(codec::decode_json(notify)).is_none());
+        storage.callbacks().run_queued();
+        assert_eq!(calls.load(Ordering::SeqCst), 1, "delivered exactly once");
+        let ack = sent.try_recv().expect("the Ack after the resume");
+        assert_eq!(ack.as_text(), Some("{\"type\":8,\"sequenceId\":1}\u{1e}"));
+    }
+
+    /// What one record does to a transport without stateful reconnect.
+    fn ended_by(protocol_kind: HubProtocolKind, record: &[u8]) -> Option<crate::Error> {
+        let (mut storage, _, writer) = stateful_context_parts();
+        let mut context = RecordContext {
+            storage: &mut storage,
+            stateful: None,
+            protocol_kind,
+            writer: &writer,
+            now: 0,
+        };
+        context.handle(match protocol_kind {
+            HubProtocolKind::Json => codec::decode_json(std::str::from_utf8(record).unwrap()),
+            #[cfg(feature = "messagepack")]
+            HubProtocolKind::MessagePack => codec::decode_messagepack(record),
+        })
+    }
+
+    #[tokio::test]
+    async fn protocol_violation_server_stream_invocations_and_cancels_end_the_transport() {
+        #[cfg_attr(not(feature = "messagepack"), allow(unused_mut))]
+        let mut cases: Vec<(HubProtocolKind, &[u8])> = vec![
+            (
+                HubProtocolKind::Json,
+                br#"{"type":4,"invocationId":"1","target":"x","arguments":[]}"#,
+            ),
+            (HubProtocolKind::Json, br#"{"type":5,"invocationId":"1"}"#),
+        ];
+        #[cfg(feature = "messagepack")]
+        cases.extend([
+            (
+                HubProtocolKind::MessagePack,
+                &[0x96, 0x04, 0x80, 0xa1, b'1', 0xa1, b'x', 0x90, 0x90][..],
+            ),
+            (
+                HubProtocolKind::MessagePack,
+                &[0x93, 0x05, 0x80, 0xa1, b'1'][..],
+            ),
+        ]);
+        for (protocol_kind, record) in cases {
+            let ended = ended_by(protocol_kind, record).expect("an unexpected message type");
+            assert_eq!(
+                ended.kind(),
+                ErrorKind::Protocol,
+                "{protocol_kind:?}: {ended}"
+            );
+            assert!(ended.allows_reconnect(), "the reconnection policy runs");
+        }
+    }
+
+    #[tokio::test]
+    async fn protocol_violation_unknown_message_types_are_still_ignored() {
+        assert!(ended_by(HubProtocolKind::Json, br#"{"type":99}"#).is_none());
+        #[cfg(feature = "messagepack")]
+        assert!(ended_by(HubProtocolKind::MessagePack, &[0x91, 0x63]).is_none());
     }
 }

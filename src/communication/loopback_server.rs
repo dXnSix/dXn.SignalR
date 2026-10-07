@@ -30,11 +30,55 @@ pub(crate) struct LoopbackOptions {
     /// Negotiations after this many are rejected with 503, after `rejection_delay`.
     pub(crate) reject_after: Option<u32>,
     pub(crate) rejection_delay: Duration,
+    /// Negotiate offers stateful reconnect (`useStatefulReconnect`), so a lost transport is
+    /// resumed with a WebSocket upgrade and no negotiate.
+    pub(crate) stateful: bool,
+}
+
+/// One WebSocket frame a client sent.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum Frame {
+    Text(String),
+    Binary(Vec<u8>),
+}
+
+/// Where the hub tasks report what clients send.
+#[derive(Clone)]
+struct Sinks {
+    records: mpsc::UnboundedSender<String>,
+    frames: mpsc::UnboundedSender<Frame>,
+}
+
+/// The head of an HTTP request a client sent: its request target and headers (lower-case names).
+#[derive(Clone, Debug, Default)]
+pub(crate) struct RequestHead {
+    pub(crate) target: String,
+    pub(crate) headers: Vec<(String, String)>,
+}
+
+impl RequestHead {
+    pub(crate) fn header(&self, name: &str) -> Option<&str> {
+        self.headers
+            .iter()
+            .find(|(candidate, _)| candidate.eq_ignore_ascii_case(name))
+            .map(|(_, value)| value.as_str())
+    }
+
+    /// Every value of a header, to prove it was not duplicated.
+    pub(crate) fn header_values(&self, name: &str) -> Vec<&str> {
+        self.headers
+            .iter()
+            .filter(|(candidate, _)| candidate.eq_ignore_ascii_case(name))
+            .map(|(_, value)| value.as_str())
+            .collect()
+    }
 }
 
 #[derive(Default)]
 struct State {
     negotiations: u32,
+    negotiate_requests: Vec<RequestHead>,
+    upgrade_requests: Vec<RequestHead>,
     /// The senders of the open connections, oldest first.
     connections: Vec<mpsc::UnboundedSender<Message>>,
 }
@@ -43,6 +87,7 @@ pub(crate) struct LoopbackServer {
     pub(crate) port: u16,
     state: Arc<Mutex<State>>,
     received: tokio::sync::Mutex<mpsc::UnboundedReceiver<String>>,
+    frames: tokio::sync::Mutex<mpsc::UnboundedReceiver<Frame>>,
     task: JoinHandle<()>,
 }
 
@@ -52,16 +97,22 @@ impl LoopbackServer {
         let port = listener.local_addr().unwrap().port();
         let state = Arc::new(Mutex::new(State::default()));
         let (records, received) = mpsc::unbounded_channel();
+        let (frame_sender, frames) = mpsc::unbounded_channel();
+        let sinks = Sinks {
+            records,
+            frames: frame_sender,
+        };
         let shared = state.clone();
         let task = tokio::spawn(async move {
             while let Ok((stream, _)) = listener.accept().await {
-                tokio::spawn(serve(stream, shared.clone(), records.clone(), options));
+                tokio::spawn(serve(stream, shared.clone(), sinks.clone(), options));
             }
         });
         Self {
             port,
             state,
             received: tokio::sync::Mutex::new(received),
+            frames: tokio::sync::Mutex::new(frames),
             task,
         }
     }
@@ -72,6 +123,24 @@ impl LoopbackServer {
             .await
             .expect("no hub message arrived")
             .expect("the server stopped")
+    }
+
+    /// The next WebSocket frame a client sent after its handshake (Pings included).
+    pub(crate) async fn next_frame(&self) -> Frame {
+        tokio::time::timeout(Duration::from_secs(5), self.frames.lock().await.recv())
+            .await
+            .expect("no frame arrived")
+            .expect("the server stopped")
+    }
+
+    /// Sends a frame on the newest connection.
+    pub(crate) fn send(&self, frame: Frame) {
+        let state = self.state.lock().unwrap();
+        let sender = state.connections.last().expect("no open connection");
+        let _ = sender.send(match frame {
+            Frame::Text(text) => Message::text(text),
+            Frame::Binary(bytes) => Message::binary(bytes),
+        });
     }
 
     /// Drops the newest connection's socket without a close handshake.
@@ -91,6 +160,16 @@ impl LoopbackServer {
         .expect("the connections never opened");
     }
 
+    /// The negotiate requests received so far.
+    pub(crate) fn negotiate_requests(&self) -> Vec<RequestHead> {
+        self.state.lock().unwrap().negotiate_requests.clone()
+    }
+
+    /// The WebSocket upgrade requests received so far.
+    pub(crate) fn upgrade_requests(&self) -> Vec<RequestHead> {
+        self.state.lock().unwrap().upgrade_requests.clone()
+    }
+
     pub(crate) fn negotiations(&self) -> u32 {
         self.state.lock().unwrap().negotiations
     }
@@ -105,7 +184,7 @@ impl Drop for LoopbackServer {
 async fn serve(
     stream: TcpStream,
     state: Arc<Mutex<State>>,
-    records: mpsc::UnboundedSender<String>,
+    sinks: Sinks,
     options: LoopbackOptions,
 ) {
     let mut start = [0u8; 4];
@@ -114,8 +193,22 @@ async fn serve(
     }
     if &start == b"POST" {
         negotiate(stream, &state, options).await;
-    } else if let Ok((_, socket)) = ServerBuilder::new().accept(stream).await {
-        hub(socket, state, records, options).await;
+    } else if let Ok((request, socket)) = ServerBuilder::new().accept(stream).await {
+        let head = RequestHead {
+            target: request.uri().to_string(),
+            headers: request
+                .headers()
+                .iter()
+                .map(|(name, value)| {
+                    (
+                        name.as_str().to_string(),
+                        value.to_str().unwrap_or_default().to_string(),
+                    )
+                })
+                .collect(),
+        };
+        state.lock().unwrap().upgrade_requests.push(head);
+        hub(socket, state, sinks, options).await;
     }
 }
 
@@ -129,9 +222,24 @@ async fn negotiate(mut stream: TcpStream, state: &Arc<Mutex<State>>, options: Lo
             Ok(read) => request.extend_from_slice(&buffer[..read]),
         }
     }
+    let text = String::from_utf8_lossy(&request).into_owned();
+    let mut lines = text.split("\r\n");
+    let target = lines
+        .next()
+        .and_then(|line| line.split(' ').nth(1))
+        .unwrap_or_default()
+        .to_string();
+    let headers = lines
+        .take_while(|line| !line.is_empty())
+        .filter_map(|line| line.split_once(':'))
+        .map(|(name, value)| (name.trim().to_ascii_lowercase(), value.trim().to_string()))
+        .collect();
     let number = {
         let mut state = state.lock().unwrap();
         state.negotiations += 1;
+        state
+            .negotiate_requests
+            .push(RequestHead { target, headers });
         state.negotiations
     };
     if options.reject_after.is_some_and(|limit| number > limit) {
@@ -144,10 +252,15 @@ async fn negotiate(mut stream: TcpStream, state: &Arc<Mutex<State>>, options: Lo
         let _ = stream.shutdown().await;
         return;
     }
+    let stateful = if options.stateful {
+        ",\"useStatefulReconnect\":true"
+    } else {
+        ""
+    };
     let body = format!(
         "{{\"connectionId\":\"conn-{number}\",\"connectionToken\":\"token-{number}\",\
          \"negotiateVersion\":1,\"availableTransports\":[{{\"transport\":\"WebSockets\",\
-         \"transferFormats\":[\"Text\",\"Binary\"]}}]}}"
+         \"transferFormats\":[\"Text\",\"Binary\"]}}]{stateful}}}"
     );
     let response = format!(
         "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\
@@ -162,7 +275,7 @@ async fn negotiate(mut stream: TcpStream, state: &Arc<Mutex<State>>, options: Lo
 async fn hub(
     mut socket: WebSocketStream<TcpStream>,
     state: Arc<Mutex<State>>,
-    records: mpsc::UnboundedSender<String>,
+    sinks: Sinks,
     options: LoopbackOptions,
 ) {
     // The handshake request.
@@ -193,10 +306,15 @@ async fn hub(
             inbound = socket.next() => match inbound {
                 Some(Ok(message)) => {
                     if let Some(text) = message.as_text() {
+                        let _ = sinks.frames.send(Frame::Text(text.to_string()));
+                    } else if message.is_binary() {
+                        let _ = sinks.frames.send(Frame::Binary(message.as_payload().to_vec()));
+                    }
+                    if let Some(text) = message.as_text() {
                         for record in text.split('\u{1e}').filter(|record| !record.is_empty()) {
                             // Pings are liveness traffic, not hub messages.
                             if record != "{\"type\":6}" {
-                                let _ = records.send(record.to_string());
+                                let _ = sinks.records.send(record.to_string());
                             }
                         }
                     }
