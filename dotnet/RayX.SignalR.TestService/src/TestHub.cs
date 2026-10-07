@@ -93,6 +93,17 @@ namespace RayX.SignalR.TestService
             Clients.Caller.SendAsync(callback, "alpha", 42, new TestEntity { Text = "multi", Number = 7 });
 
         /// <summary>
+        /// Calls <paramref name="callback"/> with values whose MessagePack form has no JSON
+        /// equivalent: binary data, a timestamp and integer map keys.
+        /// </summary>
+        public Task TriggerFidelityCallback(string callback) =>
+            Clients.Caller.SendAsync(
+                callback,
+                new byte[] { 0, 1, 2, 255 },
+                new DateTime(2024, 1, 2, 3, 4, 5, DateTimeKind.Utc),
+                new Dictionary<int, string> { [1] = "one", [2] = "two" });
+
+        /// <summary>
         /// Asks the caller for a client result outside this invocation (the hub processes one
         /// invocation per connection at a time) and records the value for <see cref="ClientResult"/>.
         /// </summary>

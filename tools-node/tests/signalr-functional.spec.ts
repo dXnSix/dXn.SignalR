@@ -20,24 +20,34 @@ const scenarios = [
   "error-kinds",
 ];
 
-for (const scenario of scenarios) {
-  for (const { protocol, title } of protocols) {
-    test(`${scenario.replaceAll("-", " ")} ${title}`, async ({ page }) => {
-      const pageErrors: string[] = [];
-      page.on("pageerror", (error) => pageErrors.push(error.message));
-      page.on("console", (message) => console.log(`[browser:${message.type()}] ${message.text()}`));
-      await openFixture(page);
+// Scenarios whose values exist only in one protocol.
+const messagePackScenarios = ["msgpack-fidelity"];
 
-      const outcome = await page.evaluate(
-        ([selected, selectedProtocol]) =>
-          window.rayxSignalRFixture
-            .runFunctionalScenario(selected, selectedProtocol)
-            .catch((error: unknown) => `failed: ${String(error)}`),
-        [scenario, protocol] as const,
-      );
+const cells = [
+  ...scenarios.flatMap((scenario) => protocols.map((selected) => ({ scenario, ...selected }))),
+  ...messagePackScenarios.flatMap((scenario) =>
+    protocols
+      .filter((selected) => selected.protocol === "messagepack")
+      .map((selected) => ({ scenario, ...selected })),
+  ),
+];
 
-      expect(outcome).toBe("ok");
-      expect(pageErrors).toEqual([]);
-    });
-  }
+for (const { scenario, protocol, title } of cells) {
+  test(`${scenario.replaceAll("-", " ")} ${title}`, async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+    page.on("console", (message) => console.log(`[browser:${message.type()}] ${message.text()}`));
+    await openFixture(page);
+
+    const outcome = await page.evaluate(
+      ([selected, selectedProtocol]) =>
+        window.rayxSignalRFixture
+          .runFunctionalScenario(selected, selectedProtocol)
+          .catch((error: unknown) => `failed: ${String(error)}`),
+      [scenario, protocol] as const,
+    );
+
+    expect(outcome).toBe("ok");
+    expect(pageErrors).toEqual([]);
+  });
 }

@@ -21,7 +21,7 @@ public sealed partial class CatalogTests(AspireEnvironment environment)
     E2ESelection all = E2ESelection.Parse("all", "ALL", " all ");
     Assert.Equal(ScenarioCatalog.Targets.Select(target => target.Name), all.Targets);
     Assert.True(all.RequiresBrowserFixture);
-    int expected = ScenarioCatalog.Scenarios.Sum(scenario => scenario.Targets.Count) * ScenarioCatalog.Protocols.Count;
+    int expected = ScenarioCatalog.Scenarios.Sum(scenario => scenario.Targets.Count * scenario.Protocols.Count);
     Assert.Equal(expected, all.Cells().Count);
   }
 
@@ -39,6 +39,16 @@ public sealed partial class CatalogTests(AspireEnvironment environment)
     {
       Assert.Equal(cell, E2ECell.Parse(cell.Id));
     }
+  }
+
+  [Fact]
+  [Trait("Category", "Catalog")]
+  public void ProtocolSpecificScenariosRunOnlyWithTheirProtocols()
+  {
+    Assert.Equal(
+      ["native/messagepack/msgpack-fidelity", "chromium/messagepack/msgpack-fidelity"],
+      E2ESelection.Parse("native,chromium", "all", "msgpack-fidelity").Cells().Select(cell => cell.Id));
+    Assert.Throws<InvalidOperationException>(() => E2ESelection.Parse("native", "json", "msgpack-fidelity").Cells());
   }
 
   [Fact]
@@ -70,7 +80,7 @@ public sealed partial class CatalogTests(AspireEnvironment environment)
 
     HashSet<string> expected = ScenarioCatalog.Scenarios
                                               .Where(ScenarioCatalog.RunsNatively)
-                                              .SelectMany(scenario => ScenarioCatalog.Protocols.Select(scenario.RustTest))
+                                              .SelectMany(scenario => scenario.Protocols.Select(scenario.RustTest))
                                               .ToHashSet(StringComparer.Ordinal);
     Assert.Empty(expected.Except(tests));
     Assert.Empty(tests.Except(expected));
@@ -95,7 +105,7 @@ public sealed partial class CatalogTests(AspireEnvironment environment)
 
       HashSet<string> expected = ScenarioCatalog.Scenarios
                                                 .Where(scenario => scenario.Targets.Contains(engine))
-                                                .SelectMany(scenario => ScenarioCatalog.Protocols.Select(scenario.PlaywrightTitle))
+                                                .SelectMany(scenario => scenario.Protocols.Select(scenario.PlaywrightTitle))
                                                 .ToHashSet(StringComparer.Ordinal);
       Assert.Empty(expected.Except(titles));
       Assert.Empty(titles.Except(expected));

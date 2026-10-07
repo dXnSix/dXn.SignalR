@@ -69,6 +69,7 @@ pub async fn run_functional_scenario(
         "unsent-stream" => unsent_stream(messagepack).await,
         "error-kinds" => error_kinds(messagepack).await,
         "disconnect-every-handle" => disconnect_every_handle(messagepack).await,
+        "msgpack-fidelity" => msgpack_fidelity(messagepack).await,
         other => Err(format!("unknown functional scenario {other}")),
     };
     outcome
@@ -1976,5 +1977,106 @@ async fn disconnect_from_a_callback(messagepack: bool, probe: &mut SignalRClient
     })
     .await?;
     registration.unregister();
+    Ok(())
+}
+
+/// The hub's `DateTime(2024, 1, 2, 3, 4, 5, DateTimeKind.Utc)` in Unix seconds.
+const FIDELITY_TIMESTAMP_SECONDS: i64 = 1_704_164_645;
+
+/// A byte buffer that accepts MessagePack binary (as `serde_bytes::ByteBuf` does).
+#[derive(Debug)]
+struct FidelityBytes(Vec<u8>);
+
+impl<'de> Deserialize<'de> for FidelityBytes {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Visitor;
+        impl serde::de::Visitor<'_> for Visitor {
+            type Value = FidelityBytes;
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("bytes")
+            }
+            fn visit_bytes<E>(self, bytes: &[u8]) -> Result<FidelityBytes, E> {
+                Ok(FidelityBytes(bytes.to_vec()))
+            }
+        }
+        deserializer.deserialize_bytes(Visitor)
+    }
+}
+
+/// A MessagePack extension value: its type and bytes (`rmp_serde`'s extension convention).
+#[derive(Debug, Deserialize)]
+#[serde(rename = "_ExtStruct")]
+struct FidelityExtension((i8, FidelityBytes));
+
+/// The Unix seconds of a MessagePack timestamp (extension type -1, in its 32-, 64- or 96-bit form).
+fn timestamp_seconds(extension: &FidelityExtension) -> Option<i64> {
+    let (kind, FidelityBytes(data)) = &extension.0;
+    if *kind != -1 {
+        return None;
+    }
+    match data.len() {
+        4 => Some(i64::from(u32::from_be_bytes(
+            data.as_slice().try_into().ok()?,
+        ))),
+        8 => {
+            let value = u64::from_be_bytes(data.as_slice().try_into().ok()?);
+            i64::try_from(value & 0x3_ffff_ffff).ok()
+        }
+        12 => Some(i64::from_be_bytes(data.get(4..)?.try_into().ok()?)),
+        _ => None,
+    }
+}
+
+/// Callback arguments decode from the server's original MessagePack values, as the .NET binder
+/// does: `byte[]`, `DateTime` and `Dictionary<int, string>` survive. MessagePack only.
+async fn msgpack_fidelity(messagepack: bool) -> Outcome {
+    use std::collections::HashMap;
+
+    ensure!(messagepack, "msgpack-fidelity runs only with MessagePack");
+    let mut client = connect("test", messagepack, |_| {}).await?;
+    type Received = (
+        Result<Vec<u8>, Error>,
+        Result<Option<i64>, Error>,
+        Result<HashMap<i32, String>, Error>,
+    );
+    let received = Rc::new(RefCell::new(None::<Received>));
+    let captured = received.clone();
+    let registration = client.register("fidelity".to_string(), move |context| {
+        *captured.borrow_mut() = Some((
+            context.argument::<FidelityBytes>(0).map(|bytes| bytes.0),
+            context
+                .argument::<FidelityExtension>(1)
+                .map(|extension| timestamp_seconds(&extension)),
+            context.argument::<HashMap<i32, String>>(2),
+        ));
+    });
+    client
+        .send_with_args("TriggerFidelityCallback".to_string(), |arguments| {
+            arguments.argument("fidelity".to_string());
+        })
+        .await
+        .map_err(|error| format!("TriggerFidelityCallback failed: {error}"))?;
+    let (bytes, timestamp, map) = eventually("the fidelity callback", 5_000.0, || {
+        let received = received.clone();
+        async move { received.borrow_mut().take() }
+    })
+    .await?;
+
+    let bytes = bytes.map_err(|error| format!("byte[] argument: {error}"))?;
+    ensure!(bytes == [0, 1, 2, 255], "byte[] argument was {bytes:?}");
+    let timestamp = timestamp.map_err(|error| format!("DateTime argument: {error}"))?;
+    ensure!(
+        timestamp == Some(FIDELITY_TIMESTAMP_SECONDS),
+        "DateTime argument was {timestamp:?} seconds"
+    );
+    let map = map.map_err(|error| format!("Dictionary<int,string> argument: {error}"))?;
+    ensure!(
+        map.len() == 2
+            && map.get(&1).map(String::as_str) == Some("one")
+            && map.get(&2).map(String::as_str) == Some("two"),
+        "Dictionary<int,string> argument was {map:?}"
+    );
+    registration.unregister();
+    client.disconnect();
     Ok(())
 }

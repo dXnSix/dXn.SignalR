@@ -92,7 +92,7 @@ public sealed record E2ESelection(
         foreach(string name in Scenarios)
         {
           Scenario scenario = ScenarioCatalog.Scenario(name);
-          if(scenario.Targets.Contains(target))
+          if(scenario.Targets.Contains(target) && scenario.Protocols.Contains(protocol))
           {
             cells.Add(new E2ECell(ScenarioCatalog.Target(target), protocol, scenario));
           }

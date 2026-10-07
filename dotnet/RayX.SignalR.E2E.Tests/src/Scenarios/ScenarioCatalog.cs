@@ -23,6 +23,9 @@ public sealed record Scenario(string Name, IReadOnlySet<string> Targets)
   /// <summary>Gets targets intentionally excluded, with the documented reason.</summary>
   public IReadOnlyDictionary<string, string> Exclusions { get; init; } = new Dictionary<string, string>();
 
+  /// <summary>Gets the protocols the scenario runs with (every protocol unless it is protocol-specific).</summary>
+  public IReadOnlyList<string> Protocols { get; init; } = ScenarioCatalog.Protocols;
+
   /// <summary>Gets the Rust module path segment (<c>ordinary-reconnect</c> → <c>ordinary_reconnect</c>).</summary>
   public string RustModule => Name.Replace('-', '_');
 
@@ -105,7 +108,8 @@ public static class ScenarioCatalog
     Everywhere("pause-resume-stateful"),
     Everywhere("unsent-stream"),
     Everywhere("error-kinds"),
-    Everywhere("disconnect-every-handle")
+    Everywhere("disconnect-every-handle"),
+    Everywhere("msgpack-fidelity") with { Protocols = ["messagepack"] }
   ];
 
   /// <summary>Looks up a target by name.</summary>

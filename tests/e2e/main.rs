@@ -19,6 +19,9 @@ mod handshake_timeout;
 mod invoke;
 mod keepalive_idle;
 mod large_payload;
+// Its values have no JSON equivalent: MessagePack only.
+#[cfg(feature = "messagepack")]
+mod msgpack_fidelity;
 mod negotiate_redirect;
 mod ordinary_reconnect;
 mod pause_resume;
