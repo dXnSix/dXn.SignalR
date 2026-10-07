@@ -78,6 +78,7 @@ pub async fn run_functional_scenario(
         "connection-id" => connection_id(messagepack).await,
         "graceful-stop" => graceful_stop(messagepack).await,
         "reconnect-call-wait" => reconnect_call_wait(messagepack).await,
+        "request-headers" => request_headers(messagepack).await,
         other => Err(format!("unknown functional scenario {other}")),
     };
     outcome
@@ -2976,5 +2977,56 @@ async fn reconnect_call_wait(messagepack: bool) -> Outcome {
         }
     }
     failing.disconnect();
+    Ok(())
+}
+
+/// The value of `name` in the lines the test service describes a request with.
+fn described_value<'a>(lines: &'a [String], name: &str) -> Option<&'a str> {
+    let prefix = format!("{name}: ");
+    lines.iter().find_map(|line| line.strip_prefix(&prefix))
+}
+
+async fn request_headers(messagepack: bool) -> Outcome {
+    let mut client = connect("test", messagepack, |configuration| {
+        configuration.authenticate_bearer("e2e-token".to_string());
+        configuration.with_header("X-Tenant", "blue");
+    })
+    .await?;
+
+    let negotiate = client
+        .invoke_with_args::<Vec<String>, _>("NegotiateRequest".to_string(), |arguments| {
+            arguments.argument("/test");
+        })
+        .await
+        .map_err(|error| format!("NegotiateRequest failed: {error}"))?;
+    // Browsers forbid `User-Agent`: the official format travels in `X-SignalR-User-Agent`.
+    ensure!(
+        described_value(&negotiate, "x-signalr-user-agent")
+            .is_some_and(|agent| agent.starts_with("RayX SignalR/")),
+        "negotiate lacks X-SignalR-User-Agent: {negotiate:?}"
+    );
+    ensure!(
+        described_value(&negotiate, "x-requested-with") == Some("XMLHttpRequest"),
+        "negotiate lacks X-Requested-With: {negotiate:?}"
+    );
+    ensure!(
+        described_value(&negotiate, "x-tenant") == Some("blue"),
+        "negotiate lacks the application header: {negotiate:?}"
+    );
+    ensure!(
+        described_value(&negotiate, "authorization") == Some("present"),
+        "negotiate lacks Authorization: {negotiate:?}"
+    );
+
+    // Browsers cannot set WebSocket headers: the bearer token travels as `access_token`.
+    let transport = client
+        .invoke::<Vec<String>>("TransportRequest".to_string())
+        .await
+        .map_err(|error| format!("TransportRequest failed: {error}"))?;
+    ensure!(
+        described_value(&transport, "access_token") == Some("present"),
+        "the browser WebSocket URL lacks access_token: {transport:?}"
+    );
+    client.disconnect();
     Ok(())
 }

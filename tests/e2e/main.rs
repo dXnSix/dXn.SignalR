@@ -34,6 +34,7 @@ mod pause_resume;
 mod pause_resume_stateful;
 mod reconnect_call_wait;
 mod reconnect_exhaustion;
+mod request_headers;
 mod restart_after_stop;
 mod send;
 mod server_close;

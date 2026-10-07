@@ -55,6 +55,7 @@ app.Use(async (context, next) =>
     {
         string hubPath = path[..^"/negotiate".Length];
         TestControls.CountNegotiate(hubPath);
+        TestControls.RecordNegotiate(hubPath, context.Request);
         if (TestControls.TakeNegotiationDelay(hubPath) is { } delay)
         {
             await Task.Delay(delay, context.RequestAborted);

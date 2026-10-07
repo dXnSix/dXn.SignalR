@@ -117,7 +117,8 @@ public static class ScenarioCatalog
     Everywhere("lifecycle-events"),
     Everywhere("connection-id"),
     Everywhere("graceful-stop"),
-    Everywhere("reconnect-call-wait")
+    Everywhere("reconnect-call-wait"),
+    Everywhere("request-headers")
   ];
 
   /// <summary>Looks up a target by name.</summary>

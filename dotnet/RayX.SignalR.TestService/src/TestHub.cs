@@ -137,6 +137,14 @@ namespace RayX.SignalR.TestService
         /// <summary>How <c>OnDisconnectedAsync</c> saw another connection end: empty when graceful, null while it is connected.</summary>
         public string? DisconnectError(string connectionId) => TestControls.DisconnectError(connectionId);
 
+        /// <summary>The last negotiate request of a hub path (headers and token placement).</summary>
+        public string[] NegotiateRequest(string hubPath) => TestControls.NegotiateRequest(hubPath);
+
+        /// <summary>This connection's transport request (headers and token placement).</summary>
+        public string[] TransportRequest() =>
+            TestControls.DescribeRequest(
+                (Context.GetHttpContext() ?? throw new InvalidOperationException("no HTTP context")).Request);
+
         /// <summary>How many SignalR Close messages clients sent since the last reset.</summary>
         public int ClientCloseMessages() => TestControls.ClientCloseMessages();
 

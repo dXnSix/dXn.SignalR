@@ -18,7 +18,12 @@ namespace RayX.SignalR.TestService
         static readonly ConcurrentDictionary<string, int> _disconnects = new();
         static readonly ConcurrentDictionary<string, string> _disconnectErrors = new();
         static readonly ConcurrentDictionary<string, TimeSpan> _negotiationDelays = new(StringComparer.OrdinalIgnoreCase);
+        static readonly ConcurrentDictionary<string, string[]> _negotiateHeaders = new(StringComparer.OrdinalIgnoreCase);
         static int _clientCloses;
+
+        /// <summary>The request headers the request-headers scenario inspects.</summary>
+        static readonly string[] _describedHeaders =
+            ["user-agent", "x-signalr-user-agent", "x-requested-with", "accept", "x-tenant"];
         static readonly ConcurrentDictionary<string, int> _clientResults = new();
         static readonly ConcurrentDictionary<string, string> _clientResultErrors = new();
         static readonly ConcurrentDictionary<string, HubConnectionContext> _connections = new();
@@ -33,6 +38,7 @@ namespace RayX.SignalR.TestService
             _disconnects.Clear();
             _disconnectErrors.Clear();
             _negotiationDelays.Clear();
+            _negotiateHeaders.Clear();
             Interlocked.Exchange(ref _clientCloses, 0);
             _clientResults.Clear();
             _authenticatedTokens.Clear();
@@ -57,6 +63,35 @@ namespace RayX.SignalR.TestService
         /// <summary>Returns and clears the pending negotiate delay of <paramref name="hubPath"/>.</summary>
         public static TimeSpan? TakeNegotiationDelay(string hubPath) =>
             _negotiationDelays.TryRemove(hubPath, out var delay) ? delay : null;
+
+        /// <summary>
+        /// Describes a request for the request-headers scenario: one <c>name: value</c> line per
+        /// inspected header that is present, whether an <c>Authorization</c> header was sent (never
+        /// its value) and whether the query carries an <c>access_token</c>.
+        /// </summary>
+        public static string[] DescribeRequest(HttpRequest request)
+        {
+            List<string> lines = [];
+            foreach (string name in _describedHeaders)
+            {
+                if (request.Headers.TryGetValue(name, out var value))
+                {
+                    lines.Add($"{name}: {value}");
+                }
+            }
+
+            lines.Add($"authorization: {(request.Headers.ContainsKey("authorization") ? "present" : "absent")}");
+            lines.Add($"access_token: {(request.Query.ContainsKey("access_token") ? "present" : "absent")}");
+            return [.. lines];
+        }
+
+        /// <summary>Records the last negotiate request of a hub path.</summary>
+        public static void RecordNegotiate(string hubPath, HttpRequest request) =>
+            _negotiateHeaders[hubPath] = DescribeRequest(request);
+
+        /// <summary>The last negotiate request of a hub path, described as <see cref="DescribeRequest"/> does.</summary>
+        public static string[] NegotiateRequest(string hubPath) =>
+            _negotiateHeaders.TryGetValue(hubPath, out var lines) ? lines : [];
 
         /// <summary>Counts a SignalR Close message a client sent.</summary>
         public static void CountClientClose() => Interlocked.Increment(ref _clientCloses);

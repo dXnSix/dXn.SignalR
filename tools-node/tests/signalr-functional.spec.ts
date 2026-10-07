@@ -26,6 +26,7 @@ const scenarios = [
   "connection-id",
   "graceful-stop",
   "reconnect-call-wait",
+  "request-headers",
 ];
 
 // Scenarios whose values exist only in one protocol.
