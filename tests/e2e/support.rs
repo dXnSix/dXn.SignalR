@@ -129,6 +129,15 @@ pub fn long_polling() -> bool {
     std::env::var("RAYX_SIGNALR_TRANSPORT").as_deref() == Ok("long-polling")
 }
 
+/// Whether the cell runs over an HTTP transport (Long Polling or Server-Sent Events), whose
+/// requests keep the token negotiate fetched.
+pub fn http_transport() -> bool {
+    matches!(
+        std::env::var("RAYX_SIGNALR_TRANSPORT").as_deref(),
+        Ok("long-polling" | "server-sent-events")
+    )
+}
+
 /// A fast bounded reconnect policy for scenarios that drop the transport.
 pub fn fast_reconnect() -> ReconnectionConfig {
     ReconnectionConfig {

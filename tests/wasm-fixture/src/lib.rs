@@ -87,6 +87,13 @@ fn long_polling() -> bool {
     TRANSPORTS.with(Cell::get) == Some(rayx_signalr::Transports::LONG_POLLING)
 }
 
+/// Whether the scenario connections use an HTTP transport (Long Polling or Server-Sent Events),
+/// whose requests keep the token negotiate fetched.
+fn http_transport() -> bool {
+    long_polling()
+        || TRANSPORTS.with(Cell::get) == Some(rayx_signalr::Transports::SERVER_SENT_EVENTS)
+}
+
 mod functional;
 mod soak;
 mod stress;

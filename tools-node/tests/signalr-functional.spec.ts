@@ -31,6 +31,7 @@ const scenarios = [
   "stateful-resume-fallback",
   "token-factory",
   "negotiate-timeout",
+  "transport-fallback",
 ];
 
 // Scenarios whose values exist only in one protocol.

@@ -50,4 +50,5 @@ mod stateful_transparent_resume;
 mod stream_cancellation;
 mod tls;
 mod token_factory;
+mod transport_fallback;
 mod unsent_stream;

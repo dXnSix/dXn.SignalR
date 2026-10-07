@@ -110,7 +110,9 @@ public sealed partial class RepositoryTests(AspireEnvironment environment)
 
     string limitations = await File.ReadAllTextAsync(Path.Combine(root, "docs", "12-limitations.md"));
     Assert.Contains("## Not covered by tests", limitations, StringComparison.Ordinal);
-    Assert.Contains("Long Polling", limitations, StringComparison.Ordinal);
+    string connecting = await File.ReadAllTextAsync(Path.Combine(root, "docs", "02-connecting.md"));
+    Assert.Contains("### Long Polling", connecting, StringComparison.Ordinal);
+    Assert.Contains("### Server-Sent Events", connecting, StringComparison.Ordinal);
 
     foreach(string text in new[] { readme, documentation })
     {

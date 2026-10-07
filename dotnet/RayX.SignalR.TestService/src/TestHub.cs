@@ -31,7 +31,8 @@ namespace RayX.SignalR.TestService
         {
             ConnectionId = Context.ConnectionId,
             TransportId = Context.GetHttpContext()?.Request.Query["id"].ToString() ?? string.Empty,
-            TransferFormat = Context.Features.Get<ITransferFormatFeature>()?.ActiveFormat.ToString() ?? string.Empty
+            TransferFormat = Context.Features.Get<ITransferFormatFeature>()?.ActiveFormat.ToString() ?? string.Empty,
+            Transport = Context.Features.Get<Microsoft.AspNetCore.Http.Connections.Features.IHttpTransportFeature>()?.TransportType.ToString() ?? string.Empty
         };
 
         public int Echo(int value) => value;
@@ -432,6 +433,9 @@ namespace RayX.SignalR.TestService
         public string ConnectionId { get; set; } = string.Empty;
         public string TransportId { get; set; } = string.Empty;
         public string TransferFormat { get; set; } = string.Empty;
+
+        /// <summary>Gets or sets the transport the connection uses (<c>WebSockets</c>, <c>ServerSentEvents</c>, <c>LongPolling</c>).</summary>
+        public string Transport { get; set; } = string.Empty;
     }
 
     /// <summary>A DTO whose wire names are snake_case on both protocols, matching Serde renames.</summary>

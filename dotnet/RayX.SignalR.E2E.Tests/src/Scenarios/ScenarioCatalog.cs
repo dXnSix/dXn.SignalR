@@ -182,6 +182,7 @@ public static class ScenarioCatalog
     Everywhere("stateful-resume-fallback"),
     Baseline("token-factory"),
     Everywhere("negotiate-timeout"),
+    Everywhere("transport-fallback"),
     new("soak-chaos", Set([_native, _chromium, _android]))
     {
       Soak = true,

@@ -84,6 +84,7 @@ pub async fn run_functional_scenario(
         "token-factory" => token_factory(messagepack).await,
         "ordinary-reconnect" => ordinary_reconnect(messagepack).await,
         "negotiate-timeout" => negotiate_timeout_scenario(messagepack).await,
+        "transport-fallback" => transport_fallback(messagepack).await,
         other => Err(format!("unknown functional scenario {other}")),
     };
     outcome
@@ -164,6 +165,69 @@ fn spawn<T: 'static>(future: impl Future<Output = T> + 'static) -> oneshot::Rece
         let _ = sender.send(future.await);
     });
     receiver
+}
+
+/// Transport fallback: against hubs restricted server-side, the default transport set connects
+/// with the first offered transport that carries the protocol (Long Polling where it is the only
+/// one; Server-Sent Events before Long Polling for JSON, Long Polling for MessagePack), as the
+/// hub's `TransportDetails` reports; a WebSockets-only client fails with `TransportUnavailable`
+/// naming the transport it could not use.
+async fn transport_fallback(messagepack: bool) -> Outcome {
+    #[derive(Debug, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct TransportDetails {
+        transport: String,
+    }
+
+    async fn transport_of(hub: &str, messagepack: bool) -> Result<String, String> {
+        let mut client = connect(hub, messagepack, |_| {}).await?;
+        let details = client
+            .invoke::<TransportDetails>("TransportDetails".to_string())
+            .await?;
+        client.disconnect();
+        Ok(details.transport)
+    }
+
+    let only = transport_of("test-longpolling", messagepack).await?;
+    ensure!(only == "LongPolling", "/test-longpolling used {only}");
+    let expected = if messagepack {
+        "LongPolling"
+    } else {
+        "ServerSentEvents"
+    };
+    let fallback = transport_of("test-no-websockets", messagepack).await?;
+    ensure!(
+        fallback == expected,
+        "/test-no-websockets used {fallback} instead of {expected}"
+    );
+
+    let error = match try_connect("test-longpolling", messagepack, |configuration| {
+        configuration.with_transports(rayx_signalr::Transports::WEB_SOCKETS);
+    })
+    .await?
+    {
+        Ok(_) => return Err("a WebSockets-only client connected to a Long Polling hub".to_string()),
+        Err(error) => error,
+    };
+    ensure!(
+        error.kind() == ErrorKind::TransportUnavailable,
+        "unexpected error kind: {error}"
+    );
+    let attempts: Vec<_> = error
+        .attempts()
+        .iter()
+        .map(|attempt| attempt.transport())
+        .collect();
+    ensure!(
+        attempts == [rayx_signalr::TransportKind::LongPolling],
+        "attempts {attempts:?}"
+    );
+    let message = error.to_string();
+    ensure!(
+        message.contains("LongPolling") && message.contains("disabled by the client"),
+        "the error does not name the transport: {message}"
+    );
+    Ok(())
 }
 
 async fn connect_negotiate(messagepack: bool) -> Outcome {
@@ -3300,9 +3364,9 @@ async fn token_factory(messagepack: bool) -> Outcome {
         configuration.with_reconnection_policy(fast_reconnect());
     })
     .await?;
-    // One token for negotiate and one for the WebSocket; Long Polling keeps the negotiate token,
-    // as the .NET client's `AccessTokenHttpMessageHandler`.
-    let per_connect = if super::long_polling() { 1 } else { 2 };
+    // One token for negotiate and one for the WebSocket; the HTTP transports keep the negotiate
+    // token, as the .NET client's `AccessTokenHttpMessageHandler`.
+    let per_connect = if super::http_transport() { 1 } else { 2 };
     ensure!(
         calls.get() == per_connect,
         "{} factory calls for one connect",
@@ -3359,9 +3423,9 @@ async fn token_factory(messagepack: bool) -> Outcome {
         generation == 2,
         "the reconnect used generation {generation}"
     );
-    // Long Polling authenticates every request, so the first one after the rotation is refused
-    // and retried with a fresh token (as the .NET client's `AccessTokenHttpMessageHandler`).
-    let expected = if super::long_polling() { 3 } else { 4 };
+    // The HTTP transports authenticate every request, so the first one after the rotation is
+    // refused and retried with a fresh token (as the .NET client's `AccessTokenHttpMessageHandler`).
+    let expected = if super::http_transport() { 3 } else { 4 };
     ensure!(
         calls.get() == expected,
         "{} factory calls after the reconnect",
