@@ -34,6 +34,7 @@ mod negotiate_timeout;
 mod ordinary_reconnect;
 mod pause_resume;
 mod pause_resume_stateful;
+mod proxy;
 mod reconnect_call_wait;
 mod reconnect_exhaustion;
 mod request_headers;

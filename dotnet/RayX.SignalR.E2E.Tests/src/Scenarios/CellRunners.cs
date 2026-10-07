@@ -67,6 +67,8 @@ public static partial class CellExecution
     variables["RAYX_SIGNALR_E2E_TLS_URL"] = Origin(environment.TlsServiceUrl);
     variables["RAYX_SIGNALR_E2E_TLS_CA_PEM_BASE64"] =
       Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(environment.TlsCaPem));
+    variables["RAYX_SIGNALR_E2E_PROXY_URL"] = Origin(environment.ProxyUrl);
+    variables["RAYX_SIGNALR_E2E_PROXY_CREDENTIALS"] = $"{AspireEnvironment.ProxyUser}:{environment.ProxyPassword}";
     if(environment.FixtureEnabled)
     {
       variables["RAYX_SIGNALR_E2E_FIXTURE_URL"] = Origin(environment.FixtureUrl);
@@ -284,7 +286,8 @@ public sealed class NativeCellRunner : ICellRunner
       CellExecution.LibtestArguments(cell.Scenario.RustTest(cell.Protocol)),
       environment.RepositoryRoot)
     {
-      Environment = CellExecution.ScenarioVariables(environment, cell)
+      Environment = CellExecution.ScenarioVariables(environment, cell),
+      IsolateFromProxy = true
     };
     ProcessResult result = await ProcessRunner.RunAsync(command, cell.Scenario.Bound, cancellationToken);
     return CellExecution.JudgeLibtest(command, result);

@@ -12,7 +12,7 @@ TestCertificateFiles certificates = TestCertificates.Generate(
   ?? Path.Combine(repositoryRoot, "artifacts-temp", "tls", $"{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Environment.ProcessId}"));
 
 // The ASP.NET Core SignalR test service. Its launch profile is excluded so Aspire owns the ports.
-builder
+IResourceBuilder<ProjectResource> service = builder
   .AddProject<Projects.RayX_SignalR_TestService>(
     "signalr-test-service",
     options => options.ExcludeLaunchProfile = true)
@@ -20,6 +20,26 @@ builder
   .WithHttpsEndpoint(name: "https")
   .WithEnvironment("TestTls__CertificatePath", certificates.ServerCertificate)
   .WithEnvironment("TestTls__KeyPath", certificates.ServerKey)
+  .WithHttpHealthCheck("/health", endpointName: "http");
+
+// The test-only HTTP CONNECT proxy of the `proxy` scenario: tunnels need the run's credentials
+// (the test runner passes the password as a secret parameter), and `denied.invalid:80` is on its
+// deny list.
+IResourceBuilder<ParameterResource> proxyPassword = builder.AddParameter("test-proxy-password", secret: true);
+builder
+  .AddProject<Projects.RayX_SignalR_TestProxy>(
+    "test-proxy",
+    options => options.ExcludeLaunchProfile = true)
+  .WithHttpEndpoint(name: "http")
+  .WithEnvironment("TestProxy__User", "rayx")
+  .WithEnvironment("TestProxy__Password", proxyPassword)
+  .WithEnvironment("TestProxy__Deny", "denied.invalid:80")
+  // Tunnels to the service's allocated ports go straight to the ports it listens on (which it
+  // reports at /e2e/listening), past Aspire's own endpoint proxy, so the service sees this proxy's
+  // tunnels as its peers.
+  .WithEnvironment("TestProxy__Service", service.GetEndpoint("http"))
+  .WithEnvironment("TestProxy__ServicePorts__http", service.GetEndpoint("http").Property(EndpointProperty.Port))
+  .WithEnvironment("TestProxy__ServicePorts__https", service.GetEndpoint("https").Property(EndpointProperty.Port))
   .WithHttpHealthCheck("/health", endpointName: "http");
 
 // Native-only runs disable the browser fixture to skip the WASM build.

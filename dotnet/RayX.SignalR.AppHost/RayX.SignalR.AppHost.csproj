@@ -10,5 +10,6 @@
     <ItemGroup>
         <ProjectReference Include="../RayX.SignalR.TestService/RayX.SignalR.TestService.csproj"/>
         <ProjectReference Include="../RayX.SignalR.FixtureHost/RayX.SignalR.FixtureHost.csproj"/>
+        <ProjectReference Include="../RayX.SignalR.TestProxy/RayX.SignalR.TestProxy.csproj"/>
     </ItemGroup>
 </Project>

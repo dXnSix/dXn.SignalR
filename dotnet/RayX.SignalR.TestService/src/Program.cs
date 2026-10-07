@@ -153,6 +153,19 @@ app.MapPost("/test-hang/negotiate", async (HttpContext context) =>
 });
 app.MapGet("/e2e/token", () => Results.Text(RotatingTokens.Issue()));
 app.MapPost("/e2e/rotate-token", () => Results.Ok(new { generation = RotatingTokens.Rotate() }));
+// The ports this service listens on by scheme (behind Aspire's endpoint proxy), for the test
+// proxy, which connects its tunnels to them directly.
+app.MapGet("/e2e/listening", (Microsoft.AspNetCore.Hosting.Server.IServer server) =>
+{
+    var addresses = server.Features
+        .Get<Microsoft.AspNetCore.Hosting.Server.Features.IServerAddressesFeature>()?.Addresses ?? [];
+    return Results.Json(addresses
+        .Select(address => new Uri(address.Replace("://*", "://localhost", StringComparison.Ordinal)
+            .Replace("://+", "://localhost", StringComparison.Ordinal)))
+        .GroupBy(address => address.Scheme)
+        .ToDictionary(group => group.Key, group => group.First().Port));
+});
+
 app.MapPost("/e2e/reset", () =>
 {
     TestControls.Reset();

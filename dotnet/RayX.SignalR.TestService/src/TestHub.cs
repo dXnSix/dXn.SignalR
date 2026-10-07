@@ -38,6 +38,9 @@ namespace RayX.SignalR.TestService
 
         public int Echo(int value) => value;
 
+        /// <summary>The remote port of the request that carries this connection (a proxy's tunnel port when proxied).</summary>
+        public int PeerPort() => Context.GetHttpContext()?.Connection.RemotePort ?? 0;
+
         /// <summary>The access token the transport request carried (Bearer header, else access_token query).</summary>
         public string AccessTokenProbe()
         {

@@ -26,6 +26,13 @@ public sealed record ProcessCommand(string FileName, IReadOnlyList<string> Argum
   /// <summary>Gets additional environment variables for the child.</summary>
   public IReadOnlyDictionary<string, string> Environment { get; init; } = new Dictionary<string, string>();
 
+  /// <summary>
+  /// Gets whether the child runs the client on the host (native cells, performance binaries)
+  /// and so must not inherit the machine's proxy variables. Build and tool commands keep them,
+  /// so they still download through the machine's proxy.
+  /// </summary>
+  public bool IsolateFromProxy { get; init; }
+
   /// <summary>Gets a display form with redacted arguments.</summary>
   public string Display => Redaction.Redact($"{FileName} {string.Join(' ', Arguments)}");
 }
@@ -33,15 +40,22 @@ public sealed record ProcessCommand(string FileName, IReadOnlyList<string> Argum
 /// <summary>Runs child processes with a hard bound and process-tree cleanup.</summary>
 public static class ProcessRunner
 {
-  /// <summary>Runs <paramref name="command"/>, killing its process tree when <paramref name="timeout"/> elapses.</summary>
+  /// <summary>
+  /// The machine's proxy variables, never passed to a command that runs the client
+  /// (<see cref="ProcessCommand.IsolateFromProxy"/>): the client's default system proxy would
+  /// otherwise route cells through the developer's proxy, and <c>GATEWAY_INTERFACE</c> changes
+  /// how it reads them.
+  /// </summary>
+  public static readonly IReadOnlyList<string> ProxyVariables =
+  [
+    "http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY", "all_proxy", "ALL_PROXY",
+    "no_proxy", "NO_PROXY", "GATEWAY_INTERFACE"
+  ];
+
+  /// <summary>The start information of <paramref name="command"/>.</summary>
   /// <param name="command">The command.</param>
-  /// <param name="timeout">The hard bound.</param>
-  /// <param name="cancellationToken">Cancels the run and kills the process tree.</param>
-  /// <returns>The captured result.</returns>
-  public static async Task<ProcessResult> RunAsync(
-    ProcessCommand command,
-    TimeSpan timeout,
-    CancellationToken cancellationToken = default)
+  /// <returns>The start information.</returns>
+  public static ProcessStartInfo StartInfo(ProcessCommand command)
   {
     ProcessStartInfo startInfo = new(command.FileName)
     {
@@ -59,18 +73,52 @@ public static class ProcessRunner
       startInfo.ArgumentList.Add(argument);
     }
 
+    ApplyEnvironment(startInfo.Environment, command);
+    return startInfo;
+  }
+
+  /// <summary>
+  /// Turns the inherited <paramref name="environment"/> into the child's: without the proxy
+  /// variables when the command is isolated from the machine's proxy, then the command's own
+  /// variables and plain-output settings.
+  /// </summary>
+  /// <param name="environment">The inherited environment, changed in place.</param>
+  /// <param name="command">The command.</param>
+  public static void ApplyEnvironment(IDictionary<string, string?> environment, ProcessCommand command)
+  {
+    if(command.IsolateFromProxy)
+    {
+      foreach(string variable in ProxyVariables)
+      {
+        environment.Remove(variable);
+      }
+    }
+
     foreach((string key, string value) in command.Environment)
     {
-      startInfo.Environment[key] = value;
+      environment[key] = value;
     }
 
     // Plain output for parsing, even when CI sets CARGO_TERM_COLOR=always.
-    startInfo.Environment["NO_COLOR"] = "1";
-    startInfo.Environment["CARGO_TERM_COLOR"] = "never";
-    startInfo.Environment["FORCE_COLOR"] = "0";
+    environment["NO_COLOR"] = "1";
+    environment["CARGO_TERM_COLOR"] = "never";
+    environment["FORCE_COLOR"] = "0";
     // Reused MSBuild nodes and build servers inherit the pipes and would keep them open.
-    startInfo.Environment["MSBUILDDISABLENODEREUSE"] = "1";
-    startInfo.Environment["DOTNET_CLI_USE_MSBUILD_SERVER"] = "0";
+    environment["MSBUILDDISABLENODEREUSE"] = "1";
+    environment["DOTNET_CLI_USE_MSBUILD_SERVER"] = "0";
+  }
+
+  /// <summary>Runs <paramref name="command"/>, killing its process tree when <paramref name="timeout"/> elapses.</summary>
+  /// <param name="command">The command.</param>
+  /// <param name="timeout">The hard bound.</param>
+  /// <param name="cancellationToken">Cancels the run and kills the process tree.</param>
+  /// <returns>The captured result.</returns>
+  public static async Task<ProcessResult> RunAsync(
+    ProcessCommand command,
+    TimeSpan timeout,
+    CancellationToken cancellationToken = default)
+  {
+    ProcessStartInfo startInfo = StartInfo(command);
 
     using Process process = new() { StartInfo = startInfo, EnableRaisingEvents = true };
     TaskCompletionSource exited = new(TaskCreationOptions.RunContinuationsAsynchronously);

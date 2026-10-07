@@ -87,8 +87,16 @@ public static class PerformanceRunner
     };
     Dictionary<string, ProcessCommand> commands = new(StringComparer.Ordinal)
     {
-      [Rust] = new ProcessCommand(rust, arguments, environment.RepositoryRoot) { Environment = variables },
-      [DotNet] = new ProcessCommand("dotnet", [reference, .. arguments], environment.RepositoryRoot) { Environment = variables }
+      [Rust] = new ProcessCommand(rust, arguments, environment.RepositoryRoot)
+      {
+        Environment = variables,
+        IsolateFromProxy = true
+      },
+      [DotNet] = new ProcessCommand("dotnet", [reference, .. arguments], environment.RepositoryRoot)
+      {
+        Environment = variables,
+        IsolateFromProxy = true
+      }
     };
     TimeSpan bound = scale == "full" ? TimeSpan.FromMinutes(10) : TimeSpan.FromMinutes(2);
 

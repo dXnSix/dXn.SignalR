@@ -152,6 +152,8 @@ public static class ScenarioCatalog
     Everywhere("negotiate-redirect"),
     Everywhere("skip-negotiation"),
     new("executor-independence", Set(_nativeTargets)),
+    // Browsers use the browser's proxy settings: the crate has no proxy API there.
+    new("proxy", Set(_nativeTargets)),
     new("message-burst", Set(_browsers)),
     new("worker-transport", Set(_browsers)),
     new(ThreadedScenario, Set(_browsers)),

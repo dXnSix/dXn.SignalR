@@ -23,6 +23,12 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
   /// <summary>The browser fixture static host resource.</summary>
   public const string FixtureHostResource = "fixture-host";
 
+  /// <summary>The test-only CONNECT proxy resource.</summary>
+  public const string ProxyResource = "test-proxy";
+
+  /// <summary>The user name the test proxy requires.</summary>
+  public const string ProxyUser = "rayx";
+
   /// <summary>The completion-gated resources that produce the browser fixture, in dependency order.</summary>
   public static readonly IReadOnlyList<string> FixtureBuildResources =
     ["wasm-bindgen-cli", "wasm-fixture-build", "wasm-fixture-bindgen"];
@@ -53,6 +59,12 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
 
   /// <summary>Gets the SignalR test service's HTTP endpoint.</summary>
   public Uri ServiceUrl => App.GetEndpoint(ServiceResource, "http");
+
+  /// <summary>Gets the test proxy's endpoint.</summary>
+  public Uri ProxyUrl => App.GetEndpoint(ProxyResource, "http");
+
+  /// <summary>Gets the password the test proxy requires, generated for this run.</summary>
+  public string ProxyPassword { get; } = Guid.NewGuid().ToString("N");
 
   /// <summary>Gets the SignalR test service's HTTPS endpoint (served with <see cref="TlsCaPem"/>'s CA).</summary>
   public Uri TlsServiceUrl => App.GetEndpoint(ServiceResource, "https");
@@ -115,7 +127,7 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
       startup.CancelAfter(_startupTimeout);
       IDistributedApplicationTestingBuilder builder = await DistributedApplicationTestingBuilder
                                                         .CreateAsync<Projects.RayX_SignalR_AppHost>(
-                                                          [$"--Fixture:Enabled={requireFixture}", $"--Fixture:Threads={requireThreads}", $"--Tls:Directory={TlsDirectory}"],
+                                                          [$"--Fixture:Enabled={requireFixture}", $"--Fixture:Threads={requireThreads}", $"--Tls:Directory={TlsDirectory}", $"--Parameters:test-proxy-password={ProxyPassword}"],
                                                           startup.Token);
       builder.Configuration["DcpPublisher:WaitForResourceCleanup"] = "false";
       DistributedApplication app = await builder.BuildAsync(startup.Token);
@@ -124,6 +136,7 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
       _threadsEnabled = requireThreads;
       await app.StartAsync(startup.Token);
       await WaitForHealthyAsync(ServiceResource, startup.Token);
+      await WaitForHealthyAsync(ProxyResource, startup.Token);
       if(requireFixture)
       {
         foreach(string resource in requireThreads ? [.. FixtureBuildResources, .. ThreadedFixtureBuildResources] : FixtureBuildResources)

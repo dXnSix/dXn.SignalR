@@ -10,7 +10,8 @@ public static partial class Redaction
 
   /// <summary>
   /// Replaces <c>access_token=</c>, JSON <c>"accessToken"</c> (negotiate redirects),
-  /// <c>Authorization</c> and <c>Bearer</c> values.
+  /// <c>Authorization</c> and <c>Bearer</c> values, <c>*_CREDENTIALS=</c> values and the
+  /// <c>user:password@</c> of URLs (proxy credentials).
   /// </summary>
   /// <param name="value">The text.</param>
   /// <returns>The redacted text.</returns>
@@ -24,6 +25,8 @@ public static partial class Redaction
     string redacted = AccessToken().Replace(value, "$1[REDACTED]");
     redacted = JsonAccessToken().Replace(redacted, "$1[REDACTED]");
     redacted = AuthorizationHeader().Replace(redacted, "$1[REDACTED]");
+    redacted = CredentialsVariable().Replace(redacted, "$1[REDACTED]");
+    redacted = UrlUserInfo().Replace(redacted, "$1[REDACTED]@");
     return BearerToken().Replace(redacted, "$1[REDACTED]");
   }
 
@@ -57,4 +60,10 @@ public static partial class Redaction
 
   [GeneratedRegex(@"(?i)(bearer\s+)[A-Za-z0-9._~+/=-]+")]
   private static partial Regex BearerToken();
+
+  [GeneratedRegex(@"(?i)(_CREDENTIALS\s*=\s*['""]?)[^'""\s]+")]
+  private static partial Regex CredentialsVariable();
+
+  [GeneratedRegex(@"(?i)([a-z][a-z0-9+.-]*://)[^/\s@:'""]+:[^/\s@'""]+@")]
+  private static partial Regex UrlUserInfo();
 }
