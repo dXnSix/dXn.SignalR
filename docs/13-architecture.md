@@ -113,9 +113,11 @@ pause, server close, exhausted reconnects and local close; stateful resumes do n
 On both targets, lookups clone the entry and release the map lock (natively) or borrow (in the
 browser) before calling into the action, so a callback can register, unregister or disconnect
 without a deadlock or a `RefCell` double borrow. Pending actions are shared (`&self`) and decode
-their payload before taking any lock (only the completer handoff is locked). Browser callbacks run
-with no borrow held; native callbacks are `Send` but not `Sync`, so each runs under its own private
-mutex that only the receive loop takes and that recovers from a panicking callback.
+their payload before taking any lock (only the completer handoff is locked). Callbacks run on the
+dispatch task with no lock or borrow held (native callbacks are `Send + Sync`). Registrations hold
+no client handle: the registry keeps a `WeakSignalRClient` (natively a `Weak` of the client's
+shared inner state, whose strong count is the number of handles) and upgrades it per call, so
+callbacks never keep a client alive and a stopped client keeps its registrations for a restart.
 
 ## The lifecycle state machine
 
@@ -123,23 +125,43 @@ mutex that only the receive loop takes and that recovers from a panicking callba
 mutex, in the browser in a `Cell`):
 
 ```text
-             begin                  complete(gen)
+NotStarted / Disconnected / Closed ── start ──► Connecting ── complete(gen) ──► Connected
+                                                    │ fail(gen)
+                                                    ▼
+             begin                  complete(gen)  Disconnected
 Connected ──────────► Reconnecting ─────────────► Connected
     │  ▲                   │ fail(gen)
     │  │ resume            ▼
     │  └────────────── Disconnected ◄── remote_close / transport_lost
     │ pause                ▲
-    ▼                      │ (every state except Closed)
+    ▼                      │ (every started state except Closed)
   Paused ── resume ──► Reconnecting
-any state ── local_close ──► Closed (terminal)
+any state ── local_close ──► Closed (start connects again)
 ```
 
-Every reconnect run owns a **generation**. `pause`, `local_close` and `remote_close` move to a new
-generation, so a superseded attempt can never complete into `Connected`, and a dropped transport of
-an older generation is ignored. Reconnect runs re-check ownership after every delay and before each
-attempt. Automatic, manual (`reconnect_with_policy`) and `resume` runs share one attempt loop and
-differ only in `FirstAttempt`: after the policy's first delay, immediately if the policy allows,
-or immediately regardless.
+`NotStarted` reports `ConnectionStatus::Disconnected` and `Connecting` reports
+`ConnectionStatus::Connecting`. Every start and reconnect run owns a **generation**. `pause`,
+`local_close` and `remote_close` move to a new generation, so a superseded attempt can never
+complete into `Connected`, and a dropped transport of an older generation is ignored. A local
+close also cancels the start or reconnect run in flight (`Runs`, an abort handle per run), so
+`disconnect` never waits for a connect timeout. Reconnect runs re-check ownership after every delay
+and before each attempt. Automatic, manual (`reconnect_with_policy`) and `resume` runs share one
+attempt loop and differ only in `FirstAttempt`: after the policy's first delay, immediately if the
+policy allows, or immediately regardless. Policies are asked through `ask_policy` with a
+`RetryContext`; a panicking policy ends the run.
+
+While an attempt is in flight, the connection state holds its `AttemptOutcome` (natively
+`DisconnectionReason::Attempting`, in the browser `Shared::attempt`); calls wait on it and then read
+the state again, as the .NET client's connection lock serializes calls behind `StartAsync` and
+reconnect attempts. Lifecycle hooks (`hooks.rs`) are raised at the transitions above, natively
+under the state lock (a run's `Reconnected` while its connection installs itself), and run on
+their own task in raise order (natively on the blocking pool); `Closed` is raised once per
+established connection.
+
+`stop` and `disconnect` close gracefully: the native writer (`WRITER_GRACEFUL`) sends the frames
+callers already queued, then a SignalR Close message, then the WebSocket Close; the browser sends
+the Close message before `WebSocket.close()`. `stop` waits for the writer task (natively) or the
+socket's `CLOSED` state (browser), bounded by the close timeout.
 
 ## Ordinary and stateful reconnect
 

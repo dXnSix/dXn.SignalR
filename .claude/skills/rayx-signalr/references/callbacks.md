@@ -36,8 +36,9 @@ handler.unregister();
 - `register_typed(target: impl Into<String>, |ctx, (a, b): (String, i32)| ..)`: arguments decoded before the
   call (tuples up to 12, or `()`); a mismatch skips the callback, logs, and answers a
   result-expecting call with `Client failed to parse argument(s).`.
-- Each registration holds a client clone: `disconnect()` still closes the connection for every
-  handle, but a client that is only dropped stays connected while callbacks are registered.
+- Registrations hold the client weakly: dropping the last `SignalRClient` handle stops the
+  connection even while callbacks are registered, and they survive `disconnect`/`stop` for a
+  restart. Capture `client.downgrade()` (a `WeakSignalRClient`) in callbacks, never a clone.
 
 ## InvocationContext
 

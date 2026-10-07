@@ -24,7 +24,7 @@ the crate by path (`rayx-signalr = { path = "../RayX.SignalR" }`) through
 | `invoke`, `send`, `enumerate`, arguments, result types, stream cancellation, concurrency | [Calls and streams](references/calls-and-streams.md) |
 | `register`, `InvocationContext`, client results, unregistering | [Callbacks](references/callbacks.md) |
 | JSON vs MessagePack, Serde names, .NET DTO attributes, value conversion | [Protocols and serialization](references/protocols-and-serialization.md) |
-| `status()`, keep-alive/server/handshake timeouts, `pause`/`resume`, clones, `disconnect` | [Lifecycle](references/lifecycle.md) |
+| `new`/`start`/`stop`/restart, `status()`, `connection_id()`, `on_closed`/`on_reconnecting`/`on_reconnected`, timeouts, `pause`/`resume`, clones, `disconnect` | [Lifecycle](references/lifecycle.md) |
 | Retry policies, `DisconnectionHandler`, ordinary vs stateful reconnect | [Reconnection](references/reconnection.md) |
 | rustls features, verifiers, providers, extra PEM roots | [TLS](references/tls.md) |
 | Native runtime ownership, browsers, Web Workers, threaded WASM, Android, iOS | [Platforms](references/platforms.md) |
@@ -42,9 +42,12 @@ the crate by path (`rayx-signalr = { path = "../RayX.SignalR" }`) through
   `ReconnectionConfig { policy: Arc::new(DefaultRetryPolicy) }` or another policy.
 - Native `connect` needs a Tokio runtime: call it inside one, or pass `with_runtime_handle`.
 - In browsers use Bearer tokens (sent as `access_token`); Basic credentials reach only negotiate.
-- Import `CallbackHandler` to call `unregister()`. `disconnect()` stops the connection for every
-  handle (like .NET `StopAsync`); dropping handles closes it only with the last one, and each
-  registration holds a client clone, so call `disconnect()` when done.
+- Build with `SignalRClient::new`, register callbacks and lifecycle hooks, then `start().await`
+  (`connect_with` is both at once and can miss messages the hub sends on connect).
+- Import `CallbackHandler` to call `unregister()`. `disconnect()`/`stop().await` stop the connection
+  for every handle (like .NET `StopAsync`); `start()` restarts it. Dropping the last handle closes
+  it (registered callbacks and hooks do not count). Capture `client.downgrade()` in callbacks and
+  hooks, never a `SignalRClient` clone (reference cycle).
 - Import `futures::StreamExt` to iterate `ManualStream`; check `error()` after it ends; drop it to
   cancel the server stream.
 - Match wire names on both sides: `#[serde(rename_all = "camelCase")]` in Rust, and for

@@ -45,14 +45,16 @@ let mut client = SignalRClient::connect_with("localhost", "hubs/chat", |c| {
 ```
 
 - Signatures: `connect(&str, &str)` and `connect_with(&str, &str, impl FnMut(&mut ConnectionConfiguration))`,
-  both `async` returning `Result<SignalRClient, rayx_signalr::Error>`.
+  both `async` returning `Result<SignalRClient, rayx_signalr::Error>`; they are
+  `SignalRClient::new(&str, &str, impl FnOnce(&mut ConnectionConfiguration))` (sync, no I/O) plus
+  `start().await`. Use `new` + register + `start` when the hub sends from `OnConnectedAsync`.
 - Hub URL: `{https|http}://{domain}[:{port}]/{hub}`. `domain` is a host or IP only. `hub` may have
   several segments and a query (`"api/chat?tenant=7"`); the query is kept.
 - Pass a named `fn(&mut ConnectionConfiguration)` to share options between call sites;
   `ConnectionConfiguration` is exported for adapters.
 - Options do not chain (they return `&ConnectionConfiguration`).
-- Validation before I/O: liveness durations, stateful buffer size, PEM roots, TLS features, Tokio
-  runtime, `skip_negotiation` + stateful conflict.
+- Validation in `new`, before I/O: stateful buffer size, PEM roots, TLS features, Tokio runtime,
+  `skip_negotiation` + stateful conflict. Liveness durations are accepted (bad values logged).
 
 ## Options
 

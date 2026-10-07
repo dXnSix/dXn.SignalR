@@ -183,13 +183,16 @@ let registration = client.register("Joined".to_string(), |ctx| {
 });
 ```
 
-## Registrations keep a dropped client alive
+## Registrations do not keep a client alive
 
-Each registration holds a clone of the client. `disconnect()` stops the connection for every
-handle, registrations included, but dropping handles closes it only with the last one (see
-[Connection lifecycle](06-connection-lifecycle.md#clones-and-ownership)), so an active registration
-keeps a client that was only dropped connected. Call `disconnect()` when you are done, and
-unregister callbacks you no longer need:
+Registrations hold the client only weakly: the `client` an `InvocationContext` receives is a
+handle made for that call. Dropping the last `SignalRClient` handle stops the connection (see
+[Connection lifecycle](06-connection-lifecycle.md#clones-and-ownership)) even while callbacks are
+registered, and a stopped client keeps its registrations for a later `start`. A callback that needs
+the client outside the call should capture a `WeakSignalRClient` (`client.downgrade()`), not a
+`SignalRClient`, which would form a reference cycle that keeps the client from ever stopping on
+drop. Call `disconnect()` or `stop()` when you are done, and unregister callbacks you no longer
+need:
 
 ```rust
 on_message.unregister();

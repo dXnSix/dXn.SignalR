@@ -37,7 +37,7 @@ redacted (no tokens, `Authorization` values, URL credentials). `From<Error> for 
 | `Serialization` | argument does not serialize, or result/argument does not match `T`; check Serde names and `()`/`Option` |
 | `Hub` with a generic `server_message()` | server hides exceptions; `EnableDetailedErrors` |
 | callback never fires | wrong (case-sensitive) target, duplicate registration ignored, or `SendAsync` name mismatch |
-| connection stays open after dropping the client | other clones or registered callbacks still hold handles; call `disconnect()`, which stops it for every handle |
+| connection stays open after dropping the client | other clones, a live `InvocationContext`, or a `SignalRClient` captured in a callback or hook (a reference cycle; capture `client.downgrade()`) still hold handles; call `disconnect()`, which stops it for every handle |
 | browser connects but hub is unauthenticated | Basic auth in a browser, or the server does not read `access_token` |
 | MessagePack `byte[]` argument fails to decode as `Vec<u8>` | binary needs a bytes type (`serde_bytes::ByteBuf`); `DateTime` is extension type -1 |
 

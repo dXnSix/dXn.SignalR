@@ -26,8 +26,10 @@ use it from any UI, a game loop, a service, or a test.
   official 0/2/10/30 s schedule), manual reconnection through a handler, and ASP.NET Core
   **stateful reconnect**, which replays unacknowledged messages so in-flight calls survive short
   drops.
-- **Lifecycle control.** `status()`, `pause()` and `resume()` for mobile backgrounding, keep-alive
-  pings, server timeouts and a bounded handshake.
+- **The .NET client's lifecycle.** Build with `new`, register callbacks and the `on_closed`,
+  `on_reconnecting` and `on_reconnected` hooks, then `start`; `stop` closes gracefully and `start`
+  restarts. `connection_id()`, `status()`, and `pause()`/`resume()` for mobile backgrounding,
+  keep-alive pings, server timeouts and a bounded handshake.
 - **Native TLS with rustls.** No OpenSSL. The platform trust store or bundled roots, `ring` or
   `aws-lc-rs`, and per-connection private CAs.
 - **Runtime-independent native futures.** Each connection runs on its own Tokio runtime, and its
@@ -177,6 +179,29 @@ let client = SignalRClient::connect_with("chat.example.com", "chat", move |c| {
 // A mobile app going to the background and back:
 client.pause().await?;
 client.resume().await?;
+```
+
+### Start, observe and stop
+
+Build the client first when the hub sends right after connecting, so callbacks and lifecycle hooks
+are registered before `start`, as with the official .NET client:
+
+```rust
+use rayx_signalr::SignalRClient;
+
+let mut client = SignalRClient::new("localhost", "chat", |c| {
+    c.with_port(5000);
+})?;
+let _welcome = client.register_typed("Welcome", |_ctx, (text,): (String,)| println!("{text}"));
+let _reconnected = client.on_reconnected(|id| println!("reconnected as {id:?}"));
+let _closed = client.on_closed(|error| println!("closed: {error:?}"));
+
+client.start().await?;
+println!("connection id: {:?}", client.connection_id());
+
+// A graceful stop; `start` connects again with a fresh negotiation.
+client.stop().await;
+client.start().await?;
 ```
 
 ## Documentation

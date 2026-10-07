@@ -2,8 +2,8 @@
 
 ## The error model
 
-Every fallible operation returns `Result<_, rayx_signalr::Error>`: `connect`, `connect_with`,
-`invoke`, `invoke_with_args`, `send`, `send_with_args`, `pause`, `resume`,
+Every fallible operation returns `Result<_, rayx_signalr::Error>`: `new`, `start`, `connect`,
+`connect_with`, `invoke`, `invoke_with_args`, `send`, `send_with_args`, `pause`, `resume`,
 `InvocationContext::argument` and `complete`, `ReconnectionHandler::reconnect` and
 `reconnect_with_policy`, `StatefulReconnectConfig::new`, and on Android
 `tls::android::init_with_env`. A stream reports the error that ended it through
@@ -31,7 +31,8 @@ that carry them:
 | `Hub` | The hub method threw, or the server ended a stream with an error. | `server_message()`. |
 | `ConnectionClosed` | The connection is closed. | `close_reason()`: `Local`, `Server` (with `server_message()` and `server_allows_reconnect()`), or `ReconnectExhausted` (the last attempt's error is the `source()`). |
 | `Paused` | The connection is paused. | |
-| `Canceled` | The operation ended before it completed: a manual reconnect while another reconnect runs or after a newer one superseded it, a connection task whose runtime shut down, or an invocation removed before the server completed it. | |
+| `Canceled` | The operation ended before it completed: a manual reconnect while another reconnect (or a start) runs or after a newer one superseded it, a connection task whose runtime shut down, an invocation removed before the server completed it, or (as `on_closed`'s argument) a stop that interrupted a reconnect. | |
+| `InvalidState` | The operation is not valid in the connection's current state, as .NET's `InvalidOperationException`: `start` on a client that is starting, connected, reconnecting or paused, or a call, `pause` or `resume` on a client that is not started (or whose start failed). | |
 
 `ErrorKind` is `#[non_exhaustive]`: new kinds can arrive in minor releases, so a `match` needs a
 wildcard arm. `Error::is_transient()` is `true` for timeouts, network and transport failures, and
@@ -90,13 +91,13 @@ async fn total(client: &mut SignalRClient) -> Option<i32> {
 
 ### Before any I/O
 
-`connect` returns a `Configuration` error at once when the configuration cannot work;
-`setting()` names what to change:
+`new` (and so `connect`) returns a `Configuration` error at once when the configuration cannot
+work; `setting()` names what to change. Liveness durations are never rejected (values that cannot
+work are logged as warnings):
 
 | Cause | `setting()` | Fix |
 |---|---|---|
 | No Tokio runtime (native) | `with_runtime_handle` | Call `connect` inside a runtime, or pass `with_runtime_handle`. |
-| A zero duration, or a server timeout not greater than the keep-alive interval | `with_keep_alive_interval`, `with_server_timeout`, `with_handshake_timeout`, `with_connect_timeout` | Adjust the duration. |
 | `skip_negotiation()` together with stateful reconnect | `skip_negotiation` | Drop one of them. |
 | Stateful buffer of zero bytes | `with_stateful_reconnect` (`StatefulReconnectConfig::new(0)` itself fails with `StatefulReconnectConfig::new`) | Use `StatefulReconnectConfig::new(n)` with `n > 0`. |
 | Secure endpoint without TLS features (native) | `TLS Cargo features` | Enable a verifier and a provider feature (see [TLS](08-tls.md#features)). |
@@ -127,7 +128,10 @@ async fn total(client: &mut SignalRClient) -> Option<i32> {
 | The result did not match `T` | `Serialization` |
 | With stateful reconnect, a message larger than the replay buffer | `Configuration`, `setting()` is `StatefulReconnectConfig::buffer_size_bytes` |
 | A call while paused, or an ordinary pending call when `pause()` ran (natively, stateful pending calls wait for `resume`) | `Paused` |
-| A call while reconnecting | `Transport` |
+| A call on a client that is not started, or whose start failed | `InvalidState` |
+| A call while a start or reconnect attempt is in flight | waits for the attempt, then runs or fails with the attempt's error |
+| A call during a reconnect policy's delay | `Transport` |
+| A call or pending call after a drop the reconnection policy allows no attempt for | `Transport` |
 | A call or pending call after the transport dropped in manual mode, or a pending call when an ordinary reconnect started | `Transport` |
 | A call or pending call after a server close without reconnect permission | `ConnectionClosed`, `CloseReason::Server`, `server_allows_reconnect() == Some(false)` |
 | A call or pending call after the reconnect attempts were exhausted | `ConnectionClosed`, `CloseReason::ReconnectExhausted` |

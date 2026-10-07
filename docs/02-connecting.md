@@ -1,9 +1,17 @@
 # Connecting
 
-## The two entry points
+## The entry points
 
 ```rust
 use rayx_signalr::SignalRClient;
+
+// Build without I/O, register callbacks and hooks, then start (`HubConnectionBuilder.Build()`
+// and `StartAsync` in the official .NET client).
+let client = SignalRClient::new("localhost", "hubs/chat", |c| {
+    c.unsecure();
+    c.with_port(5000);
+})?;
+client.start().await?;
 
 // Default configuration: https, default port, JSON, no authentication, no reconnection.
 let client = SignalRClient::connect("api.example.com", "hubs/chat").await?;
@@ -16,9 +24,13 @@ let client = SignalRClient::connect_with("localhost", "hubs/chat", |c| {
 .await?;
 ```
 
-Both are `async` and return `Result<SignalRClient, rayx_signalr::Error>` (see
-[Errors](11-errors-and-logging.md#negotiation-and-transport)). `connect_with` takes any
-`FnMut(&mut ConnectionConfiguration)`, so you can also pass a named function. That is how adapter
+`connect` and `connect_with` are `new` followed by `start`: they are `async` and return
+`Result<SignalRClient, rayx_signalr::Error>` (see
+[Errors](11-errors-and-logging.md#negotiation-and-transport)). Prefer `new` when the hub sends
+right after connecting (from `OnConnectedAsync`): callbacks registered before `start` receive those
+messages (see [Connection lifecycle](06-connection-lifecycle.md#building-and-starting)).
+`connect_with` takes any `FnMut(&mut ConnectionConfiguration)` and `new` any
+`FnOnce(&mut ConnectionConfiguration)`, so you can also pass a named function. That is how adapter
 layers forward options (`ConnectionConfiguration` is exported from the crate root for this):
 
 ```rust
@@ -35,9 +47,11 @@ let client = SignalRClient::connect_with("api.example.com", "hubs/chat", product
 Configuration methods return `&ConnectionConfiguration`, not `&mut`, so they do not chain. Write one
 statement per option.
 
-Everything that can be validated without the network is validated before any I/O: liveness
-durations, the stateful buffer size, PEM roots, TLS feature availability, the Tokio runtime, and
-the `skip_negotiation` + stateful conflict. Such errors return from `connect` immediately.
+Everything that can be validated without the network is validated by `new` (and so by
+`connect`) before any I/O: the stateful buffer size, PEM roots, TLS feature availability, the
+Tokio runtime, and the `skip_negotiation` + stateful conflict. Liveness durations are accepted as
+the .NET client accepts them; values that cannot work are logged as warnings (see
+[Liveness](06-connection-lifecycle.md#liveness)).
 
 ## Endpoint
 

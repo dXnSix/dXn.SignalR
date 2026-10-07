@@ -7,8 +7,10 @@ connection survives the drop (ordinary or stateful reconnect).
 
 ## Automatic reconnection
 
-By default the client never reconnects: `ReconnectionConfig::default()` holds `NoReconnectPolicy`,
-and a dropped connection becomes `Disconnected`. Opt in with a policy:
+By default the client never reconnects: `ReconnectionConfig::default()` holds `NoReconnectPolicy`.
+As in the .NET client, a drop the policy allows no attempt for ends the connection at once: pending
+work fails with `ErrorKind::Transport`, `on_closed` runs with the drop reason, and the client is
+`Disconnected` (`start` connects again). Opt in with a policy:
 
 ```rust
 use std::sync::Arc;
@@ -22,9 +24,12 @@ let client = SignalRClient::connect_with("localhost", "chat", |c| {
 .await?;
 ```
 
-On a drop the client moves to `Reconnecting`, waits for the policy's first delay, renegotiates and
-handshakes. On success it is `Connected` again; when the policy returns `None` it gives up and
-becomes `Disconnected`.
+On a drop the client fails ordinary pending work, moves to `Reconnecting`, raises
+[`on_reconnecting`](06-connection-lifecycle.md#lifecycle-events), waits for the policy's first
+delay, renegotiates and handshakes. On success it is `Connected` again and raises `on_reconnected`
+with the connection id; when the policy returns `None` it gives up, becomes `Disconnected` and
+raises `on_closed`. Calls made while an attempt is in flight wait for it; during a delay they fail
+at once.
 
 ### Built-in policies
 
@@ -35,6 +40,7 @@ becomes `Disconnected`.
 | `ConstantDelayPolicy::new(delay, max_attempts)` | `delay` every time, up to `max_attempts` (`None`: forever) |
 | `LinearBackoffPolicy::new(initial, increment, max_delay, max_attempts)` | `initial + increment × n`, capped at `max_delay` |
 | `ExponentialBackoffPolicy::new(initial, factor, max_delay, max_attempts)` | `initial × factor^n`, capped at `max_delay` |
+| `DelayListPolicy::new(delays)` | each delay of the list in turn, then stops, like the .NET client's `WithAutomaticReconnect(TimeSpan[])` |
 
 `n` is the zero-based retry count.
 
@@ -54,24 +60,32 @@ let config = ReconnectionConfig {
 
 ### Custom policies
 
-Implement `ReconnectionPolicy` (it must be `Send + Sync` natively):
+Implement `ReconnectionPolicy` (it must be `Send + Sync` natively). `next_retry_delay_with`
+receives a `RetryContext`, as the .NET client's `IRetryPolicy.NextRetryDelay`:
 
 ```rust
 use std::time::Duration;
-use rayx_signalr::ReconnectionPolicy;
+use rayx_signalr::{ErrorKind, ReconnectionPolicy, RetryContext};
 
-/// Retries every 5 seconds for at most two minutes.
+/// Retries every 5 seconds for at most two minutes, but not after a failed authentication.
 struct ForTwoMinutes;
 
 impl ReconnectionPolicy for ForTwoMinutes {
-    fn next_retry_delay(&self, _retry_count: u32, elapsed_milliseconds: u64) -> Option<Duration> {
-        (elapsed_milliseconds < 120_000).then(|| Duration::from_secs(5))
+    fn next_retry_delay_with(&self, context: &RetryContext) -> Option<Duration> {
+        if context.retry_reason.kind() == ErrorKind::Authentication {
+            return None;
+        }
+        (context.elapsed < Duration::from_secs(120)).then(|| Duration::from_secs(5))
     }
 }
 ```
 
-`retry_count` starts at 0; `elapsed_milliseconds` is the time since the reconnect run began.
-Returning `None` ends the run.
+`previous_retry_count` starts at 0; `elapsed` is the time since the reconnect run began;
+`retry_reason` is why the transport ended before the first attempt, then the last attempt's error.
+Returning `None` ends the run. Policies written for the older
+`next_retry_delay(retry_count, elapsed_milliseconds)` keep working: `next_retry_delay_with` calls it
+by default. A policy that panics stops the run, which then ends as if it had returned `None`.
+`RetryContext::new` builds a context, for example to unit-test a policy.
 
 ## Manual reconnection
 
@@ -125,7 +139,8 @@ let client = SignalRClient::connect_with("localhost", "chat", |c| {
 The handler runs on the connection's runtime natively (so `tokio::spawn` works inside it; the
 handler must be `Send + Sync`) and on the event loop in the browser (use
 `wasm_bindgen_futures::spawn_local`). Pending ordinary invocations have already failed when the
-handler runs; stateful pending work waits for the resume.
+handler runs; stateful pending work waits for the resume. `on_closed` has been raised for the drop
+(manual mode has no automatic reconnect), and a manual reconnect raises no lifecycle event.
 
 `resume()` is the simpler alternative when you only need "reconnect now":
 [Pausing and resuming](06-connection-lifecycle.md#pausing-and-resuming).

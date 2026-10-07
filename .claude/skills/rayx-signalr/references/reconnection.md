@@ -23,12 +23,20 @@ c.with_reconnection_policy(ReconnectionConfig {
 | `ConstantDelayPolicy::new(delay, max_attempts: Option<u32>)` | `delay` |
 | `LinearBackoffPolicy::new(initial, increment, max_delay, max_attempts)` | `initial + increment·n`, capped |
 | `ExponentialBackoffPolicy::new(initial, factor: f64, max_delay, max_attempts)` | `initial·factor^n`, capped |
+| `DelayListPolicy::new(delays)` | each listed delay, then stop (.NET `WithAutomaticReconnect(TimeSpan[])`) |
 
-Custom: `impl ReconnectionPolicy { fn next_retry_delay(&self, retry_count: u32, elapsed_milliseconds: u64) -> Option<Duration> }`
-(`Send + Sync` natively). `None` ends the run; `elapsed_milliseconds` counts from the run start.
+Custom: `impl ReconnectionPolicy { fn next_retry_delay_with(&self, context: &RetryContext) -> Option<Duration> }`
+(`RetryContext { previous_retry_count, elapsed, retry_reason: Error }`, as .NET `IRetryPolicy`), or
+the older `fn next_retry_delay(&self, retry_count: u32, elapsed_milliseconds: u64)` (the default
+`next_retry_delay_with` calls it). `Send + Sync` natively. `None` ends the run; a panicking policy
+ends it too. `retry_reason` is the drop reason before the first attempt, then the last attempt's
+error.
 
-Automatic runs wait for the policy's first delay, then renegotiate and handshake; giving up leaves
-`Disconnected`.
+On a drop the policy is asked for the first delay: `None` (e.g. `NoReconnectPolicy`) ends the
+connection at once (pending work fails with `Transport`, `on_closed(Some(reason))`,
+`Disconnected`). Otherwise ordinary pending work fails, `on_reconnecting(reason)`, the run waits
+the delay, renegotiates and handshakes; success raises `on_reconnected(id)`, giving up leaves
+`Disconnected` and raises `on_closed`. Calls made while an attempt is in flight wait for it.
 
 ## Manual reconnection
 
@@ -55,7 +63,8 @@ with its message, or `Protocol`), `reconnect().await` (one attempt), `reconnect_
 none; gives up with `ConnectionClosed`/`CloseReason::ReconnectExhausted`), `is_connected().await`,
 `endpoint()`. The handler runs on
 the connection's runtime natively (`tokio::spawn` works; handler `Send + Sync`) and on the event
-loop in the browser (`spawn_local`). Ordinary pending work has already failed when it runs.
+loop in the browser (`spawn_local`). Ordinary pending work has already failed and `on_closed` has
+been raised when it runs; manual reconnects raise no lifecycle event.
 
 ## Ordinary vs stateful
 
