@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 140,
+  "revision": 149,
   "planRevision": 23,
   "specHashes": {
     "requirements": "cfaf45e2157367e6772613c40313c112747d3a01a82bc2c5d6f8c781c391c44d",
@@ -106,13 +106,22 @@
       ]
     },
     "S6.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S6.T2": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S6.T3": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S7.T1": {
       "status": "pending"
@@ -418,6 +427,15 @@
         }
       },
       "recordedAt": "2026-10-07T17:53:48Z"
+    },
+    "4df2381e8a6201219f602cbc9f584e71b8a3da3163e367e9a29281c155227403": {
+      "snapshot": {
+        "specHash": "c765e6a76eab040196190fd4d1ee8217565b7c0f790402227d2aa648c87c1e99",
+        "repositories": {
+          "rayx-signalr": "1271d02d6743259f71bf68f4fb18d15337d6f0ea6644d3b632804cf0aa7cd700"
+        }
+      },
+      "recordedAt": "2026-10-07T19:05:41Z"
     }
   },
   "checkResults": {
@@ -1933,6 +1951,74 @@
       "logPath": "artifacts-temp/agentx/production-grade-client/S5-final-e0b559924909.log",
       "logSha256": "eb38d3143dbc4857e3ddbdafd36ca44170a7026c21ef70fd95d2775abc65cc06",
       "inputsHash": "bfee026901347bad64081c4f84d65ba4cc1f14f4347d37580a2a533e54c9e9de"
+    },
+    "S6/s6-transport-selection/final": {
+      "checkId": "s6-transport-selection",
+      "boundaryId": "S6",
+      "phase": "final",
+      "batchId": "4df2381e8a6201219f602cbc9f584e71b8a3da3163e367e9a29281c155227403",
+      "definitionHash": "daf9c2cfdb0c567a5510eaa8bcc35e12afcd4aefc47870353a3bea27a06fa7b0",
+      "basisHash": "1007906c7fabb7ec186172faaf36cc6b350a1e0ab2dc889bd553907c7d24537f",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 15,
+      "durationSeconds": 0.5618,
+      "recordedAt": "2026-10-07T18:46:46Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S6-final-3eb9619c484b.log",
+      "logSha256": "e7cdd7cb25da1dc912d1a3516484ecbece2f2230b1a8bc172032e7b1019e00a6",
+      "inputsHash": "965565916e2911239399fff3849dbd221512625dc5077b9ca1f6062c232a734e"
+    },
+    "S6/s6-transport-catalog/final": {
+      "checkId": "s6-transport-catalog",
+      "boundaryId": "S6",
+      "phase": "final",
+      "batchId": "4df2381e8a6201219f602cbc9f584e71b8a3da3163e367e9a29281c155227403",
+      "definitionHash": "2cb647b1709afe07fd690613e9eb615fba0757d30f7c6a6a3654d37b2219bbf5",
+      "basisHash": "7963cfede7750c1adf49b9eb9b419496377a39e7311dc11f002cee4c61d26341",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 5,
+      "durationSeconds": 5.0932,
+      "recordedAt": "2026-10-07T18:46:51Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S6-final-a040fab9b278.log",
+      "logSha256": "04d35a4fc13dc0a98c374ff3d10ab4742aaa6d2c2e2cc8272054e74011ab6c6e",
+      "inputsHash": "b87473a5e272e7025b0dfe11e2cea0c4da6b69cb3be91e0f877626949904cd9e"
+    },
+    "S6/s6-websockets-native/final": {
+      "checkId": "s6-websockets-native",
+      "boundaryId": "S6",
+      "phase": "final",
+      "batchId": "4df2381e8a6201219f602cbc9f584e71b8a3da3163e367e9a29281c155227403",
+      "definitionHash": "b529cde0c62e4bd2e9de5e532f8738cd4714ef0f9a49b4dda0762250bdc42d64",
+      "basisHash": "a93d95a5d287091f63d773b68ac83ab251292e28e334d52bb99081fe16edac23",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 81,
+      "durationSeconds": 475.709,
+      "recordedAt": "2026-10-07T18:54:47Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S6-final-13cf8c3599d4.log",
+      "logSha256": "b7d9a009e798cdeae9987ab6b5c49d974ee5a4182e13b88eae4f2db2ecb47ea0",
+      "inputsHash": "634c0e40fa5b42e44f31cc2b7856b69ac80f3f8bb77dbdc4d0dbbc97da7b0dd8"
+    },
+    "S6/s6-websockets-chromium/final": {
+      "checkId": "s6-websockets-chromium",
+      "boundaryId": "S6",
+      "phase": "final",
+      "batchId": "4df2381e8a6201219f602cbc9f584e71b8a3da3163e367e9a29281c155227403",
+      "definitionHash": "0866be540c4a6bdbb1bf6a904057d9b3e4e74b7b05bc4d0b61ca5dc5f35e769a",
+      "basisHash": "3f47721ebd14b77c001021ff94116ffe5953bb59fff289b3e80bdadba6f23e16",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 87,
+      "durationSeconds": 652.3364,
+      "recordedAt": "2026-10-07T19:05:40Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S6-final-ff1a31809529.log",
+      "logSha256": "4b09b086811cfc053c7b399aa0ff758b6a25f344c9944d06a3072262622a2f90",
+      "inputsHash": "b87473a5e272e7025b0dfe11e2cea0c4da6b69cb3be91e0f877626949904cd9e"
     }
   },
   "reviews": {
@@ -4644,6 +4730,266 @@
         "S5-F3"
       ],
       "recordedAt": "2026-10-07T17:54:52Z"
+    },
+    "S6": {
+      "reviewerId": "s6-reviewer-1",
+      "snapshotId": "4df2381e8a6201219f602cbc9f584e71b8a3da3163e367e9a29281c155227403",
+      "criterionIds": [
+        "R5.C1",
+        "R5.C2",
+        "R5.C3"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/transport.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C1"
+          ],
+          "sha256": "ba7e2c48f1da2258bcb21d225499960b904afab24cd1fb3096e9f098401f378b"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C1"
+          ],
+          "sha256": "52cf83961ce6a65c4d96bf47fd654e664ba0e5301a804db7c92cce888873389e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C1"
+          ],
+          "sha256": "8bf0c5f98e14ca546ac7f5a0b234faf8507bc0429653f90eaa9790af70f3e23e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/common.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C1"
+          ],
+          "sha256": "087b199a8717d15dab10f21759b71b1e70d54ab3c83136c96719fdbea14851ae"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R5.C1"
+          ],
+          "sha256": "8bf0c5f98e14ca546ac7f5a0b234faf8507bc0429653f90eaa9790af70f3e23e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/02-connecting.md",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C1"
+          ],
+          "sha256": "7f19a6467f1e9621fdc87a341b49f610973f90b3b2684b021dbce625eed9a09b"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/11-errors-and-logging.md",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C1"
+          ],
+          "sha256": "33043e42946af850c64ff5a6812c65912e9c9eb1e8b3eda18a86837b0c37e3aa"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "README.md",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C1"
+          ],
+          "sha256": "c05860a410127c44a5a1c19128a3cf65e993df0fcbd0969f688ffbcc1cb9f268"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/transport_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C1",
+            "R5.C2"
+          ],
+          "sha256": "f23302390eccb724d03769fa9179c3d30bb84b141bf6576ff856d6561b57ef20"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/transport_tokio.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R5.C1",
+            "R5.C2"
+          ],
+          "sha256": "f23302390eccb724d03769fa9179c3d30bb84b141bf6576ff856d6561b57ef20"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C1",
+            "R5.C2"
+          ],
+          "sha256": "5145508786e6af54ce212882ade8c4a9bfa664f301225c89198519fdc16b2870"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/browser_transport.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C1",
+            "R5.C2"
+          ],
+          "sha256": "f0e3a0cc6d41a3af2fc440fdc0aa19703a7d7855c0336ade4a49011384bcffcd"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C1",
+            "R5.C2"
+          ],
+          "sha256": "4ca1914e1d08c4b135201eb25abd78fb49841c514ed161f301d69f095d41cd5e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/S6-final-13cf8c3599d4.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R5.C2"
+          ],
+          "sha256": "b7d9a009e798cdeae9987ab6b5c49d974ee5a4182e13b88eae4f2db2ecb47ea0"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/S6-final-ff1a31809529.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R5.C2"
+          ],
+          "sha256": "4b09b086811cfc053c7b399aa0ff758b6a25f344c9944d06a3072262622a2f90"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/ScenarioCatalog.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C3"
+          ],
+          "sha256": "afeafc536a8efd4c161af8fbc3279a1f37a662d2e08449b8c9b2535dc14019b3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/E2ESelection.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C3"
+          ],
+          "sha256": "e3c79b3c2b4eb2f137f14d6963e4780579021d814850b7f174f2930c45d9daca"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/CellRunners.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C3"
+          ],
+          "sha256": "b26aefc0af0925057668e4e95d9042f2c74748c9b654b45665acadaf51e9975c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/support.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C3"
+          ],
+          "sha256": "3663efe8a5ff98e2181a3756561f87d770e76ada2aa4fc617a7a536c2b950674"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/lib.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C3"
+          ],
+          "sha256": "07384465b1a37e5ed717a25824b7a6453d2b3c299e8d6fd228368b183bd98467"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C3"
+          ],
+          "sha256": "8081effb48fec2218e8c8d55c295ea490f9fdca2b77ca71d27cb40b11b23f3fb"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/tests/fixture.ts",
+          "kind": "source",
+          "criterionIds": [
+            "R5.C3"
+          ],
+          "sha256": "2b17ed6c25816b5bc2fd0004871d1c0bacf35fd9e90021c60f43937e60090b00"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/tests/signalr-transports.spec.ts",
+          "kind": "test",
+          "criterionIds": [
+            "R5.C3"
+          ],
+          "sha256": "3e4f9cea47ecdb68e5ab40ea109829cccb09bd2c6d8272f4701e2ff68ad8f1bf"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/TransportCatalogTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R5.C3"
+          ],
+          "sha256": "7e4a28ab0bb10f7083004445f3c3e966fac324c9bb2d1c121dfaab93169ec8b5"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/CatalogTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R5.C3"
+          ],
+          "sha256": "8010350780cef07a1e57d94145a7959d490369619b0b8a0e909a0a9e688dac8b"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/review-S6-playwright-list.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R5.C3"
+          ],
+          "sha256": "68b9841e55d4db61d5df6bc0c7e9328f652edf13d93bddc49906ac3f123dc012"
+        }
+      ],
+      "summaryMarkdown": "All S6 findings are resolved and R5.C1-R5.C3 hold on snapshot 4df2381e (check-S6-2: 4/4; transport_selection_ 15/15, TransportCatalogTests 5/5, whole native 81 and Chromium 87 WebSocket cells). Selection, fallback and stateful gating follow .NET `SelectAndStartTransport`; a single failed transport keeps its own typed error (documented). Handoff note for S7: the S6 probe showed ASP.NET Core `AbortPhysicalTransport` (httpContext.Abort) left a .NET Long Polling client Connected with the same id, so the ordinary-reconnect fault on Long Polling (native and browser baseline cells) must be verified, and adapted if needed, when that transport lands. Moving WebSocket control-frame filtering into the transport also means Ping/Pong frames no longer refresh the server timeout, which matches the .NET client (its ClientWebSocket hides control frames).",
+      "findingIds": [
+        "S6-F1",
+        "S6-F2",
+        "S6-F3",
+        "S6-F4",
+        "S6-F5"
+      ],
+      "recordedAt": "2026-10-07T19:07:52Z"
     }
   },
   "checkpoints": {
@@ -4718,6 +5064,14 @@
       },
       "reviewHash": "05056753f73223f77412cb4c7488896a61aadf5eeee5aeb74736f19ec8e18bf4",
       "recordedAt": "2026-10-07T17:55:21Z"
+    },
+    "S6": {
+      "snapshotId": "4df2381e8a6201219f602cbc9f584e71b8a3da3163e367e9a29281c155227403",
+      "commits": {
+        "rayx-signalr": "21a02fc46e90a9030dbceb0e4d0e61f40bf614df"
+      },
+      "reviewHash": "4cb35968406587590ccaa7fd47b145fdeedfc70688d56aa4cdc90d5d39300f7c",
+      "recordedAt": "2026-10-07T19:08:31Z"
     }
   },
   "findings": [
@@ -6321,9 +6675,127 @@
           "path": "docs/02-connecting.md"
         }
       ]
+    },
+    {
+      "id": "S6-F1",
+      "boundaryId": "S6",
+      "criterionIds": [
+        "R5.C1"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "Fallback renegotiation parity. Resolved: shared `negotiation::start_with_fallback` drives both `connect_fresh` (native) and `attempt_once` (browser); renegotiation uses `ConnectionRecipe::for_transport(next)`, which drops stateful reconnect unless the next candidate is WebSockets (as .NET clears `UseStatefulReconnect`); a failed renegotiation is recorded as that candidate's attempt and the loop continues; first-negotiation errors propagate unchanged. Verified by `transport_selection_a_fallback_renegotiates_without_stateful_reconnect` (requests `[true, false]`, fresh connection token) and `transport_selection_a_failed_renegotiation_counts_for_its_transport` (aggregate WebSockets/Transport, LongPolling/Negotiate, ServerSentEvents/Transport).",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs",
+          "symbol": "start_with_fallback"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs",
+          "symbol": "transport_selection_a_fallback_renegotiates_without_stateful_reconnect"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs",
+          "symbol": "transport_selection_a_failed_renegotiation_counts_for_its_transport"
+        }
+      ]
+    },
+    {
+      "id": "S6-F2",
+      "boundaryId": "S6",
+      "criterionIds": [
+        "R5.C1",
+        "R5.C2"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "WebSocket-attributed errors in the connection loops. Resolved: connection-state errors (disconnected, reconnecting, resuming, replaced, closed-before-sent) use `connection_error` with no transport on both targets; `transport_lost` inherits the cause's transport; receiver ends name the started transport via `TransportReceiver::kind` / `BrowserTransport::kind`; WebSocket Ping/Pong/Close filtering moved into `transport_tokio::poll_hub_frame` in the `TransportReceiver::WebSockets` arm. Only WebSocket upgrade errors (genuinely WebSocket) remain WebSocket-labeled. Verified by `transport_selection_websocket_control_frames_stay_in_the_transport` and the rerun whole native/Chromium WebSocket catalogs.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/transport_tokio.rs",
+          "symbol": "poll_hub_frame"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/transport_tokio.rs",
+          "symbol": "transport_selection_websocket_control_frames_stay_in_the_transport"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "connection_error"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "symbol": "connection_error"
+        }
+      ]
+    },
+    {
+      "id": "S6-F3",
+      "boundaryId": "S6",
+      "criterionIds": [
+        "R5.C3"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "Unrunnable browser ordinary-reconnect transport cells. Resolved: the fixture dispatches `ordinary-reconnect` to a transport-neutral `ordinary_reconnect` scenario (AbortPhysicalTransport, Reconnecting then Reconnected with the new id, a new hub identity, the callback survives, exactly one callback so nothing replayed), which the non-WebSocket cells of `signalr-transports.spec.ts` call; titles and list consistency unchanged.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "symbol": "ordinary_reconnect"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/tests/signalr-transports.spec.ts"
+        }
+      ]
+    },
+    {
+      "id": "S6-F4",
+      "boundaryId": "S6",
+      "criterionIds": [
+        "R5.C1"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "Missing migration note for the `skip_negotiation()` break. Resolved: `docs/11-errors-and-logging.md` migration section now says `skip_negotiation()` needs `with_transports(Transports::WEB_SOCKETS)` (as in .NET) or `new`/`connect` fail with `Configuration` naming `skip_negotiation`; the README negotiation bullet shows the pairing and mentions `with_transports`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/11-errors-and-logging.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "README.md"
+        }
+      ]
+    },
+    {
+      "id": "S6-F5",
+      "boundaryId": "S6",
+      "criterionIds": [
+        "R5.C1"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "Incomplete combination coverage. Resolved: `transport_selection_every_set_offer_order_and_format` iterates all 7 configured sets x 16 ordered offer subsets (including empty) x Text/Binary (224 combinations) and compares candidates, order, skipped transports and skip reasons with an independently written oracle; the Binary-claiming Server-Sent Events offer stays covered by `transport_selection_never_pairs_server_sent_events_with_binary`. The group passes 15/15 (re-run by the reviewer).",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs",
+          "symbol": "transport_selection_every_set_offer_order_and_format"
+        }
+      ]
     }
   ],
-  "handoffMarkdown": "negotiate_with no longer prefixes a timeout with the endpoint: negotiate timeouts read \"negotiate timed out after <bound>\". Group connect_timeout_ (3: default 120 s and zero logged per R16.C30 - R4.C3 amended accordingly; native negotiate bound without URL/token; native WebSocket upgrade bound). Scenario negotiate-timeout everywhere (/test-hang/negotiate, 2 s bound, within 4 s, Timeout/Negotiate/2s, no host, hub or token in Display/Debug). Docs 02.",
+  "handoffMarkdown": "ScenarioCatalog: Transports (websockets, long-polling, server-sent-events), TransportTitle, Scenario.TransportBaseline (Baseline() for the R6.C2 list) and Supports(transport, protocol), PlaywrightTitle(protocol, transport) (\"invoke (JSON, Long Polling)\"); E2ECell has Transport (Id/FileName suffix only for non-WebSockets, Parse of 3 or 4 parts); E2ESelection parses RAYX_SIGNALR_E2E_TRANSPORTS (default websockets); CellVariables passes RAYX_SIGNALR_TRANSPORT; browser runner uses the transport title; CatalogTests Playwright consistency covers all transports. Test service maps /test-longpolling and /test-no-websockets. tests/e2e/support.rs apply_transport; fixture configure_transport + ServiceEndpoint::apply; index.html/fixture.ts transport page parameter; signalr-transports.spec.ts generates the non-WebSocket baseline cells (they run in S7/S8 once the transports exist; the fixture has no ordinary-reconnect functional scenario yet). TransportCatalogTests (5). docs/14.",
   "protectedPaths": {
     "rayx-signalr": {
       ".agentx/tasks/resilient-reconnect-and-production-gates/**": "a4110a3f5f2c68d64ddf8fbedb70479c98f46dde78b064b5b3ac826772db49a6",
