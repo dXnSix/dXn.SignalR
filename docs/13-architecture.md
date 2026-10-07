@@ -20,8 +20,10 @@ the receive loop, and names the invariants that the tests protect.
 | `src/communication/client_tokio.rs` | The native connection: runtime-owned writer and receiver tasks, the reconnect coordinator, pause/resume, stateful resume. |
 | `src/communication/client_wasm.rs` | The browser connection: one generation-checked receiver task per socket, the same lifecycle on a single thread. |
 | `src/communication/browser_socket.rs` | A minimal event-driven `web-sys` WebSocket whose listeners live exactly as long as the socket; copies binary frames out of shared memory. |
-| `src/communication/browser_transport.rs` | The browser transports behind one `BrowserTransport` handle and one event stream (WebSockets today), so the connection loop is transport-independent. |
-| `src/communication/transport_tokio.rs` | The native transports behind one `TransportSender`/`TransportReceiver` pair (WebSockets today), so the handshake, liveness, stateful and lifecycle code is transport-independent. |
+| `src/communication/browser_transport.rs` | The browser transports behind one `BrowserTransport` handle and one event stream (WebSockets and Long Polling), so the connection loop is transport-independent. |
+| `src/communication/browser_long_polling.rs` | Browser Long Polling over `fetch` with an `AbortController` per request: one poll at a time, ordered batched `POST` sends, `DELETE` on close, binary bodies copied out of shared memory. |
+| `src/communication/transport_tokio.rs` | The native transports behind one `TransportSender`/`TransportReceiver` pair (WebSockets and Long Polling), so the handshake, liveness, stateful and lifecycle code is transport-independent. |
+| `src/communication/long_polling_tokio.rs` | Native Long Polling: a poll task and a send task, each with one hyper HTTP/1.1 connection over the connection's TCP or rustls stream; ordered batched `POST` sends; `DELETE` on close; bounded requests. |
 | `src/communication/liveness.rs` | Keep-alive, server timeout and handshake validation on caller-supplied timestamps, shared by both targets. |
 | `src/communication/reconnection.rs` | The lifecycle state machine, `ConnectionStatus`, the retry policies, and `FirstAttempt` scheduling. |
 | `src/communication/stateful.rs` | The bounded replay buffer: sequence numbers, Ack trimming, duplicate suppression, transport generations, backpressure. |

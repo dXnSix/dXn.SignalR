@@ -11,7 +11,7 @@ fragments.
 | `with_stateful_reconnect` | `app.MapHub<THub>("/path", o => o.AllowStatefulReconnects = true)`; optional `StatefulReconnectBufferSize`; otherwise silent fallback to ordinary reconnect |
 | Bearer in browsers | read `access_token` from the query for hub paths (JWT `OnMessageReceived` sets `context.Token`) |
 | Basic | native clients only on a standard server |
-| browser pages on another origin | CORS policy allowing the page origin (negotiate POST) and `app.UseCors()` |
+| browser pages on another origin | CORS policy allowing the page origin (negotiate `POST`; Long Polling also `GET` and `DELETE`) and `app.UseCors()` |
 | client results (`complete`) | `Clients.Client(id).InvokeAsync<T>(...)` (ASP.NET Core 7+); awaiting inside a hub method needs `MaximumParallelInvocationsPerClient > 1` |
 | readable `invoke` errors | `options.EnableDetailedErrors = true` (development) |
 | large arguments | raise `MaximumReceiveMessageSize` (32 KB default) |

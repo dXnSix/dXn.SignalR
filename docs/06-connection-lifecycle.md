@@ -179,6 +179,10 @@ answer are kept.
 Pings are never buffered for stateful replay, and keep-alive continues while a stateful send waits
 for buffer space.
 
+Long Polling keeps itself alive: over it the client sends no Pings (not even after the handshake)
+and runs no server timeout, as the .NET client does, so the keep-alive interval and server timeout
+apply to WebSockets only. See [Long Polling](02-connecting.md#long-polling).
+
 ## Pausing and resuming
 
 `pause()` and `resume()` let the application control the connection, for example when a mobile app

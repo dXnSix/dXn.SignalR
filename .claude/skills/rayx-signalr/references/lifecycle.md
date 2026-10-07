@@ -76,7 +76,8 @@ keep-alive/server timeout (act as 1 s, the .NET timer tick), zero handshake/conn
 attempt times out), server timeout ≤ keep-alive. Keep client server timeout ≥ 2 × server
 `KeepAliveInterval`, and client keep-alive ≤ ½ server `ClientTimeoutInterval`. A server-timeout
 drop runs the normal reconnect path. Handshake answers are validated (error field, empty or
-malformed, or a hub message instead of the answer fail).
+malformed, or a hub message instead of the answer fail). Long Polling has inherent keep-alive: no
+Pings (not even after the handshake) and no server timeout over it, as .NET.
 
 ## pause / resume
 

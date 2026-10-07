@@ -137,6 +137,14 @@ cells and a `transport` page parameter to the browser fixture, which restrict ev
 with `with_transports`. The test service also maps `/test-longpolling` and
 `/test-no-websockets` with restricted transports.
 
+Over Long Polling the transport fault (`AbortPhysicalTransport`, `TokenHub.Abort`) aborts the
+current poll and answers every later poll of that connection token with 404, as a server that lost
+the connection would, so the official .NET client and this client both reconnect with a fresh
+negotiate. Long Polling has inherent keep-alive, so its `keepalive-idle` and `server-timeout`
+cells instead assert that an idle client stays connected for 45 s (both scenarios have a 120 s
+catalog bound); their hubs hold a poll at most 5 s, so the idle client crosses many empty poll
+answers.
+
 Each cell runs exactly one scenario: the Rust `e2e` binary with `--exact <scenario>::<protocol>` on
 the host, the Android emulator or the iOS simulator, or Playwright with one exact title. Cells are
 bounded to 60 seconds (`soak-chaos`: `RAYX_SIGNALR_SOAK_SECONDS`, default 120, plus 60 seconds;

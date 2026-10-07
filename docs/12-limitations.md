@@ -5,9 +5,8 @@ prove. Each item says what to do instead where there is an alternative.
 
 ## Not implemented
 
-- **Transports other than WebSockets.** Server-Sent Events and Long Polling are not implemented.
-  The server must allow WebSockets, and every network path between client and server must carry
-  WebSocket upgrades.
+- **Server-Sent Events.** The client starts WebSockets and Long Polling; Server-Sent Events are not
+  implemented yet. Where WebSocket upgrades cannot pass, allow Long Polling on the server.
 - **Proxies.** Native clients connect directly; HTTP `CONNECT` proxies and system proxy settings
   are not used. Browsers use the browser's proxy configuration.
 - **Client-to-server streaming.** Hub methods with `IAsyncEnumerable<T>` or `ChannelReader<T>`

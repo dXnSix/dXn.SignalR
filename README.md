@@ -55,7 +55,7 @@ use it from any UI, a game loop, a service, or a test.
 | Browser `wasm32-unknown-unknown`: main thread, Web Workers, multithreaded | Supported, end-to-end tested in Chromium, Firefox and WebKit |
 | WASI and other `wasm32` targets | Not supported (compile error) |
 
-The transport is WebSockets; Server-Sent Events and Long Polling are not implemented. See
+The transports are WebSockets and Long Polling; Server-Sent Events are not implemented yet. See
 [Platforms](docs/09-platforms.md) and [Limitations](docs/12-limitations.md).
 
 - **Rust:** edition 2021, MSRV **1.92**.

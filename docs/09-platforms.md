@@ -61,9 +61,9 @@ them.
 
 ## Browsers
 
-The browser client uses `fetch` for negotiation and the browser's `WebSocket` for the transport.
-It is event-driven: socket events feed one receiver task per socket, timers are cancellable
-`gloo-timers` futures, and nothing touches `window`.
+The browser client uses `fetch` for negotiation and Long Polling, and the browser's `WebSocket` for
+the WebSockets transport. It is event-driven: transport events feed one receiver task per
+transport, timers are cancellable `gloo-timers` futures, and nothing touches `window`.
 
 - **`!Send`.** The client belongs to the thread or worker that created it and runs on that event
   loop. Use one client per thread or worker.
@@ -72,12 +72,15 @@ It is event-driven: socket events feed one receiver task per socket, timers are 
 - **CORS.** The page and the hub usually have different origins, so the server must allow the
   page's origin (see [Server setup](10-server-setup.md#cors)).
 - **Authentication.** Browsers cannot set WebSocket headers. Bearer tokens go on the WebSocket URL
-  as `access_token`; Basic credentials reach only negotiate. Use Bearer tokens in browsers.
+  as `access_token`; Basic credentials reach only negotiate over WebSockets. Long Polling requests
+  are `fetch` requests, so they carry Basic or Bearer credentials in the `Authorization` header.
+  Use Bearer tokens in browsers.
 - **TLS.** The browser's TLS and trust store apply; the TLS features and options do not exist.
 - **Pause.** A browser `pause()` always sends a WebSocket Close, so it ends a stateful logical
   connection (see [Pause with stateful reconnect](06-connection-lifecycle.md#pause-with-stateful-reconnect)).
-- **Background tabs.** Browsers throttle timers in hidden tabs. Keep-alive pings and the server
-  timeout can then fire late; consider `pause()` on `visibilitychange` for long-hidden tabs.
+- **Background tabs.** Browsers throttle timers in hidden tabs. Over WebSockets, keep-alive pings
+  and the server timeout can then fire late (Long Polling has neither); consider `pause()` on
+  `visibilitychange` for long-hidden tabs.
 
 ### Web Workers
 

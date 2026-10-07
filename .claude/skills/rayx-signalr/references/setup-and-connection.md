@@ -69,10 +69,11 @@ let mut client = SignalRClient::connect_with("localhost", "hubs/chat", |c| {
 | `with_access_token_factory(async fn)` | all | none |
 | `skip_negotiation()` | all | negotiate |
 | `with_transports(Transports)` | all | `Transports::all()` |
-| `with_header(name, value)` | all (browser: negotiate only) | none |
+| `with_header(name, value)` | all (browser: negotiate and Long Polling) | none |
 | `with_invocation_headers(hook)` | all | none |
 | `with_maximum_message_size(usize)` | all | unbounded |
 | `with_close_timeout(Duration)` | all | 5 s |
+| `with_long_polling_timeout(Duration)` | all | 100 s |
 | `with_messagepack_protocol()` | all, `messagepack` | JSON |
 | `with_keep_alive_interval(Duration)` | all | 15 s |
 | `with_server_timeout(Duration)` | all | 30 s (a value not above keep-alive is logged) |
@@ -89,9 +90,9 @@ let mut client = SignalRClient::connect_with("localhost", "hubs/chat", |c| {
 
 | | Native | Browser |
 |---|---|---|
-| Bearer | `Authorization` on negotiate and WebSocket upgrade, never on the URL (as .NET outside browsers) | `Authorization` on negotiate, `access_token` on the WebSocket URL |
-| Basic | `Authorization` on negotiate and WebSocket upgrade | negotiate only, with a warning (a standard server cannot authenticate the WebSocket) |
-| `with_access_token_factory(\|\| async { Ok(token) })` | fresh Bearer token on every negotiate and every WebSocket upgrade (stateful resumes included) | fresh token on negotiate (`Authorization`) and every WebSocket (`access_token`) |
+| Bearer | `Authorization` on negotiate, WebSocket upgrade and Long Polling requests, never on the URL (as .NET outside browsers) | `Authorization` on negotiate and Long Polling, `access_token` on the WebSocket URL |
+| Basic | `Authorization` on negotiate, WebSocket upgrade and Long Polling requests | negotiate and Long Polling; a WebSocket cannot carry it (warning) |
+| `with_access_token_factory(\|\| async { Ok(token) })` | fresh Bearer token on every negotiate and WebSocket upgrade (stateful resumes included); Long Polling keeps the negotiate token until a 401 | fresh token on negotiate (`Authorization`) and every WebSocket (`access_token`); Long Polling keeps the negotiate token (`Authorization`) until a 401 |
 
 Basic/Bearer: one mode per connection (last call wins), fixed for the client's lifetime. The
 factory (.NET `AccessTokenProvider`) cannot be combined with them (`Configuration`/
@@ -119,7 +120,18 @@ server must read `access_token` for hub paths (JWT `OnMessageReceived`).
   transports in the server's order, filtered by the set and the transfer format (Server-Sent Events:
   text only); a failed start falls back to the next with a fresh negotiate; one failure returns its
   error, several `TransportUnavailable` with `attempts()`. Stateful reconnect only over WebSockets.
-  This release starts WebSockets only (the others are listed as skipped).
+  This release starts WebSockets and Long Polling (Server-Sent Events are listed as skipped).
+- Long Polling (both targets, JSON and MessagePack): one `GET` poll at a time (200 frames, 204
+  ends, other status/network error drops the transport; 401/403 are `Authentication`); ordered
+  `POST` sends, one in flight, queued frames batched; when the send side ends first (stop or a
+  failed send) the poll is cancelled and a `DELETE` sent, never after the server ended it (.NET
+  `ProcessAsync`); credentials in `Authorization` on every request (browsers too, never the URL):
+  the negotiate token, refreshed from a factory only after a 401 (.NET
+  `AccessTokenHttpMessageHandler`). Start bounded by the connect timeout (`Timeout`/`Connect`);
+  polls by `with_long_polling_timeout` (100 s, the JS client's) + connect timeout, a timed-out poll
+  reissued; sends and `DELETE` by the connect timeout. Inherent keep-alive: no Pings (none after
+  the handshake either) and no server timeout, as .NET. Natively a request that fails unanswered
+  on a reused connection is retried once on a fresh one (.NET `SocketsHttpHandler`).
 - Headers: native negotiate and WebSocket upgrade send `User-Agent` in the official format
   (`RayX SignalR/<major.minor> (<version>; <OS>; Rust; Unknown Runtime Version)`) and
   `X-Requested-With: XMLHttpRequest`, negotiate also `Accept: */*`; browsers send

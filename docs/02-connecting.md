@@ -75,9 +75,9 @@ servers usually need `unsecure()` and `with_port(...)`.
 
 | Method | Native | Browser |
 |---|---|---|
-| `authenticate_bearer(token)` | `Authorization: Bearer` on negotiate and on the WebSocket upgrade; never on the WebSocket URL, as the .NET client outside browsers | `Authorization: Bearer` on negotiate, `access_token` on the WebSocket URL |
-| `authenticate_basic(user, Some(password))` | `Authorization: Basic` on negotiate and on the WebSocket upgrade | `Authorization: Basic` on negotiate only (with a warning) |
-| `with_access_token_factory(f)` | a fresh token from `f` as `Authorization: Bearer` on every negotiate and every WebSocket upgrade | a fresh token on every negotiate (`Authorization`) and every WebSocket (`access_token`) |
+| `authenticate_bearer(token)` | `Authorization: Bearer` on negotiate, on the WebSocket upgrade and on every Long Polling request; never on the URL, as the .NET client outside browsers | `Authorization: Bearer` on negotiate and Long Polling requests, `access_token` on the WebSocket URL |
+| `authenticate_basic(user, Some(password))` | `Authorization: Basic` on negotiate, on the WebSocket upgrade and on every Long Polling request | `Authorization: Basic` on negotiate and Long Polling requests; a WebSocket cannot carry it (a warning is logged) |
+| `with_access_token_factory(f)` | a fresh token from `f` as `Authorization: Bearer` on every negotiate and every WebSocket upgrade; Long Polling keeps the negotiate token until a 401 | a fresh token on every negotiate (`Authorization`) and every WebSocket (`access_token`); Long Polling keeps the negotiate token (`Authorization`) until a 401 |
 
 `authenticate_basic(user, None)` sends `user:` with an empty password. Between Basic and Bearer the
 last call wins: a connection has one authentication mode. An access-token factory cannot be
@@ -90,8 +90,10 @@ naming `with_access_token_factory`.
 `Result<String, String>`, like the .NET client's `HttpConnectionOptions.AccessTokenProvider`. It is
 called before every negotiate request (the initial connect, every reconnect that negotiates, and
 each redirect hop) and again whenever a WebSocket is opened, including every stateful resume, so a
-token can be refreshed between them. A token that a negotiate redirect issued (Azure SignalR
-Service) is used instead, for every WebSocket of that connection, resumes included. An
+token can be refreshed between them. Long Polling keeps the token negotiate fetched for all its
+requests and asks again only after a 401, as the .NET client's `AccessTokenHttpMessageHandler`. A
+token that a negotiate redirect issued (Azure SignalR Service) is used instead, for every
+transport of that connection, resumes included. An
 `Err` fails that attempt with `ErrorKind::Authentication`, `access token factory failed: <message>`
 (with anything token-shaped in the message redacted); a reconnection policy then tries again.
 
@@ -125,15 +127,15 @@ Every request carries the official clients' headers:
 
 | Header | Native | Browser |
 |---|---|---|
-| `User-Agent` in the official format, `RayX SignalR/<major.minor> (<version>; <OS>; Rust; Unknown Runtime Version)` | negotiate and WebSocket upgrade | not settable; sent as `X-SignalR-User-Agent` on negotiate |
-| `X-Requested-With: XMLHttpRequest` | negotiate and WebSocket upgrade | negotiate |
+| `User-Agent` in the official format, `RayX SignalR/<major.minor> (<version>; <OS>; Rust; Unknown Runtime Version)` | negotiate, WebSocket upgrade and Long Polling | not settable; sent as `X-SignalR-User-Agent` on negotiate and Long Polling |
+| `X-Requested-With: XMLHttpRequest` | negotiate, WebSocket upgrade and Long Polling | negotiate and Long Polling |
 | `Accept: */*` | negotiate | browser default |
 
 `with_header(name, value)` adds an application header, as the .NET client's
-`HttpConnectionOptions.Headers`: natively to negotiate and the WebSocket upgrade; in browsers to
-negotiate only (browsers cannot set WebSocket headers; building the client logs a warning). The
-headers are composed as the .NET client composes them, the same way on negotiate and on the
-upgrade:
+`HttpConnectionOptions.Headers`: natively to negotiate, the WebSocket upgrade and every Long Polling
+request; in browsers to negotiate and Long Polling requests (browsers cannot set WebSocket headers;
+building the client logs a warning). The headers are composed as the .NET client composes them, the
+same way on every request:
 
 1. The defaults above.
 2. The application headers, each replacing a header of the same name (so `User-Agent` or `Accept`
@@ -206,12 +208,54 @@ tried, its own error is returned; when several were tried, or none could be, `co
 `ErrorKind::TransportUnavailable`, whose `attempts()` lists every transport with why it was skipped
 or failed. Stateful reconnect runs only over WebSockets and needs WebSockets in the set.
 
-This release can start WebSockets only; Server-Sent Events and Long Polling are skipped (they are
-listed in `attempts()`).
+This release starts WebSockets and Long Polling; Server-Sent Events are skipped (they are listed in
+`attempts()`).
 
 ```rust
 let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
     c.with_transports(rayx_signalr::Transports::WEB_SOCKETS | rayx_signalr::Transports::LONG_POLLING);
+})?;
+```
+
+### Long Polling
+
+Long Polling works as in the official clients, on both targets and with both hub protocols:
+
+- **Receiving.** The client polls with `GET` requests, one at a time. The server holds each poll
+  until it has messages or its poll timeout (90 s in ASP.NET Core) ends. A 200 answer delivers zero
+  or more messages, a 204 ends the connection, and any other status or a network error drops the
+  transport, so the reconnect path runs.
+- **Sending.** Sends are `POST` requests, one in flight at a time, in call order. Messages queued
+  while a `POST` is in flight go together in the next one.
+- **Closing.** When the sending side ends first (the connection stops, or a send fails), the poll
+  is cancelled and a `DELETE` tells the server, as the .NET client's `LongPollingTransport` does.
+  After the server ended the connection no `DELETE` is sent.
+- **Credentials.** Every request carries the credentials in the `Authorization` header, in browsers
+  too, never in the URL. With an access-token factory, the requests keep the token negotiate
+  fetched; a 401 sent with it asks the factory once for a fresh one and retries, as the .NET
+  client's `AccessTokenHttpMessageHandler` does. A refused request (401 or 403) is an
+  `ErrorKind::Authentication` error with its status. `with_header` headers go with every request.
+- **Bounds.** Starting the transport (the first poll, any token refresh included) is bounded by the
+  connect timeout and fails with `ErrorKind::Timeout` naming `Connect`. Each poll is bounded by
+  `with_long_polling_timeout` (100 s by default, the JavaScript client's poll timeout) plus the
+  connect timeout, and a poll that exceeds it is reissued, as the .NET client reissues a poll its
+  `HttpClient` timed out. Sends and the `DELETE` are bounded by the connect timeout; a send that
+  exceeds it ends the transport.
+- **Native connections.** Natively the requests use HTTP/1.1 connections over the client's own TCP
+  and TLS stream. A request that fails on a reused connection before any answer is sent once more
+  on a fresh connection, as .NET's `SocketsHttpHandler` does.
+
+Long Polling keeps itself alive. As in the .NET client and ASP.NET Core, the client sends no
+keep-alive Pings over it, runs no server timeout, and sends no Ping after the handshake. That Ping
+would make the server start its client timeout, so an idle Long Polling client is never timed out
+by either side. Stateful reconnect does not run over Long Polling.
+
+```rust
+use std::time::Duration;
+
+let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+    c.with_transports(rayx_signalr::Transports::LONG_POLLING);
+    c.with_long_polling_timeout(Duration::from_secs(60));
 })?;
 ```
 
@@ -257,7 +301,7 @@ otherwise the runtime `connect` is called from, otherwise `connect` fails before
 | `with_access_token_factory(async fn)` | all | none | [Access-token factory](#access-token-factory) |
 | `skip_negotiation()` | all | negotiate | [Skipping negotiation](#skipping-negotiation) |
 | `with_transports(Transports)` | all | `Transports::all()` | [Transports](#transports) |
-| `with_header(name, value)` | all (browsers: negotiate only) | none | [Request headers](#request-headers) |
+| `with_header(name, value)` | all (browsers: negotiate and Long Polling) | none | [Request headers](#request-headers) |
 | `with_invocation_headers(hook)` | all | none | [Calling the hub](03-calling-the-hub.md#invocation-headers) |
 | `with_maximum_message_size(usize)` | all | unbounded | [Hub protocols](05-hub-protocols.md#framing) |
 | `with_messagepack_protocol()` | all, `messagepack` feature | JSON | [Hub protocols](05-hub-protocols.md) |
@@ -266,6 +310,7 @@ otherwise the runtime `connect` is called from, otherwise `connect` fails before
 | `with_handshake_timeout(Duration)` | all | 15 s | [Lifecycle](06-connection-lifecycle.md#liveness) |
 | `with_connect_timeout(Duration)` | all | 120 s | [Lifecycle](06-connection-lifecycle.md#liveness) |
 | `with_close_timeout(Duration)` | all | 5 s | [Lifecycle](06-connection-lifecycle.md#stopping) |
+| `with_long_polling_timeout(Duration)` | all | 100 s | [Long Polling](#long-polling) |
 | `with_reconnection_policy(ReconnectionConfig)` | all | never reconnect | [Reconnection](07-reconnection.md) |
 | `with_disconnection_handler(handler)` | all | none | [Manual reconnection](07-reconnection.md#manual-reconnection) |
 | `with_stateful_reconnect(StatefulReconnectConfig)` | all | off | [Stateful reconnect](07-reconnection.md#stateful-reconnect) |

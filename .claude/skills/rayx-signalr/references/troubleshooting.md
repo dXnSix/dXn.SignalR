@@ -61,11 +61,11 @@ rejected Acks, Sequences or messages with the reason. Every record starts with `
 
 ## Limitations
 
-- WebSockets only: no Server-Sent Events or Long Polling.
+- WebSockets and Long Polling only: no Server-Sent Events yet.
 - No HTTP CONNECT or system proxy support natively.
 - No client-to-server streams.
 - No per-call timeout; no status-change events.
-- Browser Basic auth cannot authenticate the WebSocket (a warning is logged); browser `pause()` ends
+- Browser Basic auth cannot authenticate a WebSocket (a warning is logged; Long Polling carries it); browser `pause()` ends
   stateful connections.
 - Background apps/tabs fire liveness timers late; use `pause()`/`resume()`.
 - Not proven by tests: the Android platform verifier inside a real app, physical devices, and

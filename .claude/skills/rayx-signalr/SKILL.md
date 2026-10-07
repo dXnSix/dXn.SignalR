@@ -12,7 +12,7 @@ long-form, compile-checked documentation is in [`docs/`](../../../docs/README.md
 
 The package is `rayx-signalr`, imported as `rayx_signalr`; it is not on crates.io (use a Git or path
 dependency). One API covers native Tokio targets and browser `wasm32-unknown-unknown`; WASI and
-other `wasm32` targets do not compile. The only transport is WebSockets. RayX (`../RayX`) consumes
+other `wasm32` targets do not compile. The transports are WebSockets and Long Polling. RayX (`../RayX`) consumes
 the crate by path (`rayx-signalr = { path = "../RayX.SignalR" }`) through
 `rayx_devkit::SignalRService`; compile and test `rayx_devkit` after public API changes.
 

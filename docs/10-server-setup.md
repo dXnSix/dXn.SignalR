@@ -85,18 +85,20 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 ```
 
-Basic authentication works for native clients. Browser clients cannot authenticate the WebSocket
-with Basic credentials on a standard server; give them Bearer tokens.
+Basic authentication works for native clients, and for browser clients over Long Polling. Browser
+clients cannot authenticate a WebSocket with Basic credentials on a standard server; give them
+Bearer tokens.
 
 ## CORS
 
-Browser pages on another origin need CORS for the negotiate request:
+Browser pages on another origin need CORS for the negotiate request and, over Long Polling, for
+the `GET` polls, `POST` sends and the closing `DELETE`:
 
 ```csharp
 builder.Services.AddCors(cors => cors.AddDefaultPolicy(policy =>
     policy.WithOrigins("https://app.example.com")
           .AllowAnyHeader()
-          .WithMethods("POST")
+          .WithMethods("GET", "POST", "DELETE")
           .AllowCredentials()));
 
 app.UseCors();

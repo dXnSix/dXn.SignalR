@@ -5,13 +5,14 @@
 `rayx-signalr` speaks the [ASP.NET Core SignalR](https://learn.microsoft.com/aspnet/core/signalr/introduction)
 hub protocol from Rust. One API covers two runtimes:
 
-- **Native** targets (Windows, Linux, macOS, Android, iOS) run on Tokio. Negotiation uses a hyper
-  HTTP/1.1 request, the transport is `tokio-websockets`, and TLS is rustls.
+- **Native** targets (Windows, Linux, macOS, Android, iOS) run on Tokio. Negotiation and Long
+  Polling use hyper HTTP/1.1 requests, WebSockets use `tokio-websockets`, and TLS is rustls.
 - **Browser** builds (`wasm32-unknown-unknown`) use the browser's `fetch` and `WebSocket`, and the
   browser's own TLS. They run on the main thread, in Web Workers, and in multithreaded (atomics)
   builds.
 
-The transport is WebSockets. The hub protocol is JSON by default, or MessagePack with the
+The transports are WebSockets and Long Polling (see
+[Transports](02-connecting.md#transports)). The hub protocol is JSON by default, or MessagePack with the
 `messagepack` feature. The client supports request/response invocations, fire-and-forget sends,
 server-to-client streams, server-to-client calls with client results, automatic and manual
 reconnection, ASP.NET Core stateful reconnect, keep-alive and server timeouts, and
@@ -111,9 +112,10 @@ What happens in `connect_with`:
 
 1. The closure configures the connection. `"localhost"` is the host, `"chat"` the hub path, so the
    hub URL is `http://localhost:5000/chat`.
-2. The client posts to `/chat/negotiate?negotiateVersion=1`, follows redirects, and checks that the
-   server offers WebSockets with the right transfer format.
-3. It opens the WebSocket, sends the SignalR handshake, and waits for the answer (15 seconds by
+2. The client posts to `/chat/negotiate?negotiateVersion=1`, follows redirects, and picks the
+   first transport the server offers that it can use with the protocol's transfer format
+   (WebSockets, then Long Polling, in the server's order).
+3. It starts that transport, sends the SignalR handshake, and waits for the answer (15 seconds by
    default).
 4. It returns a connected `SignalRClient`, or an `Err(rayx_signalr::Error)` whose `kind()` says
    which step failed (see [Errors and logging](11-errors-and-logging.md)).
