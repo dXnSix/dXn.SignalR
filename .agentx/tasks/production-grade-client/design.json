@@ -783,6 +783,33 @@
           "path": "tests/wasm-fixture/src/soak.rs"
         }
       ]
+    },
+    {
+      "id": "D26",
+      "requirementIds": [
+        "R4"
+      ],
+      "descriptionMarkdown": "**Access-token factory and connect-timeout refinements (refines D4 for S5, per the amended R4.C1 and R4.C3).**\n- The factory is asked before every negotiate request (redirect hops included, until a redirect issues the token) and again whenever a WebSocket opens: attempts, stateful resumes (after a pause and transparent ones) on both targets; natively the token goes in the upgrade's `Authorization` header, browsers replace the WebSocket URL's `access_token` (`negotiation::with_access_token`). D4's \"not on live stateful resume\" is superseded.\n- A negotiate redirect's access token wins for the whole logical connection: the negotiated recipe is kept with the stateful transport URL (natively `TransportTarget` in the shared endpoint, in the browser `Shared::transport_recipe`) and every resume uses it, so the factory is not asked again for that connection's transports.\n- A zero connect timeout is accepted and logged, as every liveness duration since R16.C30 (user parity decision 2026-10-07); D4's \"validated before I/O and never zero\" is superseded. A negotiate timeout reads `negotiate timed out after <bound>` with no URL on both targets.",
+      "invariantsMarkdown": "- Tokens never appear in errors or logs; browsers put them only in the `access_token` query the protocol requires.\n- A redirect's token is never replaced by a factory token within its logical connection.",
+      "rationaleMarkdown": "Matches the .NET client: `WebSocketsTransport` asks the access-token provider on every start (resumes included), `HttpConnection` keeps a redirect's access token, and `AccessTokenHttpMessageHandler` fetches a token per negotiate request; the user's R16.C30 decision accepts every duration.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs"
+        }
+      ]
     }
   ],
   "memoryDecisionsConsidered": [

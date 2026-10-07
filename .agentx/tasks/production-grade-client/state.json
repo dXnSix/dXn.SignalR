@@ -1,12 +1,12 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 129,
-  "planRevision": 21,
+  "revision": 140,
+  "planRevision": 23,
   "specHashes": {
-    "requirements": "e7e7cdebbd521478aae42da3ff324462c93435f48285c3f01fc29003ff8e5765",
-    "design": "c895b2208a9c620e3ef5c8460684f690a2b70c8fcf2acca06d95001e101c8274",
-    "plan": "5c10d8a7c0b279555c1942a606a50f03eb15eeccbf6bcf67fcf3d3b9866e7110"
+    "requirements": "cfaf45e2157367e6772613c40313c112747d3a01a82bc2c5d6f8c781c391c44d",
+    "design": "91ac9c8387ae335e39bbc2eda8bce3a21afc1776cfbf34fa467cdff4d2346238",
+    "plan": "7c49a464eb0ad8fda325a4c1eeec3cebf477f693638798cff38d5a54ebd416cb"
   },
   "tasks": {
     "S1.T1": {
@@ -88,13 +88,22 @@
       ]
     },
     "S5.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S5.T2": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S5.T3": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S6.T1": {
       "status": "pending"
@@ -400,6 +409,15 @@
         }
       },
       "recordedAt": "2026-10-07T17:24:30Z"
+    },
+    "94177974b70352b2b3193de73f55ad7702bc3084f52c9156365b24662cdcf322": {
+      "snapshot": {
+        "specHash": "c765e6a76eab040196190fd4d1ee8217565b7c0f790402227d2aa648c87c1e99",
+        "repositories": {
+          "rayx-signalr": "41e707d2bc5ed9e3d35440450d6a876e046b69eb802bdc7fc7020143c10d8660"
+        }
+      },
+      "recordedAt": "2026-10-07T17:53:48Z"
     }
   },
   "checkResults": {
@@ -1796,6 +1814,125 @@
       "logPath": "artifacts-temp/agentx/production-grade-client/S4-final-9e562820725a.log",
       "logSha256": "33924c77c22ae696c9a26b384801fec8e5f00957d72a70d4ab2d9470fbd52a13",
       "inputsHash": "51aadf57fa58c4390027da98c6bccfd171f39f4440742027864058a372dcb6f3"
+    },
+    "S5/s5-token-factory-unit/final": {
+      "checkId": "s5-token-factory-unit",
+      "boundaryId": "S5",
+      "phase": "final",
+      "batchId": "94177974b70352b2b3193de73f55ad7702bc3084f52c9156365b24662cdcf322",
+      "definitionHash": "af49d995b7afc7dea12ebcf51e5835c7fcfb0bfe7d9982f4d8955a9946dd4630",
+      "basisHash": "2af0e96251322120808e57978d68be8f4a52e5acf19838327088674094158e73",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 11,
+      "durationSeconds": 3.6493,
+      "recordedAt": "2026-10-07T17:51:18Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S5-final-72cb54d6b152.log",
+      "logSha256": "15c554c2fee3699105940be499d430988ac933149b0e82797e5d564b944819d9",
+      "inputsHash": "07a464afc02a19e979c6abe51acf5383e5e0d1ddd9fbaa136cd55a3a313ee78c"
+    },
+    "S5/s5-browser-basic-unit/final": {
+      "checkId": "s5-browser-basic-unit",
+      "boundaryId": "S5",
+      "phase": "final",
+      "batchId": "94177974b70352b2b3193de73f55ad7702bc3084f52c9156365b24662cdcf322",
+      "definitionHash": "8861ec1e88893822055447ff4796ddcc787e0dd629fe6f3ea1b585826e08af1f",
+      "basisHash": "2c960dd9f16684977d2c4d4ac873c47535d5a53bdd6d00c02da1614eb6e5f8e7",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 0.2994,
+      "recordedAt": "2026-10-07T17:51:18Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S5-final-bab68adcdbb1.log",
+      "logSha256": "70bbfb6b7813eaf8c03f2fbde58c9441806b29ab5c455dc0c4cb31b2e0049dd0",
+      "inputsHash": "07a464afc02a19e979c6abe51acf5383e5e0d1ddd9fbaa136cd55a3a313ee78c"
+    },
+    "S5/s5-connect-timeout-unit/final": {
+      "checkId": "s5-connect-timeout-unit",
+      "boundaryId": "S5",
+      "phase": "final",
+      "batchId": "94177974b70352b2b3193de73f55ad7702bc3084f52c9156365b24662cdcf322",
+      "definitionHash": "1fcb7eaf6e643812c68440c0c139862efb09d1d08007775b16659aea65a2488c",
+      "basisHash": "e6015a995169debea612f62167ff0ab709ebd99a96083e505d4a813a6f34d6b4",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 3,
+      "durationSeconds": 0.6053,
+      "recordedAt": "2026-10-07T17:51:19Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S5-final-ff4ae5a4e7cd.log",
+      "logSha256": "d0c24c8fd496b0bc8e140bc1f1e24b0d17d180170b405743f39b7ee84c3fb35a",
+      "inputsHash": "07a464afc02a19e979c6abe51acf5383e5e0d1ddd9fbaa136cd55a3a313ee78c"
+    },
+    "S5/s5-token-factory/final": {
+      "checkId": "s5-token-factory",
+      "boundaryId": "S5",
+      "phase": "final",
+      "batchId": "94177974b70352b2b3193de73f55ad7702bc3084f52c9156365b24662cdcf322",
+      "definitionHash": "72ad48886d41e802d3aa0f977bdd846e379b5cc8f18ac8666daf827dced89d8b",
+      "basisHash": "491b4cd9b39b83b277f178b89e43addea48cf55611469d8b8b348af9d521bee7",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 8,
+      "durationSeconds": 47.0316,
+      "recordedAt": "2026-10-07T17:52:06Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S5-final-9d8a7449a518.log",
+      "logSha256": "2f43cc0349fe0994c9c929e73f40185161949b79a3dba01960f1308d04c6d14c",
+      "inputsHash": "5dc0ca85ee67ab3114586293eabaa1b2d72cd03df97fbdaf8d2c0b37e0a4e1c8"
+    },
+    "S5/s5-browser-basic/final": {
+      "checkId": "s5-browser-basic",
+      "boundaryId": "S5",
+      "phase": "final",
+      "batchId": "94177974b70352b2b3193de73f55ad7702bc3084f52c9156365b24662cdcf322",
+      "definitionHash": "15a29a16e35f8b91a4d5a9d3b3bba6fdf427b446d5c509cf9bd8d322fe834897",
+      "basisHash": "774ff9d23db8664f22eafa1a74a23da3f36c19622e5c3dc6289f67010efb4116",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 6,
+      "durationSeconds": 24.5395,
+      "recordedAt": "2026-10-07T17:52:30Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S5-final-59e350fceba7.log",
+      "logSha256": "8f4e9776dccad82cd4654af0df10ae3eb91bd57475a040b496411223882e7806",
+      "inputsHash": "5dc0ca85ee67ab3114586293eabaa1b2d72cd03df97fbdaf8d2c0b37e0a4e1c8"
+    },
+    "S5/s5-negotiate-timeout/final": {
+      "checkId": "s5-negotiate-timeout",
+      "boundaryId": "S5",
+      "phase": "final",
+      "batchId": "94177974b70352b2b3193de73f55ad7702bc3084f52c9156365b24662cdcf322",
+      "definitionHash": "80cdd03692832571de99db1b691829a1be8cc845e7a2d4b96da62b8b23e74dfa",
+      "basisHash": "004c53bd437e49faa8d003048b705fa326b25887df356626761571005a335a3e",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 8,
+      "durationSeconds": 40.3502,
+      "recordedAt": "2026-10-07T17:53:11Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S5-final-8a4744c3586d.log",
+      "logSha256": "572bd3a2c7e9cf2f05122726db6a1dc8e068103137701e51db8edb857a08c532",
+      "inputsHash": "5dc0ca85ee67ab3114586293eabaa1b2d72cd03df97fbdaf8d2c0b37e0a4e1c8"
+    },
+    "S5/s5-android/final": {
+      "checkId": "s5-android",
+      "boundaryId": "S5",
+      "phase": "final",
+      "batchId": "94177974b70352b2b3193de73f55ad7702bc3084f52c9156365b24662cdcf322",
+      "definitionHash": "272353737fb50ea323046e181823482aaa7d8075f48b0d98d537f4a150cf4e3b",
+      "basisHash": "df699f8f260a628b755a8527862f697a16799de46271178b488eade3edc5e77d",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 36.7216,
+      "recordedAt": "2026-10-07T17:53:47Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S5-final-e0b559924909.log",
+      "logSha256": "eb38d3143dbc4857e3ddbdafd36ca44170a7026c21ef70fd95d2775abc65cc06",
+      "inputsHash": "bfee026901347bad64081c4f84d65ba4cc1f14f4347d37580a2a533e54c9e9de"
     }
   },
   "reviews": {
@@ -4342,6 +4479,171 @@
         "S4-F5"
       ],
       "recordedAt": "2026-10-07T17:26:08Z"
+    },
+    "S5": {
+      "reviewerId": "s5-reviewer-1",
+      "snapshotId": "94177974b70352b2b3193de73f55ad7702bc3084f52c9156365b24662cdcf322",
+      "criterionIds": [
+        "R4.C1",
+        "R4.C2",
+        "R4.C3"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R4.C1",
+            "R4.C2"
+          ],
+          "sha256": "0c30ba292741a399fa982a362f9940ef1179d123d38072acde3437b2204bded3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R4.C1",
+            "R4.C2",
+            "R4.C3"
+          ],
+          "sha256": "b5a272ca61754c2df8e4af0c2fe12037af4fec5c4d225ec5945b12dd3aae21b4"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R4.C1",
+            "R4.C3"
+          ],
+          "sha256": "750ff4f43be5a079f11a9508ca6a29556196b6bb2705340da9852a76dc96080a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R4.C1",
+            "R4.C3"
+          ],
+          "sha256": "cbd00b85deef21c0638ce46bbf762d4d242519aac4da9bec862baf7b663490e8"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R4.C1",
+            "R4.C3"
+          ],
+          "sha256": "f8993eda125049aad0edb1dcc05c67c8b9229e9a053d70f15bcc35572471184b"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/common.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R4.C3"
+          ],
+          "sha256": "5b0087b8b4a2bfb70a039359dbe0c6ddc62c0b7de79c8c6789398c960065b012"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/TokenAuthentication.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R4.C1"
+          ],
+          "sha256": "9718dbaa838c72b90ab9291d750ccf17733ce79e6615663ed99a5d4076d05645"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R4.C1",
+            "R4.C3"
+          ],
+          "sha256": "b5a272ca61754c2df8e4af0c2fe12037af4fec5c4d225ec5945b12dd3aae21b4"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R4.C1"
+          ],
+          "sha256": "750ff4f43be5a079f11a9508ca6a29556196b6bb2705340da9852a76dc96080a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/loopback_server.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R4.C1"
+          ],
+          "sha256": "639a9d8e21ab891d8f866448aee679487cfec18cbeaa3625b3eec7b3c1c64c84"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R4.C2"
+          ],
+          "sha256": "0c30ba292741a399fa982a362f9940ef1179d123d38072acde3437b2204bded3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/token_factory.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R4.C1"
+          ],
+          "sha256": "278dba2d24360d66bdcd686bed5758466e8658933dd6715a25bbd5c59871ea7b"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/negotiate_timeout.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R4.C3"
+          ],
+          "sha256": "b67f2c2e21c927dfec596fe8010d474702ffca3590651dbc3f358391cb282c16"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R4.C1",
+            "R4.C2",
+            "R4.C3"
+          ],
+          "sha256": "0224fe4dd53cb4a6b1978dc5b4f0f9bd23a341d0acf0f7fe1433c037dd80f4a9"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/tests/signalr-functional.spec.ts",
+          "kind": "runtime",
+          "criterionIds": [
+            "R4.C1",
+            "R4.C2",
+            "R4.C3"
+          ],
+          "sha256": "9a1635ed1971b703077d2a007e54dc628dc4db61f9a66fae4638e05a8ef2f3ae"
+        }
+      ],
+      "summaryMarkdown": "S5 meets R4.C1-C3, D4 and D26. The factory is asked before every negotiate request (until a redirect issues a token) and whenever a WebSocket opens (attempts, stateful resumes, transparent resumes) on both targets. A redirect's token wins for the whole logical connection. The token goes in the native `Authorization` header and the browser `access_token` query. Factory errors are redacted `Authentication` errors, and conflicting credentials are rejected before I/O. The browser Basic warning is logged only in browsers. The connect timeout defaults to 120 s, accepts and logs zero, and bounds negotiate and the upgrade; its error carries no URL or token. Re-ran the focused groups (`access_token_factory_`, `browser_basic_`, `connect_timeout_`): 16/16 passed. Check S5 passed 7/7 at revision 138. All three earlier findings are resolved.",
+      "findingIds": [
+        "S5-F1",
+        "S5-F2",
+        "S5-F3"
+      ],
+      "recordedAt": "2026-10-07T17:54:52Z"
     }
   },
   "checkpoints": {
@@ -4408,6 +4710,14 @@
       },
       "reviewHash": "ea69b8f1670ad2aec4578673833b2676867b5eb608b7c431da8d48f068ad24b3",
       "recordedAt": "2026-10-07T17:26:36Z"
+    },
+    "S5": {
+      "snapshotId": "94177974b70352b2b3193de73f55ad7702bc3084f52c9156365b24662cdcf322",
+      "commits": {
+        "rayx-signalr": "b17961744766c7abdd6730ea8f9276d838519dee"
+      },
+      "reviewHash": "05056753f73223f77412cb4c7488896a61aadf5eeee5aeb74736f19ec8e18bf4",
+      "recordedAt": "2026-10-07T17:55:21Z"
     }
   },
   "findings": [
@@ -5950,9 +6260,70 @@
           "path": ".agentx/memory/knowledge/interop-validation/hypotheses.md"
         }
       ]
+    },
+    {
+      "id": "S5-F1",
+      "boundaryId": "S5",
+      "criterionIds": [
+        "R4.C1"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "Resolved: stateful resumes now use the negotiated recipe kept with the transport URL. Natively that is `TransportTarget { uri, recipe }` in the shared endpoint, written from `FreshConnection.recipe` and read by the `attempt_once` resume branch and `resume_transparently`. In the browser it is `Shared::transport_recipe` / `resume_recipe()` on both resume paths. A redirect's token therefore wins for the whole logical connection, and a non-redirected factory is still asked on every resume. This also fixes the earlier native gap for static credentials. Locks and borrows are cloned out before any await. Covered by `access_token_factory_stateful_resumes_after_a_redirect_send_its_token` (loopback redirect: the resume upgrade sends `Bearer redirect-token`, one factory call) and `access_token_factory_browser_resumes_keep_a_redirect_token`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "access_token_factory_stateful_resumes_after_a_redirect_send_its_token"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs",
+          "symbol": "access_token_factory_browser_resumes_keep_a_redirect_token"
+        }
+      ]
+    },
+    {
+      "id": "S5-F2",
+      "boundaryId": "S5",
+      "criterionIds": [
+        "R4.C1"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "Resolved: `negotiate_with` asks for the configured credentials, and so the factory, inside the redirect loop until a redirect issues a token, matching .NET `AccessTokenHttpMessageHandler` on negotiate requests. Covered by `access_token_factory_is_asked_again_on_a_redirect_hop_without_a_token` (`Bearer factory-1`, then `Bearer factory-2`).",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs",
+          "symbol": "access_token_factory_is_asked_again_on_a_redirect_hop_without_a_token"
+        }
+      ]
+    },
+    {
+      "id": "S5-F3",
+      "boundaryId": "S5",
+      "criterionIds": [
+        "R4.C1",
+        "R4.C3"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "Resolved: the specification amendment adds D26 to the S5 tasks. D26 supersedes D4's \"not on live stateful resume\" and \"never zero\" and adds the redirect-token-for-resumes invariant. The S5.T1 and `s5-token-factory-unit` descriptions now match the amended R4.C1 and R4.C3. docs/02-connecting.md and the skill setup reference cover redirect hops and resumes.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/tasks/production-grade-client/design.json",
+          "symbol": "D26"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/02-connecting.md"
+        }
+      ]
     }
   ],
-  "handoffMarkdown": "stateful-resume-stress: StatefulChaosHub.AbortTransport aborts the caller transport right after returning (Task.Run, counted per connection; TransportAborts). Native tests/e2e/stateful_resume_stress.rs and browser tests/wasm-fixture/src/stress.rs (run_stress_scenario, a ring-buffer log::Log of rayx_signalr::stateful records returned with a failure; fixture depends on log 0.4) and signalr-stress.spec.ts: 5 fresh stateful connections (no reconnection policy) x 100 aborts, each followed by Twice and a 5-item Sequence stream, 20 s stall bound per operation, wait for the server abort before the next, then assert 100 aborts, Connected, same id, no reconnecting. Catalog: Limit 600 s and LogFilter rayx_signalr=info,rayx_signalr::stateful=debug (Scenario.LogFilter feeds RUST_LOG); exclusions for firefox/webkit/ios; Playwright projects ignore the stress spec. First run: 4 native+Chromium cells passed (no stall). Hypothesis/limitations docs follow the Android result.",
+  "handoffMarkdown": "negotiate_with no longer prefixes a timeout with the endpoint: negotiate timeouts read \"negotiate timed out after <bound>\". Group connect_timeout_ (3: default 120 s and zero logged per R16.C30 - R4.C3 amended accordingly; native negotiate bound without URL/token; native WebSocket upgrade bound). Scenario negotiate-timeout everywhere (/test-hang/negotiate, 2 s bound, within 4 s, Timeout/Negotiate/2s, no host, hub or token in Display/Debug). Docs 02.",
   "protectedPaths": {
     "rayx-signalr": {
       ".agentx/tasks/resilient-reconnect-and-production-gates/**": "a4110a3f5f2c68d64ddf8fbedb70479c98f46dde78b064b5b3ac826772db49a6",

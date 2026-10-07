@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 21,
+  "revision": 23,
   "title": "Production-grade rayx-signalr: typed errors, all transports, proxies, refreshable auth, suspension-aware liveness, proven TLS paths, reference-class performance, and stretch SOCKS/PAC/OS proxies, HTTP/2 and HTTP/3",
   "validationMode": "sprint",
   "repositories": [
@@ -488,7 +488,7 @@
       "criterionIds": [
         "R4.C1"
       ],
-      "descriptionMarkdown": "New `access_token_factory_` unit group: called per negotiate cycle, not on stateful resume, errors redacted, conflicting auth rejected before I/O.",
+      "descriptionMarkdown": "New `access_token_factory_` unit group: asked per negotiate request and for every WebSocket (attempts and stateful resumes), a redirect's token kept for resumes, errors redacted, conflicting auth rejected before I/O.",
       "argv": [
         "cargo",
         "test",
@@ -6253,12 +6253,13 @@
         {
           "id": "S5.T1",
           "title": "Access-token factory",
-          "descriptionMarkdown": "Add `with_access_token_factory` on both targets per D4 (per negotiate cycle, not on live stateful resume, redirect tokens win, redacted errors, conflicts rejected before I/O), the token endpoints and `TokenHub` in the service, the `access_token_factory_` group and the `token-factory` scenario (native, fixture, Android). Parity (R4.C1 as amended): also call the factory whenever a native WebSocket opens, including stateful resumes, and retry Long Polling and Server-Sent Events requests once with a fresh token after a 401 (the HTTP transports land in S7 and S8, which apply it).",
+          "descriptionMarkdown": "Add `with_access_token_factory` on both targets per D4 and D26: asked before every negotiate request and whenever a WebSocket opens (attempts and every stateful resume), a negotiate redirect's token wins for the whole logical connection (resumes included), redacted errors, conflicts rejected before I/O; the token endpoints and `TokenHub` in the service, the `access_token_factory_` group and the `token-factory` scenario (native, fixture, Android). Retrying Long Polling and Server-Sent Events requests once with a fresh token after a 401 belongs to S7 and S8, which add those transports.",
           "criterionIds": [
             "R4.C1"
           ],
           "designIds": [
-            "D4"
+            "D4",
+            "D26"
           ],
           "dependsOn": [],
           "checkIds": [
@@ -6297,7 +6298,8 @@
             "R4.C2"
           ],
           "designIds": [
-            "D4"
+            "D4",
+            "D26"
           ],
           "dependsOn": [
             "S5.T1"
@@ -6329,7 +6331,8 @@
             "R4.C3"
           ],
           "designIds": [
-            "D4"
+            "D4",
+            "D26"
           ],
           "dependsOn": [
             "S5.T1"

@@ -97,7 +97,7 @@
         },
         {
           "id": "R4.C3",
-          "descriptionMarkdown": "`with_connect_timeout(d)` (default 120 s, the official .NET client's negotiate bound (user decision 2026-10-07); nonzero, validated before I/O) bounds negotiate requests and transport setup on both targets; browsers abort the negotiate `fetch` with an `AbortController`. A service endpoint that accepts the request and never responds makes `connect` fail with a timeout error naming the bound within the bound plus 2 s, and the error never contains the URL or token. E2e scenario `negotiate-timeout` (2 s bound) on all targets; unit group `connect_timeout_`.",
+          "descriptionMarkdown": "`with_connect_timeout(d)` (default 120 s, the official .NET client's negotiate bound (user decision 2026-10-07); as every liveness duration since R16.C30, a zero value is accepted and logged, not rejected) bounds negotiate requests and transport setup on both targets; browsers abort the negotiate `fetch` with an `AbortController`. A service endpoint that accepts the request and never responds makes `connect` fail with a timeout error naming the bound within the bound plus 2 s, and the error never contains the URL or token. E2e scenario `negotiate-timeout` (2 s bound) on all targets; unit group `connect_timeout_` (default, zero logged, bounded native negotiate and WebSocket upgrade).",
           "verification": "automated"
         }
       ]
