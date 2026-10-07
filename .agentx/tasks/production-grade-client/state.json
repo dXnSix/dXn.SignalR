@@ -1,12 +1,12 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 154,
-  "planRevision": 23,
+  "revision": 161,
+  "planRevision": 24,
   "specHashes": {
     "requirements": "cfaf45e2157367e6772613c40313c112747d3a01a82bc2c5d6f8c781c391c44d",
-    "design": "91ac9c8387ae335e39bbc2eda8bce3a21afc1776cfbf34fa467cdff4d2346238",
-    "plan": "7c49a464eb0ad8fda325a4c1eeec3cebf477f693638798cff38d5a54ebd416cb"
+    "design": "a8077634ad8b3ae2469d020c33aeb07eb8bf1dd455f402ef35535a1c3e62a4f1",
+    "plan": "5c8367fd99aec822e36f57f1f938916d29ddc07a6a9eb0fa753505845318c14d"
   },
   "tasks": {
     "S1.T1": {
@@ -130,10 +130,16 @@
       ]
     },
     "S8.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S8.T2": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S9.T1": {
       "status": "pending"
@@ -448,6 +454,15 @@
         }
       },
       "recordedAt": "2026-10-07T21:13:28Z"
+    },
+    "9005ac51f690e6a40be88cbcd89999eda7cab430e516453dda4c700c61524a0e": {
+      "snapshot": {
+        "specHash": "8d539c717aa3e9b21290a0eee8595299ee31d0cdbe2e77ded1dabe4cde4ee515",
+        "repositories": {
+          "rayx-signalr": "96b786aeaa2a81708ebd7030a56f2912c6b511053ba9fc786efdcff4bf36c5af"
+        }
+      },
+      "recordedAt": "2026-10-07T22:01:33Z"
     }
   },
   "checkResults": {
@@ -2099,6 +2114,108 @@
       "logPath": "artifacts-temp/agentx/production-grade-client/S7-final-a0d855bf82fc.log",
       "logSha256": "62a16d0bf60692b2bcb233f299b3c216be56b96c13e305c10e295ad7a352d19e",
       "inputsHash": "c2ba572ae74aa92fc18675fa206b1162b60e9bd4ce23daa754dc6e91ed6e1b52"
+    },
+    "S8/s8-sse-unit/final": {
+      "checkId": "s8-sse-unit",
+      "boundaryId": "S8",
+      "phase": "final",
+      "batchId": "9005ac51f690e6a40be88cbcd89999eda7cab430e516453dda4c700c61524a0e",
+      "definitionHash": "3e790ebdd665de1fffa06a7a74c39c910723ed6ec2a18736eb99f3529de88ac8",
+      "basisHash": "185f6f06e0d8b8ec307e2f87817dbd365d503f76fb7befed58575831b534da84",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 24,
+      "durationSeconds": 4.415,
+      "recordedAt": "2026-10-07T21:54:19Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S8-final-6f185ecce9f3.log",
+      "logSha256": "be12e1e0642262e4feff0ba400771f7aceb54314ac5a251dc960ddc23e7567fb",
+      "inputsHash": "56884a08dce93c9b5f8e1325627fa216d29eddbecac37865733498bb7094af21"
+    },
+    "S8/s8-sse-native/final": {
+      "checkId": "s8-sse-native",
+      "boundaryId": "S8",
+      "phase": "final",
+      "batchId": "9005ac51f690e6a40be88cbcd89999eda7cab430e516453dda4c700c61524a0e",
+      "definitionHash": "dc42e6c9c064b78bbeba047a5928f65f957242980ae9d2e97c4b63d146c3e315",
+      "basisHash": "3b5674e87301ceec5cac795b8121420bfdf4e228b6091a0b6e3c83ca07258451",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 15,
+      "durationSeconds": 52.0208,
+      "recordedAt": "2026-10-07T21:55:11Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S8-final-d0ac1b19770a.log",
+      "logSha256": "45294d115d451e308dfe8c2ba3b57db068996d7dedda3422af6c407ef47bbc25",
+      "inputsHash": "d82652972efb0bbe46ea32f32246c07c479780363aa181e6be85bdd3ad7850b9"
+    },
+    "S8/s8-sse-browsers/final": {
+      "checkId": "s8-sse-browsers",
+      "boundaryId": "S8",
+      "phase": "final",
+      "batchId": "9005ac51f690e6a40be88cbcd89999eda7cab430e516453dda4c700c61524a0e",
+      "definitionHash": "0c346458d63e76bf4eac6bdf481c14fbf4a88e2acd3102e902efe9388fe9178d",
+      "basisHash": "3a528da7fd5590fa712884499eb94d5f95c23d0383546cf929898926ee289f58",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 45,
+      "durationSeconds": 243.9851,
+      "recordedAt": "2026-10-07T21:59:15Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S8-final-0776a4a8f173.log",
+      "logSha256": "12bb9d5a2a05e37e46d7ad6554eee4ba637eb5f8c2341b589a3964ae7556bd32",
+      "inputsHash": "0e8cca43ccb4ab9ca6037e99caa5aae7f62cb38908652e2b44d631147ea45144"
+    },
+    "S8/s8-sse-android/final": {
+      "checkId": "s8-sse-android",
+      "boundaryId": "S8",
+      "phase": "final",
+      "batchId": "9005ac51f690e6a40be88cbcd89999eda7cab430e516453dda4c700c61524a0e",
+      "definitionHash": "c7ca4447af68626ce0273cb7ce8664e28c88956c434caf3c38ac826dcf549726",
+      "basisHash": "7f39167d1329c23f0536a98da280c29ef390da146013ed3646a03c6050397ea1",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 15,
+      "durationSeconds": 111.5019,
+      "recordedAt": "2026-10-07T22:01:06Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S8-final-9281f0047897.log",
+      "logSha256": "5dd12c213fc3179d3c58a9d56ff7e4a097f07452caccd57ec7f9c125d2ad806d",
+      "inputsHash": "d82652972efb0bbe46ea32f32246c07c479780363aa181e6be85bdd3ad7850b9"
+    },
+    "S8/s8-fallback/final": {
+      "checkId": "s8-fallback",
+      "boundaryId": "S8",
+      "phase": "final",
+      "batchId": "9005ac51f690e6a40be88cbcd89999eda7cab430e516453dda4c700c61524a0e",
+      "definitionHash": "cb11cc266c4516e946723278b7cdc904c05ec0a62b664729b62b8f351731be10",
+      "basisHash": "4ff96ec63b38a3faa62a07f81f8b443b9ae76e9db963de7242f4cdc4b803c674",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 12.605,
+      "recordedAt": "2026-10-07T22:01:19Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S8-final-95f13a2a7e1e.log",
+      "logSha256": "0f06ee46a389c11c6bba12901acfdbd31cd5432d53a848ad6e041fa7c39e6300",
+      "inputsHash": "0e8cca43ccb4ab9ca6037e99caa5aae7f62cb38908652e2b44d631147ea45144"
+    },
+    "S8/s8-fallback-android/final": {
+      "checkId": "s8-fallback-android",
+      "boundaryId": "S8",
+      "phase": "final",
+      "batchId": "9005ac51f690e6a40be88cbcd89999eda7cab430e516453dda4c700c61524a0e",
+      "definitionHash": "0eee8231947492020e68d846c5d9110fc1c38fbbcc2c8585cbd3b78788b3a018",
+      "basisHash": "0e70866e74c897039edaec2ffbf88a381884b5d50908d70e14fd89daae425516",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 13.8216,
+      "recordedAt": "2026-10-07T22:01:33Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S8-final-3ba20c1f5677.log",
+      "logSha256": "d590f04d5cbf0269632feb9363d07c7adc5628aea050e149139f93a917c11181",
+      "inputsHash": "d82652972efb0bbe46ea32f32246c07c479780363aa181e6be85bdd3ad7850b9"
     }
   },
   "reviews": {
@@ -5285,6 +5402,230 @@
         "S7-F7"
       ],
       "recordedAt": "2026-10-07T21:13:36Z"
+    },
+    "S8": {
+      "reviewerId": "s8-independent-auditor-efe9c365",
+      "snapshotId": "9005ac51f690e6a40be88cbcd89999eda7cab430e516453dda4c700c61524a0e",
+      "criterionIds": [
+        "R7.C1",
+        "R7.C2",
+        "R7.C3"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/server_sent_events_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R7.C1",
+            "R7.C2"
+          ],
+          "sha256": "34192c96bd8268fca6a98ac0e537b9a2987039b6ab025bcd37373f78d554fad1"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/http_transport_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R7.C1",
+            "R7.C2",
+            "R7.C3"
+          ],
+          "sha256": "c5cae0b05b8096a0f150338f234d3bcca2ad35434e7be4a8d126dfccda3e8102"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/browser_http.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R7.C1",
+            "R7.C2",
+            "R7.C3"
+          ],
+          "sha256": "916205018c01e99dcf825bca43646ea90a053f539eadf0c6088b652591521889"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/browser_transport.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R7.C1",
+            "R7.C3"
+          ],
+          "sha256": "ea179797557df0b3867a0135e5b55c2206302dc0ebc0c21088a25dc0e829ab16"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/transport_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R7.C1"
+          ],
+          "sha256": "7f0b6caabffc29b00da08ffbd7bc336e6c3b8b4a08243ddbe9fa642587fdd3d5"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R7.C1",
+            "R7.C2",
+            "R7.C3"
+          ],
+          "sha256": "f2f6a40541d6c1119777999b83d24ac1d4b165b41a161769c03a1f81ebe1d949"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R7.C1",
+            "R7.C2"
+          ],
+          "sha256": "5d865002575ca13ae7c38c88ce074cb180eec9410a0aec4c5eaa99c0b46c5dd3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R7.C3"
+          ],
+          "sha256": "5edb544105ccc9ef0aa2fd294de26e4327f4aa6a93159253cff8a53152560fe8"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R7.C1"
+          ],
+          "sha256": "ea5c81e20ef781467a50f2cc9a11c6cfafabadc472b9262dc281a8ead4cff044"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/long_polling_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R7.C1"
+          ],
+          "sha256": "0db85064a5be0eefe296f4242a99d8db5085a897413a7669929ccd5eee08ecd5"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/TestHub.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R7.C3"
+          ],
+          "sha256": "5533b642b07e217636c90b89fe9b88e66f9e198d46695a96703c5b35c674df83"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/Program.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R7.C3"
+          ],
+          "sha256": "c3035c58e760b8fe928e93ccd6c44278807c08c3215e04999f4335bf973452ef"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/server_sent_events_tokio.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R7.C1"
+          ],
+          "sha256": "34192c96bd8268fca6a98ac0e537b9a2987039b6ab025bcd37373f78d554fad1"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R7.C1"
+          ],
+          "sha256": "f2f6a40541d6c1119777999b83d24ac1d4b165b41a161769c03a1f81ebe1d949"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R7.C3"
+          ],
+          "sha256": "5edb544105ccc9ef0aa2fd294de26e4327f4aa6a93159253cff8a53152560fe8"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/token_factory.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R7.C2"
+          ],
+          "sha256": "f9ac5e2cd84477f3da873acca501f45d0876c8434723afbb9d46ac99c896193f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/support.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R7.C2",
+            "R7.C3"
+          ],
+          "sha256": "24f6deb20b41f21ba92107dbc6bebba29059bfd50f851a79bb3c2141d1011488"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/transport_fallback.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R7.C3"
+          ],
+          "sha256": "9cf10e70ab6505b7eaaffe8dc1608cc07867fd7c45e6caae8478f2685353fffc"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R7.C2",
+            "R7.C3"
+          ],
+          "sha256": "4eabcd55891c8971ea2a52948f7546f40860aa993691b68c00fb08b33fb6d2f1"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/tests/signalr-functional.spec.ts",
+          "kind": "test",
+          "criterionIds": [
+            "R7.C3"
+          ],
+          "sha256": "0d1bedb76f12e5f41477437d4b2adcac73aa5e2d36a852ee9e86ce304c07cedd"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/ScenarioCatalog.cs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R7.C2",
+            "R7.C3"
+          ],
+          "sha256": "2ee4da4dd5fa8594bafd433d61fe1a265c5912e7fd2f348a7cde552a1942887d"
+        }
+      ],
+      "summaryMarkdown": "Passed for the whole sprint (S8.T1 + S8.T2: R7.C1, R7.C2, R7.C3). All seven findings (F1-F7) are resolved, with regression tests or the D27 amendment; none remain open.\n\n**Server-Sent Events (R7.C1):**\n- The native parser is WHATWG-conformant and never panics. Its bound under `with_maximum_message_size` now counts only the buffered unfinished record.\n- The native lifecycle matches .NET `ServerSentEventsTransport.ProcessAsync`: stream end stops sends, and the send side ending first drops the stream with no DELETE. A send failure is reported, and dropping the receiver closes the stream. The start is bounded by the connect timeout.\n- Liveness (initial Ping, keep-alive Pings, server timeout) covers a stalled stream on both targets.\n- The browser `EventSource` wrapper detaches its listeners, closes on the first error (no auto-reconnect) and defers `end` with `spawn_local`. Its closures hold only weak references, and no `RefCell` borrow crosses an `.await`. Only the negotiated Bearer token goes on the URL, and the default credentials mode follows D27.\n- MessagePack is rejected before I/O. Token counts (1 per connect, 3 after rotation) match .NET.\n- The Long Polling refactor onto `http_transport_tokio` keeps S7 behavior.\n- The 24-test `server_sent_events_` group covers the criterion.\n\n**Transport fallback (R7.C3):** `transport-fallback` asserts the transport `TransportDetails` reports on the restricted hubs for each protocol. A WebSockets-only client fails with `TransportUnavailable` naming LongPolling and its reason.\n\n**Docs:** README, docs 01/02/09/12/13 and the skill are accurate.\n\nRuntime proof for R7.C2 and R7.C3 rests on the official `check --sprint S8` runs; the implementer's results are diagnostic only.",
+      "findingIds": [
+        "S8-F1-with-transports-rustdoc-stale",
+        "S8-F2-sse-process-paths-untested",
+        "S8-F3-eventsource-withcredentials-vs-D5",
+        "S8-F4-sse-parser-unbounded-buffers",
+        "S8-F5-browser-basic-warning-and-D7-liveness-wording",
+        "S8-F6-sse-limit-counts-discarded-and-syntax-bytes",
+        "S8-F7-browser-basic-limitation-docs-stale"
+      ],
+      "recordedAt": "2026-10-07T22:01:55Z"
     }
   },
   "checkpoints": {
@@ -5375,6 +5716,14 @@
       },
       "reviewHash": "a5885beb6a9d83e840d4a4782bbb3ee1bfbbddb18d89afbecc618ddc46920201",
       "recordedAt": "2026-10-07T21:13:53Z"
+    },
+    "S8": {
+      "snapshotId": "9005ac51f690e6a40be88cbcd89999eda7cab430e516453dda4c700c61524a0e",
+      "commits": {
+        "rayx-signalr": "ad0647ec1b74d857e8cd9d930b59a63b5159b61d"
+      },
+      "reviewHash": "e7a814c4cc8fa530dba9887e1d004a6d9a8fc10bdb3063a0d78d23af87b8b118",
+      "recordedAt": "2026-10-07T22:02:21Z"
     }
   },
   "findings": [
@@ -7270,9 +7619,165 @@
           "symbol": "send"
         }
       ]
+    },
+    {
+      "id": "S8-F1-with-transports-rustdoc-stale",
+      "boundaryId": "S8",
+      "criterionIds": [
+        "R7.C1"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "Resolved: the `with_transports` rustdoc (`src/client/configuration.rs:588-597`) no longer claims that only WebSockets start, and it documents that MessagePack with Server-Sent Events alone fails `SignalRClient::new` with `ErrorKind::Configuration` naming `with_transports`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs",
+          "symbol": "ConnectionConfiguration::with_transports"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/server_sent_events_tokio.rs",
+          "symbol": "server_sent_events_alone_reject_messagepack_before_io"
+        }
+      ]
+    },
+    {
+      "id": "S8-F2-sse-process-paths-untested",
+      "boundaryId": "S8",
+      "criterionIds": [
+        "R7.C1"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "Resolved: `server_sent_events_a_failed_send_ends_the_transport_with_its_error` (a POST answered 500 yields a `Transport` error naming 500 and closes the stream), `server_sent_events_dropping_the_receiver_closes_the_stream`, and `server_sent_events_start_is_bounded_by_the_connect_timeout` (a hanging 401 refresh times out as `ErrorKind::Timeout` within the 300 ms connect timeout) cover the paths. Nit, no action needed: `long_polling_start_is_bounded_by_the_connect_timeout` still duplicates the server that the new helper `start_against_a_hanging_refresh` already provides.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/server_sent_events_tokio.rs",
+          "symbol": "server_sent_events_a_failed_send_ends_the_transport_with_its_error"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/server_sent_events_tokio.rs",
+          "symbol": "server_sent_events_dropping_the_receiver_closes_the_stream"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "server_sent_events_start_is_bounded_by_the_connect_timeout"
+        }
+      ]
+    },
+    {
+      "id": "S8-F3-eventsource-withcredentials-vs-D5",
+      "boundaryId": "S8",
+      "criterionIds": [
+        "R7.C1"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "Resolved by specification: decision D27 supersedes D5's `withCredentials` clause. Browsers use the default credentials mode (`fetch` with `same-origin`, `EventSource` without `withCredentials`), as the .NET browser `HttpClient` does by default. The limitation is documented in `docs/12-limitations.md` and in the skill's troubleshooting limitations. The code (`browser_http.rs:341`, `EventSource::new`) matches D27.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/browser_http.rs",
+          "symbol": "HttpTransport::start_server_sent_events"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/12-limitations.md"
+        }
+      ]
+    },
+    {
+      "id": "S8-F4-sse-parser-unbounded-buffers",
+      "boundaryId": "S8",
+      "criterionIds": [
+        "R7.C1"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "Resolved: `EventStreamParser::new(recipe.maximum_message_size())` bounds what it buffers, and `receive` reports `ErrorKind::Protocol` as the terminal item. With no limit configured the parser stays unbounded, as in .NET. Tests: `server_sent_events_records_beyond_the_maximum_message_size_fail` and `robustness_server_sent_events_bounded_parsers_never_buffer_past_the_limit`. The accounting is imprecise; that is tracked separately as S8-F6.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/server_sent_events_tokio.rs",
+          "symbol": "server_sent_events_records_beyond_the_maximum_message_size_fail"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/server_sent_events_tokio.rs",
+          "symbol": "robustness_server_sent_events_bounded_parsers_never_buffer_past_the_limit"
+        }
+      ]
+    },
+    {
+      "id": "S8-F5-browser-basic-warning-and-D7-liveness-wording",
+      "boundaryId": "S8",
+      "criterionIds": [
+        "R7.C1"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "Resolved: `BROWSER_BASIC_WARNING` (`configuration.rs:35-41`) now says Basic travels only with `fetch` requests and names the WebSocket and `EventSource` as unable to carry it. D27 supersedes D7's \"comments as liveness\", and the parser rustdoc and docs/02 say comments are not liveness.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs",
+          "symbol": "BROWSER_BASIC_WARNING"
+        }
+      ]
+    },
+    {
+      "id": "S8-F6-sse-limit-counts-discarded-and-syntax-bytes",
+      "boundaryId": "S8",
+      "criterionIds": [
+        "R7.C1"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "Resolved: `EventStreamParser` (`server_sent_events_tokio.rs:63-67`, `:88-90`, `:96-117`, `:125-161`) now bounds `line_pending + data_pending`.\n- `line_pending` counts the current line's bytes after its last `0x1E` and resets at every line end, so discarded comment and field lines never accumulate.\n- `data_pending` counts the event data after its last `0x1E`, including joining LFs and excluding `data:` prefixes. `value.len() - separator` correctly counts the bytes after the separator plus the joining LF.\n- Tests: `server_sent_events_comment_lines_never_count_toward_the_maximum_message_size` (2,000 comment lines under a 10-byte limit, then a valid event) and `server_sent_events_a_record_split_over_many_data_lines_within_the_limit_passes` (a 99-byte record over 50 `data:` lines with a 100-byte limit; the old counter rejected it). The bounded-parser property asserts `pending()`.\n- Non-blocking observation: a raw `0x1E` inside a comment or a non-`data` line also resets `data_pending`, so a deliberately malformed stream could evade the bound. This adds no memory growth beyond what D27 already permits: complete records within one undispatched event are unbounded by design.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/server_sent_events_tokio.rs",
+          "symbol": "server_sent_events_comment_lines_never_count_toward_the_maximum_message_size"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/server_sent_events_tokio.rs",
+          "symbol": "server_sent_events_a_record_split_over_many_data_lines_within_the_limit_passes"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/server_sent_events_tokio.rs",
+          "symbol": "robustness_server_sent_events_bounded_parsers_never_buffer_past_the_limit"
+        }
+      ]
+    },
+    {
+      "id": "S8-F7-browser-basic-limitation-docs-stale",
+      "boundaryId": "S8",
+      "criterionIds": [
+        "R7.C1"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "Resolved: `docs/12-limitations.md:25-28` and `.claude/skills/rayx-signalr/references/troubleshooting.md:69` now say browser Basic credentials go on every `fetch` request (negotiate, Long Polling, Server-Sent Events sends). They state that a WebSocket or `EventSource` cannot carry them and recommend Bearer tokens or an access-token factory. This matches `BROWSER_BASIC_WARNING` and `docs/02-connecting.md`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/12-limitations.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/troubleshooting.md"
+        }
+      ]
     }
   ],
-  "handoffMarkdown": "Long Polling on both targets. Native src/communication/long_polling_tokio.rs: poll and send tasks each own a hyper HTTP/1.1 Lane over negotiate_http::connect_tcp/tls_stream; one poll at a time (200 frames, 204 Ok(None) end, other status/network error Err), ordered POST batches (text/plain;charset=UTF-8 or application/octet-stream), DELETE after the queue closes, 401 retried once with a fresh factory token (ConnectionRecipe::has_access_token_factory), unanswered request on a reused connection retried once on a fresh one (SocketsHttpHandler parity); polls bounded by with_long_polling_timeout (LivenessConfig::long_polling_timeout, 100 s) + connect timeout. TransportSender/TransportReceiver::LongPolling variants. Browser src/communication/browser_long_polling.rs: fetch + AbortController per request, body read inside the bound, Authorization header (negotiation::http_transport_url drops access_token, ws->http), binary copied to a fresh Uint8Array, buffered_amount = queued+in-flight bytes, Drop closes. Inherent keep-alive on both targets: no Pings, no server timeout and NO post-handshake Ping over Long Polling (that Ping makes ASP.NET Core start its client timeout; a .NET-client probe confirmed). current_transport_authorization is cross-target. Test service: TransportFaults (AbortPhysicalTransport and TokenHub.Abort sever the current poll and answer later polls of the token 404 so .NET and this client both reconnect; WebSockets unchanged); keepalive-idle/server-timeout over LP assert a 45 s idle connection (catalog Limit 120 s, native LIVENESS_SCENARIO_TIMEOUT 110 s, Playwright setTimeout 110 s); token-factory expects 5 factory calls over LP (401 after rotation); browser authentication over LP expects source header. Unit groups long_polling_ (20 incl. robustness_long_polling_). Docs 02/06/12/13/14, README, skill references.",
+  "handoffMarkdown": "transport-fallback scenario (catalog Everywhere; native tests/e2e/transport_fallback.rs, fixture transport_fallback, signalr-functional.spec.ts): /test-longpolling -> LongPolling; /test-no-websockets -> ServerSentEvents for JSON, LongPolling for MessagePack (TransportDetails gained Transport from IHttpTransportFeature); WebSockets-only client against /test-longpolling fails TransportUnavailable with attempts [LongPolling] and a message naming it. negotiation::transports_failed now names every attempt with its reason in the message (.NET AggregateException style), test transport_selection_unavailable_errors_name_every_transport. RepositoryTests now require the Long Polling and Server-Sent Events sections in docs/02 instead of a Long Polling limitation. Diagnostics: transport-fallback 10/10 on native, Chromium, Firefox, WebKit, Android; contract categories 36/36.",
   "protectedPaths": {
     "rayx-signalr": {
       ".agentx/tasks/resilient-reconnect-and-production-gates/**": "a4110a3f5f2c68d64ddf8fbedb70479c98f46dde78b064b5b3ac826772db49a6",

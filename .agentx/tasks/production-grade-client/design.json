@@ -810,6 +810,25 @@
           "path": "src/communication/client_wasm.rs"
         }
       ]
+    },
+    {
+      "id": "D27",
+      "requirementIds": [
+        "R7"
+      ],
+      "descriptionMarkdown": "**Browser credentials mode, event-stream comments and parser bounds (refines D5 and D7 for S8, after the S8 review findings S8-F3, S8-F4 and S8-F5).**\n- Browsers use the browser's default credentials mode for every HTTP request and the event stream: `fetch` with `same-origin` credentials (negotiate, Long Polling, Server-Sent Events sends) and `EventSource` without `withCredentials`, as the .NET client's browser `HttpClient` (`BrowserHttpHandler`) does by default. The crate has no credentials option, so cross-origin cookies are not sent; this is documented in `docs/12-limitations.md`. D5's \"`withCredentials` from configuration\" is superseded.\n- Event-stream comments are parsed and ignored: they do not count as liveness, as the .NET client's `ServerSentEventsMessageParser` ignores them and its server timeout counts only messages. D7's \"comments as liveness\" is superseded.\n- With `with_maximum_message_size`, the native event-stream parser bounds the bytes buffered since the last record separator or event end by that size (plus the line syntax) and fails with `ErrorKind::Protocol` beyond it.",
+      "invariantsMarkdown": "- The parser never buffers an unterminated record beyond the maximum message size when one is configured.\n- Browser transports never send credentials in a mode the .NET browser client would not use by default.",
+      "rationaleMarkdown": "Parity with the official .NET client (user directive 2026-10-07): its browser `HttpClient` uses the default `same-origin` credentials mode, and its Server-Sent Events parser treats comments as nothing. Bounding the parser closes an unbounded-memory path the review found.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/browser_http.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/server_sent_events_tokio.rs"
+        }
+      ]
     }
   ],
   "memoryDecisionsConsidered": [
