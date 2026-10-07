@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 11,
+  "revision": 15,
   "title": "Production-grade rayx-signalr: typed errors, all transports, proxies, refreshable auth, suspension-aware liveness, proven TLS paths, reference-class performance, and stretch SOCKS/PAC/OS proxies, HTTP/2 and HTTP/3",
   "validationMode": "sprint",
   "repositories": [
@@ -4808,6 +4808,65 @@
         "src/**"
       ],
       "timeoutSeconds": 1800
+    },
+    {
+      "id": "p1-dotnet-build",
+      "repositoryId": "rayx-signalr",
+      "kind": "build",
+      "criterionIds": [
+        "R16.C6",
+        "R16.C8"
+      ],
+      "descriptionMarkdown": "P1 changed the test service (client-result error recording) and the scenario catalog: every .NET project builds (CLAUDE.md rule for .NET changes).",
+      "argv": [
+        "dotnet",
+        "build",
+        "RayX.SignalR.slnx"
+      ],
+      "expected": {
+        "exitCode": 0
+      },
+      "inputs": [
+        "global.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**"
+      ],
+      "timeoutSeconds": 1800
+    },
+    {
+      "id": "p1-static-categories",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R16.C6",
+        "R16.C8"
+      ],
+      "descriptionMarkdown": "The static .NET categories CLAUDE.md requires for P1's catalog and test-service changes: WorkflowContract, Repository, Catalog and Toolchain (the catalog lists `callback-dispatch` and `client-result-errors` for the native e2e binary and Playwright).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=WorkflowContract|Category=Repository|Category=Catalog|Category=Toolchain"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 12
+      },
+      "inputs": [
+        "Cargo.toml",
+        "build.rs",
+        "src/**",
+        "tests/**",
+        "global.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        ".github/**",
+        "tools-node/**"
+      ],
+      "timeoutSeconds": 3600
     }
   ],
   "finalCheckIds": [
@@ -5320,20 +5379,22 @@
         {
           "id": "P1.T1",
           "title": "Dispatch task and handler registry",
-          "descriptionMarkdown": "Per D17: a per-connection dispatch task fed by the receive path, the handler registry with several handlers per target and per-registration unregister, `remove(target)`, `register_async`, native panic isolation; the `callback_registry_` and `callback_dispatch_` groups and the `callback-dispatch` scenario (native, fixture, Android).",
+          "descriptionMarkdown": "Per D17: a per-connection dispatch task fed by the receive path, the handler registry with several handlers per target and per-registration unregister, `remove(target)`, `register_async`, native panic isolation; the `callback_registry_` and `callback_dispatch_` groups and the `callback-dispatch` scenario (native, fixture, Android). Review repairs: P1-F1 panics in typed callbacks and asynchronous factories are caught; P1-F3 result-expecting calls run on their own task; P1-F8 `register`, `register_async`, `register_typed` and `remove` take `impl Into<String>`. Re-review repairs: P1-F9 result calls start inline in arrival order; P1-F10 native callbacks are `Send + Sync` and run without a lock; P1-F11 docs.",
           "criterionIds": [
             "R16.C7",
             "R16.C8"
           ],
           "designIds": [
-            "D17"
+            "D17",
+            "D24"
           ],
           "dependsOn": [],
           "checkIds": [
             "p1-callback-registry",
             "p1-callback-dispatch",
             "p1-callback-dispatch-e2e",
-            "p1-callback-dispatch-android"
+            "p1-callback-dispatch-android",
+            "p1-static-categories"
           ],
           "sourceRefs": [
             {
@@ -5380,12 +5441,13 @@
         {
           "id": "P1.T3",
           "title": "Client-result errors",
-          "descriptionMarkdown": "The `Client didn't provide a result.` Completion for unhandled result-expecting calls, `InvocationContext::fail`, the missing-result Completion on drop, local errors for a second completion; test-service recording of the `HubException` text; the `client_results_` group and the `client-result-errors` scenario (native, fixture, Android).",
+          "descriptionMarkdown": "The `Client didn't provide a result.` Completion for unhandled result-expecting calls, `InvocationContext::fail`, the missing-result Completion on drop, local errors for a second completion; test-service recording of the `HubException` text; the `client_results_` group and the `client-result-errors` scenario (native, fixture, Android). Review repairs: P1-F2 the reply sink follows the logical connection (stateful resume keeps it; `client-result-errors` completes a result after a forced resume on every target); P1-F4 byte-level error-Completion tests; P1-F6 the native second-completion assertion runs in the scenario; P1-F7 a panicking callback answers with its message. Re-review repairs: P1-F2 a logical-connection counter makes replies after an ordinary reconnect fail locally (`client-result-errors` covers both reconnect kinds); P1-F12 a panic answers only an otherwise unanswered call.",
           "criterionIds": [
             "R16.C6"
           ],
           "designIds": [
-            "D17"
+            "D17",
+            "D24"
           ],
           "dependsOn": [
             "P1.T1"
@@ -5393,7 +5455,8 @@
           "checkIds": [
             "p1-client-results",
             "p1-client-result-errors",
-            "p1-client-result-errors-android"
+            "p1-client-result-errors-android",
+            "p1-dotnet-build"
           ],
           "sourceRefs": [
             {

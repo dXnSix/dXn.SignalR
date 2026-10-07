@@ -361,7 +361,7 @@
         },
         {
           "id": "R16.C6",
-          "descriptionMarkdown": "Client results behave as in the .NET client: a result-expecting invocation (one with an invocation id) for a target without a callback gets the error Completion `Client didn't provide a result.`; `InvocationContext::fail(message)` sends an error Completion; a context dropped without completing sends the missing-result error; a second `complete` or `fail` returns an error locally and sends nothing. Unit group `client_results_`; scenario `client-result-errors` (the test service records the `HubException` text its `InvokeAsync` observed) on every target.",
+          "descriptionMarkdown": "Client results behave as in the .NET client: a result-expecting invocation (one with an invocation id) for a target without a callback gets the error Completion `Client didn't provide a result.`; `InvocationContext::fail(message)` sends an error Completion; a context dropped without completing sends the missing-result error; a second `complete` or `fail` returns an error locally and sends nothing; the answer goes to the logical connection the call arrived on (kept by a stateful resume; after an ordinary reconnect or a fresh negotiation, answering fails locally with `ErrorKind::Transport`). Unit group `client_results_`; scenario `client-result-errors` (the test service records the `HubException` text its `InvokeAsync` observed) on every target.",
           "verification": "automated"
         },
         {
@@ -371,7 +371,7 @@
         },
         {
           "id": "R16.C8",
-          "descriptionMarkdown": "Server-to-client calls are dispatched on a per-connection task in arrival order and never under a storage lock, as the .NET client's separate dispatch loop does: completions, stream items, Pings and Acks never wait on a callback; asynchronous callbacks (`register_async`) are awaited one at a time; natively a panicking callback is caught and logged and the connection keeps working; `register`, `unregister` and `disconnect` inside a callback return. Unit group `callback_dispatch_`; scenario `callback-dispatch` (a slow callback does not delay an invoke completion) on every target.",
+          "descriptionMarkdown": "Server-to-client calls are dispatched on a per-connection task in arrival order and never under a storage lock, as the .NET client's separate dispatch loop does: completions, stream items, Pings and Acks never wait on a callback; asynchronous callbacks (`register_async`) are awaited one at a time, except that a call expecting a result starts in arrival order and continues on its own task once a callback waits, so it never holds later calls (as `HubConnection`'s receive loop does not await result-expecting dispatches); natively a panicking callback (sync, typed, or an asynchronous callback's factory or future) is caught and logged and the connection keeps working, and an unanswered result-expecting call is answered with the panic message as the .NET client answers with a throwing handler's exception message; `register`, `unregister` and `disconnect` inside a callback return. Unit group `callback_dispatch_`; scenario `callback-dispatch` (a slow callback does not delay an invoke completion) on every target. Natively registered callbacks are `Send + Sync` (they may run on any thread of the connection's runtime), so no lock is held while one runs.",
           "verification": "automated"
         },
         {

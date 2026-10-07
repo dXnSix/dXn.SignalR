@@ -737,6 +737,29 @@
           "path": "dotnet/RayX.SignalR.TestService/src/Program.cs"
         }
       ]
+    },
+    {
+      "id": "D24",
+      "requirementIds": [
+        "R16"
+      ],
+      "descriptionMarkdown": "**Server-to-client dispatch refinements (refines D17 after the P1 review).**\n- As in `HubConnection.StartProcessingInvocationMessages`, a call with an invocation id starts on the dispatch task in arrival order (polled once inline, as .NET starts result handlers inline) and what is still pending continues on its own spawned task (`tokio::spawn` on the connection runtime natively, `spawn_local` in the browser), so a result callback waiting for user input never blocks later calls; calls without an id keep strict one-at-a-time arrival order on the dispatch task.\n- Every callback kind is panic-isolated natively: synchronous and typed callbacks, an asynchronous callback's factory and its future. A panic is remembered by the call's result slot and answers the call with the panic message only if no other callback answers it, as the .NET client answers with a throwing handler's exception message. Native callbacks are `Send + Sync`, so they are shared without a lock across the dispatch task and spawned result calls.\n- Replies go through a reply sink that follows the client's current transport (natively the current writer, in the browser the live socket); the call's result slot records the logical connection it arrived on from a counter that only a new logical connection advances (an ordinary reconnect, or a fresh stateful negotiation; a stateful resume keeps it), and a reply for a replaced logical connection fails locally with `ErrorKind::Transport`.",
+      "invariantsMarkdown": "- Every result-expecting server call gets exactly one Completion while its logical connection lives.\n- No storage lock or `RefCell` borrow is held while user code runs.",
+      "rationaleMarkdown": "The P1 review (p1-reviewer-1) found these gaps against the official .NET 10 client (`HubConnection.cs`, release/10.0); D17 is sealed by S3, so this decision refines it.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs"
+        }
+      ]
     }
   ],
   "memoryDecisionsConsidered": [

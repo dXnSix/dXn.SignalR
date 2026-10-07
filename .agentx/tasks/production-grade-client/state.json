@@ -1,12 +1,12 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 58,
-  "planRevision": 11,
+  "revision": 74,
+  "planRevision": 15,
   "specHashes": {
-    "requirements": "b5ff0debaa1b5a28eec0bd570fe0199dcfa134ad978a51a022ab623a2c870b30",
-    "design": "f5cfde4f74bcadbd1c33c0768a4792dfa8dc040e6cdd9dd6fa881f9a3f61b08e",
-    "plan": "78b650c17c340294c946811da195ec9514f3de2ba762a54eba15e6b00ba66f96"
+    "requirements": "05505ab02821198c2bfeea579535a9653425965aa8c45471d842ac9fbe8b27e5",
+    "design": "a186bb62a1f01be204afe542a1449e2b59a0d7f5a213d05e57859353c110f50b",
+    "plan": "6f5ab574dbac610caa65c72d524b6b7dcb8344de6073a0ac4567f75a66dcf2cd"
   },
   "tasks": {
     "S1.T1": {
@@ -175,16 +175,28 @@
       ]
     },
     "P1.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "P1.T2": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "P1.T3": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "P1.T4": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "P2.T1": {
       "status": "pending"
@@ -283,6 +295,24 @@
         }
       },
       "recordedAt": "2026-10-07T10:59:18Z"
+    },
+    "58783a5ce34deb4dc65abd9bea758953a8c32ec3e24e89115fd48cbddba81f3b": {
+      "snapshot": {
+        "specHash": "b24940ca741c0b8bb5bb495896dd3f3ead1ace47c2ff29311174434f9c466445",
+        "repositories": {
+          "rayx-signalr": "010353682c0088cb0092e00797044587dce6f70f22796d555a78f1ec9199f3e3"
+        }
+      },
+      "recordedAt": "2026-10-07T11:30:48Z"
+    },
+    "8f01ee9665163cfda8c6c31b670827d57e186dbea9923814fcd3b0899b3eacad": {
+      "snapshot": {
+        "specHash": "634d52029ec0d3dea5d26289b34fb688be87f917456182f8f7e4f0ddb5499555",
+        "repositories": {
+          "rayx-signalr": "cd45b6ef152244fff55ad69763e37cf3c4179fff7fa36a8b2f231f7aca41d0bc"
+        }
+      },
+      "recordedAt": "2026-10-07T12:25:32Z"
     }
   },
   "checkResults": {
@@ -812,6 +842,193 @@
       "logPath": "artifacts-temp/agentx/production-grade-client/S3-final-7a397a02b353.log",
       "logSha256": "d5ddf0ec005eae7aac956198574362f6fff5e2e0325eb968c41e30cf386aceb5",
       "inputsHash": "251c01a2f7db134aab09eb1b59b98c921205a9c0e27713b9d95b1544665c75cf"
+    },
+    "P1/p1-callback-registry/final": {
+      "checkId": "p1-callback-registry",
+      "boundaryId": "P1",
+      "phase": "final",
+      "batchId": "8f01ee9665163cfda8c6c31b670827d57e186dbea9923814fcd3b0899b3eacad",
+      "definitionHash": "21a346dfc9d448db91c5097a84c8e466a9aee7461d84e271803731e899f38bb6",
+      "basisHash": "3df38b4d6626930f6c66d9d6c3348cc2339853385484f03f2bc243866efbec84",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 0.6394,
+      "recordedAt": "2026-10-07T12:19:11Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P1-final-8760950f274a.log",
+      "logSha256": "a6834373319af867406368e2ccc212cfbe0ecc46b5bb5f6d98bd97a7dda472e0",
+      "inputsHash": "b055e8a2390e26bb5be0d8f9147a0373f168ead88e698b47ffed77968660c57c"
+    },
+    "P1/p1-callback-dispatch/final": {
+      "checkId": "p1-callback-dispatch",
+      "boundaryId": "P1",
+      "phase": "final",
+      "batchId": "8f01ee9665163cfda8c6c31b670827d57e186dbea9923814fcd3b0899b3eacad",
+      "definitionHash": "bd95e75524aaedd07f660761177ce11380b76c1de99f1d40389c4eb420e51ac1",
+      "basisHash": "c714d494d9bd2098869f1db922ca4237fb1472bcc0da0a7a7f1e9896f33ae870",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 9,
+      "durationSeconds": 0.947,
+      "recordedAt": "2026-10-07T12:19:12Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P1-final-0ee13e9142f0.log",
+      "logSha256": "36a4addd747b7823ecde2ac884d9b3228568e7906dca63298f47f10d1612ea04",
+      "inputsHash": "b055e8a2390e26bb5be0d8f9147a0373f168ead88e698b47ffed77968660c57c"
+    },
+    "P1/p1-callback-dispatch-e2e/final": {
+      "checkId": "p1-callback-dispatch-e2e",
+      "boundaryId": "P1",
+      "phase": "final",
+      "batchId": "8f01ee9665163cfda8c6c31b670827d57e186dbea9923814fcd3b0899b3eacad",
+      "definitionHash": "dc71cc190d79ad5f365294257a2a6896c3b4c7551162f7630d4d465292af45ee",
+      "basisHash": "4866bfba1b8300e72f9dd01914e3f974bc8d285db46afd744c3ffdaf636c5ad2",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 8,
+      "durationSeconds": 114.3402,
+      "recordedAt": "2026-10-07T12:21:07Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P1-final-295b57f8521b.log",
+      "logSha256": "3c79d2dc9038fc33ae93d2e4ddb509818221c079fec2c0636ca89038fc0e6b6d",
+      "inputsHash": "9538db2f7f090eb580bbf2221c9cc9bd48c2f3f122059e8a1252f351f46fce69"
+    },
+    "P1/p1-callback-dispatch-android/final": {
+      "checkId": "p1-callback-dispatch-android",
+      "boundaryId": "P1",
+      "phase": "final",
+      "batchId": "8f01ee9665163cfda8c6c31b670827d57e186dbea9923814fcd3b0899b3eacad",
+      "definitionHash": "694650f61647244db3da659fe3dcb70868187c9602224624759bb41266792202",
+      "basisHash": "9f4ed7bc423ea12b87fe35b15baaf8b5a41f019ab55b4b809e111aa198de55bc",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 35.0371,
+      "recordedAt": "2026-10-07T12:25:08Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P1-final-b25a9cef4b09.log",
+      "logSha256": "b622e43c5a8d95a0d79e2e13b9df2a32565e7417659e763519c7e7704258b40b",
+      "inputsHash": "9538db2f7f090eb580bbf2221c9cc9bd48c2f3f122059e8a1252f351f46fce69"
+    },
+    "P1/p1-callback-binding/final": {
+      "checkId": "p1-callback-binding",
+      "boundaryId": "P1",
+      "phase": "final",
+      "batchId": "8f01ee9665163cfda8c6c31b670827d57e186dbea9923814fcd3b0899b3eacad",
+      "definitionHash": "a794c7822eaa3bdbec6a0ede9e09302c74a621982d7e56efdf1559914f07ab51",
+      "basisHash": "b491d0833a503f89a645b107c200a2bea968df369eb742481396cd8d6d614458",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 0.6239,
+      "recordedAt": "2026-10-07T12:21:19Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P1-final-98bd10cf8af6.log",
+      "logSha256": "cc6d4ab5bb7815e0d323c7a1cd374b3d36506b81223ce6657bc81935ec5c2f4c",
+      "inputsHash": "b055e8a2390e26bb5be0d8f9147a0373f168ead88e698b47ffed77968660c57c"
+    },
+    "P1/p1-client-results/final": {
+      "checkId": "p1-client-results",
+      "boundaryId": "P1",
+      "phase": "final",
+      "batchId": "8f01ee9665163cfda8c6c31b670827d57e186dbea9923814fcd3b0899b3eacad",
+      "definitionHash": "f301d5d0b664bb052b94541ff3319ef20b331d2031d2fbee63e12b1f7508c45c",
+      "basisHash": "7b2836ae61b962c62760008b6ada3ad3cd2599f1498d18059eab1bcb9892957b",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 9,
+      "durationSeconds": 0.5285,
+      "recordedAt": "2026-10-07T12:21:19Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P1-final-974b25c4dbaa.log",
+      "logSha256": "a1029b3a6f88467c5cc5848f2f5e2d2124f1944077baea9dbba6b676a43b5da5",
+      "inputsHash": "b055e8a2390e26bb5be0d8f9147a0373f168ead88e698b47ffed77968660c57c"
+    },
+    "P1/p1-client-result-errors/final": {
+      "checkId": "p1-client-result-errors",
+      "boundaryId": "P1",
+      "phase": "final",
+      "batchId": "8f01ee9665163cfda8c6c31b670827d57e186dbea9923814fcd3b0899b3eacad",
+      "definitionHash": "fb3531864e2fc6fe0156e20208015c2f29243ccffbbea0406f5fab5e78282278",
+      "basisHash": "3966f66c15c0c01d108c030a52fc7a0f30535cbac51e453817155e5647b8879b",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 8,
+      "durationSeconds": 76.4506,
+      "recordedAt": "2026-10-07T12:22:36Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P1-final-32d5d676c04e.log",
+      "logSha256": "d05dae7358e8593b9c4b9b7c5c96be61be8d5b15681dd77a9486a96ce5413540",
+      "inputsHash": "9538db2f7f090eb580bbf2221c9cc9bd48c2f3f122059e8a1252f351f46fce69"
+    },
+    "P1/p1-client-result-errors-android/final": {
+      "checkId": "p1-client-result-errors-android",
+      "boundaryId": "P1",
+      "phase": "final",
+      "batchId": "8f01ee9665163cfda8c6c31b670827d57e186dbea9923814fcd3b0899b3eacad",
+      "definitionHash": "3a4aa350d655c02add17ec2707beefed03c34a41404d59ef9b19c16a0e01e49f",
+      "basisHash": "9be5c4317030dc2023474f2f8279f8bb8e7d1d6adcde8455512e05a2d6c38b12",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 24.6772,
+      "recordedAt": "2026-10-07T12:25:32Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P1-final-bb1704fe766f.log",
+      "logSha256": "c1989f9609ca0224d13d3b8756d73fe5d83a6cf2316e215ecd2f0c05ca4faa9b",
+      "inputsHash": "9538db2f7f090eb580bbf2221c9cc9bd48c2f3f122059e8a1252f351f46fce69"
+    },
+    "P1/p1-void-invoke/final": {
+      "checkId": "p1-void-invoke",
+      "boundaryId": "P1",
+      "phase": "final",
+      "batchId": "8f01ee9665163cfda8c6c31b670827d57e186dbea9923814fcd3b0899b3eacad",
+      "definitionHash": "e872966d81b03ce7d8a435518c2c7b2044f090645d19c3f7d85c9785f4ab06b4",
+      "basisHash": "2e55591e679d8aa94a0b84046339bcc7bd270330fdd5a026c35ae625d7715b73",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 0.5565,
+      "recordedAt": "2026-10-07T12:22:47Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P1-final-ed68f88c4dbd.log",
+      "logSha256": "42c2f1f2674fbc609f0f717a744b43f5a7f14a1211228c3363022176f1150bb9",
+      "inputsHash": "b055e8a2390e26bb5be0d8f9147a0373f168ead88e698b47ffed77968660c57c"
+    },
+    "P1/p1-dotnet-build/final": {
+      "checkId": "p1-dotnet-build",
+      "boundaryId": "P1",
+      "phase": "final",
+      "batchId": "58783a5ce34deb4dc65abd9bea758953a8c32ec3e24e89115fd48cbddba81f3b",
+      "definitionHash": "5c6057615bc809ac8c381166f595e905196b5c62218bb77772a5bacf4db57256",
+      "basisHash": "e77a36f637ac79899f93b94499c974ae512e09ba2fe7a09d6761c79cc3289c67",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 0,
+      "durationSeconds": 1.6618,
+      "recordedAt": "2026-10-07T11:30:35Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P1-final-5fe14e3af324.log",
+      "logSha256": "e4fcff3f778db46349ce54f9cd421dff00930c15c75c397b0b18a63b8abdbedf",
+      "inputsHash": "f508ac8262b348f7c4fdb8e8c2de20d9cab2436d6dd38cee36390078b914aa11"
+    },
+    "P1/p1-static-categories/final": {
+      "checkId": "p1-static-categories",
+      "boundaryId": "P1",
+      "phase": "final",
+      "batchId": "8f01ee9665163cfda8c6c31b670827d57e186dbea9923814fcd3b0899b3eacad",
+      "definitionHash": "39e8ea52653239d8f8d7c4970e4cfde599c35de84c05c945fa019b15f4d8efa0",
+      "basisHash": "8cdb8f3db97b3cf084f195a6baa4ec412e3a750c41f901a14f7c70c4c9992d53",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 30,
+      "durationSeconds": 19.4933,
+      "recordedAt": "2026-10-07T12:23:07Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P1-final-0b1ad6f80b40.log",
+      "logSha256": "e7478dfa912c452ff8a27802690813f5c3bd243e66069127d2edff33f333b3a8",
+      "inputsHash": "0daf60ae762046bc60ed295612729ae91091dcf14853ec048760d29791e09b45"
     }
   },
   "reviews": {
@@ -1982,6 +2199,282 @@
         "S3-F10"
       ],
       "recordedAt": "2026-10-07T11:02:49Z"
+    },
+    "P1": {
+      "reviewerId": "p1-reviewer-4",
+      "snapshotId": "8f01ee9665163cfda8c6c31b670827d57e186dbea9923814fcd3b0899b3eacad",
+      "criterionIds": [
+        "R16.C6",
+        "R16.C7",
+        "R16.C8",
+        "R16.C9",
+        "R16.C11"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C6",
+            "R16.C7",
+            "R16.C8",
+            "R16.C9"
+          ],
+          "sha256": "44e2131621ebeb3df5ed729e273d3533181bf5b649ef83a018a49ba427b57c57"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/context.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C6",
+            "R16.C9"
+          ],
+          "sha256": "5a45a42d33acf954471f4cb52c7909787d772b6e0fd8d574204a20bf4c6e122f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C7",
+            "R16.C8",
+            "R16.C9"
+          ],
+          "sha256": "8d0b7d1dc039dd0cf7847b89732fa7c321605c43558179f5de04476561a5d66c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/storage.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C7",
+            "R16.C8"
+          ],
+          "sha256": "e5e000cd0a10295db41809c0392d3b6db5e49fa89f2f46923e0f33184bc05ab5"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/storage_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C8"
+          ],
+          "sha256": "df38cbeaa73e58200288d5b5cdd1a5b54b959b819bedde8fda3c4d3768d81d1a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/storage_wasm.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C8"
+          ],
+          "sha256": "1f91d495989aca1975b52ee93e64ece3366c14b7655a93aa0489db9aea66ac37"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C6",
+            "R16.C8"
+          ],
+          "sha256": "91d448a5a475175b715bec2547ca4f88be073e576408f3b1070b1fb3c2c3e3a8"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C6",
+            "R16.C8"
+          ],
+          "sha256": "d1908fbf12a16a11ad849d9a626aa3da473b47392d2276e2bb0870da0ad42f70"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/codec.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C6"
+          ],
+          "sha256": "9f1716db38088e97462bfe7fbb4c2f889455f4af47379477d642a4cf1902ee5f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/msgpack.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C6"
+          ],
+          "sha256": "eddee643c9875cbc7d0a88fd1fd8c428ce0a840df28691d334082a63b031b71d"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/invoke.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C6"
+          ],
+          "sha256": "95d47c0d3d960be99313d6454f9662f5ca2a6f48570ed979ebc9934a060c689a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/invocation.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C11"
+          ],
+          "sha256": "39cb10daef76bd33dcd94b9d65a084bf849909e34b3f5cf8b78f0a751cef57f5"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/TestHub.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C6"
+          ],
+          "sha256": "cdfef3dda28e06a765b15ccb048b4172bc6bd6b10503cd8e253ad41145acbbd8"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/TestControls.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C6"
+          ],
+          "sha256": "b3903f954278a8c9046061579c1fdb48053a56a2242624acc229224a39b72994"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C6",
+            "R16.C7",
+            "R16.C8",
+            "R16.C9"
+          ],
+          "sha256": "44e2131621ebeb3df5ed729e273d3533181bf5b649ef83a018a49ba427b57c57"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/codec.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C6"
+          ],
+          "sha256": "9f1716db38088e97462bfe7fbb4c2f889455f4af47379477d642a4cf1902ee5f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C8"
+          ],
+          "sha256": "8d0b7d1dc039dd0cf7847b89732fa7c321605c43558179f5de04476561a5d66c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/invocation.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C11"
+          ],
+          "sha256": "39cb10daef76bd33dcd94b9d65a084bf849909e34b3f5cf8b78f0a751cef57f5"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/callback_dispatch.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C8"
+          ],
+          "sha256": "38dcbeda1d7346b49bbbfbc244bfbf947acc2213237fd7aa51c4832a31f5c1a3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/client_result_errors.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C6"
+          ],
+          "sha256": "a7213b7b401570cec84d003d1fc6dbe55ac5389666c0324cee7fd807a41d12b0"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C6",
+            "R16.C8"
+          ],
+          "sha256": "3d5d7044cdec1ec8d68f475032621dd6053cbdcdc2b04d9a507531c9213f01cc"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/tests/signalr-functional.spec.ts",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C6",
+            "R16.C8"
+          ],
+          "sha256": "710254ba734d4975ee6a1de40db146a957d287c80fd07558f6b98f8667d07ada"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/ScenarioCatalog.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C6",
+            "R16.C8"
+          ],
+          "sha256": "442be4f3198e7c6bd96307e59f9b4fedefcf8560409b74a15ae9eb839d436c61"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/p1-check-4.json",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C6",
+            "R16.C7",
+            "R16.C8",
+            "R16.C9",
+            "R16.C11"
+          ],
+          "sha256": "fb4947e9ec0c86f3898b42a9516bd0b14887c04a5cd2894b32d56d8632115ca0"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/p1-check-5.json",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C6",
+            "R16.C8"
+          ],
+          "sha256": "c7714f2894d1c804e904bc2db922b56c9fbb8bf0679628c3b09d424526eb6b92"
+        }
+      ],
+      "summaryMarkdown": "Re-review at revision 72 (snapshot 8f01ee96...). **Passed:** P1-F1 to P1-F13 are all resolved.\n\n**Repairs verified:**\n- **P1-F13.** Natively, the reply sink checks the logical-connection counter under the connection-state lock, which is also the lock under which reconnects advance it. In the browser, every reconnect except a stateful resume now advances the counter, and the reply sink re-checks it synchronously before sending.\n- **P1-F11.** docs/04, the rustdoc of `complete`, `fail` and `register`, and the skill now describe the inline start, the warning that a blocking synchronous callback still holds later calls, and the `Transport` error.\n\n**Evidence:**\n- p1-check-4 plus p1-check-5: all 11 P1 checks passed at this snapshot. In p1-check-4 the two Android cells failed with \"found 0\" emulators, because the memory watchdog had killed the emulator at 14:19:57. Both cells passed when p1-check-5 re-ran them.\n- Reviewer reruns:\n  - the P1 unit groups pass (28 tests);\n  - lib clippy with `-D warnings` passes natively and on wasm32;\n  - `cargo fmt --check` is clean.\n\n**Out-of-scope observation (pre-existing, not part of P1).** A client configured for stateful reconnect may re-negotiate afresh and get an answer without stateful reconnect. The two targets then behave differently:\n- Browser: the buffer stays disposed, so every later send fails with `Canceled`.\n- Native: the buffer is renewed and tracks frames that the server never acknowledges.\n\nA stateful-reconnect sprint should cover this.",
+      "findingIds": [
+        "P1-F1",
+        "P1-F2",
+        "P1-F3",
+        "P1-F4",
+        "P1-F5",
+        "P1-F6",
+        "P1-F7",
+        "P1-F8",
+        "P1-F9",
+        "P1-F10",
+        "P1-F11",
+        "P1-F12",
+        "P1-F13"
+      ],
+      "recordedAt": "2026-10-07T12:29:55Z"
     }
   },
   "checkpoints": {
@@ -2008,6 +2501,14 @@
       },
       "reviewHash": "504b52c79ba3fa2ace51d774e3f99ddd92ca2f907b3b9e3c83731a72b57869c8",
       "recordedAt": "2026-10-07T11:03:06Z"
+    },
+    "P1": {
+      "snapshotId": "8f01ee9665163cfda8c6c31b670827d57e186dbea9923814fcd3b0899b3eacad",
+      "commits": {
+        "rayx-signalr": "206440dd08edf6ecd8697d66764ead6b03a45856"
+      },
+      "reviewHash": "41050e2a67737fcc802fbc35c6063d990c70bf7e92b94c8116f5a246cc8e82ba",
+      "recordedAt": "2026-10-07T12:30:10Z"
     }
   },
   "findings": [
@@ -2545,9 +3046,352 @@
         }
       ],
       "boundaryId": "S3"
+    },
+    {
+      "id": "P1-F1",
+      "criterionIds": [
+        "R16.C8",
+        "R16.C9",
+        "R16.C6"
+      ],
+      "descriptionMarkdown": "**Resolved; re-confirmed at revision 70.** `CallbackRegistry::invoke` still runs synchronous and typed callbacks and an asynchronous callback's factory inside `guarded`, and awaits the future through `guarded_future`. The F12 repair replaced the immediate `fail_detached` with `record_panic`, so isolation is unchanged. The inline `now_or_never` poll in `run` drives the same guarded code, so a panic during the first poll is caught there too. `callback_dispatch_isolates_panics_in_typed_and_asynchronous_factories` and `callback_dispatch_isolates_panicking_callbacks` pass.\n\n*Re-confirmed by p1-reviewer-4 at revision 72:* the F11/F13 repairs leave these code paths unchanged, and the reviewer's rerun of the P1 unit groups passes (28 tests).",
+      "severity": "major",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs",
+          "symbol": "CallbackRegistry::invoke"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs",
+          "symbol": "callback_dispatch_isolates_panics_in_typed_and_asynchronous_factories"
+        }
+      ],
+      "boundaryId": "P1"
+    },
+    {
+      "id": "P1-F2",
+      "criterionIds": [
+        "R16.C6",
+        "R16.C8"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**Resolved; re-confirmed at revision 72.** The logical-connection counter is unchanged, and its two residual gaps (tracked as P1-F13) are now closed.\n\nTests that passed in p1-check-4/p1-check-5 at this snapshot:\n- unit test `client_results_answers_fail_after_the_logical_connection_was_replaced`;\n- native e2e step `fails_after_an_ordinary_reconnect`;\n- browser fixture step `client_result_after_an_ordinary_reconnect`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs",
+          "symbol": "ResultSlot::replies"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs",
+          "symbol": "CallbackRegistry::new_logical_connection"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "ReconnectionContext::attempt"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "symbol": "attempt"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs",
+          "symbol": "client_results_answers_fail_after_the_logical_connection_was_replaced"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/client_result_errors.rs",
+          "symbol": "fails_after_an_ordinary_reconnect"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "symbol": "client_result_after_an_ordinary_reconnect"
+        }
+      ],
+      "boundaryId": "P1"
+    },
+    {
+      "id": "P1-F3",
+      "criterionIds": [
+        "R16.C8"
+      ],
+      "descriptionMarkdown": "**Resolved; re-confirmed.** In `run`, a call with an invocation id is polled once inline and only spawned if it is still pending. A pending result callback therefore still never holds later calls: `callback_dispatch_result_calls_never_hold_later_calls` passes, and so does the e2e step `completes_after_a_stateful_resume`.\n\n*Re-confirmed by p1-reviewer-4 at revision 72:* the F11/F13 repairs leave these code paths unchanged, and the reviewer's rerun of the P1 unit groups passes (28 tests).",
+      "severity": "major",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs",
+          "symbol": "run"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs",
+          "symbol": "callback_dispatch_result_calls_never_hold_later_calls"
+        }
+      ],
+      "boundaryId": "P1"
+    },
+    {
+      "id": "P1-F4",
+      "criterionIds": [
+        "R16.C6"
+      ],
+      "descriptionMarkdown": "**Resolved.** `wire_codec_outbound_json_completion_and_cancel_are_typed` pins the exact bytes `{\"type\":3,\"invocationId\":\"9\",\"error\":\"boom\"}` plus the record separator (with no `result` key). `wire_codec_outbound_messagepack_completion_and_cancel_are_typed` pins `[0x95,0x03,0x80,0xa1,'9',0x01,0xa4,'b','o','o','m']` after the varint length prefix is split off (src/protocol/codec.rs).\n\n*Re-confirmed by p1-reviewer-4 at revision 72:* the F11/F13 repairs leave these code paths unchanged, and the reviewer's rerun of the P1 unit groups passes (28 tests).",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/codec.rs",
+          "symbol": "wire_codec_outbound_json_completion_and_cancel_are_typed"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/codec.rs",
+          "symbol": "wire_codec_outbound_messagepack_completion_and_cancel_are_typed"
+        }
+      ],
+      "boundaryId": "P1"
+    },
+    {
+      "id": "P1-F5",
+      "criterionIds": [
+        "R16.C6",
+        "R16.C8"
+      ],
+      "descriptionMarkdown": "**Resolved for the items it listed:**\n- The `InvocationContext::spawn` doc now names the dispatch task on the connection's runtime.\n- docs/06 states that `disconnect` drops the callbacks and stops the dispatch task.\n- docs/04 \"Where callbacks run\" and the skill callbacks.md describe the result-call exception and the panic message.\n\nThe remaining stale public text is tracked as the new finding P1-F11.\n\n*Re-confirmed by p1-reviewer-4 at revision 72:* the F11/F13 repairs leave these code paths unchanged, and the reviewer's rerun of the P1 unit groups passes (28 tests).",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/context.rs",
+          "symbol": "InvocationContext::spawn"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/04-server-callbacks.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/06-connection-lifecycle.md"
+        }
+      ],
+      "boundaryId": "P1"
+    },
+    {
+      "id": "P1-F6",
+      "criterionIds": [
+        "R16.C6"
+      ],
+      "descriptionMarkdown": "**Resolved.** tests/e2e/client_result_errors.rs stores the second `complete` result in an `Arc<Mutex<Option<Result<..>>>>` and asserts `ErrorKind::Protocol` in the scenario body, after `support::eventually`. If the first `complete` fails inside the spawned task, the record is never set, and the scenario times out instead of passing silently.\n\n*Re-confirmed by p1-reviewer-4 at revision 72:* the F11/F13 repairs leave these code paths unchanged, and the reviewer's rerun of the P1 unit groups passes (28 tests).",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/client_result_errors.rs",
+          "symbol": "scenario"
+        }
+      ],
+      "boundaryId": "P1"
+    },
+    {
+      "id": "P1-F7",
+      "criterionIds": [
+        "R16.C6",
+        "R16.C8"
+      ],
+      "descriptionMarkdown": "**Resolved; re-confirmed.** A caught panic's message is now recorded with `ResultHold::record_panic`, and `Drop for ResultHold` sends it in place of `MISSING_RESULT` when nobody answered. `client_results_a_panicking_callback_answers_with_its_message` passes.\n\n*Re-confirmed by p1-reviewer-4 at revision 72:* the F11/F13 repairs leave these code paths unchanged, and the reviewer's rerun of the P1 unit groups passes (28 tests).",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs",
+          "symbol": "ResultHold::record_panic"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs",
+          "symbol": "client_results_a_panicking_callback_answers_with_its_message"
+        }
+      ],
+      "boundaryId": "P1"
+    },
+    {
+      "id": "P1-F8",
+      "criterionIds": [
+        "R16.C9"
+      ],
+      "descriptionMarkdown": "**Resolved.** `register`, `register_async`, `register_typed` and `remove` take `impl Into<String>`. The skill's callbacks.md and docs/04 now show `impl Into<String>`.\n\n*Re-confirmed by p1-reviewer-4 at revision 72:* the F11/F13 repairs leave these code paths unchanged, and the reviewer's rerun of the P1 unit groups passes (28 tests).",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "SignalRClient::register_typed"
+        }
+      ],
+      "boundaryId": "P1"
+    },
+    {
+      "id": "P1-F9",
+      "criterionIds": [
+        "R16.C8"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Resolved.** `run` pins the result call's `invoke` future (a `CallbackFuture`, `Send` natively) and polls it once on the dispatch task with `now_or_never`, like the inline start of .NET's `DispatchInvocationAsync`. It then spawns only what is still pending (`tokio::spawn` / `spawn_local`).\n\nWhat this fixes:\n- The registration snapshot and synchronous callbacks run in arrival order.\n- `callback_dispatch_result_calls_start_in_arrival_order` (20 interleaved result and notification pairs, multi-thread runtime) passes.\n\nWhy moving the future after the first poll is safe:\n- Both `tokio::spawn` and `spawn_local` poll a new task at once, so a waker registered during the no-op-waker poll is replaced, and no wake-up is lost.\n- The future is `Send` natively.\n- Panics in the first poll are caught inside `invoke`.\n\n*Re-confirmed by p1-reviewer-4 at revision 72:* the F11/F13 repairs leave these code paths unchanged, and the reviewer's rerun of the P1 unit groups passes (28 tests).",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs",
+          "symbol": "run"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs",
+          "symbol": "callback_dispatch_result_calls_start_in_arrival_order"
+        }
+      ],
+      "boundaryId": "P1"
+    },
+    {
+      "id": "P1-F10",
+      "criterionIds": [
+        "R16.C8"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Resolved.** The per-callback mutex is gone. Native `SyncCallback`/`AsyncCallback` are `dyn Fn .. + Send + Sync`, and `register`, `register_async` and `register_typed` take `MaybeSendSync` closures, so a registration is shared without a lock between the dispatch task and a spawned result continuation.\n\nOwnership and documentation:\n- The public bound change belongs to the amended R16.C8 (\"Natively registered callbacks are `Send + Sync` ... so no lock is held while one runs\") and to D24.\n- It is documented in the docs/11 migration notes, docs/04 and the skill's callbacks.md.\n\nCompatibility: `bench_support::Receiver::on_invocation`, the e2e binary and the fixture compile with the new bound. The lib clippy (`-D warnings`) and the wasm32 lib check pass, and the browser bound stays `'static` only.\n\n*Re-confirmed by p1-reviewer-4 at revision 72:* the F11/F13 repairs leave these code paths unchanged, and the reviewer's rerun of the P1 unit groups passes (28 tests).",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs",
+          "symbol": "SyncCallback"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "SignalRClient::register"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/11-errors-and-logging.md"
+        }
+      ],
+      "boundaryId": "P1"
+    },
+    {
+      "id": "P1-F11",
+      "criterionIds": [
+        "R16.C8",
+        "R16.C6"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Resolved.** All three items are fixed:\n- **docs/04, \"Where callbacks run\":** a result-expecting call starts in arrival order and continues on its own task once one of its asynchronous callbacks waits. The text adds: \"A synchronous callback that blocks still holds later calls, as a blocking .NET handler does\". This matches `run` (an inline `now_or_never` poll, then a spawn) and the `register`/`register_async` rustdoc. The skill's callbacks.md and the docs/13 diagram agree.\n- **Rustdoc of `InvocationContext::complete` and `fail`:** it now lists `ErrorKind::Transport` for a replaced logical connection.\n- **`register` rustdoc:** the `# Arguments` entry now describes `target` as `impl Into<String>`.\n\nNits, no action needed:\n- Line 53 of docs/04 is not wrapped like the lines around it.\n- The skill table's `complete` row names only `Protocol` and `Serialization`. The bullet above the table already states the `Transport` case.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/04-server-callbacks.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/context.rs",
+          "symbol": "InvocationContext::complete"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/context.rs",
+          "symbol": "InvocationContext::fail"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "SignalRClient::register"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/callbacks.md"
+        }
+      ],
+      "boundaryId": "P1"
+    },
+    {
+      "id": "P1-F12",
+      "criterionIds": [
+        "R16.C6",
+        "R16.C8"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Resolved.** In `invoke`, a caught panic now calls `ResultHold::record_panic` (the first message wins) instead of answering at once. `Drop for ResultHold` sends the recorded panic message only when the last holder goes without a `complete`/`fail`, otherwise `MISSING_RESULT`. A later callback's answer therefore wins, as with .NET's single post-loop Completion. Async-future panics (`guarded_future`) take the same path. `client_results_a_later_answer_wins_over_a_panic` (a panicking callback, then an answering one) records only `Result(\"7\", 5)`.\n\n*Re-confirmed by p1-reviewer-4 at revision 72:* the F11/F13 repairs leave these code paths unchanged, and the reviewer's rerun of the P1 unit groups passes (28 tests).",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs",
+          "symbol": "ResultHold::record_panic"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs",
+          "symbol": "client_results_a_later_answer_wins_over_a_panic"
+        }
+      ],
+      "boundaryId": "P1"
+    },
+    {
+      "id": "P1-F13",
+      "criterionIds": [
+        "R16.C6"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Resolved; both gaps are closed.**\n\n**(a) Native check-then-send race.**\n- `ReplySink::send` and `send_detached` now take the call's `arrived_on`.\n- `TransportReplies::writer` (client_tokio.rs) loads the registry counter *while it holds the connection-state lock*.\n- The only native caller of `new_logical_connection` is `ReconnectionContext::attempt`. It calls it under that same guard, before it installs the new connection.\n\nThe check and the connection lookup are therefore atomic, as in .NET's `SendWithLock`.\n\nAfter the guard is released, the cloned connection is still the old one, so a stale Completion cannot reach the new logical connection:\n- without stateful reconnect, the old writer's queue is closed (`closed_before_sent`);\n- with stateful reconnect, the old writer is bound to the old transport generation, which `track_for` rejects after `renew`.\n\nThe only await while the guard is held is acquiring it, as the action-execution lock rule requires. No deterministic race test was added. The previous review accepted that, provided the check stays inside the sink and is documented. It is documented in the `ReplySink` doc and the `writer` doc.\n\n**(b) Browser fresh negotiation without stateful reconnect.**\n- `attempt` (client_wasm.rs) now records `resumed = resume.is_some()` and advances the counter whenever `!resumed`. This covers a fresh negotiation that the server answers without `useStatefulReconnect`.\n- This matches native `connect_fresh`, which always takes the fresh arm.\n- The browser `TransportReplies::send` re-checks the counter synchronously before `send_on`.\n\n**Residual, negligible, not a finding.** In the browser, `send_on` sleeps 5 ms when a stateful buffer is backpressured, and it does not re-check the counter after the sleep. A frame could reach a renewed buffer only if the buffer were disposed, re-negotiated, reconnected and renewed within that one sleep. While the buffer is disposed, `track` returns an error.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "TransportReplies::writer"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "ReconnectionContext::attempt"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "symbol": "TransportReplies::send"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "symbol": "attempt"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs",
+          "symbol": "ReplySink"
+        }
+      ],
+      "boundaryId": "P1"
     }
   ],
-  "handoffMarkdown": "R16.C12: storage has two namespaces (pending by invocation id, callbacks by target) on both targets (ActionMap), invocation ids are per-connection counters \"1\",\"2\",... (AtomicUsize / Cell); completions never remove callbacks; unregister removes only the callback (invocation_ids_, 3 tests). R16.C10: callback contexts keep OwnedPayload in the original encoding, MessagePack args decode via rmp_serde (+PascalCase retry): byte[] -> bytes types (serde_bytes::ByteBuf, not Vec<u8>), DateTime -> ext -1 via _ExtStruct, Dictionary<int,string> -> HashMap<i32,String> (callback_msgpack_args_, 4 tests). Scenario msgpack-fidelity (TestHub.TriggerFidelityCallback; native tests/e2e/msgpack_fidelity.rs messagepack-only; fixture msgpack_fidelity; Playwright messagePackScenarios; catalog Scenario.Protocols filter + Catalog test). native+chromium+firefox+webkit cells pass; Android pending in checks. Docs 04/05/12/13 and skill references updated.",
+  "handoffMarkdown": "InvocationAction: for R = () (TypeId check) a Result completion is discarded (server error in the compact shape still fails it). Group void_invoke_ (JSON incl. reordered/null results, MessagePack). Docs for all P1 tasks: docs/03, 04, 13, README, skill callbacks.md and calls-and-streams.md; docs/04 examples compile (scratch doc-examples crate).",
   "protectedPaths": {
     "rayx-signalr": {
       ".agentx/tasks/resilient-reconnect-and-production-gates/**": "a4110a3f5f2c68d64ddf8fbedb70479c98f46dde78b064b5b3ac826772db49a6",
