@@ -249,6 +249,40 @@ pub fn encode_completion_error(invocation_id: &str, message: &str) -> Result<Vec
     Ok(frame_message(&payload))
 }
 
+/// Encode and frame a void Completion (type 3), the end of a client-to-server stream.
+/// Layout: [3, Headers, InvocationId, ResultKind=2]
+pub fn encode_completion_void(invocation_id: &str) -> Result<Vec<u8>, Error> {
+    let mut payload = Vec::with_capacity(invocation_id.len() + 8);
+    rmp::encode::write_array_len(&mut payload, 4).map_err(encoding)?;
+    rmp::encode::write_uint(&mut payload, MessageType::Completion as u8 as u64)
+        .map_err(encoding)?;
+    encode_headers(&mut payload, &None)?;
+    rmp::encode::write_str(&mut payload, invocation_id).map_err(encoding)?;
+    rmp::encode::write_uint(&mut payload, 2).map_err(encoding)?;
+    Ok(frame_message(&payload))
+}
+
+/// Encode and frame a StreamItem (type 2) of a client-to-server stream.
+/// Layout: [2, Headers, InvocationId, Item]
+pub fn encode_stream_item<T: serde::Serialize>(
+    stream_id: &str,
+    item: &T,
+) -> Result<Vec<u8>, Error> {
+    let encoded = rmp_serde::to_vec_named(item).map_err(|error| {
+        Error::serialization(format!(
+            "cannot encode a stream item as MessagePack: {error}"
+        ))
+    })?;
+    let mut payload = Vec::with_capacity(encoded.len() + stream_id.len() + 8);
+    rmp::encode::write_array_len(&mut payload, 4).map_err(encoding)?;
+    rmp::encode::write_uint(&mut payload, MessageType::StreamItem as u8 as u64)
+        .map_err(encoding)?;
+    encode_headers(&mut payload, &None)?;
+    rmp::encode::write_str(&mut payload, stream_id).map_err(encoding)?;
+    payload.extend_from_slice(&encoded);
+    Ok(frame_message(&payload))
+}
+
 /// Encode and frame CancelInvocation (type 5).
 /// Layout: [5, Headers, InvocationId]
 pub fn encode_cancel_invocation(invocation_id: &str) -> Result<Vec<u8>, Error> {

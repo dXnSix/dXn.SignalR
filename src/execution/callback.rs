@@ -312,6 +312,20 @@ pub(crate) struct CallbackRegistry {
     /// Counts the logical connections: a stateful resume keeps one, a fresh negotiation starts one.
     logical_connection: Shared<AtomicU64>,
     next_id: Shared<AtomicU64>,
+    /// The running client-to-server stream pumps, aborted on close and on a new logical
+    /// connection.
+    uploads: Shared<Mutex<UploadTasks>>,
+}
+
+/// The running client-to-server stream pumps by id, and the transports installed so far (a
+/// pump whose send failed while its logical connection was paused or resuming waits for the
+/// next one).
+#[derive(Default)]
+struct UploadTasks {
+    next: u64,
+    running: HashMap<u64, futures::future::AbortHandle>,
+    transports: u64,
+    waiting: Vec<futures::channel::oneshot::Sender<()>>,
 }
 
 impl CallbackRegistry {
@@ -328,6 +342,76 @@ impl CallbackRegistry {
             })),
             logical_connection: Shared::new(AtomicU64::new(0)),
             next_id: Shared::new(AtomicU64::new(1)),
+            uploads: Shared::new(Mutex::new(UploadTasks::default())),
+        }
+    }
+
+    /// Records a running client-to-server stream pump of `logical_connection`; returns its id.
+    /// A pump whose connection already ended (the client closed, or a new logical connection
+    /// started, after its call was sent) is aborted at once.
+    pub(crate) fn track_upload(
+        &self,
+        abort: futures::future::AbortHandle,
+        logical_connection: u64,
+    ) -> u64 {
+        let mut uploads = self.uploads.locked();
+        uploads.next += 1;
+        let id = uploads.next;
+        if self.is_current(logical_connection) {
+            uploads.running.insert(id, abort);
+        } else {
+            abort.abort();
+        }
+        id
+    }
+
+    /// Whether `logical_connection` is the client's current one and the client is not closed.
+    pub(crate) fn is_current(&self, logical_connection: u64) -> bool {
+        !self.channel.locked().closed
+            && self.logical_connection.load(Ordering::Acquire) == logical_connection
+    }
+
+    /// Records that a transport was installed (a connection, or a stateful resume).
+    pub(crate) fn transport_installed(&self) {
+        let waiting = {
+            let mut uploads = self.uploads.locked();
+            uploads.transports += 1;
+            std::mem::take(&mut uploads.waiting)
+        };
+        for waiter in waiting {
+            let _ = waiter.send(());
+        }
+    }
+
+    /// The number of transports installed so far.
+    pub(crate) fn transports_installed(&self) -> u64 {
+        self.uploads.locked().transports
+    }
+
+    /// Resolves once a transport is installed after `seen` of them were (at once when one
+    /// already was).
+    pub(crate) fn next_transport(&self, seen: u64) -> futures::channel::oneshot::Receiver<()> {
+        let (waiter, installed) = futures::channel::oneshot::channel();
+        let mut uploads = self.uploads.locked();
+        if uploads.transports == seen {
+            uploads.waiting.push(waiter);
+        } else {
+            let _ = waiter.send(());
+        }
+        installed
+    }
+
+    /// Forgets a pump that ended.
+    pub(crate) fn finish_upload(&self, id: u64) {
+        self.uploads.locked().running.remove(&id);
+    }
+
+    /// Aborts every running pump: the client closed, its logical connection ended, or a new one
+    /// started, so nothing more of those streams may be sent.
+    pub(crate) fn abort_uploads(&self) {
+        let running = std::mem::take(&mut self.uploads.locked().running);
+        for abort in running.into_values() {
+            abort.abort();
         }
     }
 
@@ -406,6 +490,7 @@ impl CallbackRegistry {
     /// lock, which the reply sink takes to check the counter again.
     pub(crate) fn new_logical_connection(&self) {
         self.logical_connection.fetch_add(1, Ordering::AcqRel);
+        self.abort_uploads();
     }
 
     /// The client's logical-connection counter, for the reply sinks.
@@ -432,6 +517,7 @@ impl CallbackRegistry {
     /// the dispatch task ends after the calls already queued (which no callback receives any
     /// more); `open` prepares a new task for the next start.
     pub(crate) fn close(&self) {
+        self.abort_uploads();
         let (unstarted, replies) = {
             let mut channel = self.channel.locked();
             channel.closed = true;

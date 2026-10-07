@@ -229,7 +229,7 @@ pub fn encode_invocation<T: Serialize>(
     invocation.with_invocation_id(invocation_id);
     let mut arguments = ArgumentConfiguration::new(invocation);
     arguments.argument(argument);
-    let invocation = arguments.build_invocation().expect("the argument encodes");
+    let (invocation, _) = arguments.build_invocation().expect("the argument encodes");
     let message = OutboundMessage::invocation(&invocation).expect("the invocation encodes");
     // The replay buffer's copy shares the frame's bytes.
     std::hint::black_box((message.message_type, message.frame.clone()));

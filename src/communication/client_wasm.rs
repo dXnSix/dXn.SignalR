@@ -660,8 +660,9 @@ async fn resume_socket(
     })
 }
 
-/// Tracks (with stateful reconnect) and sends one message on the connection's current socket.
-async fn send_on(shared: &Shared, message: OutboundMessage) -> Result<(), Error> {
+/// Tracks (with stateful reconnect) and sends one message on the connection's current socket;
+/// returns the logical connection it was accepted on.
+async fn send_on(shared: &Shared, message: OutboundMessage) -> Result<u64, Error> {
     if shared.state() != LifecycleState::Connected {
         // As the official .NET client's connection lock, a call made while a start or reconnect
         // attempt is in flight waits for it; during a reconnect delay it fails at once.
@@ -674,6 +675,12 @@ async fn send_on(shared: &Shared, message: OutboundMessage) -> Result<(), Error>
             return Err(shared.send_error());
         }
     }
+    // Read with the state check, before any await: the connection the message goes to.
+    let logical_connection = shared
+        .storage
+        .callbacks()
+        .logical_connection()
+        .load(std::sync::atomic::Ordering::Acquire);
     let stateful = shared.active_stateful();
     if let Some(buffer) = &stateful {
         loop {
@@ -684,7 +691,7 @@ async fn send_on(shared: &Shared, message: OutboundMessage) -> Result<(), Error>
             match result {
                 TrackResult::Buffered(_) | TrackResult::Bypass => break,
                 // The transport is being resumed: its resend sends the frame.
-                TrackResult::Held(_) => return Ok(()),
+                TrackResult::Held(_) => return Ok(logical_connection),
                 TrackResult::Backpressured => sleep(Duration::from_millis(5)).await,
             }
         }
@@ -700,6 +707,7 @@ async fn send_on(shared: &Shared, message: OutboundMessage) -> Result<(), Error>
         None if stateful.is_some() => Ok(()),
         None => Err(shared.send_error()),
     }
+    .map(|()| logical_connection)
 }
 
 /// Sends the Completions of server-to-client calls on the connection they arrived on.
@@ -727,7 +735,7 @@ impl ReplySink for TransportReplies {
             if shared.state() != LifecycleState::Connected {
                 return Err(shared.send_error());
             }
-            send_on(&shared, message).await
+            send_on(&shared, message).await.map(|_| ())
         })
     }
 
@@ -772,6 +780,8 @@ fn install(shared: &Rc<Shared>, opened: Opened, generation: u64, initial_ping: b
     })) {
         previous.socket.close();
     }
+    // Client-to-server streams waiting for a transport of their logical connection retry.
+    shared.storage.callbacks().transport_installed();
 }
 
 /// The socket's single task: processes frames as they arrive (first any from the handshake
@@ -1409,7 +1419,22 @@ impl CommunicationClient {
     /// Tracks the frame for stateful replay (waiting while the buffer is full), then sends it on
     /// the current socket.
     async fn send_frame(&self, message: OutboundMessage) -> Result<(), Error> {
+        send_on(&self.shared, message).await.map(|_| ())
+    }
+
+    /// Sends one encoded hub message, as `send_message`, and returns the logical connection it
+    /// was accepted on (a call that waited for an attempt went to that attempt's connection).
+    pub(crate) async fn send_tracked(&mut self, message: OutboundMessage) -> Result<u64, Error> {
         send_on(&self.shared, message).await
+    }
+
+    /// A sink that sends on one logical connection of this client and never keeps it open: the
+    /// client-to-server streams of a call send through it.
+    pub(crate) fn upload_sink(&self) -> crate::execution::Replies {
+        Rc::new(TransportReplies {
+            shared: Rc::downgrade(&self.shared),
+            protocol: self.shared.protocol_kind,
+        })
     }
 
     /// Stops the client locally, as `StopAsync`; returns the socket that is closing.

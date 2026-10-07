@@ -7,9 +7,11 @@ use crate::communication::hooks::{HookKind, LifecycleHooks};
 use crate::communication::{Communication, CommunicationClient, WeakCommunicationClient};
 use crate::error::Error;
 use crate::execution::{
-    ArgumentConfiguration, Callback, CallbackHandler, Storage, StorageUnregistrationHandler,
-    UpdatableActionStorage, BINDING_FAILURE,
+    ArgumentConfiguration, Callback, CallbackHandler, CancelOnDrop, Storage,
+    StorageUnregistrationHandler, UpdatableActionStorage, Upload, UploadCancellation, Uploads,
+    BINDING_FAILURE,
 };
+use crate::platform::LockExt;
 use crate::protocol::codec::OutboundMessage;
 use crate::protocol::hub_protocol::HubProtocolKind;
 use crate::protocol::invoke::Invocation;
@@ -803,7 +805,7 @@ impl SignalRClient {
         configuration: F,
     ) -> Result<T, Error>
     where
-        F: FnMut(&mut ArgumentConfiguration),
+        F: FnOnce(&mut ArgumentConfiguration),
     {
         return self.invoke_internal(target, Some(configuration)).await;
     }
@@ -817,28 +819,59 @@ impl SignalRClient {
         configuration: Option<F>,
     ) -> Result<T, Error>
     where
-        F: FnMut(&mut ArgumentConfiguration),
+        F: FnOnce(&mut ArgumentConfiguration),
     {
-        let invocation_id = self._actions.create_key();
         let mut invocation = Invocation::create_single(target.clone(), self.protocol());
-        invocation.with_invocation_id(invocation_id.clone());
         self.add_invocation_headers(&mut invocation, &target);
-        let invocation = Self::with_arguments(invocation, configuration)?;
+        let (mut invocation, uploads) = Self::with_arguments(invocation, configuration)?;
+        // As the .NET client, the streams take their ids before the invocation does.
+        let uploads = Uploads::assign(uploads, || self._actions.create_key());
+        invocation.with_streams(uploads.ids());
+        let invocation_id = self._actions.create_key();
+        invocation.with_invocation_id(invocation_id.clone());
 
         let Some(ref mut conn) = self._connection else {
             return Err(Error::closed_locally());
         };
         // Registered before sending, so a fast Completion always finds its awaiter.
         let ret = self._actions.add_invocation::<T>(invocation_id.clone());
-        if let Err(error) = Self::send_invocation(conn, &invocation).await {
-            // The server never saw the invocation: nothing will complete it. The send error is
-            // the call's error, even when the connection failed pending work meanwhile (a send
-            // that waited for a reconnect attempt fails with that attempt's error).
-            self._actions.fail_action(&invocation_id, &error);
-            drop(ret);
-            return Err(error);
-        }
-        ret.await
+        let logical_connection = match Self::send_invocation(conn, &invocation).await {
+            Ok(logical_connection) => logical_connection,
+            Err(error) => {
+                // The server never saw the invocation: nothing will complete it. The send error
+                // is the call's error, even when the connection failed pending work meanwhile (a
+                // send that waited for a reconnect attempt fails with that attempt's error).
+                self._actions.fail_action(&invocation_id, &error);
+                drop(ret);
+                return Err(error);
+            }
+        };
+        // Dropping this future before the result arrived cancels the streams.
+        let uploads = CancelOnDrop::new(self.start_uploads(uploads, logical_connection));
+        let result = ret.await;
+        uploads.disarm();
+        result
+    }
+
+    /// Starts the pumps of a sent call's client-to-server streams on `logical_connection`, the
+    /// one its invocation was accepted on.
+    fn start_uploads(&self, uploads: Uploads, logical_connection: u64) -> UploadCancellation {
+        let Some(connection) = &self._connection else {
+            return UploadCancellation::default();
+        };
+        #[cfg(not(target_arch = "wasm32"))]
+        return uploads.start(
+            self._actions.callbacks(),
+            connection.upload_sink(),
+            logical_connection,
+            connection.runtime(),
+        );
+        #[cfg(target_arch = "wasm32")]
+        return uploads.start(
+            self._actions.callbacks(),
+            connection.upload_sink(),
+            logical_connection,
+        );
     }
 
     /// Adds the headers of the configured invocation-header hook (`with_invocation_headers`).
@@ -853,17 +886,17 @@ impl SignalRClient {
     fn with_arguments<F>(
         invocation: Invocation,
         configuration: Option<F>,
-    ) -> Result<Invocation, Error>
+    ) -> Result<(Invocation, Vec<Upload>), Error>
     where
-        F: FnMut(&mut ArgumentConfiguration),
+        F: FnOnce(&mut ArgumentConfiguration),
     {
         match configuration {
-            Some(mut configuration) => {
+            Some(configuration) => {
                 let mut args = ArgumentConfiguration::new(invocation);
                 configuration(&mut args);
                 args.build_invocation()
             }
-            None => Ok(invocation),
+            None => Ok((invocation, Vec::new())),
         }
     }
 
@@ -941,7 +974,7 @@ impl SignalRClient {
     /// ```
     pub async fn send_with_args<F>(&mut self, target: String, configuration: F) -> Result<(), Error>
     where
-        F: FnMut(&mut ArgumentConfiguration),
+        F: FnOnce(&mut ArgumentConfiguration),
     {
         return self.send_internal(target, Some(configuration)).await;
     }
@@ -952,17 +985,21 @@ impl SignalRClient {
         configuration: Option<F>,
     ) -> Result<(), Error>
     where
-        F: FnMut(&mut ArgumentConfiguration),
+        F: FnOnce(&mut ArgumentConfiguration),
     {
         let mut invocation = Invocation::create_single(target.clone(), self.protocol());
         self.add_invocation_headers(&mut invocation, &target);
-        let invocation = Self::with_arguments(invocation, configuration)?;
+        let (mut invocation, uploads) = Self::with_arguments(invocation, configuration)?;
+        let uploads = Uploads::assign(uploads, || self._actions.create_key());
+        invocation.with_streams(uploads.ids());
 
-        if let Some(ref mut conn) = self._connection {
-            Self::send_invocation(conn, &invocation).await
-        } else {
-            Err(Error::closed_locally())
-        }
+        let Some(ref mut conn) = self._connection else {
+            return Err(Error::closed_locally());
+        };
+        let logical_connection = Self::send_invocation(conn, &invocation).await?;
+        // A send has no result to wait for: its streams run to their end.
+        drop(self.start_uploads(uploads, logical_connection));
+        Ok(())
     }
 
     /// Calls a specific target method on the SignalR hub and returns a stream for receiving data asynchronously.
@@ -1040,7 +1077,7 @@ impl SignalRClient {
         configuration: F,
     ) -> ManualStream<T>
     where
-        F: FnMut(&mut ArgumentConfiguration),
+        F: FnOnce(&mut ArgumentConfiguration),
     {
         return self.enumerate_internal(target, Some(configuration)).await;
     }
@@ -1054,9 +1091,22 @@ impl SignalRClient {
         configuration: Option<F>,
     ) -> ManualStream<T>
     where
-        F: FnMut(&mut ArgumentConfiguration),
+        F: FnOnce(&mut ArgumentConfiguration),
     {
+        let mut invocation = Invocation::create_multiple(target.clone(), self.protocol());
+        self.add_invocation_headers(&mut invocation, &target);
+        // As the .NET client, the streams take their ids before the invocation does.
+        let built = Self::with_arguments(invocation, configuration).map(|(invocation, uploads)| {
+            (
+                invocation,
+                Uploads::assign(uploads, || self._actions.create_key()),
+            )
+        });
         let invocation_id = self._actions.create_key();
+        // Dropping the stream before it ended cancels the call's client-to-server streams.
+        let upload_cancellation: Arc<std::sync::Mutex<Option<UploadCancellation>>> =
+            Arc::new(std::sync::Mutex::new(None));
+        let dropped_uploads = upload_cancellation.clone();
         let mut cancellation_actions = self._actions.clone();
         let cancellation_invocation_id = invocation_id.clone();
         let cancellation_connection = self._connection.clone();
@@ -1067,49 +1117,58 @@ impl SignalRClient {
             .and_then(CommunicationClient::runtime)
             .or_else(|| tokio::runtime::Handle::try_current().ok());
         let drop_handler: crate::completer::StreamDropHandler = Box::new(move || {
+            let uploads = dropped_uploads.locked().take();
             cancellation_actions.remove(&cancellation_invocation_id);
             let Some(mut connection) = cancellation_connection else {
+                if let Some(uploads) = uploads {
+                    uploads.cancel();
+                }
                 return;
             };
-            // Dropping the stream sends CancelInvocation from the connection's runtime.
-            #[cfg(not(target_arch = "wasm32"))]
-            if let Some(runtime) = cancellation_runtime {
-                runtime.spawn(async move {
-                    if let Err(error) =
-                        Self::send_cancel_invocation(&mut connection, cancellation_invocation_id)
-                            .await
-                    {
-                        warn!("Cannot cancel dropped stream invocation: {error}");
-                    }
-                });
-            }
-            #[cfg(target_arch = "wasm32")]
-            wasm_bindgen_futures::spawn_local(async move {
+            // Dropping the stream sends CancelInvocation from the connection's runtime, after
+            // the call's client-to-server streams went out canceled.
+            let cancelling = async move {
+                if let Some(uploads) = uploads {
+                    uploads.cancel_and_wait().await;
+                }
                 if let Err(error) =
                     Self::send_cancel_invocation(&mut connection, cancellation_invocation_id).await
                 {
                     warn!("Cannot cancel dropped stream invocation: {error}");
                 }
-            });
+            };
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(runtime) = cancellation_runtime {
+                runtime.spawn(cancelling);
+            }
+            #[cfg(target_arch = "wasm32")]
+            wasm_bindgen_futures::spawn_local(cancelling);
         });
         let res = self
             ._actions
             .add_stream::<T>(invocation_id.clone(), drop_handler);
-        let mut invocation = Invocation::create_multiple(target.clone(), self.protocol());
-        invocation.with_invocation_id(invocation_id.clone());
-        self.add_invocation_headers(&mut invocation, &target);
 
-        let sent = match Self::with_arguments(invocation, configuration) {
-            Ok(invocation) => match self._connection {
-                Some(ref mut conn) => Self::send_invocation(conn, &invocation).await,
-                None => Err(Error::closed_locally()),
-            },
+        let sent = match built {
+            Ok((mut invocation, uploads)) => {
+                invocation.with_streams(uploads.ids());
+                invocation.with_invocation_id(invocation_id.clone());
+                match self._connection {
+                    Some(ref mut conn) => Self::send_invocation(conn, &invocation)
+                        .await
+                        .map(|logical_connection| (uploads, logical_connection)),
+                    None => Err(Error::closed_locally()),
+                }
+            }
             Err(error) => Err(error),
         };
-        if let Err(error) = sent {
+        match sent {
+            Ok((uploads, logical_connection)) => {
+                let cancellation = self.start_uploads(uploads, logical_connection);
+                *upload_cancellation.locked() = Some(cancellation);
+            }
             // The server never saw the invocation: end the stream with the send error. Failing it
             // also disarms the drop handler, so no CancelInvocation follows.
-            self._actions.fail_action(&invocation_id, &error);
+            Err(error) => self._actions.fail_action(&invocation_id, &error),
         }
 
         res
@@ -1123,11 +1182,13 @@ impl SignalRClient {
         conn.send_message(cancel).await
     }
 
+    /// Sends an invocation; returns the logical connection it was accepted on, which its
+    /// client-to-server streams stay on.
     async fn send_invocation(
         conn: &mut CommunicationClient,
         invocation: &Invocation,
-    ) -> Result<(), Error> {
-        conn.send_message(OutboundMessage::invocation(invocation)?)
+    ) -> Result<u64, Error> {
+        conn.send_tracked(OutboundMessage::invocation(invocation)?)
             .await
     }
 

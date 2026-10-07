@@ -124,6 +124,8 @@ impl Storage for UpdatableActionStorage {
     }
 
     fn fail_pending(&mut self, error: &Error) {
+        // The logical connection ended: its client-to-server streams stop with it.
+        self.callbacks.abort_uploads();
         // Complete awaiters after the storage borrow ends.
         for action in self.pending.drain() {
             action.fail(error);

@@ -373,13 +373,14 @@ impl ConnectionWriter {
     /// waited for installed its connection). Once the logical connection ended (an ordinary drop or
     /// a failed resume), the send fails with the lost transport's error and never reaches the new
     /// connection, whose pending work it does not belong to. A lost transport not yet replaced is
-    /// waited for, at most for `STALE_RETRY_LIMIT`.
+    /// waited for, at most for `STALE_RETRY_LIMIT`. Returns the logical connection the message was
+    /// accepted on.
     async fn send_current<F, Fut>(
         mut current: F,
         logical_connection: impl Fn() -> u64,
         message: OutboundMessage,
         runtime: &Handle,
-    ) -> Result<(), Error>
+    ) -> Result<u64, Error>
     where
         F: FnMut() -> Fut,
         Fut: std::future::Future<Output = Result<ConnectionWriter, Error>>,
@@ -399,7 +400,7 @@ impl ConnectionWriter {
                 }
             }
             match writer.try_send(&message).await {
-                Ok(()) => return Ok(()),
+                Ok(()) => return Ok(sending_on),
                 Err(Unsent::Failed(error)) => return Err(error),
                 Err(Unsent::Stale(error)) => {
                     if started.elapsed() > STALE_RETRY_LIMIT || !same_connection() {
@@ -674,6 +675,7 @@ impl ReconnectionContext {
             WriterChannels::new(),
         );
         *guard = ConnectionState::Connected(Arc::new(Mutex::new(connection)));
+        self.actions.callbacks().transport_installed();
         info!("Connected to {}", self.endpoint);
         Ok(())
     }
@@ -746,6 +748,7 @@ impl ReconnectionContext {
                     channels,
                 );
                 *guard = ConnectionState::Connected(Arc::new(Mutex::new(connection)));
+                self.actions.callbacks().transport_installed();
                 info!("Resumed the stateful connection to {}", self.endpoint);
                 None
             }
@@ -1620,16 +1623,7 @@ impl Communication for CommunicationClient {
     }
 
     async fn send_message(&mut self, message: OutboundMessage) -> Result<(), Error> {
-        let runtime = self.runtime().unwrap_or_else(Handle::current);
-        // A retry never leaves the logical connection the send first went to.
-        let counter = self._actions.callbacks().logical_connection();
-        ConnectionWriter::send_current(
-            || self.writer(),
-            || counter.load(std::sync::atomic::Ordering::Acquire),
-            message,
-            &runtime,
-        )
-        .await
+        self.send_tracked(message).await.map(|_| ())
     }
 
     async fn release(&mut self) {
@@ -1717,6 +1711,32 @@ impl CommunicationClient {
 }
 
 impl CommunicationClient {
+    /// Sends one encoded hub message, as `send_message`, and returns the logical connection it
+    /// was accepted on (a call that waited for an attempt went to that attempt's connection).
+    pub(crate) async fn send_tracked(&mut self, message: OutboundMessage) -> Result<u64, Error> {
+        let runtime = self.runtime().unwrap_or_else(Handle::current);
+        // A retry never leaves the logical connection the send first went to.
+        let counter = self._actions.callbacks().logical_connection();
+        ConnectionWriter::send_current(
+            || self.writer(),
+            || counter.load(std::sync::atomic::Ordering::Acquire),
+            message,
+            &runtime,
+        )
+        .await
+    }
+
+    /// A sink that sends on one logical connection of this client and never keeps it open: the
+    /// client-to-server streams of a call send through it.
+    pub(crate) fn upload_sink(&self) -> crate::execution::Replies {
+        Arc::new(TransportReplies {
+            state: Arc::downgrade(&self._state),
+            logical_connection: self._actions.callbacks().logical_connection(),
+            protocol: self._protocol_kind,
+            runtime: self.runtime().unwrap_or_else(Handle::current),
+        })
+    }
+
     /// The current physical connection's writer. The state lock is released before sending, so a
     /// waiting send never blocks `disconnect` or a reconnect.
     ///
@@ -2381,6 +2401,7 @@ impl TransportReplies {
                 &runtime,
             )
             .await
+            .map(|_| ())
         })
     }
 }
@@ -2971,6 +2992,32 @@ mod outbound_writer {
                     );
                 }
             }
+        }
+    }
+
+    /// A call's client-to-server streams stay on the logical connection its invocation was
+    /// accepted on: a send that waited for an attempt reports that attempt's connection.
+    #[test]
+    fn client_streams_a_send_reports_the_logical_connection_it_was_accepted_on() {
+        let runtime = background_runtime();
+        let handle = runtime.handle().clone();
+        for (counter_at_fetch, expected) in [(0, 0), (3, 3)] {
+            let (current, mut queued) = writer(4, None, handle.clone());
+            let counter = std::cell::Cell::new(0);
+            let accepted_on = futures::executor::block_on(ConnectionWriter::send_current(
+                || {
+                    // An attempt the fetch waited for installed a new logical connection.
+                    counter.set(counter_at_fetch);
+                    let current = current.clone();
+                    async move { Ok(current) }
+                },
+                || counter.get(),
+                message("a"),
+                &handle,
+            ))
+            .unwrap();
+            assert_eq!(accepted_on, expected);
+            assert_eq!(queued.try_recv().unwrap(), SerializedFrame::text("a\u{1e}"));
         }
     }
 

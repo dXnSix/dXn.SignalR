@@ -856,6 +856,55 @@ impl OutboundMessage {
         })
     }
 
+    /// One item of the client-to-server stream `stream_id`.
+    pub(crate) fn stream_item<T: Serialize>(
+        protocol: HubProtocolKind,
+        stream_id: &str,
+        item: &T,
+    ) -> Result<Self, Error> {
+        let frame = match protocol {
+            HubProtocolKind::Json => {
+                let item = serde_json::value::to_raw_value(item).map_err(|error| {
+                    Error::serialization(format!("cannot encode a stream item as JSON: {error}"))
+                })?;
+                json_frame(&super::invoke::StreamItem::new(stream_id, &item))?
+            }
+            #[cfg(feature = "messagepack")]
+            HubProtocolKind::MessagePack => {
+                SerializedFrame::binary(super::msgpack::encode_stream_item(stream_id, item)?)
+            }
+        };
+        Ok(Self {
+            message_type: MessageType::StreamItem,
+            frame,
+        })
+    }
+
+    /// The Completion that ends the client-to-server stream `stream_id`: without an error when
+    /// the stream ended, with `error` when it failed or was canceled.
+    pub(crate) fn stream_completion(
+        protocol: HubProtocolKind,
+        stream_id: String,
+        error: Option<String>,
+    ) -> Result<Self, Error> {
+        match error {
+            Some(message) => Self::completion_error(protocol, stream_id, message),
+            None => {
+                let frame = match protocol {
+                    HubProtocolKind::Json => json_frame(&Completion::create_void(stream_id))?,
+                    #[cfg(feature = "messagepack")]
+                    HubProtocolKind::MessagePack => {
+                        SerializedFrame::binary(super::msgpack::encode_completion_void(&stream_id)?)
+                    }
+                };
+                Ok(Self {
+                    message_type: MessageType::Completion,
+                    frame,
+                })
+            }
+        }
+    }
+
     /// A CancelInvocation for a stream the caller dropped.
     pub(crate) fn cancel_invocation(
         protocol: HubProtocolKind,

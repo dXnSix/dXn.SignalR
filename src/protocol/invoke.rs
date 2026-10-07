@@ -160,6 +160,17 @@ impl<R> Completion<R> {
 }
 
 impl Completion<()> {
+    /// A Completion with neither result nor error: the end of a client-to-server stream.
+    pub fn create_void(invocation_id: String) -> Self {
+        Completion {
+            r#type: MessageType::Completion,
+            invocation_id,
+            result: None,
+            error: None,
+            headers: None,
+        }
+    }
+
     /// An error Completion: the server's `InvokeAsync` throws a `HubException` with `message`.
     pub fn create_error(invocation_id: String, message: String) -> Self {
         Completion {
@@ -168,6 +179,25 @@ impl Completion<()> {
             result: None,
             error: Some(message),
             headers: None,
+        }
+    }
+}
+
+/// One item of a client-to-server stream (`invocationId` is the stream id).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct StreamItem<'a, T> {
+    r#type: MessageType,
+    invocation_id: &'a str,
+    item: &'a T,
+}
+
+impl<'a, T> StreamItem<'a, T> {
+    pub(crate) fn new(stream_id: &'a str, item: &'a T) -> Self {
+        Self {
+            r#type: MessageType::StreamItem,
+            invocation_id: stream_id,
+            item,
         }
     }
 }
