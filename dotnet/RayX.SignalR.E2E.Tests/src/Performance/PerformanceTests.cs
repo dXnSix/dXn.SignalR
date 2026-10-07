@@ -41,15 +41,7 @@ public sealed class PerformanceTests(AspireEnvironment environment)
     Assert.False(row.StartsWith(_selectionError, StringComparison.Ordinal), row);
     PerformanceRow selected = PerformanceRow.Parse(row);
     string scale = PerformanceSelection.FromEnvironment().Scale;
-    await environment.EnsureStartedAsync(requireFixture: false);
-    await environment.ResetServiceAsync();
-
-    IReadOnlyList<PerformanceResult> results = await PerformanceRunner.RunAsync(
-                                                 environment,
-                                                 selected,
-                                                 scale,
-                                                 CancellationToken.None);
-    await PerformanceRunFile.AddAsync(environment.RepositoryRoot, results);
+    IReadOnlyList<PerformanceResult> results = await PerformanceRunCache.GetAsync(environment, selected, scale);
 
     Assert.Equal([PerformanceRunner.Rust, PerformanceRunner.DotNet], results.Select(result => result.Client));
     foreach(PerformanceResult result in results)
