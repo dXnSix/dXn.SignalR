@@ -26,10 +26,11 @@ pub(crate) async fn negotiate_count(client: &mut SignalRClient) -> i32 {
         .unwrap()
 }
 
+/// Unregisters a lifecycle hook when called.
+pub(crate) type Unregister = Box<dyn FnOnce() + Send>;
+
 /// Records every lifecycle event of `client`.
-pub(crate) fn record_events(
-    client: &SignalRClient,
-) -> (Arc<Mutex<Vec<String>>>, Vec<Box<dyn FnOnce() + Send>>) {
+pub(crate) fn record_events(client: &SignalRClient) -> (Arc<Mutex<Vec<String>>>, Vec<Unregister>) {
     let events = Arc::new(Mutex::new(Vec::new()));
     let reconnecting = events.clone();
     let reconnected = events.clone();
@@ -142,6 +143,6 @@ async fn messagepack() {
 }
 
 /// Unregisters `handler` when called.
-fn unregistering(handler: impl CallbackHandler + Send + 'static) -> Box<dyn FnOnce() + Send> {
+fn unregistering(handler: impl CallbackHandler + Send + 'static) -> Unregister {
     Box::new(move || handler.unregister())
 }

@@ -255,7 +255,7 @@ public sealed class AndroidCellRunner : ICellRunner
       Adb(),
       ["-s", serial, "shell", ShellCommand(cell.Scenario.RustTest(cell.Protocol), variables)],
       environment.RepositoryRoot);
-    ProcessResult result = await ProcessRunner.RunAsync(command, CellExecution.CellTimeout, cancellationToken);
+    ProcessResult result = await ProcessRunner.RunAsync(command, cell.Scenario.Bound, cancellationToken);
     if(result.TimedOut)
     {
       // The local adb process is gone; stop the device-side process too.
@@ -435,7 +435,7 @@ public sealed class IosCellRunner : ICellRunner
     {
       Environment = variables
     };
-    ProcessResult result = await ProcessRunner.RunAsync(command, CellExecution.CellTimeout, cancellationToken);
+    ProcessResult result = await ProcessRunner.RunAsync(command, cell.Scenario.Bound, cancellationToken);
     if(result.TimedOut)
     {
       // Simulator processes are host processes; stop the scenario binary if it survived.

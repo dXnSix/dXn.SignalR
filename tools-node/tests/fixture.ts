@@ -92,6 +92,8 @@ declare global {
       callbackCount(): number;
       configureService(url: string): void;
       runFunctionalScenario(scenario: string, protocol: "json" | "messagepack"): Promise<string>;
+      runSoakScenario(protocol: "json" | "messagepack", seconds: number): Promise<string>;
+      runStressScenario(protocol: "json" | "messagepack"): Promise<string>;
     };
   }
 }

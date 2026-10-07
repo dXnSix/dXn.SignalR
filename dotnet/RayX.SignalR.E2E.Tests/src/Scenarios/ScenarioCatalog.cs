@@ -26,6 +26,20 @@ public sealed record Scenario(string Name, IReadOnlySet<string> Targets)
   /// <summary>Gets the protocols the scenario runs with (every protocol unless it is protocol-specific).</summary>
   public IReadOnlyList<string> Protocols { get; init; } = ScenarioCatalog.Protocols;
 
+  /// <summary>Gets whether the scenario runs for the soak duration (<c>RAYX_SIGNALR_SOAK_SECONDS</c>).</summary>
+  public bool Soak { get; init; }
+
+  /// <summary>Gets a scenario-specific cell bound that replaces the default one.</summary>
+  public TimeSpan? Limit { get; init; }
+
+  /// <summary>Gets the <c>RUST_LOG</c> filter of the scenario's Rust cells.</summary>
+  public string LogFilter { get; init; } = "rayx_signalr=info";
+
+  /// <summary>Gets the bound of one cell: the soak duration plus 60 seconds, the scenario's own limit, or the default bound.</summary>
+  public TimeSpan Bound => Soak
+    ? CellExecution.SoakDuration + TimeSpan.FromSeconds(60)
+    : Limit ?? CellExecution.CellTimeout;
+
   /// <summary>Gets the Rust module path segment (<c>ordinary-reconnect</c> → <c>ordinary_reconnect</c>).</summary>
   public string RustModule => Name.Replace('-', '_');
 
@@ -120,7 +134,29 @@ public static class ScenarioCatalog
     Everywhere("reconnect-call-wait"),
     Everywhere("request-headers"),
     Everywhere("stateful-transparent-resume"),
-    Everywhere("stateful-resume-fallback")
+    Everywhere("stateful-resume-fallback"),
+    new("soak-chaos", Set([_native, _chromium, _android]))
+    {
+      Soak = true,
+      Exclusions = new Dictionary<string, string>
+      {
+        [_firefox] = "a soak cell runs for minutes; one browser engine (Chromium) proves the browser transport under chaos",
+        [_webkit] = "a soak cell runs for minutes; one browser engine (Chromium) proves the browser transport under chaos",
+        [_ios] = "a soak cell runs for minutes; the Android emulator proves the mobile native build under chaos"
+      }
+    },
+    new("stateful-resume-stress", Set([_native, _chromium, _android]))
+    {
+      Limit = TimeSpan.FromSeconds(600),
+      // The stateful sequence trace reaches the cell diagnostics.
+      LogFilter = "rayx_signalr=info,rayx_signalr::stateful=debug",
+      Exclusions = new Dictionary<string, string>
+      {
+        [_firefox] = "a stress cell runs for minutes; one browser engine (Chromium) proves the browser stateful resume",
+        [_webkit] = "a stress cell runs for minutes; one browser engine (Chromium) proves the browser stateful resume",
+        [_ios] = "a stress cell runs for minutes; the Android emulator proves the mobile native build"
+      }
+    }
   ];
 
   /// <summary>Looks up a target by name.</summary>

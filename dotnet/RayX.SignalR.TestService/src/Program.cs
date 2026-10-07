@@ -33,6 +33,7 @@ builder.Services
     .AddSignalR(options => options.EnableDetailedErrors = true)
     .AddHubOptions<TestHub>(options => options.MaximumReceiveMessageSize = 4 * 1024 * 1024)
     .AddLivenessHubOptions()
+    .AddChaosHubOptions()
     .AddMessagePackProtocol();
 // Both protocols count the Close messages clients send (see CloseCountingHubProtocol).
 builder.Services.RemoveAll<IHubProtocol>();
@@ -158,6 +159,8 @@ app.MapHub<TestHub>("/test-stateful", options => options.AllowStatefulReconnects
 app.MapHub<AuthHub>("/test-auth");
 app.MapHub<ConnectedHub>("/test-connected");
 app.MapHub<PerfHub>("/perf");
+app.MapHub<ChaosHub>("/test-chaos");
+app.MapHub<StatefulChaosHub>("/test-chaos-stateful", options => options.AllowStatefulReconnects = true);
 app.MapLivenessEndpoints();
 
 app.Run();

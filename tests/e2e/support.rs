@@ -169,23 +169,39 @@ where
 /// that outlives the bound, which can only happen when the runtime thread itself is blocked (the
 /// bound is a Tokio timer), and ends the process so the cell fails with that diagnosis.
 pub async fn bounded<F: Future<Output = ()>>(name: &str, scenario: F) {
+    bounded_within(name, SCENARIO_TIMEOUT, scenario).await;
+}
+
+/// How long soak scenarios run: `RAYX_SIGNALR_SOAK_SECONDS` (the runner forwards it), 120 seconds
+/// by default.
+pub fn soak_duration() -> Duration {
+    std::env::var("RAYX_SIGNALR_SOAK_SECONDS")
+        .ok()
+        .and_then(|seconds| seconds.parse::<u64>().ok())
+        .filter(|seconds| *seconds > 0)
+        .map_or(Duration::from_secs(120), Duration::from_secs)
+}
+
+/// [`bounded`] with a scenario-specific bound (soak scenarios: the runner allows the soak
+/// duration plus 60 seconds).
+pub async fn bounded_within<F: Future<Output = ()>>(name: &str, limit: Duration, scenario: F) {
     raise_scenario_thread_priority();
     let finished = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let watched = finished.clone();
     let label = name.to_string();
     std::thread::spawn(move || {
-        std::thread::sleep(SCENARIO_TIMEOUT + Duration::from_secs(3));
+        std::thread::sleep(limit + Duration::from_secs(3));
         if !watched.load(std::sync::atomic::Ordering::Acquire) {
             eprintln!(
                 "watchdog: {label} is still running {:?} after its start; the Tokio timer did not fire, so the runtime thread is blocked",
-                SCENARIO_TIMEOUT + Duration::from_secs(3)
+                limit + Duration::from_secs(3)
             );
             std::process::exit(102);
         }
     });
-    let result = tokio::time::timeout(SCENARIO_TIMEOUT, scenario).await;
+    let result = tokio::time::timeout(limit, scenario).await;
     finished.store(true, std::sync::atomic::Ordering::Release);
-    result.unwrap_or_else(|_| panic!("{name} exceeded {SCENARIO_TIMEOUT:?}"));
+    result.unwrap_or_else(|_| panic!("{name} exceeded {limit:?}"));
 }
 
 /// On the iOS simulator the scenario binary is launched with `xcrun simctl spawn`, not as a

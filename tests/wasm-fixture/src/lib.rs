@@ -64,6 +64,8 @@ impl ServiceEndpoint {
 }
 
 mod functional;
+mod soak;
+mod stress;
 
 thread_local! {
     static SERVICE: RefCell<Option<ServiceEndpoint>> = const { RefCell::new(None) };

@@ -25,10 +25,13 @@ export default defineConfig({
     {
       name: "firefox",
       use: { ...devices["Desktop Firefox"] },
+      // The soak and the stress run in one engine (see the catalog's exclusions).
+      testIgnore: ["signalr-soak.spec.ts", "signalr-stress.spec.ts"],
     },
     {
       name: "webkit",
       use: { ...devices["Desktop Safari"] },
+      testIgnore: ["signalr-soak.spec.ts", "signalr-stress.spec.ts"],
     },
   ],
 });

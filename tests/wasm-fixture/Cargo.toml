@@ -12,6 +12,7 @@ console_error_panic_hook = "0.1"
 futures = "0.3"
 gloo-timers = { version = "0.3", features = ["futures"] }
 js-sys = "0.3"
+log = "0.4"
 rayx-signalr = { path = "../..", features = ["messagepack"] }
 serde = { version = "1", features = ["derive"] }
 wasm-bindgen = "=0.2.129"

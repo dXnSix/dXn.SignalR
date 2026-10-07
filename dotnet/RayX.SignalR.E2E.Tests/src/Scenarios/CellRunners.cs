@@ -33,8 +33,17 @@ public static partial class CellExecution
   /// </summary>
   public static readonly string[] E2EFeatures = ["--features", "messagepack"];
 
-  /// <summary>The hard bound for one cell's process.</summary>
+  /// <summary>The hard bound for one cell's process (soak scenarios: see <see cref="Scenario.Bound"/>).</summary>
   public static readonly TimeSpan CellTimeout = TimeSpan.FromSeconds(60);
+
+  /// <summary>The variable that sets how long soak scenarios run, in seconds.</summary>
+  public const string SoakSecondsVariable = "RAYX_SIGNALR_SOAK_SECONDS";
+
+  /// <summary>How long soak scenarios run: <c>RAYX_SIGNALR_SOAK_SECONDS</c>, 120 seconds by default.</summary>
+  public static TimeSpan SoakDuration =>
+    int.TryParse(Environment.GetEnvironmentVariable(SoakSecondsVariable), out int seconds) && seconds > 0
+      ? TimeSpan.FromSeconds(seconds)
+      : TimeSpan.FromSeconds(120);
 
   /// <summary>
   /// The libtest arguments of a Rust cell: one exact test, uncaptured output, so a cell killed at
@@ -50,15 +59,11 @@ public static partial class CellExecution
   /// <returns>The variables.</returns>
   public static Dictionary<string, string> ScenarioVariables(AspireEnvironment environment, E2ECell cell)
   {
-    Dictionary<string, string> variables = new(StringComparer.Ordinal)
-    {
-      ["RAYX_SIGNALR_E2E_SERVICE_URL"] = Origin(environment.ServiceUrl),
-      ["RAYX_SIGNALR_E2E_TLS_URL"] = Origin(environment.TlsServiceUrl),
-      ["RAYX_SIGNALR_E2E_TLS_CA_PEM_BASE64"] = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(environment.TlsCaPem)),
-      ["RAYX_SIGNALR_E2E_PROTOCOL"] = cell.Protocol,
-      // Rust cells log the client's lifecycle (diagnostics keep a bounded, redacted tail).
-      ["RUST_LOG"] = "rayx_signalr=info"
-    };
+    Dictionary<string, string> variables = CellVariables(cell);
+    variables["RAYX_SIGNALR_E2E_SERVICE_URL"] = Origin(environment.ServiceUrl);
+    variables["RAYX_SIGNALR_E2E_TLS_URL"] = Origin(environment.TlsServiceUrl);
+    variables["RAYX_SIGNALR_E2E_TLS_CA_PEM_BASE64"] =
+      Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(environment.TlsCaPem));
     if(environment.FixtureEnabled)
     {
       variables["RAYX_SIGNALR_E2E_FIXTURE_URL"] = Origin(environment.FixtureUrl);
@@ -71,6 +76,20 @@ public static partial class CellExecution
 
     return variables;
   }
+
+  /// <summary>
+  /// The variables of a cell that do not depend on the running AppHost: the protocol, the soak
+  /// duration and the scenario's <c>RUST_LOG</c> filter.
+  /// </summary>
+  /// <param name="cell">The cell.</param>
+  /// <returns>The variables.</returns>
+  public static Dictionary<string, string> CellVariables(E2ECell cell) => new(StringComparer.Ordinal)
+  {
+    ["RAYX_SIGNALR_E2E_PROTOCOL"] = cell.Protocol,
+    [SoakSecondsVariable] = $"{SoakDuration.TotalSeconds:0}",
+    // Rust cells log the client's lifecycle (diagnostics keep a bounded, redacted tail).
+    ["RUST_LOG"] = cell.Scenario.LogFilter
+  };
 
   /// <summary>Judges a libtest run that must have executed exactly one passing test.</summary>
   /// <param name="command">The command.</param>
@@ -119,7 +138,7 @@ public static partial class CellExecution
   {
     if(result.TimedOut)
     {
-      return new CellOutcome(command, result, false, $"exceeded the {CellTimeout.TotalSeconds:0}-second cell bound");
+      return new CellOutcome(command, result, false, "exceeded its cell bound");
     }
 
     if(result.ExitCode != 0)
@@ -263,7 +282,7 @@ public sealed class NativeCellRunner : ICellRunner
     {
       Environment = CellExecution.ScenarioVariables(environment, cell)
     };
-    ProcessResult result = await ProcessRunner.RunAsync(command, CellExecution.CellTimeout, cancellationToken);
+    ProcessResult result = await ProcessRunner.RunAsync(command, cell.Scenario.Bound, cancellationToken);
     return CellExecution.JudgeLibtest(command, result);
   }
 }
@@ -327,7 +346,7 @@ public sealed class BrowserCellRunner : ICellRunner
     }
 
     ProcessCommand command = template with { Environment = variables };
-    ProcessResult result = await ProcessRunner.RunAsync(command, CellExecution.CellTimeout, cancellationToken);
+    ProcessResult result = await ProcessRunner.RunAsync(command, cell.Scenario.Bound, cancellationToken);
     return CellExecution.JudgePlaywright(command, result);
   }
 }

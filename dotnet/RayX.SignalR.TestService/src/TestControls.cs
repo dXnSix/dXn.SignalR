@@ -44,6 +44,7 @@ namespace RayX.SignalR.TestService
             _rejectedResumes.Clear();
             Interlocked.Exchange(ref _clientCloses, 0);
             Interlocked.Exchange(ref _resumeRejections, 0);
+            ChaosControl.ResetAll();
             _clientResults.Clear();
             _authenticatedTokens.Clear();
         }
