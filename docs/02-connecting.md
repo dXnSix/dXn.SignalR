@@ -182,15 +182,38 @@ let client = rayx_signalr::SignalRClient::connect_with("localhost", "chat", |c| 
     c.unsecure();
     c.with_port(5000);
     c.skip_negotiation();
+    c.with_transports(rayx_signalr::Transports::WEB_SOCKETS);
 })
 .await?;
 ```
 
 `skip_negotiation()` connects the WebSocket directly to `ws(s)://host[:port]/hub`, like the official
-clients' `skipNegotiation`. A Bearer token goes in the `Authorization` header natively and on the
+clients' `skipNegotiation`. As in the .NET client it needs the WebSockets transport alone:
+without `with_transports(Transports::WEB_SOCKETS)`, `new`/`connect` fail before any I/O with
+`ErrorKind::Configuration` naming `skip_negotiation`. A Bearer token goes in the `Authorization` header natively and on the
 URL as `access_token` in browsers. Ordinary reconnects connect directly too. The server must accept
 WebSocket connections without a connection token. As in the .NET client, it disables stateful
 reconnect, which needs the token that negotiation issues, and logs a warning.
+
+## Transports
+
+`with_transports(Transports)` restricts the transports a connection may use, as the .NET client's
+`HttpConnectionOptions.Transports`; every transport is allowed by default. Negotiation tries the
+transports the server offers in the server's order, keeping those in the set that carry the hub
+protocol's transfer format (Server-Sent Events carry text only, so never MessagePack). A transport
+that fails to start is followed by the next one with a fresh negotiation. When one transport was
+tried, its own error is returned; when several were tried, or none could be, `connect` fails with
+`ErrorKind::TransportUnavailable`, whose `attempts()` lists every transport with why it was skipped
+or failed. Stateful reconnect runs only over WebSockets and needs WebSockets in the set.
+
+This release can start WebSockets only; Server-Sent Events and Long Polling are skipped (they are
+listed in `attempts()`).
+
+```rust
+let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+    c.with_transports(rayx_signalr::Transports::WEB_SOCKETS | rayx_signalr::Transports::LONG_POLLING);
+})?;
+```
 
 ## Hub protocol
 
@@ -233,6 +256,7 @@ otherwise the runtime `connect` is called from, otherwise `connect` fails before
 | `authenticate_bearer(String)` | all | none | [Authentication](#authentication) |
 | `with_access_token_factory(async fn)` | all | none | [Access-token factory](#access-token-factory) |
 | `skip_negotiation()` | all | negotiate | [Skipping negotiation](#skipping-negotiation) |
+| `with_transports(Transports)` | all | `Transports::all()` | [Transports](#transports) |
 | `with_header(name, value)` | all (browsers: negotiate only) | none | [Request headers](#request-headers) |
 | `with_invocation_headers(hook)` | all | none | [Calling the hub](03-calling-the-hub.md#invocation-headers) |
 | `with_maximum_message_size(usize)` | all | unbounded | [Hub protocols](05-hub-protocols.md#framing) |

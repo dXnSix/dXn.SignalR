@@ -87,6 +87,7 @@ RAYX_SIGNALR_E2E_TARGETS=native RAYX_SIGNALR_E2E_PROTOCOLS=json RAYX_SIGNALR_E2E
 | `RAYX_SIGNALR_E2E_SCENARIOS` | scenario names, or `all` | `all` |
 | `RAYX_SIGNALR_E2E_ANDROID_SERIAL` | an `adb` device serial | the single running emulator |
 | `RAYX_SIGNALR_E2E_IOS_DEVICE` | a simulator name or UDID | the newest iPhone |
+| `RAYX_SIGNALR_E2E_TRANSPORTS` | `websockets`, `long-polling`, `server-sent-events`, or `all` | `websockets` |
 | `RAYX_SIGNALR_SOAK_SECONDS` | how long `soak-chaos` runs, in seconds (forwarded to every target) | `120` |
 
 Lists are comma-separated. A selection that matches no cataloged cell fails.
@@ -123,6 +124,18 @@ lose, duplicate or reorder nothing and keep its logical connection; ordinary mod
 fail every call within 30 s and recover. Natively the clients run on their own runtime, whose
 alive-task count must return to its pre-connect value after `disconnect`; in Chromium every
 WebSocket must be closed.
+
+A cell is target × scenario × protocol × transport. The transport-baseline scenarios
+(`connect-negotiate`, `authentication`, `invoke`, `send`, `server-stream`, `callbacks`,
+`concurrency-and-clones`, `large-payload`, `server-close`, `reconnect-exhaustion`,
+`ordinary-reconnect`, `keepalive-idle`, `server-timeout`, `pause-resume`, `token-factory`) run on
+every selected transport; every other scenario runs on WebSockets only, and Server-Sent Events
+never run with MessagePack. WebSockets cells keep their names (`native/json/invoke`, Playwright
+`invoke JSON`); the others carry the transport (`native/json/invoke/long-polling`, Playwright
+`invoke (JSON, Long Polling)`). The runner passes `RAYX_SIGNALR_TRANSPORT` to native and mobile
+cells and a `transport` page parameter to the browser fixture, which restrict every connection
+with `with_transports`. The test service also maps `/test-longpolling` and
+`/test-no-websockets` with restricted transports.
 
 Each cell runs exactly one scenario: the Rust `e2e` binary with `--exact <scenario>::<protocol>` on
 the host, the Android emulator or the iOS simulator, or Playwright with one exact title. Cells are

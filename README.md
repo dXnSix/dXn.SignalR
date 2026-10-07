@@ -39,7 +39,8 @@ use it from any UI, a game loop, a service, or a test.
 - **A browser transport for threads.** Event-driven, so it runs on the main thread, in Web Workers
   and in multithreaded (atomics) builds.
 - **Negotiation and headers as the official clients do it.** Redirects with access tokens (Azure
-  SignalR Service), `skip_negotiation()` for direct WebSocket connections, the official
+  SignalR Service), `skip_negotiation()` with `with_transports(Transports::WEB_SOCKETS)` for direct
+  WebSocket connections, transport selection (`with_transports`), the official
   `User-Agent`, application request headers (`with_header`), invocation headers such as W3C
   `traceparent` (`with_invocation_headers`), and refreshable access tokens
   (`with_access_token_factory`, asked before every negotiate and WebSocket).

@@ -24,7 +24,7 @@ that carry them:
 | `Tls` | The TLS handshake or certificate verification failed (native). | |
 | `Proxy` | A proxy refused or failed the tunnel. Not produced yet: the client does not use proxies (see [Limitations](12-limitations.md)). | |
 | `Transport` | The network or the transport failed or dropped. | `transport()` when one was involved; `server_allows_reconnect()`. |
-| `TransportUnavailable` | The server offers no transport the client supports. | `attempts()`: each transport with its error. |
+| `TransportUnavailable` | No transport could be used: the server offers none the client can use, or several were tried and each failed to start (a single failed transport returns its own error). | `attempts()`: each transport with why it was skipped or failed. |
 | `Handshake` | The SignalR handshake failed. | |
 | `Protocol` | The server sent a malformed or unexpected message, or one larger than `with_maximum_message_size`; the transport ends and the reconnection policy runs. | |
 | `Serialization` | An argument could not be encoded, or a result or callback argument could not be decoded into the requested type. (A stream item that does not decode is logged and skipped; the stream continues.) | |
@@ -106,6 +106,9 @@ work are logged as warnings):
 | `use_webpki_roots()` without `tls-webpki-roots` | `use_webpki_roots` | Enable the feature. |
 | Invalid extra PEM roots | `with_additional_root_certificates_pem` | Pass PEM with at least one `CERTIFICATE` block. |
 | Credentials that are not a valid `Authorization` header value (native) | `authentication` | Remove control characters from the user name, password or token. |
+| `skip_negotiation()` without the WebSockets transport alone | `skip_negotiation` | Add `with_transports(Transports::WEB_SOCKETS)`. |
+| Stateful reconnect without WebSockets in `with_transports` | `with_stateful_reconnect` | Include `Transports::WEB_SOCKETS`. |
+| An access-token factory with Basic or Bearer credentials | `with_access_token_factory` | Use one of them. |
 
 ### Negotiation and transport
 
@@ -158,6 +161,9 @@ Version 0.2 replaced the `String` errors of 0.1 with `rayx_signalr::Error`.
   longer replaces or is ignored), and `remove(target)` removes them all. A result-expecting call
   that no callback answers now gets the .NET error `Client didn't provide a result.` instead of
   waiting for the server's timeout.
+- `skip_negotiation()` needs the WebSockets transport alone, as in the .NET client: add
+  `with_transports(Transports::WEB_SOCKETS)`; without it `new`/`connect` fail with
+  `ErrorKind::Configuration` naming `skip_negotiation`.
 - Replace checks of message text with kinds and fields:
 
 | 0.1 check | 0.2 check |

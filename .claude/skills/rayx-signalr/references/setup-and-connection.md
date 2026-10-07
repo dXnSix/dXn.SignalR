@@ -54,7 +54,8 @@ let mut client = SignalRClient::connect_with("localhost", "hubs/chat", |c| {
   `ConnectionConfiguration` is exported for adapters.
 - Options do not chain (they return `&ConnectionConfiguration`).
 - Validation in `new`, before I/O: stateful buffer size, PEM roots, TLS features, Tokio runtime,
-  `skip_negotiation` + stateful conflict. Liveness durations are accepted (bad values logged).
+  `with_header`, factory + static credentials, `skip_negotiation` without `Transports::WEB_SOCKETS`
+  alone, stateful reconnect without WebSockets. Liveness durations are accepted (bad values logged).
 
 ## Options
 
@@ -67,6 +68,7 @@ let mut client = SignalRClient::connect_with("localhost", "hubs/chat", |c| {
 | `authenticate_basic(String, Option<String>)` | all | none |
 | `with_access_token_factory(async fn)` | all | none |
 | `skip_negotiation()` | all | negotiate |
+| `with_transports(Transports)` | all | `Transports::all()` |
 | `with_header(name, value)` | all (browser: negotiate only) | none |
 | `with_invocation_headers(hook)` | all | none |
 | `with_maximum_message_size(usize)` | all | unbounded |
@@ -110,8 +112,14 @@ server must read `access_token` for hub paths (JWT `OnMessageReceived`).
   default, as in the .NET client) on both targets; browsers abort the negotiate `fetch`. Exceeding it fails with
   `Timeout` naming `Negotiate` or `Connect`.
 - `skip_negotiation()` connects straight to `ws(s)://host[:port]/hub` (Bearer in `Authorization`
-  natively, as `access_token` in browsers); the server must allow WebSocket-only connections; it
-  disables stateful reconnect with a warning (as .NET).
+  natively, as `access_token` in browsers); as in .NET it needs
+  `with_transports(Transports::WEB_SOCKETS)` (else `Configuration`/`skip_negotiation`); the server
+  must allow WebSocket-only connections; it disables stateful reconnect with a warning.
+- `with_transports(Transports)` (default `all()`; combine with `|`): negotiation tries the offered
+  transports in the server's order, filtered by the set and the transfer format (Server-Sent Events:
+  text only); a failed start falls back to the next with a fresh negotiate; one failure returns its
+  error, several `TransportUnavailable` with `attempts()`. Stateful reconnect only over WebSockets.
+  This release starts WebSockets only (the others are listed as skipped).
 - Headers: native negotiate and WebSocket upgrade send `User-Agent` in the official format
   (`RayX SignalR/<major.minor> (<version>; <OS>; Rust; Unknown Runtime Version)`) and
   `X-Requested-With: XMLHttpRequest`, negotiate also `Accept: */*`; browsers send

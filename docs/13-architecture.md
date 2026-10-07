@@ -13,13 +13,15 @@ the receive loop, and names the invariants that the tests protect.
 | `src/client/client.rs` | `SignalRClient`, `DisconnectionHandler`, `ReconnectionHandler`: the public call surface. |
 | `src/client/configuration.rs` | `ConnectionConfiguration` (the public builder) and `ConnectionRecipe` (the validated, cloneable connection description every attempt is built from). |
 | `src/client/context.rs` | `InvocationContext` for server-to-client calls. |
-| `src/communication/negotiation.rs` | The negotiate state machine shared by both targets: request, redirect, error and connection outcomes, URL building, `skip_negotiation`. The HTTP request is injected. |
+| `src/communication/negotiation.rs` | The negotiate state machine shared by both targets: request, redirect, error and connection outcomes, URL building, `skip_negotiation`. The HTTP request is injected. Transport selection (`select_transports`: the server's order, the configured set and the transfer format) and the fallback errors (`transports_failed`). |
 | `src/communication/negotiate_http.rs` | Native negotiate: one hyper HTTP/1.1 POST over the connection's own TCP or rustls stream, bounded by the connect timeout, with redacted error excerpts. |
 | `src/communication/common.rs` | `HttpClient` (negotiate per target, browser `fetch`), `ConnectionData`, Close-message parsing. |
 | `src/communication/tls.rs` | Native rustls: feature detection, provider and verifier selection, PEM roots, one `ClientConfig` per connection. |
 | `src/communication/client_tokio.rs` | The native connection: runtime-owned writer and receiver tasks, the reconnect coordinator, pause/resume, stateful resume. |
 | `src/communication/client_wasm.rs` | The browser connection: one generation-checked receiver task per socket, the same lifecycle on a single thread. |
 | `src/communication/browser_socket.rs` | A minimal event-driven `web-sys` WebSocket whose listeners live exactly as long as the socket; copies binary frames out of shared memory. |
+| `src/communication/browser_transport.rs` | The browser transports behind one `BrowserTransport` handle and one event stream (WebSockets today), so the connection loop is transport-independent. |
+| `src/communication/transport_tokio.rs` | The native transports behind one `TransportSender`/`TransportReceiver` pair (WebSockets today), so the handshake, liveness, stateful and lifecycle code is transport-independent. |
 | `src/communication/liveness.rs` | Keep-alive, server timeout and handshake validation on caller-supplied timestamps, shared by both targets. |
 | `src/communication/reconnection.rs` | The lifecycle state machine, `ConnectionStatus`, the retry policies, and `FirstAttempt` scheduling. |
 | `src/communication/stateful.rs` | The bounded replay buffer: sequence numbers, Ack trimming, duplicate suppression, transport generations, backpressure. |

@@ -18,6 +18,7 @@ redacted (no tokens, `Authorization` values, URL credentials). `From<Error> for 
 | Kind and fields | Cause and fix |
 |---|---|
 | `Configuration`, `setting() == "with_runtime_handle"` | native `connect` outside a runtime: call inside one or `with_runtime_handle` |
+| `Configuration`, `setting() == "skip_negotiation"` | `skip_negotiation()` needs `with_transports(Transports::WEB_SOCKETS)` |
 | `Configuration`, `setting() == "TLS Cargo features"` | secure endpoint without verifier + provider features |
 | `Configuration`, `setting() == "use_webpki_roots"` | enable `tls-webpki-roots` |
 | `Configuration`, `setting() == "with_header"` | header name not a token or owned by the transport (`Host`, `Connection`, `Sec-WebSocket-*`, ...), or value with line breaks or non-ASCII |
