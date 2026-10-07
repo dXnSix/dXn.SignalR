@@ -5,6 +5,17 @@
 //! target supplies its own transport (hyper over the connection's TLS config natively, the
 //! browser's fetch in WASM).
 
+// Decoding and transport code must not panic on peer input; tests may.
+#![cfg_attr(
+    not(test),
+    deny(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing
+    )
+)]
+
 use std::future::Future;
 
 use crate::client::{Authentication, ConnectionRecipe};
@@ -79,7 +90,7 @@ pub(crate) fn negotiate_failure(status: u16, reason: &str, body: &[u8]) -> Error
 
 /// Describes a non-2xx negotiate response with a short, credential-redacted body excerpt.
 pub(crate) fn negotiate_failure_message(status: u16, reason: &str, body: &[u8]) -> String {
-    let excerpt = String::from_utf8_lossy(&body[..body.len().min(EXCERPT_BYTES)]);
+    let excerpt = String::from_utf8_lossy(body.get(..EXCERPT_BYTES).unwrap_or(body));
     let excerpt = crate::error::redact(excerpt.trim());
     let status = if reason.is_empty() {
         status.to_string()

@@ -1,9 +1,8 @@
 use core::future::Future;
 
-use self::messages::MessageParser;
 use super::SignalRClient;
 use crate::error::Error;
-use crate::protocol::{invoke::Invocation, messages};
+use crate::protocol::codec::OwnedPayload;
 use serde::{de::DeserializeOwned, Serialize};
 
 /// The context for an invocation, providing access to arguments, the ability to complete the invocation, and a client for additional hub interactions.
@@ -13,7 +12,6 @@ use serde::{de::DeserializeOwned, Serialize};
 /// # Fields
 ///
 /// * `client` - A clone of the original `SignalRClient`, which can be used to call other methods of the hub inside the callback handler block.
-/// * `invocation` - The invocation details.
 ///
 /// # Examples
 ///
@@ -122,12 +120,21 @@ use serde::{de::DeserializeOwned, Serialize};
 /// ```
 pub struct InvocationContext {
     pub client: SignalRClient,
-    invocation: Invocation,
+    invocation_id: Option<String>,
+    arguments: Vec<OwnedPayload>,
 }
 
 impl InvocationContext {
-    pub(crate) fn create(client: SignalRClient, invocation: Invocation) -> Self {
-        InvocationContext { client, invocation }
+    pub(crate) fn create(
+        client: SignalRClient,
+        invocation_id: Option<String>,
+        arguments: Vec<OwnedPayload>,
+    ) -> Self {
+        InvocationContext {
+            client,
+            invocation_id,
+            arguments,
+        }
     }
 
     /// Retrieves the argument of the given type from the invocation context.
@@ -165,18 +172,18 @@ impl InvocationContext {
     /// }
     /// ```
     pub fn argument<T: DeserializeOwned + Unpin>(&self, index: usize) -> Result<T, Error> {
-        let arguments = self
-            .invocation
-            .arguments
-            .as_ref()
-            .ok_or_else(|| Error::serialization("the invocation carries no arguments"))?;
-        let value = arguments.get(index).ok_or_else(|| {
+        if self.arguments.is_empty() {
+            return Err(Error::serialization("the invocation carries no arguments"));
+        }
+        let argument = self.arguments.get(index).ok_or_else(|| {
             Error::serialization(format!(
                 "the invocation has {} arguments, so there is none at index {index}",
-                arguments.len()
+                self.arguments.len()
             ))
         })?;
-        MessageParser::decode_payload::<T>(&value.to_string())
+        argument
+            .as_payload()
+            .decode::<T>()
             .map_err(|error| error.context(format!("argument {index}")))
     }
 
@@ -220,7 +227,7 @@ impl InvocationContext {
     /// }
     /// ```
     pub async fn complete<T: Serialize>(&mut self, result: T) -> Result<(), Error> {
-        let invocation_id = self.invocation.get_invocation_id().ok_or_else(|| {
+        let invocation_id = self.invocation_id.clone().ok_or_else(|| {
             Error::protocol(
                 "the completion cannot be sent: the server's call carries no invocation id",
             )

@@ -17,16 +17,18 @@ mod client_wasm;
 #[cfg(not(target_arch = "wasm32"))]
 mod client_tokio;
 
+#[cfg(all(feature = "bench-internals", not(target_arch = "wasm32")))]
+pub(crate) use common::dispatch_decoded;
 pub(crate) use common::HttpClient;
 pub use common::{Communication, ConnectionData};
 
 #[cfg(target_arch = "wasm32")]
 pub use client_wasm::{CommunicationClient, WasmReconnectionContext};
 
+#[cfg(all(feature = "bench-internals", not(target_arch = "wasm32")))]
+pub(crate) use client_tokio::websocket_message;
 #[cfg(not(target_arch = "wasm32"))]
 pub use client_tokio::CommunicationClient;
-#[cfg(all(feature = "bench-internals", not(target_arch = "wasm32")))]
-pub(crate) use client_tokio::CommunicationConnection;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use client_tokio::ReconnectionContext;

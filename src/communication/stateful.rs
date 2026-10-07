@@ -1,3 +1,14 @@
+// Decoding and transport code must not panic on peer input; tests may.
+#![cfg_attr(
+    not(test),
+    deny(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing
+    )
+)]
+
 use std::collections::VecDeque;
 
 use log::{debug, trace};
@@ -10,22 +21,7 @@ use crate::{error::Error, protocol::negotiate::MessageType};
 /// payloads.
 pub(crate) const TRACE_TARGET: &str = "rayx_signalr::stateful";
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum SerializedFrame {
-    Text(String),
-    #[cfg(feature = "messagepack")]
-    Binary(Vec<u8>),
-}
-
-impl SerializedFrame {
-    fn len(&self) -> usize {
-        match self {
-            Self::Text(value) => value.len(),
-            #[cfg(feature = "messagepack")]
-            Self::Binary(value) => value.len(),
-        }
-    }
-}
+pub(crate) use crate::protocol::codec::SerializedFrame;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct BufferedFrame {
@@ -80,7 +76,11 @@ impl StatefulMessageBuffer {
                 "the stateful reconnect buffer size must be greater than zero",
             ));
         }
-        Ok(Self {
+        Ok(Self::empty(capacity))
+    }
+
+    fn empty(capacity: usize) -> Self {
+        Self {
             capacity,
             buffered_bytes: 0,
             frames: VecDeque::new(),
@@ -93,7 +93,7 @@ impl StatefulMessageBuffer {
             resending: false,
             disposed: false,
             transport_generation: 0,
-        })
+        }
     }
 
     /// The generation of the current physical transport.
@@ -415,7 +415,7 @@ impl StatefulMessageBuffer {
     /// transport generation so writers of the old connection can never track frames.
     pub(crate) fn renew(&mut self) {
         let transport_generation = self.transport_generation.wrapping_add(1);
-        *self = Self::new(self.capacity).expect("an existing buffer has a valid capacity");
+        *self = Self::empty(self.capacity);
         self.transport_generation = transport_generation;
         debug!(
             target: TRACE_TARGET,
@@ -470,7 +470,7 @@ mod stateful_buffer_tests {
     use crate::protocol::negotiate::MessageType;
 
     fn text(value: &str) -> SerializedFrame {
-        SerializedFrame::Text(value.to_string())
+        SerializedFrame::text(value)
     }
 
     #[test]
@@ -603,7 +603,7 @@ mod stateful_transport_generation {
     use crate::protocol::negotiate::MessageType;
 
     fn frame() -> SerializedFrame {
-        SerializedFrame::Text("{\"type\":1}\u{1e}".to_string())
+        SerializedFrame::text("{\"type\":1}\u{1e}")
     }
 
     #[test]
@@ -671,7 +671,7 @@ mod sequence_trace {
     const MARKER: &str = "sequence-trace-payload-marker";
 
     fn frame() -> SerializedFrame {
-        SerializedFrame::Text(format!("{{\"type\":1,\"target\":\"{MARKER}\"}}\u{1e}"))
+        SerializedFrame::text(format!("{{\"type\":1,\"target\":\"{MARKER}\"}}\u{1e}"))
     }
 
     /// The sequencing messages, after checking every record's level, target and payload freedom.

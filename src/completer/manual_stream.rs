@@ -39,6 +39,8 @@ impl<T> Clone for ManualStreamState<T> {
 }
 
 impl<T> ManualStreamState<T> {
+    // The drop handler is `Send` natively; the browser build shares this code.
+    #[cfg_attr(target_arch = "wasm32", allow(clippy::arc_with_non_send_sync))]
     pub fn new(drop_handler: Option<StreamDropHandler>) -> Self {
         ManualStreamState {
             queue: Arc::new(Mutex::new(VecDeque::new())),

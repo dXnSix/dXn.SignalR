@@ -1,17 +1,31 @@
+// Decoding and transport code must not panic on peer input; tests may.
+#![cfg_attr(
+    not(test),
+    deny(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing
+    )
+)]
+
 use std::{
     str::FromStr,
     sync::{Arc, Mutex as StdMutex, RwLock, Weak},
     time::Duration,
 };
 
+use crate::platform::{LockExt, RwLockExt};
+
 use crate::{
     client::ConnectionRecipe,
     error::{Error, TimeoutOperation},
     execution::{Storage, UpdatableActionStorage},
     protocol::{
-        hub_protocol::{HubProtocolKind, MessagePayload},
-        messages::{MessageParser, RECORD_SEPARATOR},
-        negotiate::{HandshakeRequest, MessageType, Ping},
+        codec::{self, InboundMessage, OutboundMessage, Record},
+        hub_protocol::HubProtocolKind,
+        messages::MessageParser,
+        negotiate::HandshakeRequest,
         stateful::{Ack, Sequence},
     },
 };
@@ -27,7 +41,7 @@ use super::{
     Communication, HttpClient,
 };
 use futures::{
-    channel::{mpsc, oneshot},
+    channel::mpsc,
     future::Either,
     stream::{SplitSink, SplitStream},
     SinkExt, StreamExt,
@@ -58,6 +72,9 @@ const WRITER_DROP: u8 = 2;
 
 /// Frames waiting for the writer task; bounded so callers feel backpressure.
 const OUTBOUND_CAPACITY: usize = 64;
+
+/// The most bytes of queued frames the writer coalesces into one WebSocket message.
+const COALESCE_LIMIT: usize = 64 * 1024;
 
 /// An open physical WebSocket after its handshake or stateful resume.
 struct OpenSocket {
@@ -102,7 +119,7 @@ impl ConnectionLiveness {
     }
 
     fn tracker(&self) -> std::sync::MutexGuard<'_, LivenessTracker> {
-        self.tracker.lock().expect("liveness tracker poisoned")
+        self.tracker.locked()
     }
 
     fn sent(&self) {
@@ -173,44 +190,62 @@ fn replaced_by_reconnect() -> Error {
 /// What woke the writer task.
 enum WriterEvent {
     Control(Option<Message>),
-    Data(Option<OutboundFrame>),
+    Data(Option<SerializedFrame>),
     PingDue,
 }
 
-/// One outbound application frame and the channel its sender awaits.
-struct OutboundFrame {
-    message: Message,
-    /// The message type and serialized frame for the stateful replay buffer.
-    tracking: Option<(MessageType, SerializedFrame)>,
-    done: oneshot::Sender<Result<(), Error>>,
-}
-
 /// Sends frames through a physical connection's runtime-owned writer task. Awaiting a send only
-/// uses runtime-agnostic channels, so callers may run on any executor.
+/// uses runtime-agnostic primitives (Tokio's channels need no runtime; the replay-buffer wait
+/// runs on the connection's runtime), so callers may run on any executor.
 #[derive(Clone)]
 struct ConnectionWriter {
     /// Control frames (stateful Ack) that never wait behind application backpressure.
     control: mpsc::UnboundedSender<Message>,
-    data: mpsc::Sender<OutboundFrame>,
+    /// The bounded outbound queue; every sender shares its capacity.
+    data: tokio::sync::mpsc::Sender<SerializedFrame>,
+    /// The replay buffer and the generation of the transport this writer owns: frames are
+    /// tracked only for that transport.
+    stateful: Option<(SharedStatefulBuffer, u64)>,
+    /// The connection's runtime, which runs the wait for room in the replay buffer.
+    runtime: Handle,
 }
 
 impl ConnectionWriter {
-    async fn send(
-        &self,
-        message: Message,
-        tracking: Option<(MessageType, SerializedFrame)>,
-    ) -> Result<(), Error> {
-        let (done, completed) = oneshot::channel();
-        self.data
-            .clone()
-            .send(OutboundFrame {
-                message,
-                tracking,
-                done,
-            })
+    /// Accepts one message for sending, as the official clients' `SendAsync` completes once the
+    /// message is in the transport's pipe: the caller waits for queue room (bounded, so callers
+    /// feel backpressure) and, with stateful reconnect, for room in the replay buffer, then tracks
+    /// and queues the message under the buffer's lock, so sequence order is queue order. The
+    /// writer task writes it afterwards; a frame in the replay buffer survives a lost socket.
+    async fn send(&self, message: OutboundMessage) -> Result<(), Error> {
+        // A slot in the shared queue, so the queueing below cannot fail for lack of room.
+        let permit = self
+            .data
+            .reserve()
             .await
             .map_err(|_| closed_before_sent())?;
-        completed.await.map_err(|_| closed_before_sent())?
+        let Some((buffer, generation)) = &self.stateful else {
+            permit.send(message.frame);
+            return Ok(());
+        };
+        loop {
+            {
+                let mut buffer = buffer.locked();
+                // The replay buffer shares the frame's bytes.
+                match buffer.track_for(*generation, message.message_type, message.frame.clone())? {
+                    TrackResult::Buffered(_) | TrackResult::Bypass => {
+                        permit.send(message.frame);
+                        return Ok(());
+                    }
+                    TrackResult::Backpressured => {}
+                }
+            }
+            // The replay buffer is full until the server acknowledges more frames. The wait runs
+            // on the connection's runtime: the caller's executor may not provide Tokio timers.
+            self.runtime
+                .spawn(async { tokio::time::sleep(Duration::from_millis(5)).await })
+                .await
+                .map_err(|_| closed_before_sent())?;
+        }
     }
 
     fn send_control(&self, message: Message) -> Result<(), Error> {
@@ -330,18 +365,12 @@ impl ReconnectionContext {
             return Err(self.coordinator.superseded());
         }
         info!("Reconnecting to {}...", self.endpoint);
-        let resumable = self.stateful.as_ref().filter(|buffer| {
-            !buffer
-                .lock()
-                .expect("stateful buffer poisoned")
-                .is_disposed()
-        });
+        let resumable = self
+            .stateful
+            .as_ref()
+            .filter(|buffer| !buffer.locked().is_disposed());
         let (socket, fresh_endpoint) = if let Some(buffer) = resumable {
-            let endpoint = self
-                .transport_endpoint
-                .read()
-                .expect("transport endpoint poisoned")
-                .clone();
+            let endpoint = self.transport_endpoint.read_locked().clone();
             let socket = CommunicationClient::resume_to_server(
                 endpoint,
                 self.protocol_kind,
@@ -367,11 +396,8 @@ impl ReconnectionContext {
             return Err(self.coordinator.superseded());
         }
         if let (Some(buffer), Some(endpoint)) = (&self.stateful, fresh_endpoint) {
-            buffer.lock().expect("stateful buffer poisoned").renew();
-            *self
-                .transport_endpoint
-                .write()
-                .expect("transport endpoint poisoned") = endpoint;
+            buffer.locked().renew();
+            *self.transport_endpoint.write_locked() = endpoint;
         }
         let connection = CommunicationConnection::start(
             socket,
@@ -397,12 +423,7 @@ impl ReconnectionContext {
     /// Attempts until one succeeds, the policy gives up, or the generation is superseded (by
     /// `pause` or a local close), which is checked again after every delay.
     async fn run_policy(&self, generation: u64, first: FirstAttempt) -> Result<(), Error> {
-        let policy = self
-            .reconnection_config
-            .read()
-            .expect("reconnection config poisoned")
-            .policy
-            .clone();
+        let policy = self.reconnection_config.read_locked().policy.clone();
         let started = std::time::Instant::now();
         let mut retry_count = 0u32;
         let mut last_error = None;
@@ -460,7 +481,7 @@ impl ReconnectionContext {
     async fn end_after_exhaustion(&self, generation: u64, reason: &Error) {
         if self.fail_generation(generation, reason).await {
             if let Some(buffer) = &self.stateful {
-                buffer.lock().expect("stateful buffer poisoned").dispose();
+                buffer.locked().dispose();
             }
             let mut actions = self.actions.clone();
             actions.fail_pending(reason);
@@ -468,10 +489,7 @@ impl ReconnectionContext {
     }
 
     fn user_handler(&self) -> Option<UserDisconnectionHandler> {
-        self.user_handler
-            .read()
-            .expect("disconnection handler poisoned")
-            .clone()
+        self.user_handler.read_locked().clone()
     }
 
     fn disconnection_handler(&self, connection_generation: u64) -> ClientDisconnectionHandler {
@@ -514,7 +532,7 @@ impl ReconnectionContext {
             drop(guard);
             actions.fail_pending(&self.reason);
             if let Some(buffer) = &self.stateful {
-                buffer.lock().expect("stateful buffer poisoned").dispose();
+                buffer.locked().dispose();
             }
             // Tell a manual-mode application about the terminal close; nothing reconnects
             // automatically.
@@ -524,11 +542,7 @@ impl ReconnectionContext {
             return;
         }
         if let Some(buffer) = &self.stateful {
-            if let Err(error) = buffer
-                .lock()
-                .expect("stateful buffer poisoned")
-                .disconnected()
-            {
+            if let Err(error) = buffer.locked().disconnected() {
                 error!("Cannot enter stateful resume: {}", error);
                 self.coordinator.transport_lost();
                 *guard =
@@ -615,22 +629,23 @@ impl CommunicationConnection {
             ConnectionLiveness::new(&disconnection_handler.recipe.liveness())
         };
         let (control, control_receiver) = mpsc::unbounded();
-        let (data, data_receiver) = mpsc::channel(OUTBOUND_CAPACITY);
-        let writer = ConnectionWriter { control, data };
+        let (data, data_receiver) = tokio::sync::mpsc::channel(OUTBOUND_CAPACITY);
         // The writer only tracks frames for the transport it owns.
         let tracking = stateful.clone().map(|buffer| {
-            let generation = buffer
-                .lock()
-                .expect("stateful buffer poisoned")
-                .transport_generation();
+            let generation = buffer.locked().transport_generation();
             (buffer, generation)
         });
+        let writer = ConnectionWriter {
+            control,
+            data,
+            stateful: tracking,
+            runtime: runtime.clone(),
+        };
         let stop_mode = Arc::new(std::sync::atomic::AtomicU8::new(WRITER_RUNNING));
         let writer_task = runtime.spawn(Self::run_writer(
             socket.sink,
             control_receiver,
             data_receiver,
-            tracking,
             ping_frame(protocol_kind),
             liveness.clone(),
             stop_mode.clone(),
@@ -654,27 +669,44 @@ impl CommunicationConnection {
         }
     }
 
-    /// Owns the sink: sends control frames first, applies stateful tracking and backpressure to
-    /// application frames, sends a keep-alive Ping (never tracked for replay) whenever nothing
-    /// went out for the keep-alive interval, and ends once every sender is gone or the
+    /// Owns the sink: sends control frames first, writes accepted application frames (coalescing
+    /// the ones already queued), sends a keep-alive Ping (never tracked for replay) whenever
+    /// nothing went out for the keep-alive interval, and ends once every sender is gone or the
     /// connection is stopped: with a WebSocket Close, or by dropping the socket for `WRITER_DROP`.
-    async fn run_writer(
-        mut sink: SocketSink,
+    async fn run_writer<S: futures::Sink<Message> + Unpin>(
+        mut sink: S,
         mut control: mpsc::UnboundedReceiver<Message>,
-        mut data: mpsc::Receiver<OutboundFrame>,
-        stateful: Option<(SharedStatefulBuffer, u64)>,
+        mut data: tokio::sync::mpsc::Receiver<SerializedFrame>,
         ping: SerializedFrame,
         liveness: ConnectionLiveness,
         stop_mode: Arc<std::sync::atomic::AtomicU8>,
     ) {
         let stopping = || stop_mode.load(std::sync::atomic::Ordering::Acquire) != WRITER_RUNNING;
+        // A frame that did not fit the previous coalesced message.
+        let mut carried: Option<SerializedFrame> = None;
         loop {
             if stopping() {
                 break;
             }
+            if let Some(frame) = carried.take() {
+                // Control frames (stateful Acks) still go first between coalesced messages, so a
+                // long send burst never holds back the client's acknowledgements.
+                if Self::write_control(&mut sink, &mut control, &liveness)
+                    .await
+                    .is_err()
+                {
+                    break;
+                }
+                match Self::write_batch(&mut sink, &mut data, &liveness, frame).await {
+                    Ok(next) => carried = next,
+                    Err(()) => break,
+                }
+                continue;
+            }
             let event = {
                 let ping_due = std::pin::pin!(tokio::time::sleep_until(liveness.ping_deadline()));
-                let messages = futures::future::select(control.next(), data.next());
+                let frame = std::pin::pin!(data.recv());
+                let messages = futures::future::select(control.next(), frame);
                 match futures::future::select(messages, ping_due).await {
                     Either::Left((Either::Left((message, _)), _)) => WriterEvent::Control(message),
                     Either::Left((Either::Right((frame, _)), _)) => WriterEvent::Data(frame),
@@ -689,25 +721,13 @@ impl CommunicationConnection {
                     liveness.sent();
                 }
                 WriterEvent::Data(Some(frame)) => {
-                    let (result, socket_failed) = Self::write_frame(
-                        &mut sink,
-                        &mut control,
-                        stateful.as_ref(),
-                        (&ping, &liveness, &stopping),
-                        frame.message,
-                        frame.tracking,
-                    )
-                    .await;
-                    if result.is_ok() {
-                        liveness.sent();
-                    }
-                    let _ = frame.done.send(result);
-                    if socket_failed {
-                        break;
+                    match Self::write_batch(&mut sink, &mut data, &liveness, frame).await {
+                        Ok(next) => carried = next,
+                        Err(()) => break,
                     }
                 }
                 WriterEvent::PingDue => {
-                    if sink.send(Self::ping_message(&ping)).await.is_err() {
+                    if sink.send(websocket_message(ping.clone())).await.is_err() {
                         break;
                     }
                     liveness.sent();
@@ -715,6 +735,8 @@ impl CommunicationConnection {
                 WriterEvent::Control(None) | WriterEvent::Data(None) => break,
             }
         }
+        // Senders waiting for queue room fail now instead of when the writer task is dropped.
+        data.close();
         if stop_mode.load(std::sync::atomic::Ordering::Acquire) == WRITER_DROP {
             drop(sink);
         } else {
@@ -722,73 +744,47 @@ impl CommunicationConnection {
         }
     }
 
-    /// Tracks (with backpressure) and sends one application frame. Returns the caller's result
-    /// and whether the socket failed. A frame that entered the replay buffer is delivered by the
-    /// stateful resume even when this socket fails, so its caller succeeds.
-    async fn write_frame(
-        sink: &mut SocketSink,
+    /// Writes every control frame already queued. `Err` means the socket failed.
+    async fn write_control<S: futures::Sink<Message> + Unpin>(
+        sink: &mut S,
         control: &mut mpsc::UnboundedReceiver<Message>,
-        stateful: Option<&(SharedStatefulBuffer, u64)>,
-        (ping, liveness, stopping): (
-            &SerializedFrame,
-            &ConnectionLiveness,
-            &(dyn Fn() -> bool + Sync),
-        ),
-        message: Message,
-        tracking: Option<(MessageType, SerializedFrame)>,
-    ) -> (Result<(), Error>, bool) {
-        let mut buffered = false;
-        if let (Some((buffer, generation)), Some((message_type, payload))) = (stateful, tracking) {
-            loop {
-                let result = buffer.lock().expect("stateful buffer poisoned").track_for(
-                    *generation,
-                    message_type,
-                    payload.clone(),
-                );
-                match result {
-                    Ok(TrackResult::Buffered(_)) => {
-                        buffered = true;
-                        break;
-                    }
-                    Ok(TrackResult::Bypass) => break,
-                    Ok(TrackResult::Backpressured) => {
-                        if stopping() {
-                            return (Err(closed_before_sent()), true);
-                        }
-                        // Keep acknowledging inbound frames, and keep the connection alive, while
-                        // the replay buffer is full.
-                        while let Ok(ack) = control.try_recv() {
-                            if let Err(error) = sink.send(ack).await {
-                                return (Err(send_failed(error)), true);
-                            }
-                            liveness.sent();
-                        }
-                        if tokio::time::Instant::now() >= liveness.ping_deadline() {
-                            if let Err(error) = sink.send(Self::ping_message(ping)).await {
-                                return (Err(send_failed(error)), true);
-                            }
-                            liveness.sent();
-                        }
-                        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
-                    }
-                    // A stale transport or disposed buffer: never send or track this frame.
-                    Err(error) => return (Err(error), false),
-                }
-            }
+        liveness: &ConnectionLiveness,
+    ) -> Result<(), ()> {
+        while let Ok(message) = control.try_recv() {
+            sink.send(message).await.map_err(drop)?;
+            liveness.sent();
         }
-        match sink.send(message).await {
-            Ok(()) => (Ok(()), false),
-            Err(_) if buffered => (Ok(()), true),
-            Err(error) => (Err(send_failed(error)), true),
-        }
+        Ok(())
     }
 
-    fn ping_message(ping: &SerializedFrame) -> Message {
-        match ping {
-            SerializedFrame::Text(text) => Message::text(text.clone()),
-            #[cfg(feature = "messagepack")]
-            SerializedFrame::Binary(bytes) => Message::binary(bytes.clone()),
-        }
+    /// Writes `first` and the frames already queued behind it as one WebSocket message, as the
+    /// official clients' transports send what their pipe holds (see [`next_batch`]). Returns the
+    /// queued frame that did not fit, for the next message; `Err` means the socket failed.
+    async fn write_batch<S: futures::Sink<Message> + Unpin>(
+        sink: &mut S,
+        data: &mut tokio::sync::mpsc::Receiver<SerializedFrame>,
+        liveness: &ConnectionLiveness,
+        first: SerializedFrame,
+    ) -> Result<Option<SerializedFrame>, ()> {
+        let (batch, carried) = next_batch(first, || data.try_recv().ok());
+        Self::write_frames(sink, liveness, batch).await?;
+        Ok(carried)
+    }
+
+    /// Writes accepted frames as one WebSocket message (a single frame without copying).
+    async fn write_frames<S: futures::Sink<Message> + Unpin>(
+        sink: &mut S,
+        liveness: &ConnectionLiveness,
+        frames: Vec<SerializedFrame>,
+    ) -> Result<(), ()> {
+        let message = match <[SerializedFrame; 1]>::try_from(frames) {
+            Ok([frame]) => websocket_message(frame),
+            Err(frames) if frames.is_empty() => return Ok(()),
+            Err(frames) => coalesce(&frames),
+        };
+        sink.send(message).await.map_err(drop)?;
+        liveness.sent();
+        Ok(())
     }
 
     /// Dispatches inbound frames (first any hub messages from the handshake frame). Silence for
@@ -832,180 +828,33 @@ impl CommunicationConnection {
                 };
                 liveness.received();
                 match item {
-                    Ok(ws_message) => match protocol_kind {
-                        HubProtocolKind::Json => {
-                            for message in CommunicationClient::get_text_messages(&ws_message) {
-                                if let Ok(ping) = MessageParser::parse_message::<Ping>(&message) {
-                                    let message_type = ping.message_type();
-                                    if let Some(buffer) = &stateful {
-                                        let control_result = match message_type {
-                                            MessageType::Ack | MessageType::Sequence => {
-                                                let decoded =
-                                                    crate::protocol::stateful::decode_json_control(
-                                                        &message,
-                                                        message_type,
-                                                    );
-                                                buffer
-                                                    .lock()
-                                                    .expect("stateful buffer poisoned")
-                                                    .receive_control(message_type, decoded)
-                                            }
-                                            _ => Ok(()),
-                                        };
-                                        if let Err(error) = control_result {
-                                            error!("Stateful protocol error: {}", error);
-                                            break 'receive error
-                                                .with_server_allows_reconnect(false);
-                                        }
-                                        if matches!(
-                                            message_type,
-                                            MessageType::Ack | MessageType::Sequence
-                                        ) {
-                                            continue;
-                                        }
-                                        let should_process = match buffer
-                                            .lock()
-                                            .expect("stateful buffer poisoned")
-                                            .should_process(message_type)
-                                        {
-                                            Ok(value) => value,
-                                            Err(error) => {
-                                                error!("Stateful protocol error: {}", error);
-                                                break 'receive error
-                                                    .with_server_allows_reconnect(false);
-                                            }
-                                        };
-                                        let acknowledgement = match buffer
-                                            .lock()
-                                            .expect("stateful buffer poisoned")
-                                            .take_acknowledgement()
-                                        {
-                                            Ok(value) => value,
-                                            Err(error) => {
-                                                error!("Cannot prepare stateful Ack: {error}");
-                                                break 'receive error
-                                                    .with_server_allows_reconnect(false);
-                                            }
-                                        };
-                                        if let Some(sequence_id) = acknowledgement {
-                                            if let Err(error) =
-                                                Self::ack_message(protocol_kind, sequence_id)
-                                                    .and_then(|ack| writer.send_control(ack))
-                                            {
-                                                error!("Cannot send stateful Ack: {error}");
-                                                break 'receive error
-                                                    .with_server_allows_reconnect(false);
-                                            }
-                                        }
-                                        if !should_process {
-                                            continue;
-                                        }
-                                    }
-                                    let payload = MessagePayload::Text(message);
-                                    if message_type
-                                        == crate::protocol::negotiate::MessageType::Close
-                                    {
-                                        let reason = super::common::server_close(&payload);
-                                        let _ = storage.process_message(payload, message_type);
-                                        break 'receive reason;
-                                    }
-                                    if let Err(error) =
-                                        storage.process_message(payload, message_type)
-                                    {
-                                        error!("Error occurred parsing message {error}");
-                                    }
-                                } else {
-                                    error!("Message could not be parsed: {:?}", message);
-                                }
+                    Ok(ws_message) => {
+                        let mut context = RecordContext {
+                            storage: &mut storage,
+                            stateful: stateful.as_ref(),
+                            protocol_kind,
+                            writer: &writer,
+                        };
+                        let ended = match protocol_kind {
+                            HubProtocolKind::Json => match ws_message.as_text() {
+                                Some(text) => codec::json_records(text)
+                                    .find_map(|record| context.handle(codec::decode_json(record))),
+                                None => None,
+                            },
+                            #[cfg(feature = "messagepack")]
+                            HubProtocolKind::MessagePack if ws_message.is_binary() => {
+                                let frame: &[u8] = ws_message.as_payload();
+                                codec::messagepack_records(frame).find_map(|record| {
+                                    context.handle(record.and_then(codec::decode_messagepack))
+                                })
                             }
+                            #[cfg(feature = "messagepack")]
+                            HubProtocolKind::MessagePack => None,
+                        };
+                        if let Some(reason) = ended {
+                            break 'receive reason;
                         }
-                        #[cfg(feature = "messagepack")]
-                        HubProtocolKind::MessagePack => {
-                            for payload in CommunicationClient::get_binary_messages(&ws_message) {
-                                match crate::protocol::msgpack::read_message_type(&payload) {
-                                    Ok(msg_type) => {
-                                        if let Some(buffer) = &stateful {
-                                            let control_result = match msg_type {
-                                                MessageType::Ack | MessageType::Sequence => {
-                                                    let decoded = crate::protocol::stateful::decode_messagepack_control(
-                                                        &payload,
-                                                        msg_type,
-                                                    );
-                                                    buffer
-                                                        .lock()
-                                                        .expect("stateful buffer poisoned")
-                                                        .receive_control(msg_type, decoded)
-                                                }
-                                                _ => Ok(()),
-                                            };
-                                            if let Err(error) = control_result {
-                                                error!("Stateful protocol error: {}", error);
-                                                break 'receive error
-                                                    .with_server_allows_reconnect(false);
-                                            }
-                                            if matches!(
-                                                msg_type,
-                                                MessageType::Ack | MessageType::Sequence
-                                            ) {
-                                                continue;
-                                            }
-                                            let should_process = match buffer
-                                                .lock()
-                                                .expect("stateful buffer poisoned")
-                                                .should_process(msg_type)
-                                            {
-                                                Ok(value) => value,
-                                                Err(error) => {
-                                                    error!("Stateful protocol error: {}", error);
-                                                    break 'receive error
-                                                        .with_server_allows_reconnect(false);
-                                                }
-                                            };
-                                            let acknowledgement = match buffer
-                                                .lock()
-                                                .expect("stateful buffer poisoned")
-                                                .take_acknowledgement()
-                                            {
-                                                Ok(value) => value,
-                                                Err(error) => {
-                                                    error!("Cannot prepare stateful Ack: {error}");
-                                                    break 'receive error
-                                                        .with_server_allows_reconnect(false);
-                                                }
-                                            };
-                                            if let Some(sequence_id) = acknowledgement {
-                                                if let Err(error) =
-                                                    Self::ack_message(protocol_kind, sequence_id)
-                                                        .and_then(|ack| writer.send_control(ack))
-                                                {
-                                                    error!("Cannot send stateful Ack: {error}");
-                                                    break 'receive error
-                                                        .with_server_allows_reconnect(false);
-                                                }
-                                            }
-                                            if !should_process {
-                                                continue;
-                                            }
-                                        }
-                                        let payload = MessagePayload::Binary(payload);
-                                        if msg_type
-                                            == crate::protocol::negotiate::MessageType::Close
-                                        {
-                                            let reason = super::common::server_close(&payload);
-                                            let _ = storage.process_message(payload, msg_type);
-                                            break 'receive reason;
-                                        }
-                                        if let Err(error) =
-                                            storage.process_message(payload, msg_type)
-                                        {
-                                            error!("Error processing msgpack message: {error}");
-                                        }
-                                    }
-                                    Err(e) => error!("Cannot read msgpack message type: {}", e),
-                                }
-                            }
-                        }
-                    },
+                    }
                     Err(error) => {
                         error!("WebSocket receive error: {error}");
                         break 'receive websocket_error(format!("the WebSocket failed: {error}"))
@@ -1018,38 +867,6 @@ impl CommunicationConnection {
         }
     }
 
-    /// Serializes a JSON message and its replay-buffer tracking data.
-    pub(crate) fn json_frame<T: serde::Serialize>(
-        data: T,
-    ) -> Result<(Message, Option<(MessageType, SerializedFrame)>), Error> {
-        let json = MessageParser::to_json(&data).map_err(|error| {
-            Error::serialization(format!("cannot encode the message as JSON: {error}"))
-        })?;
-        let message_type =
-            MessageParser::parse_message::<Ping>(MessageParser::strip_record_separator(&json))?
-                .message_type();
-        Ok((
-            Message::text(json.clone()),
-            Some((message_type, SerializedFrame::Text(json))),
-        ))
-    }
-
-    /// Frames a MessagePack payload and its replay-buffer tracking data.
-    #[cfg(feature = "messagepack")]
-    pub(crate) fn binary_frame(
-        data: Vec<u8>,
-    ) -> Result<(Message, Option<(MessageType, SerializedFrame)>), Error> {
-        let frames = crate::protocol::msgpack::split_framed_messages(&data)?;
-        let first = frames
-            .first()
-            .ok_or_else(|| Error::protocol("cannot send an empty MessagePack frame"))?;
-        let message_type = crate::protocol::msgpack::read_message_type(first)?;
-        Ok((
-            Message::binary(data.clone()),
-            Some((message_type, SerializedFrame::Binary(data))),
-        ))
-    }
-
     fn ack_message(protocol_kind: HubProtocolKind, sequence_id: u64) -> Result<Message, Error> {
         let message = match protocol_kind {
             HubProtocolKind::Json => Message::text(
@@ -1060,7 +877,7 @@ impl CommunicationConnection {
             #[cfg(feature = "messagepack")]
             HubProtocolKind::MessagePack => {
                 Message::binary(crate::protocol::stateful::encode_messagepack_control(
-                    MessageType::Ack,
+                    crate::protocol::negotiate::MessageType::Ack,
                     sequence_id,
                 )?)
             }
@@ -1092,15 +909,14 @@ impl CommunicationConnection {
         self.stop_receiving();
         self.stop_mode
             .store(mode, std::sync::atomic::Ordering::Release);
+        // Closing the control channel wakes the writer, which then sees the stop mode; queued
+        // senders fail once it drops the outbound queue.
         self.writer.control.close_channel();
-        self.writer.data.close_channel();
     }
 
     fn stop_receiving(&mut self) {
-        if self._receiver.is_some() {
+        if let Some(receiver) = self._receiver.take() {
             info!("Stopping receiver...");
-            let receiver = self._receiver.take().unwrap();
-
             receiver.abort();
             info!("Receiver thread aborted");
         }
@@ -1203,15 +1019,8 @@ impl Communication for CommunicationClient {
         self._protocol_kind
     }
 
-    async fn send<T: serde::Serialize>(&mut self, data: T) -> Result<(), Error> {
-        let (message, tracking) = CommunicationConnection::json_frame(data)?;
-        self.writer().await?.send(message, tracking).await
-    }
-
-    #[cfg(feature = "messagepack")]
-    async fn send_binary(&mut self, data: Vec<u8>) -> Result<(), Error> {
-        let (message, tracking) = CommunicationConnection::binary_frame(data)?;
-        self.writer().await?.send(message, tracking).await
+    async fn send_message(&mut self, message: OutboundMessage) -> Result<(), Error> {
+        self.writer().await?.send(message).await
     }
 
     async fn release(&mut self) {
@@ -1245,7 +1054,7 @@ impl Communication for CommunicationClient {
         };
         drop(previous);
         if let Some(buffer) = &self._stateful {
-            buffer.lock().expect("stateful buffer poisoned").dispose();
+            buffer.locked().dispose();
         }
         let mut actions = self._actions.clone();
         actions.fail_pending(&Error::closed_locally());
@@ -1292,10 +1101,7 @@ impl CommunicationClient {
             if let Some(buffer) = &self._stateful {
                 // The buffer may already await a resume after a lost transport; a disposed
                 // buffer is replaced by a fresh negotiation on resume.
-                let _ = buffer
-                    .lock()
-                    .expect("stateful buffer poisoned")
-                    .disconnected();
+                let _ = buffer.locked().disconnected();
             }
             if let ConnectionState::Connected(connection) = previous {
                 let mut connection = connection.lock().await;
@@ -1348,8 +1154,8 @@ impl CommunicationClient {
     fn disconnection_handler(&self, connection_generation: u64) -> ClientDisconnectionHandler {
         ClientDisconnectionHandler {
             state: Arc::downgrade(&self._state),
-            endpoint: Uri::from_str(&self._recipe.socket_url())
-                .expect("connection recipe produced an invalid URI"),
+            // The recipe's URL was parsed when the connection was created.
+            endpoint: Uri::from_str(&self._recipe.socket_url()).unwrap_or_default(),
             transport_endpoint: self._endpoint.clone(),
             connection_generation,
             recipe: self._recipe.clone(),
@@ -1388,12 +1194,13 @@ impl CommunicationClient {
             _endpoint: Arc::new(RwLock::new(endpoint)),
             _recipe: recipe,
             _state: state,
-            _stateful: configuration.stateful_reconnect().map(|config| {
-                Arc::new(StdMutex::new(
+            _stateful: configuration
+                .stateful_reconnect()
+                .map(|config| {
                     StatefulMessageBuffer::new(config.buffer_size_bytes)
-                        .expect("negotiated stateful reconnect configuration is valid"),
-                ))
-            }),
+                        .map(|buffer| Arc::new(StdMutex::new(buffer)))
+                })
+                .transpose()?,
             _actions: UpdatableActionStorage::new(),
             _reconnection_config: Arc::new(RwLock::new(ReconnectionConfig::default())),
             _disconnection_handler: Arc::new(RwLock::new(None)),
@@ -1403,20 +1210,14 @@ impl CommunicationClient {
     }
 
     pub fn set_reconnection_config(&mut self, config: ReconnectionConfig) {
-        *self
-            ._reconnection_config
-            .write()
-            .expect("reconnection config poisoned") = config;
+        *self._reconnection_config.write_locked() = config;
     }
 
     pub fn set_disconnection_handler(
         &mut self,
         handler: impl Fn(ReconnectionContext) + Send + Sync + 'static,
     ) {
-        *self
-            ._disconnection_handler
-            .write()
-            .expect("disconnection handler poisoned") = Some(Arc::new(Box::new(handler)));
+        *self._disconnection_handler.write_locked() = Some(Arc::new(Box::new(handler)));
     }
 
     async fn connect_to_server(
@@ -1594,10 +1395,7 @@ impl CommunicationClient {
     ) -> Result<OpenSocket, Error> {
         let ws = Self::connect_socket(endpoint, recipe).await?;
         let (mut write, read) = ws.split();
-        let (sequence_id, frames) = buffer
-            .lock()
-            .expect("stateful buffer poisoned")
-            .begin_resend()?;
+        let (sequence_id, frames) = buffer.locked().begin_resend()?;
 
         let resend_result = async {
             match protocol_kind {
@@ -1614,7 +1412,7 @@ impl CommunicationClient {
                 #[cfg(feature = "messagepack")]
                 HubProtocolKind::MessagePack => {
                     let sequence = crate::protocol::stateful::encode_messagepack_control(
-                        MessageType::Sequence,
+                        crate::protocol::negotiate::MessageType::Sequence,
                         sequence_id,
                     )?;
                     write
@@ -1625,25 +1423,16 @@ impl CommunicationClient {
             }
 
             for frame in frames {
-                match frame.payload {
-                    SerializedFrame::Text(text) => {
-                        write.send(Message::text(text)).await.map_err(send_failed)?
-                    }
-                    #[cfg(feature = "messagepack")]
-                    SerializedFrame::Binary(binary) => write
-                        .send(Message::binary(binary))
-                        .await
-                        .map_err(send_failed)?,
-                }
+                write
+                    .send(websocket_message(frame.payload))
+                    .await
+                    .map_err(send_failed)?;
             }
             Ok::<(), Error>(())
         }
         .await;
 
-        buffer
-            .lock()
-            .expect("stateful buffer poisoned")
-            .finish_resend(resend_result.is_ok())?;
+        buffer.locked().finish_resend(resend_result.is_ok())?;
         resend_result?;
         Ok(OpenSocket::new(write, read))
     }
@@ -1671,11 +1460,7 @@ impl CommunicationClient {
     }
 
     async fn connect_internal(&mut self) -> Result<(), Error> {
-        let endpoint = self
-            ._endpoint
-            .read()
-            .expect("transport endpoint poisoned")
-            .clone();
+        let endpoint = self._endpoint.read_locked().clone();
         let res = CommunicationClient::connect_to_server(
             endpoint,
             self._protocol_kind,
@@ -1703,20 +1488,6 @@ impl CommunicationClient {
         }
     }
 
-    pub(crate) fn get_text_messages(message: &Message) -> Vec<String> {
-        if message.is_text() {
-            if let Some(txt) = message.as_text() {
-                return txt
-                    .split(RECORD_SEPARATOR)
-                    .map(|s| MessageParser::strip_record_separator(s).to_string())
-                    .filter(|s| !s.is_empty())
-                    .collect();
-            }
-        }
-
-        Vec::new()
-    }
-
     fn display_endpoint(endpoint: &Uri) -> String {
         let scheme = endpoint.scheme_str().unwrap_or("ws");
         let authority = endpoint
@@ -1725,21 +1496,121 @@ impl CommunicationClient {
             .unwrap_or("<invalid>");
         format!("{scheme}://{authority}{}", endpoint.path())
     }
+}
 
-    #[cfg(feature = "messagepack")]
-    pub(crate) fn get_binary_messages(message: &Message) -> Vec<Vec<u8>> {
-        if message.is_binary() {
-            let data = message.as_payload();
-            match crate::protocol::msgpack::split_framed_messages(data) {
-                Ok(frames) => frames,
-                Err(e) => {
-                    error!("Failed to split binary frames: {}", e);
-                    Vec::new()
+/// The frames one WebSocket message carries: `first` and the queued frames behind it while their
+/// total stays within [`COALESCE_LIMIT`]. The first queued frame that would exceed it is returned
+/// to start the next message, so a frame of at least the limit goes out alone, uncopied.
+fn next_batch(
+    first: SerializedFrame,
+    mut queued: impl FnMut() -> Option<SerializedFrame>,
+) -> (Vec<SerializedFrame>, Option<SerializedFrame>) {
+    let mut bytes = first.len();
+    let mut batch = vec![first];
+    while bytes < COALESCE_LIMIT {
+        let Some(frame) = queued() else {
+            break;
+        };
+        if bytes + frame.len() > COALESCE_LIMIT {
+            return (batch, Some(frame));
+        }
+        bytes += frame.len();
+        batch.push(frame);
+    }
+    (batch, None)
+}
+
+/// One WebSocket message carrying several frames' records in order: JSON records end with their
+/// separator and MessagePack records carry their length prefix, so they concatenate.
+fn coalesce(frames: &[SerializedFrame]) -> Message {
+    let mut bytes = bytes::BytesMut::with_capacity(frames.iter().map(SerializedFrame::len).sum());
+    for frame in frames {
+        bytes.extend_from_slice(frame.bytes());
+    }
+    match frames.first() {
+        #[cfg(feature = "messagepack")]
+        Some(SerializedFrame::Binary(_)) => Message::binary(bytes.freeze()),
+        _ => Message::text(bytes.freeze()),
+    }
+}
+
+/// The WebSocket message of an encoded frame; it shares the frame's bytes.
+pub(crate) fn websocket_message(frame: SerializedFrame) -> Message {
+    match frame {
+        SerializedFrame::Text(text) => Message::text(text),
+        #[cfg(feature = "messagepack")]
+        SerializedFrame::Binary(binary) => Message::binary(binary),
+    }
+}
+
+/// What the receive loop needs to handle one inbound record.
+struct RecordContext<'a, S: Storage> {
+    storage: &'a mut S,
+    stateful: Option<&'a SharedStatefulBuffer>,
+    protocol_kind: HubProtocolKind,
+    writer: &'a ConnectionWriter,
+}
+
+impl<S: Storage> RecordContext<'_, S> {
+    /// Sequences (with stateful reconnect) and dispatches one decoded record; returns the error
+    /// that ends the transport, if the record ends it.
+    fn handle(&mut self, message: Result<InboundMessage<'_>, Error>) -> Option<Error> {
+        let message = match message {
+            Ok(message) => message,
+            Err(error) => {
+                super::common::log_undecodable(&error);
+                return None;
+            }
+        };
+        if let Some(buffer) = self.stateful {
+            match self.sequence(buffer, &message) {
+                Ok(true) => {}
+                Ok(false) => return None,
+                Err(error) => {
+                    error!("Stateful protocol error: {}", error);
+                    return Some(error.with_server_allows_reconnect(false));
                 }
             }
-        } else {
-            Vec::new()
         }
+        super::common::dispatch_decoded(self.storage, message)
+    }
+
+    /// Applies stateful sequencing: Ack and Sequence update the replay buffer; every other
+    /// message is counted and acknowledged. Returns whether the message is new and dispatched
+    /// (a replayed duplicate is not).
+    fn sequence(
+        &self,
+        buffer: &SharedStatefulBuffer,
+        message: &InboundMessage<'_>,
+    ) -> Result<bool, Error> {
+        let mut buffer = buffer
+            .lock()
+            .map_err(|_| Error::protocol("the stateful replay buffer is unusable"))?;
+        if let InboundMessage::Control {
+            message_type,
+            record,
+        } = message
+        {
+            let sequence_id = match record {
+                Record::Json(text) => {
+                    crate::protocol::stateful::decode_json_control(text, *message_type)
+                }
+                #[cfg(feature = "messagepack")]
+                Record::MessagePack(bytes) => {
+                    crate::protocol::stateful::decode_messagepack_control(bytes, *message_type)
+                }
+            };
+            buffer.receive_control(*message_type, sequence_id)?;
+            return Ok(false);
+        }
+        let should_process = buffer.should_process(message.message_type())?;
+        let acknowledgement = buffer.take_acknowledgement()?;
+        drop(buffer);
+        if let Some(sequence_id) = acknowledgement {
+            CommunicationConnection::ack_message(self.protocol_kind, sequence_id)
+                .and_then(|ack| self.writer.send_control(ack))?;
+        }
+        Ok(should_process)
     }
 }
 
@@ -1966,5 +1837,302 @@ mod native_connection_runs {
         );
         assert!(started.elapsed() < Duration::from_secs(5));
         silent.abort();
+    }
+}
+
+/// Sends complete once the transport accepts the message, as the official clients' `SendAsync`
+/// does, and the writer coalesces queued frames into one WebSocket message.
+#[cfg(test)]
+mod outbound_writer {
+    use std::{
+        sync::{Arc, Mutex as StdMutex},
+        time::Duration,
+    };
+
+    use futures::channel::mpsc;
+    use tokio::runtime::Handle;
+
+    use super::{coalesce, next_batch, ConnectionWriter, SharedStatefulBuffer, COALESCE_LIMIT};
+    use crate::{
+        communication::stateful::StatefulMessageBuffer,
+        platform::LockExt,
+        protocol::{
+            codec::{OutboundMessage, SerializedFrame},
+            negotiate::MessageType,
+        },
+        ErrorKind,
+    };
+
+    type Queue = tokio::sync::mpsc::Receiver<SerializedFrame>;
+
+    fn message(text: &str) -> OutboundMessage {
+        OutboundMessage {
+            message_type: MessageType::Invocation,
+            frame: SerializedFrame::text(format!("{text}\u{1e}")),
+        }
+    }
+
+    fn writer(
+        capacity: usize,
+        stateful: Option<SharedStatefulBuffer>,
+        runtime: Handle,
+    ) -> (ConnectionWriter, Queue) {
+        let (control, _) = mpsc::unbounded();
+        let (data, queued) = tokio::sync::mpsc::channel(capacity);
+        let stateful = stateful.map(|buffer| {
+            let generation = buffer.locked().transport_generation();
+            (buffer, generation)
+        });
+        (
+            ConnectionWriter {
+                control,
+                data,
+                stateful,
+                runtime,
+            },
+            queued,
+        )
+    }
+
+    fn buffer(capacity: usize) -> SharedStatefulBuffer {
+        Arc::new(StdMutex::new(StatefulMessageBuffer::new(capacity).unwrap()))
+    }
+
+    /// A runtime that keeps running on its own thread, for callers on other executors.
+    fn background_runtime() -> tokio::runtime::Runtime {
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_time()
+            .build()
+            .unwrap()
+    }
+
+    #[test]
+    fn outbound_writer_send_completes_once_the_frame_is_queued() {
+        let runtime = background_runtime();
+        let (writer, mut queued) = writer(4, None, runtime.handle().clone());
+        futures::executor::block_on(writer.send(message("a"))).unwrap();
+        futures::executor::block_on(writer.send(message("b"))).unwrap();
+        assert_eq!(queued.try_recv().unwrap(), SerializedFrame::text("a\u{1e}"));
+        assert_eq!(queued.try_recv().unwrap(), SerializedFrame::text("b\u{1e}"));
+    }
+
+    /// Every handle shares the queue's capacity: a send waits while the queue is full.
+    #[tokio::test]
+    async fn outbound_writer_waits_while_the_outbound_queue_is_full() {
+        let (writer, mut queued) = writer(1, None, Handle::current());
+        writer.send(message("a")).await.unwrap();
+        let second = tokio::spawn({
+            let writer = writer.clone();
+            async move { writer.send(message("b")).await }
+        });
+        tokio::time::sleep(Duration::from_millis(30)).await;
+        assert!(!second.is_finished(), "the full queue holds the send");
+
+        assert_eq!(queued.recv().await, Some(SerializedFrame::text("a\u{1e}")));
+        tokio::time::timeout(Duration::from_secs(5), second)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(queued.recv().await, Some(SerializedFrame::text("b\u{1e}")));
+    }
+
+    #[test]
+    fn outbound_writer_tracks_stateful_frames_in_queue_order() {
+        let runtime = background_runtime();
+        let buffer = buffer(1024);
+        let (writer, mut queued) = writer(4, Some(buffer.clone()), runtime.handle().clone());
+        for text in ["a", "b", "c"] {
+            futures::executor::block_on(writer.send(message(text))).unwrap();
+        }
+        let (first, frames) = buffer.locked().begin_resend().unwrap();
+        assert_eq!(first, 1);
+        let replayed: Vec<_> = frames
+            .into_iter()
+            .map(|frame| (frame.sequence_id, frame.payload))
+            .collect();
+        let written: Vec<_> = (1..=3)
+            .map(|sequence_id| (sequence_id, queued.try_recv().unwrap()))
+            .collect();
+        assert_eq!(replayed, written);
+    }
+
+    #[tokio::test]
+    async fn outbound_writer_waits_while_the_replay_buffer_is_full() {
+        let buffer = buffer(8);
+        let (writer, mut queued) = writer(4, Some(buffer.clone()), Handle::current());
+        writer.send(message("aaaaa")).await.unwrap();
+        let second = tokio::spawn({
+            let writer = writer.clone();
+            async move { writer.send(message("bbbbb")).await }
+        });
+        tokio::time::sleep(Duration::from_millis(30)).await;
+        assert!(
+            !second.is_finished(),
+            "the full replay buffer holds the send"
+        );
+        assert_eq!(
+            queued.try_recv().unwrap(),
+            SerializedFrame::text("aaaaa\u{1e}")
+        );
+        assert!(queued.try_recv().is_err());
+
+        buffer.locked().acknowledge(1).unwrap();
+        tokio::time::timeout(Duration::from_secs(5), second)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            queued.try_recv().unwrap(),
+            SerializedFrame::text("bbbbb\u{1e}")
+        );
+    }
+
+    /// The replay-buffer wait runs on the connection's runtime, so a caller on another executor
+    /// (here `futures::executor`, outside any Tokio context) can await a held send.
+    #[test]
+    fn outbound_writer_waits_for_the_replay_buffer_on_any_executor() {
+        let runtime = background_runtime();
+        let buffer = buffer(8);
+        let (writer, mut queued) = writer(4, Some(buffer.clone()), runtime.handle().clone());
+        futures::executor::block_on(writer.send(message("aaaaa"))).unwrap();
+        let acknowledger = std::thread::spawn({
+            let buffer = buffer.clone();
+            move || {
+                std::thread::sleep(Duration::from_millis(50));
+                buffer.locked().acknowledge(1).unwrap();
+            }
+        });
+        assert!(tokio::runtime::Handle::try_current().is_err());
+        futures::executor::block_on(writer.send(message("bbbbb"))).unwrap();
+        acknowledger.join().unwrap();
+        assert_eq!(
+            queued.try_recv().unwrap(),
+            SerializedFrame::text("aaaaa\u{1e}")
+        );
+        assert_eq!(
+            queued.try_recv().unwrap(),
+            SerializedFrame::text("bbbbb\u{1e}")
+        );
+    }
+
+    #[test]
+    fn outbound_writer_rejects_a_message_larger_than_the_replay_buffer() {
+        let runtime = background_runtime();
+        let (writer, mut queued) = writer(4, Some(buffer(4)), runtime.handle().clone());
+        let error = futures::executor::block_on(writer.send(message("too large"))).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::Configuration, "{error}");
+        assert!(queued.try_recv().is_err());
+    }
+
+    #[test]
+    fn outbound_writer_fails_sends_after_the_writer_stopped() {
+        let runtime = background_runtime();
+        let (writer, queued) = writer(4, None, runtime.handle().clone());
+        drop(queued);
+        let error = futures::executor::block_on(writer.send(message("a"))).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::Transport, "{error}");
+    }
+
+    #[test]
+    fn outbound_writer_coalesces_queued_frames_into_one_message() {
+        let message = coalesce(&[
+            SerializedFrame::text("{\"type\":1}\u{1e}"),
+            SerializedFrame::text("{\"type\":6}\u{1e}"),
+        ]);
+        assert_eq!(
+            message.as_text(),
+            Some("{\"type\":1}\u{1e}{\"type\":6}\u{1e}")
+        );
+        #[cfg(feature = "messagepack")]
+        {
+            let message = coalesce(&[
+                SerializedFrame::binary(vec![0x02, 0x91, 0x06]),
+                SerializedFrame::binary(vec![0x02, 0x91, 0x06]),
+            ]);
+            assert!(message.is_binary());
+            assert_eq!(
+                &message.as_payload()[..],
+                &[0x02, 0x91, 0x06, 0x02, 0x91, 0x06]
+            );
+        }
+    }
+
+    /// Between coalesced messages of a long send burst, the writer sends queued control frames
+    /// (stateful Acks) first, and a stopped writer closes the outbound queue.
+    #[tokio::test]
+    async fn outbound_writer_sends_acks_between_coalesced_messages() {
+        use futures::{SinkExt, StreamExt};
+        use tokio_websockets::Message;
+
+        let (control, control_receiver) = mpsc::unbounded::<Message>();
+        let (data, data_receiver) = tokio::sync::mpsc::channel(8);
+        let (written, mut writes) = mpsc::unbounded::<Message>();
+        // The first write queues an Ack, as the receive loop would while the burst is written.
+        let sink = written.with({
+            let control = control.clone();
+            let mut first = true;
+            move |message: Message| {
+                if std::mem::take(&mut first) {
+                    let _ = control.unbounded_send(Message::text("ack"));
+                }
+                futures::future::ready(Ok::<_, mpsc::SendError>(message))
+            }
+        });
+        let big = || SerializedFrame::text("x".repeat(COALESCE_LIMIT - 10));
+        data.try_send(big()).unwrap();
+        data.try_send(big()).unwrap();
+        let stop_mode = Arc::new(std::sync::atomic::AtomicU8::new(super::WRITER_RUNNING));
+        let writer = tokio::spawn(super::CommunicationConnection::run_writer(
+            Box::pin(sink),
+            control_receiver,
+            data_receiver,
+            SerializedFrame::text("{\"type\":6}\u{1e}"),
+            super::ConnectionLiveness::new(
+                &crate::communication::liveness::LivenessConfig::default(),
+            ),
+            stop_mode.clone(),
+        ));
+
+        let first = writes.next().await.unwrap();
+        let ack = writes.next().await.unwrap();
+        let second = writes.next().await.unwrap();
+        assert_eq!(first.as_payload().len(), COALESCE_LIMIT - 10);
+        assert_eq!(ack.as_text(), Some("ack"));
+        assert_eq!(second.as_payload().len(), COALESCE_LIMIT - 10);
+
+        stop_mode.store(super::WRITER_CLOSE, std::sync::atomic::Ordering::Release);
+        control.close_channel();
+        tokio::time::timeout(Duration::from_secs(5), writer)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            data.reserve().await.is_err(),
+            "the stopped writer closed the queue"
+        );
+    }
+
+    /// A coalesced message stays within the limit: the queued frame that would exceed it starts
+    /// the next message, and a frame of at least the limit goes out alone.
+    #[test]
+    fn outbound_writer_batches_stay_within_the_coalescing_limit() {
+        let frame = |bytes: usize| SerializedFrame::text("x".repeat(bytes));
+        let mut queue = vec![frame(100), frame(COALESCE_LIMIT), frame(10)].into_iter();
+        let (batch, carried) = next_batch(frame(10), || queue.next());
+        assert_eq!(
+            batch.iter().map(SerializedFrame::len).collect::<Vec<_>>(),
+            [10, 100]
+        );
+        let carried = carried.expect("the large frame is carried");
+        assert_eq!(carried.len(), COALESCE_LIMIT);
+
+        let (batch, carried) = next_batch(carried, || queue.next());
+        assert_eq!(batch.len(), 1, "a frame at the limit goes out alone");
+        assert!(carried.is_none());
+        let (batch, _) = next_batch(frame(1), || queue.next());
+        assert_eq!(batch.iter().map(SerializedFrame::len).sum::<usize>(), 11);
     }
 }

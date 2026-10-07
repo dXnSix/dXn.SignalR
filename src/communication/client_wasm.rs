@@ -6,6 +6,17 @@
 //! runs on the main thread, in Web Workers and in threaded (atomics) builds. The client is
 //! `!Send`: use one client per thread or worker.
 
+// Decoding and transport code must not panic on peer input; tests may.
+#![cfg_attr(
+    not(test),
+    deny(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing
+    )
+)]
+
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
@@ -26,9 +37,10 @@ use crate::{
     error::{Error, TimeoutOperation},
     execution::{Storage, UpdatableActionStorage},
     protocol::{
-        hub_protocol::{HubProtocolKind, MessagePayload},
-        messages::{MessageParser, RECORD_SEPARATOR},
-        negotiate::{HandshakeRequest, MessageType, Ping},
+        codec::{self, InboundMessage, OutboundMessage, Record},
+        hub_protocol::HubProtocolKind,
+        messages::MessageParser,
+        negotiate::HandshakeRequest,
         stateful::{Ack, Sequence},
     },
 };
@@ -66,20 +78,19 @@ fn replaced_by_reconnect() -> Error {
 type SharedStatefulBuffer = Rc<RefCell<StatefulMessageBuffer>>;
 type SocketEvents = mpsc::UnboundedReceiver<SocketEvent>;
 
-/// One outbound WebSocket frame.
+/// One inbound WebSocket frame.
 enum Frame {
     Text(String),
     #[cfg_attr(not(feature = "messagepack"), allow(dead_code))]
     Binary(Vec<u8>),
 }
 
-impl From<SerializedFrame> for Frame {
-    fn from(frame: SerializedFrame) -> Self {
-        match frame {
-            SerializedFrame::Text(text) => Frame::Text(text),
-            #[cfg(feature = "messagepack")]
-            SerializedFrame::Binary(bytes) => Frame::Binary(bytes),
-        }
+/// Sends an encoded frame on a browser socket.
+fn send_serialized(socket: &BrowserSocket, frame: &SerializedFrame) -> Result<(), Error> {
+    match frame {
+        SerializedFrame::Text(text) => socket.send_text(SerializedFrame::as_text(text)?),
+        #[cfg(feature = "messagepack")]
+        SerializedFrame::Binary(bytes) => socket.send_binary(bytes),
     }
 }
 
@@ -115,11 +126,8 @@ impl LiveSocket {
         }
     }
 
-    fn send(&self, frame: &Frame) -> Result<(), Error> {
-        let result = match frame {
-            Frame::Text(text) => self.socket.send_text(text),
-            Frame::Binary(bytes) => self.socket.send_binary(bytes),
-        };
+    fn send(&self, frame: &SerializedFrame) -> Result<(), Error> {
+        let result = send_serialized(&self.socket, frame);
         if result.is_ok() {
             self.liveness.borrow_mut().on_sent(now_ms());
         }
@@ -511,7 +519,7 @@ async fn resume_socket(
             #[cfg(feature = "messagepack")]
             HubProtocolKind::MessagePack => {
                 Frame::Binary(crate::protocol::stateful::encode_messagepack_control(
-                    MessageType::Sequence,
+                    crate::protocol::negotiate::MessageType::Sequence,
                     sequence_id,
                 )?)
             }
@@ -521,11 +529,7 @@ async fn resume_socket(
             Frame::Binary(bytes) => socket.send_binary(bytes)?,
         }
         for frame in frames {
-            match frame.payload {
-                SerializedFrame::Text(text) => socket.send_text(&text)?,
-                #[cfg(feature = "messagepack")]
-                SerializedFrame::Binary(binary) => socket.send_binary(&binary)?,
-            }
+            send_serialized(&socket, &frame.payload)?;
         }
         Ok::<(), Error>(())
     })();
@@ -546,7 +550,7 @@ fn install(shared: &Rc<Shared>, opened: Opened, generation: u64) {
         opened.events,
         opened.socket.clone(),
         opened.pending,
-        Frame::from(ping_frame(shared.protocol_kind)),
+        ping_frame(shared.protocol_kind),
     ));
     if let Some(previous) = shared.socket.replace(Some(Socket {
         socket: opened.socket,
@@ -565,7 +569,7 @@ async fn run_receiver(
     mut events: SocketEvents,
     socket: Rc<LiveSocket>,
     mut pending: Option<Frame>,
-    ping: Frame,
+    ping: SerializedFrame,
 ) {
     let server_timeout = match shared.upgrade() {
         Some(state) => state.recipe.liveness().server_timeout,
@@ -702,170 +706,110 @@ fn terminal_close(shared: &Rc<Shared>, reason: Error) {
 /// Processes one WebSocket frame; returns the reason the transport must end, when it must.
 fn process_frame(shared: &Shared, frame: Frame, socket: &LiveSocket) -> Option<Error> {
     let mut storage = shared.storage.clone();
-    let stateful = shared.stateful.as_ref();
     match (shared.protocol_kind, frame) {
         (HubProtocolKind::Json, Frame::Text(text)) => {
-            for message in text
-                .split(RECORD_SEPARATOR)
-                .map(MessageParser::strip_record_separator)
-                .filter(|message| !message.is_empty())
-            {
-                let message_type = match MessageParser::parse_message::<Ping>(message) {
-                    Ok(parsed) => parsed.message_type(),
-                    Err(error) => {
-                        error!("Message could not be parsed: {}", error);
-                        continue;
-                    }
-                };
-                if let Some(buffer) = stateful {
-                    let control = match message_type {
-                        MessageType::Ack | MessageType::Sequence => {
-                            let decoded = crate::protocol::stateful::decode_json_control(
-                                message,
-                                message_type,
-                            );
-                            buffer.borrow_mut().receive_control(message_type, decoded)
-                        }
-                        _ => Ok(()),
-                    };
-                    match stateful_step(buffer, message_type, control, shared, socket) {
-                        Step::Process => {}
-                        Step::Skip => continue,
-                        Step::Fail(error) => return Some(error),
-                    }
-                }
-                if let Some(reason) = dispatch(
-                    &mut storage,
-                    MessagePayload::Text(message.to_string()),
-                    message_type,
-                ) {
-                    return Some(reason);
-                }
-            }
+            codec::json_records(&text).find_map(|record| {
+                handle_record(&mut storage, codec::decode_json(record), shared, socket)
+            })
         }
         #[cfg(feature = "messagepack")]
-        (HubProtocolKind::MessagePack, Frame::Binary(bytes)) => {
-            let messages = match crate::protocol::msgpack::split_framed_messages(&bytes) {
-                Ok(messages) => messages,
-                Err(error) => {
-                    error!("Failed to split MessagePack frames: {}", error);
-                    return None;
-                }
-            };
-            for payload in messages {
-                let message_type = match crate::protocol::msgpack::read_message_type(&payload) {
-                    Ok(message_type) => message_type,
-                    Err(error) => {
-                        error!("Cannot read MessagePack message type: {}", error);
-                        continue;
-                    }
-                };
-                if let Some(buffer) = stateful {
-                    let control = match message_type {
-                        MessageType::Ack | MessageType::Sequence => {
-                            let decoded = crate::protocol::stateful::decode_messagepack_control(
-                                &payload,
-                                message_type,
-                            );
-                            buffer.borrow_mut().receive_control(message_type, decoded)
-                        }
-                        _ => Ok(()),
-                    };
-                    match stateful_step(buffer, message_type, control, shared, socket) {
-                        Step::Process => {}
-                        Step::Skip => continue,
-                        Step::Fail(error) => return Some(error),
-                    }
-                }
-                if let Some(reason) =
-                    dispatch(&mut storage, MessagePayload::Binary(payload), message_type)
-                {
-                    return Some(reason);
-                }
-            }
+        (HubProtocolKind::MessagePack, Frame::Binary(bytes)) => codec::messagepack_records(&bytes)
+            .find_map(|record| {
+                handle_record(
+                    &mut storage,
+                    record.and_then(codec::decode_messagepack),
+                    shared,
+                    socket,
+                )
+            }),
+        _ => {
+            warn!("Ignoring a WebSocket frame that does not match the hub protocol");
+            None
         }
-        _ => warn!("Ignoring a WebSocket frame that does not match the hub protocol"),
     }
-    None
 }
 
-enum Step {
-    Process,
-    Skip,
-    /// The stateful protocol failed; the transport ends without reconnect permission.
-    Fail(Error),
-}
-
-/// Applies the stateful Ack/Sequence bookkeeping for one inbound message.
-fn stateful_step(
-    buffer: &SharedStatefulBuffer,
-    message_type: MessageType,
-    control: Result<(), Error>,
+/// Sequences (with stateful reconnect) and dispatches one decoded record; returns the error
+/// that ends the transport, if the record ends it.
+fn handle_record(
+    storage: &mut UpdatableActionStorage,
+    message: Result<InboundMessage<'_>, Error>,
     shared: &Shared,
     socket: &LiveSocket,
-) -> Step {
-    let fail = |error: Error| Step::Fail(error.with_server_allows_reconnect(false));
-    if let Err(error) = control {
-        error!("WASM stateful protocol error: {}", error);
-        return fail(error);
-    }
-    if matches!(message_type, MessageType::Ack | MessageType::Sequence) {
-        return Step::Skip;
-    }
-    let should_process = match buffer.borrow_mut().should_process(message_type) {
-        Ok(value) => value,
+) -> Option<Error> {
+    let message = match message {
+        Ok(message) => message,
         Err(error) => {
-            error!("WASM stateful protocol error: {}", error);
-            return fail(error);
+            super::common::log_undecodable(&error);
+            return None;
         }
     };
-    let acknowledgement = match buffer.borrow_mut().take_acknowledgement() {
-        Ok(value) => value,
-        Err(error) => {
-            error!("Cannot prepare WASM stateful Ack: {error}");
-            return fail(error);
+    if let Some(buffer) = shared.stateful.as_ref() {
+        match sequence(buffer, &message, shared, socket) {
+            Ok(true) => {}
+            Ok(false) => return None,
+            Err(error) => {
+                error!("WASM stateful protocol error: {}", error);
+                return Some(error.with_server_allows_reconnect(false));
+            }
         }
+    }
+    super::common::dispatch_decoded(storage, message)
+}
+
+/// Applies stateful sequencing: Ack and Sequence update the replay buffer; every other message
+/// is counted and acknowledged. Returns whether the message is new and dispatched (a replayed
+/// duplicate is not). No borrow of the buffer outlives the call.
+fn sequence(
+    buffer: &SharedStatefulBuffer,
+    message: &InboundMessage<'_>,
+    shared: &Shared,
+    socket: &LiveSocket,
+) -> Result<bool, Error> {
+    if let InboundMessage::Control {
+        message_type,
+        record,
+    } = message
+    {
+        let sequence_id = match record {
+            Record::Json(text) => {
+                crate::protocol::stateful::decode_json_control(text, *message_type)
+            }
+            #[cfg(feature = "messagepack")]
+            Record::MessagePack(bytes) => {
+                crate::protocol::stateful::decode_messagepack_control(bytes, *message_type)
+            }
+        };
+        buffer
+            .borrow_mut()
+            .receive_control(*message_type, sequence_id)?;
+        return Ok(false);
+    }
+    let (should_process, acknowledgement) = {
+        let mut buffer = buffer.borrow_mut();
+        (
+            buffer.should_process(message.message_type())?,
+            buffer.take_acknowledgement()?,
+        )
     };
     if let Some(sequence_id) = acknowledgement {
-        let sent = ack_message(shared.protocol_kind, sequence_id).and_then(|ack| socket.send(&ack));
-        if let Err(error) = sent {
-            error!("Cannot send WASM stateful Ack: {error}");
-            return fail(error);
-        }
+        ack_message(shared.protocol_kind, sequence_id).and_then(|ack| socket.send(&ack))?;
     }
-    if should_process {
-        Step::Process
-    } else {
-        Step::Skip
-    }
+    Ok(should_process)
 }
 
-/// Hands one message to the action storage; returns the server's close error for Close.
-fn dispatch(
-    storage: &mut UpdatableActionStorage,
-    payload: MessagePayload,
-    message_type: MessageType,
-) -> Option<Error> {
-    if message_type == MessageType::Close {
-        let reason = super::common::server_close(&payload);
-        let _ = storage.process_message(payload, message_type);
-        return Some(reason);
-    }
-    if let Err(error) = storage.process_message(payload, message_type) {
-        error!("Message could not be processed: {}", error);
-    }
-    None
-}
-
-fn ack_message(protocol_kind: HubProtocolKind, sequence_id: u64) -> Result<Frame, Error> {
+fn ack_message(protocol_kind: HubProtocolKind, sequence_id: u64) -> Result<SerializedFrame, Error> {
     match protocol_kind {
-        HubProtocolKind::Json => Ok(Frame::Text(
+        HubProtocolKind::Json => Ok(SerializedFrame::text(
             MessageParser::to_json(&Ack::new(sequence_id))
                 .map_err(|error| Error::serialization(format!("cannot encode an Ack: {error}")))?,
         )),
         #[cfg(feature = "messagepack")]
-        HubProtocolKind::MessagePack => Ok(Frame::Binary(
-            crate::protocol::stateful::encode_messagepack_control(MessageType::Ack, sequence_id)?,
+        HubProtocolKind::MessagePack => Ok(SerializedFrame::binary(
+            crate::protocol::stateful::encode_messagepack_control(
+                crate::protocol::negotiate::MessageType::Ack,
+                sequence_id,
+            )?,
         )),
     }
 }
@@ -910,12 +854,13 @@ impl Communication for CommunicationClient {
             recipe: configuration.get_recipe(),
             transport_endpoint: RefCell::new(configuration.get_endpoint()),
             protocol_kind: configuration.get_protocol_kind(),
-            stateful: configuration.stateful_reconnect().map(|config| {
-                Rc::new(RefCell::new(
+            stateful: configuration
+                .stateful_reconnect()
+                .map(|config| {
                     StatefulMessageBuffer::new(config.buffer_size_bytes)
-                        .expect("negotiated stateful reconnect configuration is valid"),
-                ))
-            }),
+                        .map(|buffer| Rc::new(RefCell::new(buffer)))
+                })
+                .transpose()?,
             reconnection_config: RefCell::new(ReconnectionConfig::default()),
             disconnection_handler: RefCell::new(None),
             lifecycle: Cell::new(Lifecycle::connected()),
@@ -928,34 +873,8 @@ impl Communication for CommunicationClient {
         })
     }
 
-    async fn send<T: serde::Serialize>(&mut self, data: T) -> Result<(), Error> {
-        let json = MessageParser::to_json(&data).map_err(|error| {
-            Error::serialization(format!("cannot encode the message as JSON: {error}"))
-        })?;
-        let message_type =
-            MessageParser::parse_message::<Ping>(MessageParser::strip_record_separator(&json))?
-                .message_type();
-        self.send_frame(
-            Frame::Text(json.clone()),
-            message_type,
-            SerializedFrame::Text(json),
-        )
-        .await
-    }
-
-    #[cfg(feature = "messagepack")]
-    async fn send_binary(&mut self, data: Vec<u8>) -> Result<(), Error> {
-        let frames = crate::protocol::msgpack::split_framed_messages(&data)?;
-        let first = frames
-            .first()
-            .ok_or_else(|| Error::protocol("cannot send an empty MessagePack frame"))?;
-        let message_type = crate::protocol::msgpack::read_message_type(first)?;
-        self.send_frame(
-            Frame::Binary(data.clone()),
-            message_type,
-            SerializedFrame::Binary(data),
-        )
-        .await
+    async fn send_message(&mut self, message: OutboundMessage) -> Result<(), Error> {
+        self.send_frame(message).await
     }
 
     fn get_protocol_kind(&self) -> HubProtocolKind {
@@ -1031,18 +950,16 @@ impl CommunicationClient {
 
     /// Tracks the frame for stateful replay (waiting while the buffer is full), then sends it on
     /// the current socket.
-    async fn send_frame(
-        &self,
-        message: Frame,
-        message_type: MessageType,
-        payload: SerializedFrame,
-    ) -> Result<(), Error> {
+    async fn send_frame(&self, message: OutboundMessage) -> Result<(), Error> {
         if self.shared.state() != LifecycleState::Connected {
             return Err(self.shared.send_error());
         }
         if let Some(buffer) = &self.shared.stateful {
             loop {
-                let result = buffer.borrow_mut().track(message_type, payload.clone())?;
+                // The replay buffer shares the frame's bytes.
+                let result = buffer
+                    .borrow_mut()
+                    .track(message.message_type, message.frame.clone())?;
                 match result {
                     TrackResult::Buffered(_) | TrackResult::Bypass => break,
                     TrackResult::Backpressured => sleep(Duration::from_millis(5)).await,
@@ -1056,7 +973,7 @@ impl CommunicationClient {
             .as_ref()
             .map(|socket| socket.socket.clone());
         match socket {
-            Some(socket) => socket.send(&message),
+            Some(socket) => socket.send(&message.frame),
             // A tracked frame is replayed by the stateful resume once a socket is back.
             None if self.shared.stateful.is_some() => Ok(()),
             None => Err(self.shared.send_error()),

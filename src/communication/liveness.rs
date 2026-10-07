@@ -2,15 +2,22 @@
 //! the handshake response check. The scheduler works on caller-supplied millisecond timestamps,
 //! so each target drives it with its own clock and tests drive it deterministically.
 
+// Decoding and transport code must not panic on peer input; tests may.
+#![cfg_attr(
+    not(test),
+    deny(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing
+    )
+)]
+
 use std::time::Duration;
 
 use crate::{
     error::Error,
-    protocol::{
-        hub_protocol::HubProtocolKind,
-        messages::MessageParser,
-        negotiate::{HandshakeResponse, Ping},
-    },
+    protocol::{hub_protocol::HubProtocolKind, negotiate::HandshakeResponse},
 };
 
 use super::stateful::SerializedFrame;
@@ -150,11 +157,9 @@ impl LivenessTracker {
 /// The protocol-specific Ping frame: JSON `{"type":6}` record or MessagePack framed `[6]`.
 pub(crate) fn ping_frame(protocol: HubProtocolKind) -> SerializedFrame {
     match protocol {
-        HubProtocolKind::Json => SerializedFrame::Text(
-            MessageParser::to_json(&Ping::new()).expect("a Ping always serializes"),
-        ),
+        HubProtocolKind::Json => SerializedFrame::text("{\"type\":6}\u{1e}"),
         #[cfg(feature = "messagepack")]
-        HubProtocolKind::MessagePack => SerializedFrame::Binary(
+        HubProtocolKind::MessagePack => SerializedFrame::binary(
             crate::protocol::msgpack::frame_message(&crate::protocol::msgpack::encode_ping()),
         ),
     }
@@ -172,7 +177,7 @@ pub(crate) fn parse_handshake_response(frame: &[u8]) -> Result<&[u8], Error> {
         .iter()
         .position(|byte| *byte == SEPARATOR)
         .ok_or_else(invalid)?;
-    let record = &frame[..end];
+    let (record, rest) = frame.split_at(end);
     if record.iter().all(u8::is_ascii_whitespace) {
         return Err(Error::handshake(
             "the SignalR handshake failed: the server sent an empty response",
@@ -189,7 +194,8 @@ pub(crate) fn parse_handshake_response(frame: &[u8]) -> Result<&[u8], Error> {
             "the SignalR handshake failed: expected a handshake response from the server",
         ));
     }
-    Ok(&frame[end + 1..])
+    // `rest` starts with the separator.
+    Ok(rest.get(1..).unwrap_or_default())
 }
 
 #[cfg(test)]
@@ -326,7 +332,7 @@ mod liveness_tests {
     fn liveness_json_ping_is_a_type_6_record() {
         assert_eq!(
             ping_frame(HubProtocolKind::Json),
-            SerializedFrame::Text("{\"type\":6}\u{1e}".to_string())
+            SerializedFrame::text("{\"type\":6}\u{1e}")
         );
     }
 
@@ -335,7 +341,7 @@ mod liveness_tests {
     fn liveness_messagepack_ping_is_a_framed_type_6_array() {
         assert_eq!(
             ping_frame(HubProtocolKind::MessagePack),
-            SerializedFrame::Binary(vec![0x02, 0x91, 0x06])
+            SerializedFrame::binary(vec![0x02, 0x91, 0x06])
         );
     }
 

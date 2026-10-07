@@ -10,8 +10,9 @@ use crate::execution::{
     ArgumentConfiguration, CallbackHandler, Storage, StorageUnregistrationHandler,
     UpdatableActionStorage,
 };
+use crate::protocol::codec::OutboundMessage;
 use crate::protocol::hub_protocol::HubProtocolKind;
-use crate::protocol::invoke::{CancelInvocation, Completion, Invocation};
+use crate::protocol::invoke::Invocation;
 
 use super::{ConnectionConfiguration, ConnectionRecipe, InvocationContext};
 
@@ -384,6 +385,8 @@ impl SignalRClient {
 
         client.set_reconnection_config(reconnection_config);
         if let Some(handler) = disconnection_handler {
+            // Shared with the native code path, where the handler is `Send + Sync`.
+            #[cfg_attr(target_arch = "wasm32", allow(clippy::arc_with_non_send_sync))]
             let handler = Arc::new(handler);
             let h_clone = handler.clone();
             client.set_disconnection_handler(move |context| {
@@ -582,8 +585,8 @@ impl SignalRClient {
     where
         F: FnMut(&mut ArgumentConfiguration),
     {
-        let invocation_id = self._actions.create_key(target.clone());
-        let mut invocation = Invocation::create_single(target.clone());
+        let invocation_id = self._actions.create_key();
+        let mut invocation = Invocation::create_single(target.clone(), self.protocol());
         invocation.with_invocation_id(invocation_id.clone());
         let invocation = Self::with_arguments(invocation, configuration)?;
 
@@ -594,7 +597,7 @@ impl SignalRClient {
         let ret = self._actions.add_invocation::<T>(invocation_id.clone());
         if let Err(error) = Self::send_invocation(conn, &invocation).await {
             // The server never saw the invocation: nothing will complete it.
-            self._actions.fail_action(invocation_id, &error);
+            self._actions.fail_action(&invocation_id, &error);
         }
         ret.await
     }
@@ -706,8 +709,10 @@ impl SignalRClient {
     where
         F: FnMut(&mut ArgumentConfiguration),
     {
-        let invocation =
-            Self::with_arguments(Invocation::create_single(target.clone()), configuration)?;
+        let invocation = Self::with_arguments(
+            Invocation::create_single(target.clone(), self.protocol()),
+            configuration,
+        )?;
 
         if let Some(ref mut conn) = self._connection {
             Self::send_invocation(conn, &invocation).await
@@ -722,18 +727,9 @@ impl SignalRClient {
         result: T,
     ) -> Result<(), Error> {
         if let Some(ref mut conn) = self._connection {
-            match conn.get_protocol_kind() {
-                HubProtocolKind::Json => {
-                    conn.send(Completion::create_result(invocation_id, result))
-                        .await
-                }
-                #[cfg(feature = "messagepack")]
-                HubProtocolKind::MessagePack => {
-                    let completion =
-                        crate::protocol::msgpack::encode_completion(&invocation_id, &result)?;
-                    conn.send_binary(completion).await
-                }
-            }
+            let completion =
+                OutboundMessage::completion(conn.get_protocol_kind(), invocation_id, &result)?;
+            conn.send_message(completion).await
         } else {
             Err(Error::closed_locally())
         }
@@ -830,7 +826,7 @@ impl SignalRClient {
     where
         F: FnMut(&mut ArgumentConfiguration),
     {
-        let invocation_id = self._actions.create_key(target.clone());
+        let invocation_id = self._actions.create_key();
         let mut cancellation_actions = self._actions.clone();
         let cancellation_invocation_id = invocation_id.clone();
         let cancellation_connection = self._connection.clone();
@@ -841,7 +837,7 @@ impl SignalRClient {
             .and_then(CommunicationClient::runtime)
             .or_else(|| tokio::runtime::Handle::try_current().ok());
         let drop_handler: crate::completer::StreamDropHandler = Box::new(move || {
-            cancellation_actions.remove(cancellation_invocation_id.clone());
+            cancellation_actions.remove(&cancellation_invocation_id);
             let Some(mut connection) = cancellation_connection else {
                 return;
             };
@@ -869,7 +865,7 @@ impl SignalRClient {
         let res = self
             ._actions
             .add_stream::<T>(invocation_id.clone(), drop_handler);
-        let mut invocation = Invocation::create_multiple(target.clone());
+        let mut invocation = Invocation::create_multiple(target.clone(), self.protocol());
         invocation.with_invocation_id(invocation_id.clone());
 
         let sent = match Self::with_arguments(invocation, configuration) {
@@ -882,7 +878,7 @@ impl SignalRClient {
         if let Err(error) = sent {
             // The server never saw the invocation: end the stream with the send error. Failing it
             // also disarms the drop handler, so no CancelInvocation follows.
-            self._actions.fail_action(invocation_id, &error);
+            self._actions.fail_action(&invocation_id, &error);
         }
 
         res
@@ -892,73 +888,29 @@ impl SignalRClient {
         conn: &mut CommunicationClient,
         invocation_id: String,
     ) -> Result<(), Error> {
-        match conn.get_protocol_kind() {
-            HubProtocolKind::Json => conn.send(CancelInvocation::new(invocation_id)).await,
-            #[cfg(feature = "messagepack")]
-            HubProtocolKind::MessagePack => {
-                conn.send_binary(crate::protocol::msgpack::encode_cancel_invocation(
-                    &invocation_id,
-                )?)
-                .await
-            }
-        }
+        let cancel = OutboundMessage::cancel_invocation(conn.get_protocol_kind(), invocation_id)?;
+        conn.send_message(cancel).await
     }
 
     async fn send_invocation(
         conn: &mut CommunicationClient,
         invocation: &Invocation,
     ) -> Result<(), Error> {
-        match conn.get_protocol_kind() {
-            HubProtocolKind::Json => conn.send(invocation).await,
-            #[cfg(feature = "messagepack")]
-            HubProtocolKind::MessagePack => {
-                let framed = Self::messagepack_invocation_frame(invocation)?;
-                conn.send_binary(framed).await
-            }
-        }
+        conn.send_message(OutboundMessage::invocation(invocation)?)
+            .await
     }
 
-    /// Encodes an Invocation or StreamInvocation as a framed MessagePack message.
-    #[cfg(feature = "messagepack")]
-    pub(crate) fn messagepack_invocation_frame(invocation: &Invocation) -> Result<Vec<u8>, Error> {
-        // Preserve the serializer-owned wire names. ASP.NET Core can
-        // bind explicitly attributed names, while a transport-level
-        // casing rewrite corrupts compact schemas and serde renames.
-        let msgpack_args: Vec<rmpv::Value> = if let Some(ref raw_args) = invocation.msgpack_args {
-            raw_args
-                .iter()
-                .map(|bytes| {
-                    rmpv::decode::read_value(&mut std::io::Cursor::new(bytes))
-                        .unwrap_or(rmpv::Value::Nil)
-                })
-                .collect()
-        } else {
-            invocation
-                .arguments
-                .as_ref()
-                .map(|args| {
-                    args.iter()
-                        .map(crate::protocol::msgpack::json_value_to_msgpack)
-                        .collect()
-                })
-                .unwrap_or_default()
-        };
-
-        let payload = crate::protocol::msgpack::encode_invocation(
-            invocation.get_message_type(),
-            &None,
-            &invocation.get_invocation_id(),
-            &invocation.get_target(),
-            &msgpack_args,
-            &invocation.stream_ids,
-        )?;
-
-        Ok(crate::protocol::msgpack::frame_message(&payload))
+    /// The hub protocol arguments are encoded in: the connection's (JSON without one).
+    fn protocol(&self) -> HubProtocolKind {
+        self._connection.as_ref().map_or(
+            HubProtocolKind::Json,
+            CommunicationClient::get_protocol_kind,
+        )
     }
 
-    /// A client without a connection over `actions`, so the benchmarks can dispatch server
-    /// invocations to registered callbacks.
-    #[cfg(all(feature = "bench-internals", not(target_arch = "wasm32")))]
+    /// A client without a connection over `actions`, so the benchmarks and unit tests can
+    /// dispatch server invocations to registered callbacks.
+    #[cfg(all(any(test, feature = "bench-internals"), not(target_arch = "wasm32")))]
     pub(crate) fn detached(actions: UpdatableActionStorage) -> Self {
         Self {
             _actions: actions,
@@ -1110,7 +1062,7 @@ mod unsent_stream_invocation {
         );
         let error = stream.error().expect("the send error must end the stream");
         assert_eq!(error.kind(), crate::ErrorKind::Transport, "{error}");
-        assert!(!client._actions.contains("Numbers_1".to_string()));
+        assert!(!client._actions.contains("1"));
 
         drop(stream);
         assert_eq!(
@@ -1165,7 +1117,7 @@ mod argument_encoding {
         ))
         .unwrap_err();
         assert_eq!(invoked.kind(), ErrorKind::Serialization, "{invoked}");
-        assert!(!client._actions.contains("Target_1".to_string()));
+        assert!(!client._actions.contains("1"));
 
         let sent = block_on(client.send_with_args("Target".to_string(), |arguments| {
             arguments.argument(Unencodable);
@@ -1205,10 +1157,7 @@ mod disconnect_every_handle {
     use super::unsent_stream_invocation::not_connected_client;
     use crate::{
         execution::Storage,
-        protocol::{
-            hub_protocol::{HubProtocolKind, MessagePayload},
-            negotiate::MessageType,
-        },
+        protocol::{codec, hub_protocol::HubProtocolKind},
         CallbackHandler, CloseReason, ConnectionStatus, Error, ErrorKind,
     };
 
@@ -1291,18 +1240,21 @@ mod disconnect_every_handle {
                 .unwrap();
             let mut client = not_connected_client(HubProtocolKind::Json, runtime.handle().clone());
             let observer = client.clone();
-            let registration = client.register("Notify".to_string(), |context| {
+            let ran = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let callback_ran = ran.clone();
+            let registration = client.register("Notify".to_string(), move |context| {
                 let mut client = context.client.clone();
                 client.register("Other".to_string(), |_| {}).unregister();
                 context.client.disconnect();
+                callback_ran.store(true, std::sync::atomic::Ordering::SeqCst);
             });
             let mut storage = client._actions.clone();
-            let dispatched = storage.process_message(
-                MessagePayload::Text(r#"{"type":1,"target":"Notify","arguments":[]}"#.to_string()),
-                MessageType::Invocation,
+            storage.dispatch(
+                codec::decode_json(r#"{"type":1,"target":"Notify","arguments":[]}"#).unwrap(),
             );
             registration.unregister();
-            let _ = done.send((dispatched.is_ok(), observer.status()));
+            let dispatched = ran.load(std::sync::atomic::Ordering::SeqCst);
+            let _ = done.send((dispatched, observer.status()));
         });
         let (dispatched, status) = finished
             .recv_timeout(std::time::Duration::from_secs(10))

@@ -5,6 +5,17 @@
 //! a non-shared JavaScript buffer before sending, because browsers reject `WebSocket.send` with a
 //! view of shared memory, which is what wasm memory is in threaded (atomics) builds.
 
+// Decoding and transport code must not panic on peer input; tests may.
+#![cfg_attr(
+    not(test),
+    deny(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing
+    )
+)]
+
 use futures::channel::mpsc;
 use wasm_bindgen::{prelude::Closure, JsCast};
 use web_sys::{BinaryType, CloseEvent, Event, MessageEvent, WebSocket};

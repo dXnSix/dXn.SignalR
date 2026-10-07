@@ -144,31 +144,6 @@ impl HandshakeResponse {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-/// Sent by either party to check if the connection is active.
-pub struct Ping {
-    r#type: MessageType,
-}
-
-impl Ping {
-    pub fn new() -> Self {
-        Ping {
-            r#type: MessageType::Ping,
-        }
-    }
-
-    pub fn message_type(&self) -> MessageType {
-        self.r#type
-    }
-}
-
-impl Default for Ping {
-    fn default() -> Self {
-        Ping::new()
-    }
-}
-
 #[cfg(test)]
 mod stateful_negotiate_tests {
     use super::NegotiateResponse;

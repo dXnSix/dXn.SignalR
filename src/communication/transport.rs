@@ -1,5 +1,16 @@
 //! Transport identities shared by negotiation, the connection loop and the error model.
 
+// Decoding and transport code must not panic on peer input; tests may.
+#![cfg_attr(
+    not(test),
+    deny(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing
+    )
+)]
+
 use std::fmt;
 
 /// A SignalR transport.

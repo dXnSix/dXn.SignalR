@@ -1,6 +1,17 @@
 //! Native negotiate requests: one HTTP/1.1 POST through hyper over the connection's own TCP or
 //! rustls stream, so negotiate and the WebSocket share one trust configuration.
 
+// Decoding and transport code must not panic on peer input; tests may.
+#![cfg_attr(
+    not(test),
+    deny(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing
+    )
+)]
+
 use http::{header, Request, Uri};
 use http_body_util::{BodyExt, Empty};
 use hyper::body::Bytes;

@@ -6,6 +6,17 @@
 //! control. A secure endpoint never falls back to plaintext or to a certificate-accepting
 //! verifier.
 
+// Decoding and transport code must not panic on peer input; tests may.
+#![cfg_attr(
+    not(test),
+    deny(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing
+    )
+)]
+
 #[cfg(rayx_tls)]
 use std::sync::Arc;
 
@@ -171,7 +182,7 @@ impl TlsContext {
     /// The connection's rustls config, built once on first use.
     #[cfg(rayx_tls)]
     pub(crate) fn config(&self) -> Result<Arc<rustls::ClientConfig>, Error> {
-        let mut slot = self.config.lock().expect("TLS config slot poisoned");
+        let mut slot = crate::platform::LockExt::locked(&*self.config);
         if let Some(config) = slot.as_ref() {
             return Ok(config.clone());
         }

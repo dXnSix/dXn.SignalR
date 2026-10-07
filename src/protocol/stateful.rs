@@ -86,12 +86,12 @@ pub(crate) fn decode_messagepack_control(
     expected: MessageType,
 ) -> Result<u64, Error> {
     let items = crate::protocol::msgpack::parse_msgpack_message(payload)?;
-    if items.len() != 2 {
+    let [message_type, sequence_id] = items.as_slice() else {
         return Err(Error::protocol(
             "Ack and Sequence MessagePack arrays must contain two items",
         ));
-    }
-    let message_type = items[0]
+    };
+    let message_type = message_type
         .as_u64()
         .ok_or_else(|| Error::protocol("the stateful control message type is not an integer"))?;
     if message_type != expected as u8 as u64 {
@@ -99,7 +99,7 @@ pub(crate) fn decode_messagepack_control(
             "expected a {expected:?} control message"
         )));
     }
-    items[1]
+    sequence_id
         .as_u64()
         .ok_or_else(|| Error::protocol("the stateful sequence id is not an unsigned integer"))
 }

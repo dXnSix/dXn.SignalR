@@ -1,18 +1,20 @@
+use std::sync::Mutex;
+
 use crate::{
     completer::{ManualFuture, ManualFutureCompleter},
     error::Error,
-    protocol::{hub_protocol::MessagePayload, invoke::Completion, negotiate::MessageType},
+    platform::LockExt,
+    protocol::codec::CompletionOutcome,
 };
-use log::{error, info};
+use log::{debug, trace};
 use serde::de::DeserializeOwned;
-
-use crate::protocol::messages::MessageParser;
 
 use super::actions::UpdatableAction;
 
 pub(crate) struct InvocationAction<R: DeserializeOwned + Unpin> {
     invocation_id: String,
-    completer: Option<ManualFutureCompleter<Result<R, Error>>>,
+    /// Taken once, under a lock held only for the handoff (never while decoding).
+    completer: Mutex<Option<ManualFutureCompleter<Result<R, Error>>>>,
 }
 
 impl<R: DeserializeOwned + Unpin> InvocationAction<R> {
@@ -20,40 +22,42 @@ impl<R: DeserializeOwned + Unpin> InvocationAction<R> {
         let (f, c) = ManualFuture::new();
         let invocation = InvocationAction {
             invocation_id,
-            completer: Some(c),
+            completer: Mutex::new(Some(c)),
         };
 
         (invocation, f)
     }
 
-    #[allow(dead_code)]
-    pub fn completable(&self) -> bool {
-        self.completer.is_some()
+    fn take_completer(&self) -> Option<ManualFutureCompleter<Result<R, Error>>> {
+        self.completer.locked().take()
     }
 
-    pub fn complete_ok(&mut self, result: R) {
-        info!("Completing invocation {} with result", self.invocation_id);
-        if let Some(completer) = self.completer.take() {
+    fn complete_ok(&self, result: R) {
+        debug!("Completing invocation {} with a result", self.invocation_id);
+        if let Some(completer) = self.take_completer() {
             completer.complete(Ok(result));
         }
     }
 
-    pub fn complete_err(&mut self, error: Error) {
-        error!(
-            "Completing invocation {} with error: {}",
-            self.invocation_id, error
+    fn complete_err(&self, error: Error) {
+        // A decode error can quote the payload, so its text is logged only at trace.
+        debug!(
+            "Completing invocation {} with a {:?} error",
+            self.invocation_id,
+            error.kind()
         );
-        if let Some(completer) = self.completer.take() {
+        trace!("Invocation {} failed: {error}", self.invocation_id);
+        if let Some(completer) = self.take_completer() {
             completer.complete(Err(error));
         }
     }
 
-    /// Completes a void hub method; only result types that accept "no value" (such as `()`)
-    /// can represent it.
-    fn complete_void(&mut self, value: Option<R>) {
-        match value {
-            Some(value) => self.complete_ok(value),
-            None => {
+    /// Completes a void hub method; only result types that accept "no value" (such as `()` or
+    /// `Option<T>`) can represent it.
+    fn complete_void(&self) {
+        match serde_json::from_value::<R>(serde_json::Value::Null) {
+            Ok(value) => self.complete_ok(value),
+            Err(_) => {
                 let error = Error::serialization(format!(
                     "invocation {} completed without a result, but a {} was expected",
                     self.invocation_id,
@@ -63,9 +67,15 @@ impl<R: DeserializeOwned + Unpin> InvocationAction<R> {
             }
         }
     }
+}
 
-    fn dispose_internal(&mut self) {
-        if let Some(completer) = self.completer.take() {
+impl<R: DeserializeOwned + Unpin> Drop for InvocationAction<R> {
+    fn drop(&mut self) {
+        let completer = match self.completer.get_mut() {
+            Ok(completer) => completer.take(),
+            Err(poisoned) => poisoned.into_inner().take(),
+        };
+        if let Some(completer) = completer {
             completer.complete(Err(Error::canceled(format!(
                 "invocation {} ended before the server completed it",
                 self.invocation_id
@@ -74,89 +84,26 @@ impl<R: DeserializeOwned + Unpin> InvocationAction<R> {
     }
 }
 
-impl<R: DeserializeOwned + Unpin> Drop for InvocationAction<R> {
-    fn drop(&mut self) {
-        self.dispose_internal();
-    }
-}
-
 impl<R: DeserializeOwned + Unpin + crate::platform::MaybeSend> UpdatableAction
     for InvocationAction<R>
 {
-    fn update_with(&mut self, message: &MessagePayload, message_type: MessageType) {
-        match message_type {
-            MessageType::Completion => match message {
-                MessagePayload::Text(s) => {
-                    match MessageParser::decode_payload::<Completion<R>>(s) {
-                        Ok(completion) if completion.is_result() => {
-                            info!("Completition is parsed");
-                            self.complete_ok(completion.unwrap_result());
-                        }
-                        Ok(completion) if completion.is_void() => self.complete_void(
-                            serde_json::from_value::<R>(serde_json::Value::Null).ok(),
-                        ),
-                        Ok(completion) => self.complete_err(Error::hub(completion.unwrap_error())),
-                        Err(error) => self.complete_err(error),
-                    }
-                }
-                #[cfg(feature = "messagepack")]
-                MessagePayload::Binary(data) => {
-                    let completion = crate::protocol::msgpack::parse_msgpack_message(data)
-                        .and_then(|items| crate::protocol::msgpack::parse_completion(&items));
-                    match completion {
-                        Ok(comp) => match comp.result_kind {
-                            1 => {
-                                let message = comp
-                                    .payload
-                                    .and_then(|v| v.as_str().map(|s| s.to_string()))
-                                    .unwrap_or_else(|| "unknown error".to_string());
-                                self.complete_err(Error::hub(message));
-                            }
-                            2 => self.complete_void(
-                                crate::protocol::msgpack::value_to_type::<R>(&rmpv::Value::Nil)
-                                    .ok(),
-                            ),
-                            3 => match comp.payload {
-                                Some(val) => {
-                                    match crate::protocol::msgpack::value_to_type::<R>(&val) {
-                                        Ok(result) => {
-                                            info!("Completition is parsed");
-                                            self.complete_ok(result);
-                                        }
-                                        Err(error) => self.complete_err(error),
-                                    }
-                                }
-                                None => self.complete_err(Error::protocol(
-                                    "the completion has no result payload",
-                                )),
-                            },
-                            kind => self.complete_err(Error::protocol(format!(
-                                "the completion has an unknown result kind {kind}"
-                            ))),
-                        },
-                        Err(error) => self.complete_err(error),
-                    }
-                }
+    fn on_completion(&self, outcome: &CompletionOutcome<'_>) {
+        match outcome {
+            CompletionOutcome::Result(payload) => match payload.decode::<R>() {
+                Ok(result) => self.complete_ok(result),
+                // The server's error, from a compact record that also carried a result.
+                Err(error) if error.kind() == crate::ErrorKind::Hub => self.complete_err(error),
+                Err(error) => self.complete_err(
+                    error.context(format!("the result of invocation {}", self.invocation_id)),
+                ),
             },
-            _ => error!(
-                "Cannot complete invocation {} with message type {:?}",
-                self.invocation_id, message_type
-            ),
+            CompletionOutcome::Void => self.complete_void(),
+            CompletionOutcome::Error(message) => self.complete_err(Error::hub(message.as_ref())),
         }
     }
 
-    fn fail(&mut self, error: &Error) {
-        if self.completer.is_some() {
-            self.complete_err(error.clone());
-        }
-    }
-
-    fn is_completed(&self) -> bool {
-        self.completer.is_none()
-    }
-
-    fn dispose(mut self) {
-        self.dispose_internal();
+    fn fail(&self, error: &Error) {
+        self.complete_err(error.clone());
     }
 }
 
@@ -164,17 +111,23 @@ impl<R: DeserializeOwned + Unpin + crate::platform::MaybeSend> UpdatableAction
 mod functional_baseline_void_completion {
     use super::InvocationAction;
     use crate::execution::UpdatableAction;
-    use crate::protocol::{hub_protocol::MessagePayload, negotiate::MessageType};
+    use crate::protocol::codec::{self, InboundMessage};
+
+    fn complete<R: serde::de::DeserializeOwned + Unpin + Send + 'static>(
+        message: InboundMessage<'_>,
+    ) -> Result<R, crate::Error> {
+        let (action, future) = InvocationAction::<R>::new("Call_1".to_string());
+        match message {
+            InboundMessage::Completion { outcome, .. } => action.on_completion(&outcome),
+            other => panic!("expected a completion, got {other:?}"),
+        }
+        futures::executor::block_on(future)
+    }
 
     fn complete_json<R: serde::de::DeserializeOwned + Unpin + Send + 'static>(
         message: &str,
     ) -> Result<R, crate::Error> {
-        let (mut action, future) = InvocationAction::<R>::new("Call_1".to_string());
-        action.update_with(
-            &MessagePayload::Text(message.to_string()),
-            MessageType::Completion,
-        );
-        futures::executor::block_on(future)
+        complete(codec::decode_json(message).unwrap())
     }
 
     #[test]
@@ -213,22 +166,14 @@ mod functional_baseline_void_completion {
     #[cfg(feature = "messagepack")]
     #[test]
     fn messagepack_void_completion_completes_unit_invocations() {
-        let (mut action, future) = InvocationAction::<()>::new("Call_1".to_string());
-        action.update_with(
-            &MessagePayload::Binary(messagepack_completion(2, None)),
-            MessageType::Completion,
-        );
-        assert!(futures::executor::block_on(future).is_ok());
+        let bytes = messagepack_completion(2, None);
+        assert!(complete::<()>(codec::decode_messagepack(&bytes).unwrap()).is_ok());
     }
 
     #[cfg(feature = "messagepack")]
     #[test]
     fn messagepack_void_completion_fails_invocations_expecting_a_value() {
-        let (mut action, future) = InvocationAction::<i32>::new("Call_1".to_string());
-        action.update_with(
-            &MessagePayload::Binary(messagepack_completion(2, None)),
-            MessageType::Completion,
-        );
-        assert!(futures::executor::block_on(future).is_err());
+        let bytes = messagepack_completion(2, None);
+        assert!(complete::<i32>(codec::decode_messagepack(&bytes).unwrap()).is_err());
     }
 }

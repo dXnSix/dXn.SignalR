@@ -1,3 +1,14 @@
+// Decoding and transport code must not panic on peer input; tests may.
+#![cfg_attr(
+    not(test),
+    deny(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing
+    )
+)]
+
 use std::time::Duration;
 
 use crate::error::Error;
@@ -231,7 +242,8 @@ impl ReconnectCoordinator {
     }
 
     fn with<R>(&self, change: impl FnOnce(&mut Lifecycle) -> R) -> R {
-        change(&mut self.state.lock().expect("reconnect coordinator poisoned"))
+        use crate::platform::LockExt;
+        change(&mut self.state.locked())
     }
 
     pub(crate) fn begin(&self) -> Result<u64, Error> {
@@ -601,7 +613,7 @@ mod lifecycle_controls {
 
         let mut buffer = StatefulMessageBuffer::new(1_024).unwrap();
         let old_generation = buffer.transport_generation();
-        let frame = || SerializedFrame::Text("{}".to_string());
+        let frame = || SerializedFrame::text("{}");
         buffer.track(MessageType::Invocation, frame()).unwrap();
         assert!(!buffer.is_disposed());
         buffer.dispose();

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::io::Cursor;
 
+#[cfg(test)]
 use base64::Engine;
 
 use crate::{error::Error, protocol::negotiate::MessageType};
@@ -54,6 +55,7 @@ pub fn frame_message(payload: &[u8]) -> Vec<u8> {
     framed
 }
 
+#[cfg(test)]
 /// Extract individual messages from a binary buffer with VarInt length prefixes.
 pub fn split_framed_messages(data: &[u8]) -> Result<Vec<Vec<u8>>, Error> {
     let mut messages = Vec::new();
@@ -74,6 +76,7 @@ pub fn split_framed_messages(data: &[u8]) -> Result<Vec<Vec<u8>>, Error> {
 
 // ── Message Type Extraction ─────────────────────────────────────────────
 
+#[cfg(test)]
 /// Read the message type from the first element of a MessagePack array.
 pub fn read_message_type(data: &[u8]) -> Result<MessageType, Error> {
     let mut cursor = Cursor::new(data);
@@ -118,18 +121,26 @@ fn encode_headers(
     Ok(())
 }
 
-/// Encode an Invocation (type 1) or StreamInvocation (type 4).
+/// Writes an Invocation (type 1) or StreamInvocation (type 4) around arguments that are already
+/// MessagePack-encoded, without decoding them again.
 /// Layout: [Type, Headers, InvocationId?, Target, Arguments, StreamIds]
 /// Always writes 6 elements to match the .NET SignalR MessagePack protocol.
-pub fn encode_invocation(
+fn write_invocation(
     msg_type: u8,
     headers: &Option<HashMap<String, String>>,
-    invocation_id: &Option<String>,
+    invocation_id: Option<&str>,
     target: &str,
-    arguments: &[rmpv::Value],
-    stream_ids: &Option<Vec<String>>,
+    arguments: &[impl AsRef<[u8]>],
+    stream_ids: &[String],
 ) -> Result<Vec<u8>, Error> {
-    let mut buf = Vec::new();
+    let length = |count: usize| {
+        u32::try_from(count).map_err(|_| Error::serialization("too many MessagePack items"))
+    };
+    let encoded: usize = arguments
+        .iter()
+        .map(|argument| argument.as_ref().len())
+        .sum();
+    let mut buf = Vec::with_capacity(encoded + target.len() + 64);
 
     // Always 6 elements - .NET SignalR MessagePack protocol expects exactly 6
     rmp::encode::write_array_len(&mut buf, 6).map_err(encoding)?;
@@ -144,18 +155,62 @@ pub fn encode_invocation(
 
     rmp::encode::write_str(&mut buf, target).map_err(encoding)?;
 
-    // Arguments array
-    rmpv::encode::write_value(&mut buf, &rmpv::Value::Array(arguments.to_vec()))
-        .map_err(encoding)?;
+    // Arguments array, each argument copied as encoded
+    rmp::encode::write_array_len(&mut buf, length(arguments.len())?).map_err(encoding)?;
+    for argument in arguments {
+        buf.extend_from_slice(argument.as_ref());
+    }
 
     // StreamIds (always present, empty array if none)
-    let ids = stream_ids.as_deref().unwrap_or(&[]);
-    rmp::encode::write_array_len(&mut buf, ids.len() as u32).map_err(encoding)?;
-    for id in ids {
+    rmp::encode::write_array_len(&mut buf, length(stream_ids.len())?).map_err(encoding)?;
+    for id in stream_ids {
         rmp::encode::write_str(&mut buf, id).map_err(encoding)?;
     }
 
     Ok(buf)
+}
+
+/// Encodes and frames an Invocation or StreamInvocation from its encoded arguments.
+pub(crate) fn encode_invocation_frame(
+    invocation: &crate::protocol::invoke::Invocation,
+) -> Result<Vec<u8>, Error> {
+    let payload = write_invocation(
+        invocation.message_type() as u8,
+        &None,
+        invocation.invocation_id(),
+        invocation.target(),
+        invocation.msgpack_arguments(),
+        invocation.stream_ids(),
+    )?;
+    Ok(frame_message(&payload))
+}
+
+/// Encode an Invocation (type 1) or StreamInvocation (type 4) from argument values.
+#[cfg(test)]
+pub fn encode_invocation(
+    msg_type: u8,
+    headers: &Option<HashMap<String, String>>,
+    invocation_id: &Option<String>,
+    target: &str,
+    arguments: &[rmpv::Value],
+    stream_ids: &Option<Vec<String>>,
+) -> Result<Vec<u8>, Error> {
+    let arguments = arguments
+        .iter()
+        .map(|argument| {
+            let mut bytes = Vec::new();
+            rmpv::encode::write_value(&mut bytes, argument).map(|()| bytes)
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(encoding)?;
+    write_invocation(
+        msg_type,
+        headers,
+        invocation_id.as_deref(),
+        target,
+        &arguments,
+        stream_ids.as_deref().unwrap_or_default(),
+    )
 }
 
 /// Encode and frame a non-void Completion (type 3).
@@ -167,16 +222,15 @@ pub fn encode_completion<T: serde::Serialize>(
     let encoded = rmp_serde::to_vec_named(result).map_err(|error| {
         Error::serialization(format!("cannot encode the completion result: {error}"))
     })?;
-    let value = rmpv::decode::read_value(&mut Cursor::new(encoded)).map_err(encoding)?;
 
-    let mut payload = Vec::new();
+    let mut payload = Vec::with_capacity(encoded.len() + invocation_id.len() + 16);
     rmp::encode::write_array_len(&mut payload, 5).map_err(encoding)?;
     rmp::encode::write_uint(&mut payload, MessageType::Completion as u8 as u64)
         .map_err(encoding)?;
     encode_headers(&mut payload, &None)?;
     rmp::encode::write_str(&mut payload, invocation_id).map_err(encoding)?;
     rmp::encode::write_uint(&mut payload, 3).map_err(encoding)?;
-    rmpv::encode::write_value(&mut payload, &value).map_err(encoding)?;
+    payload.extend_from_slice(&encoded);
     Ok(frame_message(&payload))
 }
 
@@ -211,6 +265,7 @@ pub fn parse_msgpack_message(data: &[u8]) -> Result<Vec<rmpv::Value>, Error> {
     }
 }
 
+#[cfg(test)]
 /// Parsed Invocation from MessagePack.
 pub struct MsgpackInvocation {
     pub invocation_id: Option<String>,
@@ -218,6 +273,7 @@ pub struct MsgpackInvocation {
     pub arguments: Vec<rmpv::Value>,
 }
 
+#[cfg(test)]
 /// Parse Invocation or StreamInvocation.
 /// Layout: [Type, Headers, InvocationId?, Target, Arguments, StreamIds?]
 pub fn parse_invocation(items: &[rmpv::Value]) -> Result<MsgpackInvocation, Error> {
@@ -249,6 +305,7 @@ pub fn parse_invocation(items: &[rmpv::Value]) -> Result<MsgpackInvocation, Erro
     })
 }
 
+#[cfg(test)]
 /// Parsed Completion from MessagePack.
 pub struct MsgpackCompletion {
     pub invocation_id: String,
@@ -256,6 +313,7 @@ pub struct MsgpackCompletion {
     pub payload: Option<rmpv::Value>,
 }
 
+#[cfg(test)]
 /// Parse Completion.
 /// Layout: [3, Headers, InvocationId, ResultKind, Result?]
 /// ResultKind: 1=Error, 2=Void, 3=NonVoid
@@ -284,32 +342,9 @@ pub fn parse_completion(items: &[rmpv::Value]) -> Result<MsgpackCompletion, Erro
     })
 }
 
-/// Parsed StreamItem from MessagePack.
-pub struct MsgpackStreamItem {
-    pub invocation_id: String,
-    pub item: rmpv::Value,
-}
-
-/// Parse StreamItem.
-/// Layout: [2, Headers, InvocationId, Item]
-pub fn parse_stream_item(items: &[rmpv::Value]) -> Result<MsgpackStreamItem, Error> {
-    if items.len() < 4 {
-        return Err(Error::protocol("the StreamItem array is too short"));
-    }
-    let invocation_id = items[2]
-        .as_str()
-        .ok_or_else(|| Error::protocol("the stream item's invocation id is not a string"))?
-        .to_string();
-    let item = items[3].clone();
-
-    Ok(MsgpackStreamItem {
-        invocation_id,
-        item,
-    })
-}
-
 // ── Value Conversion ────────────────────────────────────────────────────
 
+#[cfg(test)]
 /// Convert a serde_json::Value to an rmpv::Value.
 pub fn json_value_to_msgpack(value: &serde_json::Value) -> rmpv::Value {
     match value {
@@ -343,6 +378,7 @@ pub fn json_value_to_msgpack(value: &serde_json::Value) -> rmpv::Value {
     }
 }
 
+#[cfg(test)]
 /// Convert an rmpv::Value to a serde_json::Value.
 pub fn msgpack_value_to_json(value: &rmpv::Value) -> serde_json::Value {
     match value {
@@ -421,6 +457,21 @@ fn transform_keys(value: &rmpv::Value, transform: fn(&str) -> String) -> rmpv::V
 /// Normalize map keys in an rmpv::Value tree from PascalCase to camelCase (inbound from .NET).
 fn normalize_keys_to_camel(value: &rmpv::Value) -> rmpv::Value {
     transform_keys(value, to_camel_case)
+}
+
+/// Decodes one MessagePack payload into `T`: directly, and if that fails once more with map keys
+/// converted from PascalCase to camelCase (as servers using .NET property names send them).
+pub(crate) fn decode_payload<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> Result<T, Error> {
+    if let Ok(value) = rmp_serde::from_slice::<T>(bytes) {
+        return Ok(value);
+    }
+    let value = rmpv::decode::read_value(&mut Cursor::new(bytes)).map_err(|error| {
+        Error::serialization(format!(
+            "cannot decode the payload into {}: {error}",
+            std::any::type_name::<T>()
+        ))
+    })?;
+    value_to_type(&value)
 }
 
 /// Deserialize an rmpv::Value into a concrete Rust type via rmp-serde.

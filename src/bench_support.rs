@@ -10,15 +10,15 @@ use serde::{de::DeserializeOwned, Serialize};
 use tokio_websockets::Message;
 
 use crate::{
-    communication::{CommunicationClient, CommunicationConnection},
+    communication::{dispatch_decoded, websocket_message},
     completer::{ManualFuture, ManualStream},
     error::Error,
     execution::{ArgumentConfiguration, Storage, UpdatableActionStorage},
     protocol::{
-        hub_protocol::MessagePayload,
+        codec::{self, OutboundMessage},
+        hub_protocol::HubProtocolKind,
         invoke::Invocation,
-        messages::{MessageParser, RECORD_SEPARATOR},
-        negotiate::{MessageType, Ping},
+        messages::RECORD_SEPARATOR,
     },
     InvocationContext, SignalRClient,
 };
@@ -91,11 +91,11 @@ pub fn encoded_len<T: Serialize>(protocol: Protocol, value: &T) -> usize {
 /// as ASP.NET Core sends it.
 pub fn invocation_frame<T: Serialize>(protocol: Protocol, target: &str, argument: &T) -> Frame {
     match protocol {
-        Protocol::Json => json_record(&serde_json::json!({
-            "type": 1,
-            "target": target,
-            "arguments": [argument],
-        })),
+        Protocol::Json => json_record(&format!(
+            r#"{{"type":1,"target":{},"arguments":[{}]}}"#,
+            json(&target),
+            json(argument)
+        )),
         #[cfg(feature = "messagepack")]
         Protocol::MessagePack => {
             let mut payload = Vec::new();
@@ -120,15 +120,15 @@ pub fn completion_frame<T: Serialize>(
 ) -> Frame {
     match protocol {
         Protocol::Json => match result {
-            Some(result) => json_record(&serde_json::json!({
-                "type": 3,
-                "invocationId": invocation_id,
-                "result": result,
-            })),
-            None => json_record(&serde_json::json!({
-                "type": 3,
-                "invocationId": invocation_id,
-            })),
+            Some(result) => json_record(&format!(
+                r#"{{"type":3,"invocationId":{},"result":{}}}"#,
+                json(&invocation_id),
+                json(result)
+            )),
+            None => json_record(&format!(
+                r#"{{"type":3,"invocationId":{}}}"#,
+                json(&invocation_id)
+            )),
         },
         #[cfg(feature = "messagepack")]
         Protocol::MessagePack => {
@@ -155,11 +155,11 @@ pub fn completion_frame<T: Serialize>(
 /// A StreamItem of `invocation_id`, as ASP.NET Core sends it.
 pub fn stream_item_frame<T: Serialize>(protocol: Protocol, invocation_id: &str, item: &T) -> Frame {
     match protocol {
-        Protocol::Json => json_record(&serde_json::json!({
-            "type": 2,
-            "invocationId": invocation_id,
-            "item": item,
-        })),
+        Protocol::Json => json_record(&format!(
+            r#"{{"type":2,"invocationId":{},"item":{}}}"#,
+            json(&invocation_id),
+            json(item)
+        )),
         #[cfg(feature = "messagepack")]
         Protocol::MessagePack => {
             let mut payload = Vec::new();
@@ -176,14 +176,20 @@ pub fn stream_item_frame<T: Serialize>(protocol: Protocol, invocation_id: &str, 
 /// A Ping, as ASP.NET Core sends it.
 pub fn ping_frame(protocol: Protocol) -> Frame {
     match protocol {
-        Protocol::Json => json_record(&serde_json::json!({ "type": 6 })),
+        Protocol::Json => json_record(r#"{"type":6}"#),
         #[cfg(feature = "messagepack")]
         Protocol::MessagePack => messagepack_record(&[0x91, 0x06]),
     }
 }
 
-fn json_record(value: &serde_json::Value) -> Frame {
-    Frame::text(format!("{value}{RECORD_SEPARATOR}"))
+/// One JSON record. The builders write members in ASP.NET Core's order (`type` first, the
+/// payload last) and values with the payload type's own field order.
+fn json_record(record: &str) -> Frame {
+    Frame::text(format!("{record}{RECORD_SEPARATOR}"))
+}
+
+fn json<T: Serialize + ?Sized>(value: &T) -> String {
+    serde_json::to_string(value).expect("payload encodes")
 }
 
 #[cfg(feature = "messagepack")]
@@ -194,9 +200,14 @@ fn messagepack_record(payload: &[u8]) -> Frame {
 /// Splits a multi-message frame into its records as the receiver does; returns the count.
 pub fn split_records(protocol: Protocol, frame: &Frame) -> usize {
     match protocol {
-        Protocol::Json => CommunicationClient::get_text_messages(&frame.message).len(),
+        Protocol::Json => frame
+            .message
+            .as_text()
+            .map_or(0, |text| codec::json_records(text).count()),
         #[cfg(feature = "messagepack")]
-        Protocol::MessagePack => CommunicationClient::get_binary_messages(&frame.message).len(),
+        Protocol::MessagePack => codec::messagepack_records(frame.message.as_payload())
+            .filter(Result::is_ok)
+            .count(),
     }
 }
 
@@ -209,20 +220,22 @@ pub fn encode_invocation<T: Serialize>(
     invocation_id: &str,
     argument: &T,
 ) -> Frame {
-    let mut invocation = Invocation::create_single(target);
+    let protocol = match protocol {
+        Protocol::Json => HubProtocolKind::Json,
+        #[cfg(feature = "messagepack")]
+        Protocol::MessagePack => HubProtocolKind::MessagePack,
+    };
+    let mut invocation = Invocation::create_single(target, protocol);
     invocation.with_invocation_id(invocation_id);
     let mut arguments = ArgumentConfiguration::new(invocation);
     arguments.argument(argument);
     let invocation = arguments.build_invocation().expect("the argument encodes");
-    let (message, tracking) = match protocol {
-        Protocol::Json => CommunicationConnection::json_frame(&invocation),
-        #[cfg(feature = "messagepack")]
-        Protocol::MessagePack => SignalRClient::messagepack_invocation_frame(&invocation)
-            .and_then(CommunicationConnection::binary_frame),
+    let message = OutboundMessage::invocation(&invocation).expect("the invocation encodes");
+    // The replay buffer's copy shares the frame's bytes.
+    std::hint::black_box((message.message_type, message.frame.clone()));
+    Frame {
+        message: websocket_message(message.frame),
     }
-    .expect("the invocation encodes");
-    std::hint::black_box(tracking);
-    Frame { message }
 }
 
 /// A connection's receive side without a socket: the action storage and the frame dispatch of
@@ -281,34 +294,30 @@ impl Receiver {
     }
 
     /// Dispatches one received frame as the native receiver task does for a connection without
-    /// stateful reconnect (`client_tokio::CommunicationConnection::run_receiver`): split the
-    /// records, read each record's message type, and hand it to the action storage.
+    /// stateful reconnect (`client_tokio::RecordContext::handle`): split the records, decode each
+    /// once, and hand it to the action storage.
     pub fn receive(&mut self, frame: &Frame) {
         match self.protocol {
             Protocol::Json => {
-                for message in CommunicationClient::get_text_messages(&frame.message) {
-                    if let Ok(ping) = MessageParser::parse_message::<Ping>(&message) {
-                        let message_type = ping.message_type();
-                        let payload = MessagePayload::Text(message);
-                        if message_type == MessageType::Close {
-                            let _ = self.storage.process_message(payload, message_type);
+                let Some(text) = frame.message.as_text() else {
+                    return;
+                };
+                for record in codec::json_records(text) {
+                    if let Ok(message) = codec::decode_json(record) {
+                        if dispatch_decoded(&mut self.storage, message).is_some() {
                             break;
                         }
-                        let _ = self.storage.process_message(payload, message_type);
                     }
                 }
             }
             #[cfg(feature = "messagepack")]
             Protocol::MessagePack => {
-                for payload in CommunicationClient::get_binary_messages(&frame.message) {
-                    if let Ok(message_type) = crate::protocol::msgpack::read_message_type(&payload)
-                    {
-                        let payload = MessagePayload::Binary(payload);
-                        if message_type == MessageType::Close {
-                            let _ = self.storage.process_message(payload, message_type);
+                let bytes: &[u8] = frame.message.as_payload();
+                for record in codec::messagepack_records(bytes) {
+                    if let Ok(message) = record.and_then(codec::decode_messagepack) {
+                        if dispatch_decoded(&mut self.storage, message).is_some() {
                             break;
                         }
-                        let _ = self.storage.process_message(payload, message_type);
                     }
                 }
             }
