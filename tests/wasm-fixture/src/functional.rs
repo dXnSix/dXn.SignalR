@@ -243,14 +243,20 @@ async fn authentication(messagepack: bool) -> Outcome {
 
     // Browsers cannot set WebSocket headers: Basic credentials authenticate negotiate and the
     // service binds the connection token to that user; Bearer tokens travel as `access_token`.
+    // Long Polling requests are `fetch` requests, which carry the `Authorization` header.
+    let (basic_source, bearer_source) = if super::long_polling() {
+        ("header", "header")
+    } else {
+        ("token-binding", "access_token")
+    };
     let basic = identity_with(messagepack, Some(("e2e-user", "e2e-password")), None).await?;
     ensure!(
-        basic == ("Basic:e2e-user".to_string(), "token-binding".to_string()),
+        basic == ("Basic:e2e-user".to_string(), basic_source.to_string()),
         "Basic identity {basic:?}"
     );
     let bearer = identity_with(messagepack, None, Some("e2e-token")).await?;
     ensure!(
-        bearer == ("Bearer:e2e-bearer".to_string(), "access_token".to_string()),
+        bearer == ("Bearer:e2e-bearer".to_string(), bearer_source.to_string()),
         "Bearer identity {bearer:?}"
     );
 
@@ -1202,8 +1208,13 @@ async fn negotiate_count(probe: &mut SignalRClient) -> Result<i32, Error> {
         .await
 }
 
+/// How long an idle Long Polling client must stay connected (inherent keep-alive: no Pings and
+/// no server timeout over Long Polling).
+const LONG_POLLING_IDLE_MS: u32 = 45_000;
+
 /// Keep-alive: an idle client's Pings keep it connected to a hub that drops clients silent for
-/// 3 s, so after 8 s of idleness the same connection serves an invocation.
+/// 3 s, so after 8 s of idleness the same connection serves an invocation; over Long Polling
+/// (inherent keep-alive) the client stays connected through 45 s of idleness.
 async fn keepalive_idle(messagepack: bool) -> Outcome {
     let mut client = connect("test-keepalive", messagepack, |configuration| {
         configuration.with_keep_alive_interval(Duration::from_secs(1));
@@ -1211,7 +1222,12 @@ async fn keepalive_idle(messagepack: bool) -> Outcome {
     })
     .await?;
     let initial = identity(&mut client).await?;
-    sleep(8_000).await;
+    sleep(if super::long_polling() {
+        LONG_POLLING_IDLE_MS
+    } else {
+        8_000
+    })
+    .await;
     let after_idle = identity(&mut client).await?;
     ensure!(
         after_idle == initial,
@@ -1238,10 +1254,37 @@ impl DisconnectionHandler for TimeoutHandler {
 
 /// Server timeout: against a hub that never pings, a 2 s server timeout treats the silent
 /// transport as dropped; an automatic policy reconnects and a manual handler is invoked with
-/// reconnecting allowed, both within 5 s.
+/// reconnecting allowed, both within 5 s. Over Long Polling the client runs no server timeout,
+/// so the connection and the handler stay untouched through 45 s of idleness.
 async fn server_timeout(messagepack: bool) -> Outcome {
     const SERVER_TIMEOUT_MS: u32 = 2_000;
     const RECONNECT_BOUND_MS: f64 = 5_000.0;
+
+    if super::long_polling() {
+        let handler = TimeoutHandler::default();
+        let mut slot = Some(handler.clone());
+        let mut client = connect("test-silent", messagepack, |configuration| {
+            configuration.with_keep_alive_interval(Duration::from_secs(1));
+            configuration.with_server_timeout(Duration::from_millis(SERVER_TIMEOUT_MS.into()));
+            if let Some(handler) = slot.take() {
+                configuration.with_disconnection_handler(handler);
+            }
+        })
+        .await?;
+        let initial = identity(&mut client).await?;
+        sleep(LONG_POLLING_IDLE_MS).await;
+        ensure!(
+            handler.0.get().is_none(),
+            "Long Polling must run no server timeout"
+        );
+        let after_idle = identity(&mut client).await?;
+        ensure!(
+            after_idle == initial,
+            "the idle connection was replaced ({initial} -> {after_idle})"
+        );
+        client.disconnect();
+        return Ok(());
+    }
 
     let mut client = connect("test-silent", messagepack, |configuration| {
         configuration.with_keep_alive_interval(Duration::from_secs(1));
@@ -3257,8 +3300,11 @@ async fn token_factory(messagepack: bool) -> Outcome {
         configuration.with_reconnection_policy(fast_reconnect());
     })
     .await?;
+    // One token for negotiate and one for the WebSocket; Long Polling keeps the negotiate token,
+    // as the .NET client's `AccessTokenHttpMessageHandler`.
+    let per_connect = if super::long_polling() { 1 } else { 2 };
     ensure!(
-        calls.get() == 2,
+        calls.get() == per_connect,
         "{} factory calls for one connect",
         calls.get()
     );
@@ -3313,8 +3359,11 @@ async fn token_factory(messagepack: bool) -> Outcome {
         generation == 2,
         "the reconnect used generation {generation}"
     );
+    // Long Polling authenticates every request, so the first one after the rotation is refused
+    // and retried with a fresh token (as the .NET client's `AccessTokenHttpMessageHandler`).
+    let expected = if super::long_polling() { 3 } else { 4 };
     ensure!(
-        calls.get() == 4,
+        calls.get() == expected,
         "{} factory calls after the reconnect",
         calls.get()
     );

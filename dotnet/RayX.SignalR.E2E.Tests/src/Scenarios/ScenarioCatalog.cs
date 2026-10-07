@@ -159,8 +159,9 @@ public static class ScenarioCatalog
     Everywhere("stateful-reconnect"),
     Everywhere("stream-cancellation"),
     new("short-stream-chaining", Set(_browsers)),
-    Baseline("keepalive-idle"),
-    Baseline("server-timeout"),
+    // Over Long Polling these idle for 45 s (inherent keep-alive), so they get a longer bound.
+    Baseline("keepalive-idle") with { Limit = TimeSpan.FromSeconds(120) },
+    Baseline("server-timeout") with { Limit = TimeSpan.FromSeconds(120) },
     Everywhere("handshake-timeout"),
     Baseline("pause-resume"),
     Everywhere("pause-resume-stateful"),

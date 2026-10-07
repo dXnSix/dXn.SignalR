@@ -1,5 +1,7 @@
 //! Keep-alive: an idle client's Pings keep it connected to a hub that drops clients silent for
-//! 3 s, so after 8 s of idleness the same connection serves an invocation.
+//! 3 s, so after 8 s of idleness the same connection serves an invocation. Long Polling keeps
+//! itself alive (no Pings, as in the .NET client and ASP.NET Core), so over it the client stays
+//! connected through 45 s of idleness.
 
 use std::time::Duration;
 
@@ -13,14 +15,16 @@ async fn scenario(protocol: Protocol) {
     .await;
     let initial = support::connection_identity(&mut client).await.unwrap();
 
-    tokio::time::sleep(Duration::from_secs(8)).await;
+    let idle = if support::long_polling() {
+        support::LONG_POLLING_IDLE
+    } else {
+        Duration::from_secs(8)
+    };
+    tokio::time::sleep(idle).await;
 
     let after_idle = support::connection_identity(&mut client).await.unwrap();
-    assert_eq!(
-        after_idle, initial,
-        "keep-alive Pings must keep the idle connection alive"
-    );
+    assert_eq!(after_idle, initial, "the idle connection must stay alive");
     client.disconnect();
 }
 
-crate::protocol_tests!("keepalive-idle");
+crate::protocol_tests!("keepalive-idle", support::LIVENESS_SCENARIO_TIMEOUT);

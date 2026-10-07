@@ -14,6 +14,10 @@ const cells = transports.flatMap(({ transport, title: transportTitle }) =>
 
 for (const { scenario, protocol, transport, title, transportTitle } of cells) {
   test(`${scenario.replaceAll("-", " ")} (${title}, ${transportTitle})`, async ({ page }) => {
+    // Over Long Polling the liveness scenarios idle for 45 s (the catalog bounds them at 120 s).
+    if (transport === "long-polling" && ["keepalive-idle", "server-timeout"].includes(scenario)) {
+      test.setTimeout(110_000);
+    }
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
     page.on("console", (message) => console.log(`[browser:${message.type()}] ${message.text()}`));

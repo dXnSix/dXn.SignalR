@@ -82,6 +82,11 @@ pub fn configure_transport(transport: String) -> Result<(), JsValue> {
     Ok(())
 }
 
+/// Whether the scenario connections use Long Polling (the page's `transport` parameter).
+fn long_polling() -> bool {
+    TRANSPORTS.with(Cell::get) == Some(rayx_signalr::Transports::LONG_POLLING)
+}
+
 mod functional;
 mod soak;
 mod stress;

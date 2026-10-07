@@ -1,6 +1,8 @@
 //! Server timeout: against a hub that never pings, a 2 s server timeout treats the silent
 //! transport as dropped. An automatic policy reconnects (a new connection id) and a manual
-//! handler is invoked with reconnecting allowed, both within 5 s.
+//! handler is invoked with reconnecting allowed, both within 5 s. Long Polling keeps itself
+//! alive, so over it the client runs no server timeout (as the .NET client): the silent hub
+//! leaves the connection and the handler untouched through 45 s of idleness.
 
 use std::{
     sync::{Arc, Mutex},
@@ -93,9 +95,37 @@ async fn manual(protocol: Protocol) {
     client.disconnect();
 }
 
+async fn long_polling_idle(protocol: Protocol) {
+    let handler = RecordingHandler::default();
+    let mut slot = Some(handler.clone());
+    let mut client = support::connect("test-silent", protocol, |configuration| {
+        configuration.with_keep_alive_interval(Duration::from_secs(1));
+        configuration.with_server_timeout(SERVER_TIMEOUT);
+        if let Some(handler) = slot.take() {
+            configuration.with_disconnection_handler(handler);
+        }
+    })
+    .await;
+    let initial = support::connection_identity(&mut client).await.unwrap();
+
+    tokio::time::sleep(support::LONG_POLLING_IDLE).await;
+
+    assert!(
+        handler.0.lock().unwrap().is_none(),
+        "Long Polling runs no server timeout"
+    );
+    let after_idle = support::connection_identity(&mut client).await.unwrap();
+    assert_eq!(after_idle, initial, "the idle connection must stay alive");
+    client.disconnect();
+}
+
 async fn scenario(protocol: Protocol) {
+    if support::long_polling() {
+        long_polling_idle(protocol).await;
+        return;
+    }
     automatic(protocol).await;
     manual(protocol).await;
 }
 
-crate::protocol_tests!("server-timeout");
+crate::protocol_tests!("server-timeout", support::LIVENESS_SCENARIO_TIMEOUT);

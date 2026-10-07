@@ -88,9 +88,9 @@ namespace RayX.SignalR.TestService
                 System.Globalization.CultureInfo.InvariantCulture);
 
         /// <summary>
-        /// Severs the HTTP transport (no SignalR Close), so the client's reconnection policy
+        /// Severs the physical transport (no SignalR Close), so the client's reconnection policy
         /// reconnects with a fresh negotiate.
         /// </summary>
-        public void Abort() => Context.GetHttpContext()?.Abort();
+        public void Abort() => TransportFaults.Sever(Context);
     }
 }

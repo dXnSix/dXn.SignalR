@@ -201,14 +201,12 @@ namespace RayX.SignalR.TestService
 
         public async Task AbortPhysicalTransport()
         {
-            var httpContext = Context.GetHttpContext()
-                ?? throw new InvalidOperationException("SignalR transport has no HTTP context");
-
             // Let the stateful protocol acknowledge the test command before severing only the
-            // underlying HTTP transport. The logical SignalR connection remains resumable.
+            // underlying HTTP transport (the current poll over Long Polling). The logical
+            // SignalR connection remains resumable.
             await Task.Delay(1200, Context.ConnectionAborted);
             _transportAborts.AddOrUpdate(Context.ConnectionId, 1, static (_, count) => count + 1);
-            httpContext.Abort();
+            TransportFaults.Sever(Context);
         }
 
         /// <summary>

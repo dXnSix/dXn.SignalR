@@ -44,8 +44,10 @@ namespace RayX.SignalR.TestService
         /// <param name="app">The application.</param>
         public static void MapLivenessEndpoints(this WebApplication app)
         {
-            app.MapHub<KeepAliveHub>("/test-keepalive");
-            app.MapHub<SilentHub>("/test-silent");
+            // A short Long Polling poll timeout, so the idle Long Polling cells cross many empty
+            // poll answers instead of none (ASP.NET Core holds a poll 90 s by default).
+            app.MapHub<KeepAliveHub>("/test-keepalive", options => options.LongPolling.PollTimeout = TimeSpan.FromSeconds(5));
+            app.MapHub<SilentHub>("/test-silent", options => options.LongPolling.PollTimeout = TimeSpan.FromSeconds(5));
             app.Map("/silent-handshake", async context =>
             {
                 if(!context.WebSockets.IsWebSocketRequest)

@@ -75,6 +75,9 @@ app.Use(async (context, next) =>
     await next();
 });
 
+// Track Long Polling polls so a test can sever them (see TransportFaults.Sever).
+app.UseLongPollingFaults();
+
 // Answer a stateful resume the test asked to reject (see TestHub.AbortPhysicalTransportAndRejectResume).
 app.Use(async (context, next) =>
 {
@@ -153,6 +156,7 @@ app.MapPost("/e2e/rotate-token", () => Results.Ok(new { generation = RotatingTok
 app.MapPost("/e2e/reset", () =>
 {
     TestControls.Reset();
+    TransportFaults.Reset();
     return Results.Ok(new { status = "reset" });
 });
 app.MapHub<TestHub>("/test");

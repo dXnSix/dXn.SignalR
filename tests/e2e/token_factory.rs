@@ -2,7 +2,11 @@
 //! negotiate and again when the WebSocket opens (two calls per connect); the service accepts only
 //! tokens it issued for the current generation, so a token rotated out is rejected and a reconnect
 //! after a rotation proves the client fetched a fresh token; a factory error fails `connect` with an
-//! authentication error. The factory fetches tokens through a probe client (`IssueToken`, the hub
+//! authentication error. Over Long Polling the transport keeps the token negotiate used (one call
+//! per connect) and every request is authenticated, so the first request after the rotation is
+//! refused with 401 and retried once with a fresh token, as the .NET client's
+//! `AccessTokenHttpMessageHandler`. The factory fetches
+//! tokens through a probe client (`IssueToken`, the hub
 //! form of `/e2e/token`; `RotateTokens` is `/e2e/rotate-token`).
 
 use std::{
@@ -45,11 +49,10 @@ async fn scenario(protocol: Protocol) {
         configuration.with_reconnection_policy(support::fast_reconnect());
     })
     .await;
-    assert_eq!(
-        calls.load(Ordering::SeqCst),
-        2,
-        "one token for negotiate, one for the WebSocket"
-    );
+    // One token for negotiate and one for the WebSocket; Long Polling keeps the negotiate token,
+    // as the .NET client's `AccessTokenHttpMessageHandler`.
+    let per_connect = if support::long_polling() { 1 } else { 2 };
+    assert_eq!(calls.load(Ordering::SeqCst), per_connect);
     assert_eq!(token_generation(&mut client).await, 1);
 
     // After a rotation every earlier token is rejected.
@@ -91,7 +94,10 @@ async fn scenario(protocol: Protocol) {
     })
     .await;
     assert_eq!(token_generation(&mut client).await, 2, "a fresh token");
-    assert_eq!(calls.load(Ordering::SeqCst), 4);
+    // Long Polling authenticates every request, so the first one after the rotation is refused
+    // and retried with a fresh token (as the .NET client's `AccessTokenHttpMessageHandler`).
+    let expected = if support::long_polling() { 3 } else { 4 };
+    assert_eq!(calls.load(Ordering::SeqCst), expected);
     reconnected.unregister();
 
     // A factory error fails connect with the factory's message.

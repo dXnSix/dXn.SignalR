@@ -17,6 +17,14 @@ pub struct TestEntity {
 /// Upper bound for one scenario; the runner kills the process after 60 seconds.
 pub const SCENARIO_TIMEOUT: Duration = Duration::from_secs(50);
 
+/// How long an idle Long Polling client must stay connected: Long Polling keeps itself alive, so
+/// the client sends no keep-alive Pings and runs no server timeout over it.
+pub const LONG_POLLING_IDLE: Duration = Duration::from_secs(45);
+
+/// The bound of the liveness scenarios, which idle for [`LONG_POLLING_IDLE`] over Long Polling
+/// (the catalog bounds those cells at 120 seconds).
+pub const LIVENESS_SCENARIO_TIMEOUT: Duration = Duration::from_secs(110);
+
 /// Wire protocol selected by the scenario's test name.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Protocol {
@@ -114,6 +122,11 @@ pub fn apply_transport(configuration: &mut ConnectionConfiguration) {
         _ => return,
     };
     configuration.with_transports(transports);
+}
+
+/// Whether the cell runs over Long Polling (`RAYX_SIGNALR_TRANSPORT`).
+pub fn long_polling() -> bool {
+    std::env::var("RAYX_SIGNALR_TRANSPORT").as_deref() == Ok("long-polling")
 }
 
 /// A fast bounded reconnect policy for scenarios that drop the transport.
@@ -261,10 +274,14 @@ where
 #[macro_export]
 macro_rules! protocol_tests {
     ($name:literal) => {
+        $crate::protocol_tests!($name, $crate::support::SCENARIO_TIMEOUT);
+    };
+    ($name:literal, $limit:expr) => {
         #[tokio::test]
         async fn json() {
-            $crate::support::bounded(
+            $crate::support::bounded_within(
                 concat!($name, " json"),
+                $limit,
                 scenario($crate::support::Protocol::Json),
             )
             .await;
@@ -273,8 +290,9 @@ macro_rules! protocol_tests {
         #[cfg(feature = "messagepack")]
         #[tokio::test]
         async fn messagepack() {
-            $crate::support::bounded(
+            $crate::support::bounded_within(
                 concat!($name, " messagepack"),
+                $limit,
                 scenario($crate::support::Protocol::MessagePack),
             )
             .await;
