@@ -81,6 +81,8 @@ pub async fn run_functional_scenario(
         "request-headers" => request_headers(messagepack).await,
         "stateful-transparent-resume" => stateful_transparent_resume(messagepack).await,
         "stateful-resume-fallback" => stateful_resume_fallback(messagepack).await,
+        "token-factory" => token_factory(messagepack).await,
+        "negotiate-timeout" => negotiate_timeout_scenario(messagepack).await,
         other => Err(format!("unknown functional scenario {other}")),
     };
     outcome
@@ -3224,4 +3226,153 @@ async fn stateful_resume_fallback(messagepack: bool) -> Outcome {
 /// Unregisters `handler` when called.
 fn unregistering(handler: impl CallbackHandler + 'static) -> Unregister {
     Box::new(move || handler.unregister())
+}
+
+/// Access-token factory, as the .NET client's `AccessTokenProvider` (see
+/// `tests/e2e/token_factory.rs`): two calls per connect (negotiate and the WebSocket's
+/// `access_token`), a rotated token rejected, a fresh token after a reconnect, and a factory error
+/// failing `connect` with an authentication error.
+async fn token_factory(messagepack: bool) -> Outcome {
+    let mut probe = connect("test", messagepack, |_| {}).await?;
+    let calls = Rc::new(Cell::new(0u32));
+    let factory = {
+        let (probe, calls) = (probe.clone(), calls.clone());
+        move || {
+            calls.set(calls.get() + 1);
+            let mut probe = probe.clone();
+            async move {
+                probe
+                    .invoke::<String>("IssueToken".to_string())
+                    .await
+                    .map_err(|error| error.to_string())
+            }
+        }
+    };
+    let mut client = connect("test-token", messagepack, |configuration| {
+        configuration.with_access_token_factory(factory.clone());
+        configuration.with_reconnection_policy(fast_reconnect());
+    })
+    .await?;
+    ensure!(
+        calls.get() == 2,
+        "{} factory calls for one connect",
+        calls.get()
+    );
+    let generation = client
+        .invoke::<i32>("TokenGeneration".to_string())
+        .await
+        .map_err(|error| format!("TokenGeneration failed: {error}"))?;
+    ensure!(generation == 1, "token generation {generation}");
+
+    let stale = probe
+        .invoke::<String>("IssueToken".to_string())
+        .await
+        .map_err(|error| format!("IssueToken failed: {error}"))?;
+    let rotated = probe
+        .invoke::<i32>("RotateTokens".to_string())
+        .await
+        .map_err(|error| format!("RotateTokens failed: {error}"))?;
+    ensure!(rotated == 2, "rotated to generation {rotated}");
+    let rejected = try_connect("test-token", messagepack, |configuration| {
+        let stale = stale.clone();
+        configuration.with_access_token_factory(move || {
+            let stale = stale.clone();
+            async move { Ok(stale) }
+        });
+    })
+    .await?;
+    let Err(error) = rejected else {
+        return Err("a rotated token was accepted".into());
+    };
+    ensure!(
+        error.kind() == ErrorKind::Authentication,
+        "a rotated token failed with {error}"
+    );
+
+    let reconnects = Rc::new(Cell::new(0u32));
+    let counted = reconnects.clone();
+    let reconnected = client.on_reconnected(move |_| counted.set(counted.get() + 1));
+    client
+        .send("Abort".to_string())
+        .await
+        .map_err(|error| format!("Abort failed: {error}"))?;
+    eventually("the reconnect", 20_000.0, || {
+        let done = reconnects.get() == 1;
+        async move { done.then_some(()) }
+    })
+    .await?;
+    let generation = client
+        .invoke::<i32>("TokenGeneration".to_string())
+        .await
+        .map_err(|error| format!("TokenGeneration failed: {error}"))?;
+    ensure!(
+        generation == 2,
+        "the reconnect used generation {generation}"
+    );
+    ensure!(
+        calls.get() == 4,
+        "{} factory calls after the reconnect",
+        calls.get()
+    );
+    reconnected.unregister();
+
+    let failed = try_connect("test-token", messagepack, |configuration| {
+        configuration.with_access_token_factory(|| async {
+            Err::<String, _>("the identity provider is down".to_string())
+        });
+    })
+    .await?;
+    let Err(error) = failed else {
+        return Err("a failing factory connected".into());
+    };
+    ensure!(
+        error.kind() == ErrorKind::Authentication
+            && error.to_string().contains("the identity provider is down"),
+        "a factory error failed with {error}"
+    );
+
+    client.disconnect();
+    probe.disconnect();
+    Ok(())
+}
+
+/// Negotiate timeout in a browser (see `tests/e2e/negotiate_timeout.rs`): the negotiate `fetch` is
+/// aborted after the 2 s connect timeout, the error names the bound and contains neither the URL
+/// nor the token.
+async fn negotiate_timeout_scenario(messagepack: bool) -> Outcome {
+    const TOKEN: &str = "negotiate-timeout-secret-token";
+    let client = unstarted_with("test-hang", messagepack, |configuration| {
+        configuration.authenticate_bearer(TOKEN.to_string());
+        configuration.with_connect_timeout(Duration::from_secs(2));
+    })?;
+    let started = js_sys::Date::now();
+    let Err(error) = client.start().await else {
+        return Err("a hanging negotiate started".into());
+    };
+    let elapsed = js_sys::Date::now() - started;
+    ensure!(
+        elapsed.total_cmp(&4_000.0).is_lt(),
+        "failed after {elapsed} ms"
+    );
+    ensure!(error.kind() == ErrorKind::Timeout, "failed with {error}");
+    ensure!(
+        error.timeout_operation() == Some(TimeoutOperation::Negotiate)
+            && error.timeout() == Some(Duration::from_secs(2)),
+        "the timeout names {:?} {:?}",
+        error.timeout_operation(),
+        error.timeout()
+    );
+    let text = format!("{error} {error:?}");
+    let endpoint = super::service().map_err(|error| format!("{error:?}"))?;
+    ensure!(
+        !text.contains(&endpoint.host),
+        "the error names the host: {text}"
+    );
+    ensure!(
+        !text.contains("test-hang"),
+        "the error names the hub: {text}"
+    );
+    ensure!(!text.contains(TOKEN), "the error carries the token: {text}");
+    client.disconnect();
+    Ok(())
 }

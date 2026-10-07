@@ -29,6 +29,8 @@ const scenarios = [
   "request-headers",
   "stateful-transparent-resume",
   "stateful-resume-fallback",
+  "token-factory",
+  "negotiate-timeout",
 ];
 
 // Scenarios whose values exist only in one protocol.

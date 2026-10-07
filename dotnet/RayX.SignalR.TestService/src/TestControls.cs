@@ -45,6 +45,7 @@ namespace RayX.SignalR.TestService
             Interlocked.Exchange(ref _clientCloses, 0);
             Interlocked.Exchange(ref _resumeRejections, 0);
             ChaosControl.ResetAll();
+            RotatingTokens.Reset();
             _clientResults.Clear();
             _authenticatedTokens.Clear();
         }

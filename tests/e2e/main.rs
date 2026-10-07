@@ -29,6 +29,7 @@ mod lifecycle_events;
 #[cfg(feature = "messagepack")]
 mod msgpack_fidelity;
 mod negotiate_redirect;
+mod negotiate_timeout;
 mod ordinary_reconnect;
 mod pause_resume;
 mod pause_resume_stateful;
@@ -48,4 +49,5 @@ mod stateful_resume_stress;
 mod stateful_transparent_resume;
 mod stream_cancellation;
 mod tls;
+mod token_factory;
 mod unsent_stream;

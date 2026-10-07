@@ -229,6 +229,12 @@ namespace RayX.SignalR.TestService
 
         public int ResumeRejections() => TestControls.ResumeRejections();
 
+        /// <summary>Issues a rotating token, as <c>/e2e/token</c> does (for clients without an HTTP client).</summary>
+        public string IssueToken() => RotatingTokens.Issue();
+
+        /// <summary>Rotates the tokens, as <c>/e2e/rotate-token</c> does; returns the new generation.</summary>
+        public int RotateTokens() => RotatingTokens.Rotate();
+
         public int TransportAbortCount() =>
             _transportAborts.TryGetValue(Context.ConnectionId, out var count) ? count : 0;
 

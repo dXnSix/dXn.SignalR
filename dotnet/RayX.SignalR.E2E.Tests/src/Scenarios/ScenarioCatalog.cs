@@ -135,6 +135,8 @@ public static class ScenarioCatalog
     Everywhere("request-headers"),
     Everywhere("stateful-transparent-resume"),
     Everywhere("stateful-resume-fallback"),
+    Everywhere("token-factory"),
+    Everywhere("negotiate-timeout"),
     new("soak-chaos", Set([_native, _chromium, _android]))
     {
       Soak = true,

@@ -26,7 +26,9 @@ builder.Services.AddCors(cors => cors.AddDefaultPolicy(policy =>
     policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
 builder.Services
     .AddAuthentication(TestAuthenticationHandler.SchemeName)
-    .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(TestAuthenticationHandler.SchemeName, null);
+    .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(TestAuthenticationHandler.SchemeName, null)
+    .AddScheme<AuthenticationSchemeOptions, RotatingTokenAuthenticationHandler>(
+        RotatingTokenAuthenticationHandler.SchemeName, null);
 builder.Services.AddAuthorization();
 builder.Services.AddSingleton(typeof(HubLifetimeManager<>), typeof(TrackingHubLifetimeManager<>));
 builder.Services
@@ -146,6 +148,8 @@ app.MapPost("/test-hang/negotiate", async (HttpContext context) =>
         // The client's connect timeout ended the request.
     }
 });
+app.MapGet("/e2e/token", () => Results.Text(RotatingTokens.Issue()));
+app.MapPost("/e2e/rotate-token", () => Results.Ok(new { generation = RotatingTokens.Rotate() }));
 app.MapPost("/e2e/reset", () =>
 {
     TestControls.Reset();
@@ -157,6 +161,7 @@ app.MapHub<TestHub>("/test-tls");
 app.MapHub<TestHub>("/test-direct");
 app.MapHub<TestHub>("/test-stateful", options => options.AllowStatefulReconnects = true);
 app.MapHub<AuthHub>("/test-auth");
+app.MapHub<TokenHub>("/test-token");
 app.MapHub<ConnectedHub>("/test-connected");
 app.MapHub<PerfHub>("/perf");
 app.MapHub<ChaosHub>("/test-chaos");
