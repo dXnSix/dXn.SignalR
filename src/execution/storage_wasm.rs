@@ -5,8 +5,8 @@ use std::{
     rc::Rc,
 };
 
-use super::{callback::CallbackAction, storage::Storage, UpdatableAction};
-use crate::{error::Error, protocol::codec::InboundInvocation};
+use super::{callback::CallbackRegistry, storage::Storage, UpdatableAction};
+use crate::error::Error;
 
 /// One namespace of shared entries. An entry is cloned out and the map borrow ended before it
 /// runs: callbacks run user code, which may register, unregister or disconnect.
@@ -61,7 +61,7 @@ impl<A: ?Sized> ActionMap<A> {
 #[derive(Clone)]
 pub struct UpdatableActionStorage {
     pending: ActionMap<dyn UpdatableAction>,
-    callbacks: ActionMap<CallbackAction>,
+    callbacks: CallbackRegistry,
     index: Rc<Cell<usize>>,
 }
 
@@ -69,7 +69,7 @@ impl UpdatableActionStorage {
     pub fn new() -> Self {
         UpdatableActionStorage {
             pending: ActionMap::default(),
-            callbacks: ActionMap::default(),
+            callbacks: CallbackRegistry::new(),
             index: Rc::new(Cell::new(0)),
         }
     }
@@ -87,29 +87,18 @@ impl Storage for UpdatableActionStorage {
         self.pending.insert(key, Rc::new(action));
     }
 
-    fn insert_callback(&mut self, target: String, callback: CallbackAction) {
-        self.callbacks.insert(target, Rc::new(callback));
+    fn callbacks(&self) -> &CallbackRegistry {
+        &self.callbacks
     }
 
     fn contains(&self, key: &str) -> bool {
         self.pending.contains(key)
     }
 
-    fn contains_callback(&self, target: &str) -> bool {
-        self.callbacks.contains(target)
-    }
-
     fn update(&mut self, key: &str, f: impl FnOnce(&dyn UpdatableAction)) {
         match self.pending.get(key) {
             Some(action) => f(&*action),
             None => warn!("Dropped a message for unknown invocation {key}"),
-        }
-    }
-
-    fn invoke_callback(&mut self, invocation: &InboundInvocation<'_>) {
-        match self.callbacks.get(&invocation.target) {
-            Some(callback) => callback.invoke(invocation),
-            None => warn!("No callback is registered for {}", invocation.target),
         }
     }
 
@@ -126,15 +115,11 @@ impl Storage for UpdatableActionStorage {
         drop(self.pending.take(key));
     }
 
-    fn remove_callback(&mut self, target: &str) {
-        drop(self.callbacks.take(target));
-    }
-
     fn dispose(&mut self) {
         if Rc::strong_count(&self.pending.0) == 1 {
             info!("Clearing storage...");
             drop(self.pending.drain());
-            drop(self.callbacks.drain());
+            self.callbacks.close();
         }
     }
 

@@ -9,6 +9,9 @@ pub use arguments::ArgumentConfiguration;
 pub use storage::CallbackHandler;
 
 pub(crate) use actions::UpdatableAction;
+pub(crate) use callback::{
+    call_connection_replaced, Callback, ReplyFuture, ReplySink, ResultHold, BINDING_FAILURE,
+};
 pub(crate) use storage::{Storage, StorageUnregistrationHandler};
 
 #[cfg(target_arch = "wasm32")]

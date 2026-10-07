@@ -19,8 +19,8 @@ mod protocol;
 mod test_logging;
 
 pub use client::{
-    ConnectionConfiguration, DisconnectionHandler, InvocationContext, ReconnectionHandler,
-    SignalRClient,
+    CallbackArguments, ConnectionConfiguration, DisconnectionHandler, InvocationContext,
+    ReconnectionHandler, SignalRClient,
 };
 pub use communication::reconnection::{
     ConnectionStatus, ConstantDelayPolicy, DefaultRetryPolicy, ExponentialBackoffPolicy,

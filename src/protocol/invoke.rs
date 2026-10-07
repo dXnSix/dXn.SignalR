@@ -146,6 +146,19 @@ impl<R> Completion<R> {
     }
 }
 
+impl Completion<()> {
+    /// An error Completion: the server's `InvokeAsync` throws a `HubException` with `message`.
+    pub fn create_error(invocation_id: String, message: String) -> Self {
+        Completion {
+            r#type: MessageType::Completion,
+            invocation_id,
+            result: None,
+            error: Some(message),
+            headers: None,
+        }
+    }
+}
+
 /// Requests cancellation of a streaming invocation that the caller no longer consumes.
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]

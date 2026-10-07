@@ -13,7 +13,7 @@ use crate::{
     communication::{dispatch_decoded, websocket_message},
     completer::{ManualFuture, ManualStream},
     error::Error,
-    execution::{ArgumentConfiguration, Storage, UpdatableActionStorage},
+    execution::{ArgumentConfiguration, Callback, Storage, UpdatableActionStorage},
     protocol::{
         codec::{self, OutboundMessage},
         hub_protocol::HubProtocolKind,
@@ -277,25 +277,26 @@ impl Receiver {
 
     /// Registers a callback for `target` that decodes its first argument, as an application's
     /// `register` handler does.
-    pub fn on_invocation<T>(&mut self, target: &str, handler: impl Fn(T) + Send + 'static)
+    pub fn on_invocation<T>(&mut self, target: &str, handler: impl Fn(T) + Send + Sync + 'static)
     where
         T: DeserializeOwned + Unpin + 'static,
     {
         let client = SignalRClient::detached(self.storage.clone());
         self.storage.add_callback(
             target.to_string(),
-            move |context: InvocationContext| {
+            Callback::sync(move |context: InvocationContext| {
                 if let Ok(argument) = context.argument::<T>(0) {
                     handler(argument);
                 }
-            },
+            }),
             client,
         );
     }
 
     /// Dispatches one received frame as the native receiver task does for a connection without
     /// stateful reconnect (`client_tokio::RecordContext::handle`): split the records, decode each
-    /// once, and hand it to the action storage.
+    /// once, and hand it to the action storage; server-to-client calls then run as the dispatch
+    /// task runs them.
     pub fn receive(&mut self, frame: &Frame) {
         match self.protocol {
             Protocol::Json => {
@@ -322,6 +323,8 @@ impl Receiver {
                 }
             }
         }
+        // Server-to-client calls run as the connection's dispatch task runs them.
+        self.storage.callbacks().run_queued();
     }
 }
 

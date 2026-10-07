@@ -199,7 +199,7 @@ mod log_policy {
     use super::{dispatch_decoded, log_undecodable};
     use crate::{
         client::SignalRClient,
-        execution::{Storage, UpdatableActionStorage},
+        execution::{Callback, Storage, UpdatableActionStorage},
         protocol::codec::{self, InboundMessage},
         test_logging::{capture, CapturedRecord},
         Error, ErrorKind,
@@ -228,10 +228,10 @@ mod log_policy {
         let seen = argument.clone();
         storage.add_callback(
             "Notify".to_string(),
-            move |context| {
+            Callback::sync(move |context| {
                 let _ = context.argument::<i32>(0);
                 *seen.lock().unwrap() = context.argument::<String>(0).ok();
-            },
+            }),
             SignalRClient::detached(storage.clone()),
         );
         move || {
@@ -275,6 +275,7 @@ mod log_policy {
             for record in codec::json_records(&frame) {
                 receive(&mut storage, codec::decode_json(record));
             }
+            storage.callbacks().run_queued();
         });
 
         verify();
@@ -331,6 +332,7 @@ mod log_policy {
             for record in codec::messagepack_records(&frame) {
                 receive(&mut storage, record.and_then(codec::decode_messagepack));
             }
+            storage.callbacks().run_queued();
         });
 
         verify();

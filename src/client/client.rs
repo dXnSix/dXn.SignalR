@@ -1,20 +1,19 @@
 use crate::completer::ManualStream;
 use log::{info, warn};
 use serde::de::DeserializeOwned;
-use serde::Serialize;
 use std::sync::Arc;
 
 use crate::communication::{Communication, CommunicationClient, HttpClient};
 use crate::error::Error;
 use crate::execution::{
-    ArgumentConfiguration, CallbackHandler, Storage, StorageUnregistrationHandler,
-    UpdatableActionStorage,
+    ArgumentConfiguration, Callback, CallbackHandler, Storage, StorageUnregistrationHandler,
+    UpdatableActionStorage, BINDING_FAILURE,
 };
 use crate::protocol::codec::OutboundMessage;
 use crate::protocol::hub_protocol::HubProtocolKind;
 use crate::protocol::invoke::Invocation;
 
-use super::{ConnectionConfiguration, ConnectionRecipe, InvocationContext};
+use super::{CallbackArguments, ConnectionConfiguration, ConnectionRecipe, InvocationContext};
 
 #[cfg(not(target_arch = "wasm32"))]
 use crate::communication::ReconnectionContext;
@@ -277,13 +276,24 @@ pub struct SignalRClient {
     _connection: Option<CommunicationClient>,
 }
 
+/// Runs a future that almost always completes in its first poll (an uncontended lock); it
+/// enters an executor only when it must wait, so dropping or disconnecting a handle inside a
+/// callback or another executor's `block_on` does not nest executors.
+fn run_now<F: std::future::Future>(future: F) -> F::Output {
+    let mut future = std::pin::pin!(future);
+    match futures::FutureExt::now_or_never(future.as_mut()) {
+        Some(output) => output,
+        None => futures::executor::block_on(future),
+    }
+}
+
 impl Drop for SignalRClient {
     /// Dropping a handle closes the connection only when it is the last one (registered callbacks
     /// and live `InvocationContext`s are handles too); [`disconnect`](SignalRClient::disconnect)
     /// closes it for every handle.
     fn drop(&mut self) {
         if let Some(mut conn) = self._connection.take() {
-            futures::executor::block_on(conn.release());
+            run_now(conn.release());
         }
     }
 }
@@ -430,9 +440,20 @@ impl SignalRClient {
 
     /// Registers a callback that can be called by the SignalR hub.
     ///
+    /// As with the official .NET client's `HubConnection.On`, a target can have several callbacks:
+    /// they run in registration order for every server call on the connection's dispatch task
+    /// (natively on the connection's runtime, in the browser on the event loop), separately from
+    /// message processing, so completions, stream items and keep-alives never wait on a callback.
+    /// Calls without an invocation id run one at a time in arrival order; a call that expects a
+    /// result (`InvokeAsync`) starts in arrival order but continues on its own task once a
+    /// callback waits, so it never holds later calls. A callback may register, unregister or
+    /// disconnect. Natively the callback must be `Send + Sync` (it may run on any thread of the
+    /// connection's runtime), and a panicking callback is caught and logged while the connection
+    /// keeps working.
+    ///
     /// # Arguments
     ///
-    /// * `target` - A `String` specifying the name of the target method to register the callback for.
+    /// * `target` - The name of the target method to register the callback for (`impl Into<String>`).
     /// * `callback` - A closure that takes an `InvocationContext` as an argument and defines the callback logic.
     ///
     /// # Returns
@@ -456,14 +477,109 @@ impl SignalRClient {
     /// ```
     pub fn register(
         &mut self,
-        target: String,
-        callback: impl Fn(InvocationContext) + crate::platform::MaybeSend + 'static,
+        target: impl Into<String>,
+        callback: impl Fn(InvocationContext) + crate::platform::MaybeSendSync + 'static,
     ) -> impl CallbackHandler {
-        // debug!("CLIENT registering invocation callback to {}", &target);
-        self._actions
-            .add_callback(target.clone(), callback, self.clone());
+        self.register_callback(target.into(), Callback::sync(callback))
+    }
 
-        StorageUnregistrationHandler::new(self._actions.clone(), target.clone())
+    /// Registers an asynchronous callback that can be called by the SignalR hub.
+    ///
+    /// It runs like a callback of [`register`](Self::register): the dispatch task awaits its future
+    /// before it runs the next callback of the call, and before the next server call unless the
+    /// call expects a result, as the official .NET client awaits asynchronous `On` handlers.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let handler = client.register_async("Refresh".to_string(), |mut context| async move {
+    ///     let latest = context.client.invoke::<String>("Latest".to_string()).await;
+    ///     println!("latest: {latest:?}");
+    /// });
+    /// ```
+    pub fn register_async<F, Fut>(
+        &mut self,
+        target: impl Into<String>,
+        callback: F,
+    ) -> impl CallbackHandler
+    where
+        F: Fn(InvocationContext) -> Fut + crate::platform::MaybeSendSync + 'static,
+        Fut: std::future::Future<Output = ()> + crate::platform::MaybeSend + 'static,
+    {
+        self.register_callback(target.into(), Callback::asynchronous(callback))
+    }
+
+    /// Registers a typed callback: the server's arguments are decoded into `Args` (a tuple such as
+    /// `(String, i32)`, or `()`) before it runs, as the official .NET client binds `On<T1, T2>`
+    /// handler parameters.
+    ///
+    /// When the arguments do not decode (a different count or a type that does not match), the
+    /// callback is not called, the failure is logged, and a call that awaits a result gets the
+    /// .NET client's `Client failed to parse argument(s).` error Completion. Otherwise it runs
+    /// like a callback of [`register`](Self::register), with the context for client results.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let handler = client.register_typed("Price", |_context, (symbol, price): (String, f64)| {
+    ///     println!("{symbol} = {price}");
+    /// });
+    /// ```
+    pub fn register_typed<Args, F>(
+        &mut self,
+        target: impl Into<String>,
+        callback: F,
+    ) -> impl CallbackHandler
+    where
+        Args: CallbackArguments + crate::platform::MaybeSend + 'static,
+        F: Fn(InvocationContext, Args) + crate::platform::MaybeSendSync + 'static,
+    {
+        let target = target.into();
+        let name = target.clone();
+        self.register_callback(
+            target,
+            Callback::asynchronous(move |context: InvocationContext| {
+                let failed = match Args::from_context(&context) {
+                    Ok(arguments) => {
+                        callback(context, arguments);
+                        None
+                    }
+                    Err(error) => Some((context, error)),
+                };
+                let target = name.clone();
+                async move {
+                    let Some((mut context, error)) = failed else {
+                        return;
+                    };
+                    // A decode error can quote the payload, so its text is logged only at trace.
+                    log::error!(
+                        "Cannot bind the arguments of callback {target} ({:?})",
+                        error.kind()
+                    );
+                    log::trace!("Binding failure of callback {target}: {error}");
+                    if context.expects_result() {
+                        if let Err(error) = context.fail(BINDING_FAILURE).await {
+                            log::warn!(
+                                "Cannot answer callback {target} with its binding failure: {error}"
+                            );
+                        }
+                    }
+                }
+            }),
+        )
+    }
+
+    /// Removes every callback registered for `target`, as the official .NET client's
+    /// `HubConnection.Remove` does.
+    pub fn remove(&self, target: impl Into<String>) {
+        self._actions.callbacks().remove(target.into());
+    }
+
+    fn register_callback(&mut self, target: String, callback: Callback) -> impl CallbackHandler {
+        let id = self
+            ._actions
+            .add_callback(target.clone(), callback, self.clone());
+        StorageUnregistrationHandler::new(self._actions.clone(), target, id)
     }
 
     /// Invokes a specific target method on the SignalR hub and waits for the response.
@@ -721,20 +837,6 @@ impl SignalRClient {
         }
     }
 
-    pub(crate) async fn send_completion<T: Serialize>(
-        &mut self,
-        invocation_id: String,
-        result: T,
-    ) -> Result<(), Error> {
-        if let Some(ref mut conn) = self._connection {
-            let completion =
-                OutboundMessage::completion(conn.get_protocol_kind(), invocation_id, &result)?;
-            conn.send_message(completion).await
-        } else {
-            Err(Error::closed_locally())
-        }
-    }
-
     /// Calls a specific target method on the SignalR hub and returns a stream for receiving data asynchronously.
     ///
     /// The target method on the hub should return an `IAsyncEnumerable` to send back data asynchronously.
@@ -934,7 +1036,7 @@ impl SignalRClient {
     /// connection state.
     pub fn disconnect(&self) {
         if let Some(conn) = &self._connection {
-            futures::executor::block_on(conn.disconnect());
+            run_now(conn.disconnect());
         }
     }
 
@@ -1197,6 +1299,36 @@ mod disconnect_every_handle {
         registration.unregister();
     }
 
+    /// On the dispatch task, a callback that disconnects its own client returns, the client
+    /// closes, and the callbacks (each holding a client handle) are dropped without nesting
+    /// executors.
+    #[test]
+    fn callback_dispatch_disconnect_inside_a_callback_on_the_dispatch_task() {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .build()
+            .unwrap();
+        let mut client = not_connected_client(HubProtocolKind::Json, runtime.handle().clone());
+        let observer = client.clone();
+        let (done, finished) = std::sync::mpsc::channel();
+        let _registration = client.register("Notify".to_string(), move |context| {
+            context.client.disconnect();
+            let _ = done.send(());
+        });
+        let mut storage = client._actions.clone();
+        runtime.block_on(async { storage.callbacks().start() });
+        storage.dispatch(
+            codec::decode_json(r#"{"type":1,"target":"Notify","arguments":[]}"#).unwrap(),
+        );
+        finished
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .expect("disconnect inside a callback must return");
+        assert_eq!(observer.status(), ConnectionStatus::Closed);
+        drop(client);
+        drop(observer);
+    }
+
     #[test]
     fn disconnect_by_drop_closes_only_with_the_last_handle() {
         let runtime = tokio::runtime::Builder::new_current_thread()
@@ -1252,6 +1384,7 @@ mod disconnect_every_handle {
             storage.dispatch(
                 codec::decode_json(r#"{"type":1,"target":"Notify","arguments":[]}"#).unwrap(),
             );
+            storage.callbacks().run_queued();
             registration.unregister();
             let dispatched = ran.load(std::sync::atomic::Ordering::SeqCst);
             let _ = done.send((dispatched, observer.status()));

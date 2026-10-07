@@ -1,42 +1,36 @@
 use super::{
-    callback::CallbackAction, enumerable::EnumerableAction, invocation::InvocationAction,
+    callback::{Callback, CallbackRegistry, OwnedInvocation},
+    enumerable::EnumerableAction,
+    invocation::InvocationAction,
     UpdatableAction,
 };
 use crate::{
     client::SignalRClient,
     completer::{ManualFuture, ManualStream, StreamDropHandler},
     error::Error,
-    protocol::codec::{InboundInvocation, InboundMessage},
-    InvocationContext,
+    protocol::codec::InboundMessage,
 };
 use log::debug;
 use serde::de::DeserializeOwned;
 
 /// A connection's actions in two namespaces, as in the official .NET client: pending work
-/// (invocations and streams) keyed by invocation id, and callbacks keyed by target, so a callback
-/// target never collides with an invocation id. Actions run without the storage's lock or borrow.
+/// (invocations and streams) keyed by invocation id, and callbacks (owned by the dispatch task of
+/// [`CallbackRegistry`]) keyed by target, so a callback target never collides with an invocation
+/// id. Actions run without the storage's lock or borrow.
 pub trait Storage: Clone {
     /// Adds pending work under its invocation id.
     fn insert(&mut self, key: String, action: impl UpdatableAction + 'static);
-    /// Registers a callback under its target.
-    fn insert_callback(&mut self, target: String, callback: CallbackAction);
+    /// The callbacks and their dispatch task.
+    fn callbacks(&self) -> &CallbackRegistry;
     /// Whether pending work with this invocation id exists.
     #[allow(dead_code)]
     fn contains(&self, key: &str) -> bool;
-    /// Whether a callback is registered for this target.
-    #[allow(dead_code)]
-    fn contains_callback(&self, target: &str) -> bool;
     /// Runs `f` on the pending work at `key`, with no storage lock or borrow held.
     fn update(&mut self, key: &str, f: impl FnOnce(&dyn UpdatableAction));
-    /// Runs the callback registered for the invocation's target, with no storage lock or borrow
-    /// held.
-    fn invoke_callback(&mut self, invocation: &InboundInvocation<'_>);
     /// Removes the pending work at `key` and runs `f` on it.
     fn complete(&mut self, key: &str, f: impl FnOnce(&dyn UpdatableAction));
     /// Removes the pending work at `key` (dropping it ends its awaiter).
     fn remove(&mut self, key: &str);
-    /// Unregisters the callback for `target`.
-    fn remove_callback(&mut self, target: &str);
     fn dispose(&mut self);
     /// Ends every pending work with `error`; callbacks stay registered.
     fn fail_pending(&mut self, error: &Error);
@@ -51,17 +45,11 @@ pub trait Storage: Clone {
         self.increment().to_string()
     }
 
-    fn add_callback(
-        &mut self,
-        target: String,
-        callback: impl Fn(InvocationContext) + crate::platform::MaybeSend + 'static,
-        client: SignalRClient,
-    ) {
+    /// Registers `callback` for `target` after the callbacks already registered for it; returns
+    /// the id that unregisters only this one.
+    fn add_callback(&mut self, target: String, callback: Callback, client: SignalRClient) -> u64 {
         debug!("Adding a callback for target {}", target);
-        self.insert_callback(
-            target.clone(),
-            CallbackAction::create(target.clone(), callback, client),
-        );
+        self.callbacks().register(target, callback, client)
     }
 
     fn add_invocation<R: 'static + DeserializeOwned + Unpin + crate::platform::MaybeSend>(
@@ -93,7 +81,9 @@ pub trait Storage: Clone {
     /// invocation or stream, which leaves storage. Other messages have no action.
     fn dispatch(&mut self, message: InboundMessage<'_>) {
         match message {
-            InboundMessage::Invocation(invocation) => self.invoke_callback(&invocation),
+            InboundMessage::Invocation(invocation) => self
+                .callbacks()
+                .dispatch(OwnedInvocation::from(&invocation)),
             InboundMessage::StreamItem {
                 invocation_id,
                 item,
@@ -114,25 +104,28 @@ pub trait CallbackHandler {
     fn unregister(self);
 }
 
+/// Unregisters one callback registration.
 pub(crate) struct StorageUnregistrationHandler<T>
 where
     T: Storage,
 {
-    _storage: T,
-    _key: String,
+    storage: T,
+    target: String,
+    id: u64,
 }
 
 impl<T: Storage> StorageUnregistrationHandler<T> {
-    pub(crate) fn new(storage: T, key: String) -> Self {
+    pub(crate) fn new(storage: T, target: String, id: u64) -> Self {
         StorageUnregistrationHandler {
-            _key: key,
-            _storage: storage,
+            storage,
+            target,
+            id,
         }
     }
 }
 
 impl<T: Storage> CallbackHandler for StorageUnregistrationHandler<T> {
-    fn unregister(mut self) {
-        self._storage.remove_callback(&self._key);
+    fn unregister(self) {
+        self.storage.callbacks().unregister(self.target, self.id);
     }
 }

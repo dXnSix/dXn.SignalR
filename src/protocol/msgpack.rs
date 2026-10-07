@@ -234,6 +234,20 @@ pub fn encode_completion<T: serde::Serialize>(
     Ok(frame_message(&payload))
 }
 
+/// Encode and frame an error Completion (type 3).
+/// Layout: [3, Headers, InvocationId, ResultKind=1, Error]
+pub fn encode_completion_error(invocation_id: &str, message: &str) -> Result<Vec<u8>, Error> {
+    let mut payload = Vec::with_capacity(invocation_id.len() + message.len() + 16);
+    rmp::encode::write_array_len(&mut payload, 5).map_err(encoding)?;
+    rmp::encode::write_uint(&mut payload, MessageType::Completion as u8 as u64)
+        .map_err(encoding)?;
+    encode_headers(&mut payload, &None)?;
+    rmp::encode::write_str(&mut payload, invocation_id).map_err(encoding)?;
+    rmp::encode::write_uint(&mut payload, 1).map_err(encoding)?;
+    rmp::encode::write_str(&mut payload, message).map_err(encoding)?;
+    Ok(frame_message(&payload))
+}
+
 /// Encode and frame CancelInvocation (type 5).
 /// Layout: [5, Headers, InvocationId]
 pub fn encode_cancel_invocation(invocation_id: &str) -> Result<Vec<u8>, Error> {

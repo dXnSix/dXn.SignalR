@@ -35,7 +35,9 @@ use wasm_bindgen_futures::spawn_local;
 use crate::{
     client::ConnectionRecipe,
     error::{Error, TimeoutOperation},
-    execution::{Storage, UpdatableActionStorage},
+    execution::{
+        call_connection_replaced, ReplyFuture, ReplySink, Storage, UpdatableActionStorage,
+    },
     protocol::{
         codec::{self, InboundMessage, OutboundMessage, Record},
         hub_protocol::HubProtocolKind,
@@ -300,6 +302,7 @@ async fn attempt(shared: &Rc<Shared>, generation: u64) -> Result<(), Error> {
         .stateful
         .as_ref()
         .filter(|buffer| !buffer.borrow().is_disposed());
+    let resumed = resume.is_some();
     let (opened, fresh_stateful) = if let Some(buffer) = resume {
         let endpoint = shared.transport_endpoint.borrow().clone();
         let opened = resume_socket(&endpoint, shared.protocol_kind, buffer, &liveness).await?;
@@ -325,6 +328,10 @@ async fn attempt(shared: &Rc<Shared>, generation: u64) -> Result<(), Error> {
     if let (Some(buffer), Some(endpoint)) = (&shared.stateful, fresh_stateful) {
         buffer.borrow_mut().renew();
         shared.transport_endpoint.replace(endpoint);
+    }
+    // Every reconnect but a stateful resume starts a new logical connection.
+    if !resumed {
+        shared.storage.callbacks().new_logical_connection();
     }
     shared.disconnect_reason.replace(None);
     install(shared, opened, generation);
@@ -542,8 +549,82 @@ async fn resume_socket(
     })
 }
 
+/// Tracks (with stateful reconnect) and sends one message on the connection's current socket.
+async fn send_on(shared: &Shared, message: OutboundMessage) -> Result<(), Error> {
+    if shared.state() != LifecycleState::Connected {
+        return Err(shared.send_error());
+    }
+    if let Some(buffer) = &shared.stateful {
+        loop {
+            // The replay buffer shares the frame's bytes.
+            let result = buffer
+                .borrow_mut()
+                .track(message.message_type, message.frame.clone())?;
+            match result {
+                TrackResult::Buffered(_) | TrackResult::Bypass => break,
+                TrackResult::Backpressured => sleep(Duration::from_millis(5)).await,
+            }
+        }
+    }
+    let socket = shared
+        .socket
+        .borrow()
+        .as_ref()
+        .map(|socket| socket.socket.clone());
+    match socket {
+        Some(socket) => socket.send(&message.frame),
+        // A tracked frame is replayed by the stateful resume once a socket is back.
+        None if shared.stateful.is_some() => Ok(()),
+        None => Err(shared.send_error()),
+    }
+}
+
+/// Sends the Completions of server-to-client calls on the connection they arrived on.
+struct TransportReplies {
+    shared: std::rc::Weak<Shared>,
+    protocol: HubProtocolKind,
+}
+
+impl ReplySink for TransportReplies {
+    fn protocol(&self) -> HubProtocolKind {
+        self.protocol
+    }
+
+    fn send(&self, message: OutboundMessage, logical_connection: u64) -> ReplyFuture {
+        let shared = self.shared.clone();
+        Box::pin(async move {
+            let shared = shared.upgrade().ok_or_else(Error::closed_locally)?;
+            // The event loop runs one task at a time: no reconnect completes between this check
+            // and the send.
+            let current = shared.storage.callbacks().logical_connection();
+            if current.load(std::sync::atomic::Ordering::Acquire) != logical_connection {
+                return Err(call_connection_replaced());
+            }
+            send_on(&shared, message).await
+        })
+    }
+
+    fn send_detached(&self, message: OutboundMessage, logical_connection: u64) {
+        let sending = self.send(message, logical_connection);
+        spawn_local(async move {
+            if let Err(error) = sending.await {
+                log::debug!("Cannot send a Completion: {error}");
+            }
+        });
+    }
+}
+
 /// Makes a connected socket of `generation` current and spawns its receiver task.
 fn install(shared: &Rc<Shared>, opened: Opened, generation: u64) {
+    // Server-to-client calls run on the client's dispatch task and are answered here.
+    shared
+        .storage
+        .callbacks()
+        .set_replies(Some(Rc::new(TransportReplies {
+            shared: Rc::downgrade(shared),
+            protocol: shared.protocol_kind,
+        })));
+    shared.storage.callbacks().start();
     spawn_local(run_receiver(
         Rc::downgrade(shared),
         generation,
@@ -951,33 +1032,7 @@ impl CommunicationClient {
     /// Tracks the frame for stateful replay (waiting while the buffer is full), then sends it on
     /// the current socket.
     async fn send_frame(&self, message: OutboundMessage) -> Result<(), Error> {
-        if self.shared.state() != LifecycleState::Connected {
-            return Err(self.shared.send_error());
-        }
-        if let Some(buffer) = &self.shared.stateful {
-            loop {
-                // The replay buffer shares the frame's bytes.
-                let result = buffer
-                    .borrow_mut()
-                    .track(message.message_type, message.frame.clone())?;
-                match result {
-                    TrackResult::Buffered(_) | TrackResult::Bypass => break,
-                    TrackResult::Backpressured => sleep(Duration::from_millis(5)).await,
-                }
-            }
-        }
-        let socket = self
-            .shared
-            .socket
-            .borrow()
-            .as_ref()
-            .map(|socket| socket.socket.clone());
-        match socket {
-            Some(socket) => socket.send(&message.frame),
-            // A tracked frame is replayed by the stateful resume once a socket is back.
-            None if self.shared.stateful.is_some() => Ok(()),
-            None => Err(self.shared.send_error()),
-        }
+        send_on(&self.shared, message).await
     }
 
     fn disconnect_internal(&self) {
@@ -994,5 +1049,7 @@ impl CommunicationClient {
         }
         let mut storage = shared.storage.clone();
         storage.fail_pending(&Error::closed_locally());
+        // The callbacks end with the connection.
+        storage.callbacks().close();
     }
 }

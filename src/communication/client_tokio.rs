@@ -20,7 +20,9 @@ use crate::platform::{LockExt, RwLockExt};
 use crate::{
     client::ConnectionRecipe,
     error::{Error, TimeoutOperation},
-    execution::{Storage, UpdatableActionStorage},
+    execution::{
+        call_connection_replaced, ReplyFuture, ReplySink, Storage, UpdatableActionStorage,
+    },
     protocol::{
         codec::{self, InboundMessage, OutboundMessage, Record},
         hub_protocol::HubProtocolKind,
@@ -395,9 +397,15 @@ impl ReconnectionContext {
         if !self.coordinator.complete(generation) {
             return Err(self.coordinator.superseded());
         }
-        if let (Some(buffer), Some(endpoint)) = (&self.stateful, fresh_endpoint) {
-            buffer.locked().renew();
-            *self.transport_endpoint.write_locked() = endpoint;
+        match (&self.stateful, fresh_endpoint) {
+            (Some(buffer), Some(endpoint)) => {
+                buffer.locked().renew();
+                *self.transport_endpoint.write_locked() = endpoint;
+                self.actions.callbacks().new_logical_connection();
+            }
+            // Without stateful reconnect every reconnect starts a new logical connection.
+            (None, _) => self.actions.callbacks().new_logical_connection(),
+            (Some(_), None) => {}
         }
         let connection = CommunicationConnection::start(
             socket,
@@ -800,6 +808,17 @@ impl CommunicationConnection {
         stateful: Option<SharedStatefulBuffer>,
         writer: ConnectionWriter,
     ) {
+        // Server-to-client calls run on the client's dispatch task, on this runtime, and are
+        // answered on this transport.
+        storage
+            .callbacks()
+            .set_replies(Some(Arc::new(TransportReplies {
+                state: disconnection_handler.state.clone(),
+                logical_connection: storage.callbacks().logical_connection(),
+                protocol: protocol_kind,
+                runtime: Handle::current(),
+            })));
+        storage.callbacks().start();
         {
             let server_timeout = disconnection_handler.recipe.liveness().server_timeout;
             let reason = 'receive: loop {
@@ -1058,6 +1077,8 @@ impl Communication for CommunicationClient {
         }
         let mut actions = self._actions.clone();
         actions.fail_pending(&Error::closed_locally());
+        // The callbacks end with the connection.
+        actions.callbacks().close();
     }
 }
 
@@ -1531,6 +1552,73 @@ fn coalesce(frames: &[SerializedFrame]) -> Message {
         #[cfg(feature = "messagepack")]
         Some(SerializedFrame::Binary(_)) => Message::binary(bytes.freeze()),
         _ => Message::text(bytes.freeze()),
+    }
+}
+
+/// Sends the Completions of server-to-client calls on the transport they arrived on.
+struct TransportReplies {
+    state: Weak<Mutex<ConnectionState>>,
+    /// The client's logical-connection counter; reconnects advance it under the state lock.
+    logical_connection: Arc<std::sync::atomic::AtomicU64>,
+    protocol: HubProtocolKind,
+    runtime: Handle,
+}
+
+impl TransportReplies {
+    /// The writer of the client's current transport, if it still carries `logical_connection`:
+    /// checked under the connection-state lock, under which a reconnect installs a new logical
+    /// connection, as the .NET client's `SendWithLock` checks its connection state.
+    async fn writer(
+        state: Weak<Mutex<ConnectionState>>,
+        current: Arc<std::sync::atomic::AtomicU64>,
+        logical_connection: u64,
+    ) -> Result<ConnectionWriter, Error> {
+        let state = state.upgrade().ok_or_else(Error::closed_locally)?;
+        let connection = {
+            let state = state.lock().await;
+            if current.load(std::sync::atomic::Ordering::Acquire) != logical_connection {
+                return Err(call_connection_replaced());
+            }
+            match &*state {
+                ConnectionState::NotConnected(reason) => return Err(reason.send_error()),
+                ConnectionState::Connected(connection) => connection.clone(),
+            }
+        };
+        let writer = connection.lock().await.writer.clone();
+        Ok(writer)
+    }
+
+    fn sending(&self, message: OutboundMessage, logical_connection: u64) -> ReplyFuture {
+        let state = self.state.clone();
+        let current = self.logical_connection.clone();
+        Box::pin(async move {
+            Self::writer(state, current, logical_connection)
+                .await?
+                .send(message)
+                .await
+        })
+    }
+}
+
+impl ReplySink for TransportReplies {
+    fn protocol(&self) -> HubProtocolKind {
+        self.protocol
+    }
+
+    fn send(&self, message: OutboundMessage, logical_connection: u64) -> ReplyFuture {
+        let sending = self.sending(message, logical_connection);
+        let runtime = self.runtime.clone();
+        // Runs on the connection's runtime: the caller may await it from any executor.
+        Box::pin(on_runtime(Some(runtime), sending))
+    }
+
+    fn send_detached(&self, message: OutboundMessage, logical_connection: u64) {
+        let sending = self.sending(message, logical_connection);
+        self.runtime.spawn(async move {
+            if let Err(error) = sending.await {
+                debug!("Cannot send a Completion: {error}");
+            }
+        });
     }
 }
 

@@ -84,11 +84,21 @@ impl<R: DeserializeOwned + Unpin> Drop for InvocationAction<R> {
     }
 }
 
-impl<R: DeserializeOwned + Unpin + crate::platform::MaybeSend> UpdatableAction
+impl<R: DeserializeOwned + Unpin + crate::platform::MaybeSend + 'static> UpdatableAction
     for InvocationAction<R>
 {
     fn on_completion(&self, outcome: &CompletionOutcome<'_>) {
         match outcome {
+            // `invoke::<()>` accepts and discards any result, as the non-generic `InvokeAsync`
+            // does; a server error still fails it.
+            CompletionOutcome::Result(payload)
+                if std::any::TypeId::of::<R>() == std::any::TypeId::of::<()>() =>
+            {
+                match payload.server_error() {
+                    Some(message) => self.complete_err(Error::hub(message)),
+                    None => self.complete_void(),
+                }
+            }
             CompletionOutcome::Result(payload) => match payload.decode::<R>() {
                 Ok(result) => self.complete_ok(result),
                 // The server's error, from a compact record that also carried a result.
@@ -175,5 +185,70 @@ mod functional_baseline_void_completion {
     fn messagepack_void_completion_fails_invocations_expecting_a_value() {
         let bytes = messagepack_completion(2, None);
         assert!(complete::<i32>(codec::decode_messagepack(&bytes).unwrap()).is_err());
+    }
+}
+
+/// `invoke::<()>` accepts and discards any result, as the non-generic `InvokeAsync` does
+/// (R16.C11).
+#[cfg(test)]
+mod void_invoke {
+    use super::InvocationAction;
+    use crate::execution::UpdatableAction;
+    use crate::protocol::codec::{self, InboundMessage};
+
+    fn complete_unit(message: InboundMessage<'_>) -> Result<(), crate::Error> {
+        let (action, future) = InvocationAction::<()>::new("1".to_string());
+        match message {
+            InboundMessage::Completion { outcome, .. } => action.on_completion(&outcome),
+            other => panic!("expected a completion, got {other:?}"),
+        }
+        futures::executor::block_on(future)
+    }
+
+    #[test]
+    fn void_invoke_discards_json_results() {
+        for record in [
+            r#"{"type":3,"invocationId":"1","result":42}"#,
+            r#"{"type":3,"invocationId":"1","result":{"text":"x","number":1}}"#,
+            r#"{"type":3,"invocationId":"1","result":null}"#,
+            r#"{"result":"text","type":3,"invocationId":"1"}"#,
+        ] {
+            assert!(
+                complete_unit(codec::decode_json(record).unwrap()).is_ok(),
+                "{record}"
+            );
+        }
+        let error = complete_unit(
+            codec::decode_json(r#"{"type":3,"invocationId":"1","error":"boom"}"#).unwrap(),
+        )
+        .unwrap_err();
+        assert_eq!(error.kind(), crate::ErrorKind::Hub);
+    }
+
+    #[cfg(feature = "messagepack")]
+    #[test]
+    fn void_invoke_discards_messagepack_results() {
+        for result in [
+            rmpv::Value::from(42),
+            rmpv::Value::Map(vec![("text".into(), "x".into())]),
+            rmpv::Value::Binary(vec![1, 2]),
+        ] {
+            let mut bytes = Vec::new();
+            rmpv::encode::write_value(
+                &mut bytes,
+                &rmpv::Value::Array(vec![
+                    3.into(),
+                    rmpv::Value::Map(Vec::new()),
+                    "1".into(),
+                    3.into(),
+                    result.clone(),
+                ]),
+            )
+            .unwrap();
+            assert!(
+                complete_unit(codec::decode_messagepack(&bytes).unwrap()).is_ok(),
+                "{result:?}"
+            );
+        }
     }
 }

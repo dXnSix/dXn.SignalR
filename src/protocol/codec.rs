@@ -813,6 +813,25 @@ impl OutboundMessage {
         })
     }
 
+    /// The error Completion of a server-to-client invocation.
+    pub(crate) fn completion_error(
+        protocol: HubProtocolKind,
+        invocation_id: String,
+        message: String,
+    ) -> Result<Self, Error> {
+        let frame = match protocol {
+            HubProtocolKind::Json => json_frame(&Completion::create_error(invocation_id, message))?,
+            #[cfg(feature = "messagepack")]
+            HubProtocolKind::MessagePack => SerializedFrame::binary(
+                super::msgpack::encode_completion_error(&invocation_id, &message)?,
+            ),
+        };
+        Ok(Self {
+            message_type: MessageType::Completion,
+            frame,
+        })
+    }
+
     /// A CancelInvocation for a stream the caller dropped.
     pub(crate) fn cancel_invocation(
         protocol: HubProtocolKind,
@@ -1482,6 +1501,17 @@ mod wire_codec {
                 text(&completion),
                 "{\"type\":3,\"invocationId\":\"9\",\"result\":{\"number\":2,\"text\":\"x\"}}\u{1e}"
             );
+            let error = OutboundMessage::completion_error(
+                HubProtocolKind::Json,
+                "9".to_string(),
+                "boom".to_string(),
+            )
+            .unwrap();
+            assert_eq!(error.message_type, MessageType::Completion);
+            assert_eq!(
+                text(&error),
+                "{\"type\":3,\"invocationId\":\"9\",\"error\":\"boom\"}\u{1e}"
+            );
             let cancel =
                 OutboundMessage::cancel_invocation(HubProtocolKind::Json, "9".to_string()).unwrap();
             assert_eq!(cancel.message_type, MessageType::CancelInvocation);
@@ -1571,6 +1601,18 @@ mod wire_codec {
                 let mut expected = vec![0x95, 0x03, 0x80, 0xa1, b'9', 0x03];
                 expected.extend(rmp_serde::to_vec_named(&entity()).unwrap());
                 assert_eq!(record(&completion), expected);
+
+                let error = OutboundMessage::completion_error(
+                    HubProtocolKind::MessagePack,
+                    "9".to_string(),
+                    "boom".to_string(),
+                )
+                .unwrap();
+                assert_eq!(error.message_type, MessageType::Completion);
+                assert_eq!(
+                    record(&error),
+                    vec![0x95, 0x03, 0x80, 0xa1, b'9', 0x01, 0xa4, b'b', b'o', b'o', b'm']
+                );
 
                 let cancel = OutboundMessage::cancel_invocation(
                     HubProtocolKind::MessagePack,
