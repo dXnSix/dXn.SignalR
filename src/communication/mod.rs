@@ -1,4 +1,6 @@
 #[cfg(target_arch = "wasm32")]
+mod browser_long_polling;
+#[cfg(target_arch = "wasm32")]
 mod browser_socket;
 #[cfg(target_arch = "wasm32")]
 mod browser_transport;
@@ -22,6 +24,8 @@ mod client_wasm;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod client_tokio;
+#[cfg(not(target_arch = "wasm32"))]
+mod long_polling_tokio;
 #[cfg(not(target_arch = "wasm32"))]
 mod transport_tokio;
 

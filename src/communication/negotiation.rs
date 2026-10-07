@@ -432,7 +432,10 @@ fn connection_data(
     // the transport's token.
     let factory = matches!(recipe.authentication(), Authentication::Factory(_));
     let transport_recipe = if factory && !redirected {
-        recipe.clone()
+        // HTTP transports keep the token negotiate fetched; a WebSocket asks again.
+        recipe
+            .clone()
+            .with_negotiated_authentication(authentication.clone())
     } else {
         recipe
             .clone()
@@ -445,6 +448,34 @@ fn connection_data(
         stateful,
         selection,
     ))
+}
+
+/// The URL of an HTTP transport (Long Polling, Server-Sent Events requests sent with `fetch`) for
+/// a negotiated transport URL: `ws(s)` becomes `http(s)` and any `access_token` query parameter
+/// is dropped, because these requests carry the credentials in the `Authorization` header.
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+pub(crate) fn http_transport_url(url: &str) -> String {
+    let url = if let Some(rest) = url.strip_prefix("wss://") {
+        format!("https://{rest}")
+    } else if let Some(rest) = url.strip_prefix("ws://") {
+        format!("http://{rest}")
+    } else {
+        url.to_string()
+    };
+    let (path, query) = split_query(&url);
+    let parameters: Vec<&str> = query
+        .map(|query| {
+            query
+                .split('&')
+                .filter(|pair| !pair.is_empty() && !pair.starts_with("access_token="))
+                .collect()
+        })
+        .unwrap_or_default();
+    if parameters.is_empty() {
+        path.to_string()
+    } else {
+        format!("{path}?{}", parameters.join("&"))
+    }
 }
 
 /// `url` with its `access_token` query set to `token` (percent-encoded), as a browser sends the
@@ -1066,21 +1097,20 @@ mod transport_selection {
     fn transport_selection_follows_the_server_order() {
         let offered = offer(&[("LongPolling", &["Text"]), ("WebSockets", &["Text"])]);
         let selection = select_transports(&offered, Transports::all(), "Text");
-        assert_eq!(selection.candidates, [TransportKind::WebSockets]);
-        assert_eq!(skipped(&selection), [TransportKind::LongPolling]);
+        assert_eq!(
+            selection.candidates,
+            [TransportKind::LongPolling, TransportKind::WebSockets]
+        );
+        assert!(selection.skipped.is_empty());
     }
 
     #[test]
     fn transport_selection_keeps_the_configured_set() {
         let selection = select_transports(&all_offered(), Transports::LONG_POLLING, "Text");
-        assert!(selection.candidates.is_empty());
+        assert_eq!(selection.candidates, [TransportKind::LongPolling]);
         assert_eq!(
             skipped(&selection),
-            [
-                TransportKind::WebSockets,
-                TransportKind::ServerSentEvents,
-                TransportKind::LongPolling
-            ]
+            [TransportKind::WebSockets, TransportKind::ServerSentEvents]
         );
         assert!(selection.skipped[0]
             .error()
@@ -1216,7 +1246,7 @@ mod transport_selection {
                             Some("disabled by the client")
                         } else if !formats(*kind).contains(&format) {
                             Some("transfer format")
-                        } else if *kind != TransportKind::WebSockets {
+                        } else if *kind == TransportKind::ServerSentEvents {
                             Some("cannot start")
                         } else {
                             None
@@ -1251,11 +1281,11 @@ mod transport_selection {
     #[test]
     fn transport_selection_skips_transports_this_client_cannot_start() {
         let selection = select_transports(&all_offered(), Transports::all(), "Text");
-        assert_eq!(selection.candidates, [TransportKind::WebSockets]);
         assert_eq!(
-            skipped(&selection),
-            [TransportKind::ServerSentEvents, TransportKind::LongPolling]
+            selection.candidates,
+            [TransportKind::WebSockets, TransportKind::LongPolling]
         );
+        assert_eq!(skipped(&selection), [TransportKind::ServerSentEvents]);
     }
 
     #[test]
@@ -1470,5 +1500,27 @@ mod transport_selection {
             ],
         );
         assert!(result.unwrap().stateful_reconnect().is_some());
+    }
+}
+
+#[cfg(test)]
+mod long_polling_urls {
+    use super::http_transport_url;
+
+    #[test]
+    fn long_polling_browser_urls_use_http_and_carry_no_token() {
+        assert_eq!(
+            http_transport_url("wss://host/hub?id=abc&access_token=secret"),
+            "https://host/hub?id=abc"
+        );
+        assert_eq!(
+            http_transport_url("ws://host:5000/hub?access_token=secret&id=abc"),
+            "http://host:5000/hub?id=abc"
+        );
+        assert_eq!(http_transport_url("https://host/hub"), "https://host/hub");
+        assert_eq!(
+            http_transport_url("ws://host/hub?access_token=secret"),
+            "http://host/hub"
+        );
     }
 }

@@ -56,7 +56,7 @@ impl TransportKind {
 
     /// Whether this build of the client can start the transport.
     pub(crate) fn implemented(self) -> bool {
-        matches!(self, TransportKind::WebSockets)
+        matches!(self, TransportKind::WebSockets | TransportKind::LongPolling)
     }
 }
 

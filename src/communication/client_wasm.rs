@@ -382,8 +382,9 @@ async fn attempt_once(shared: &Rc<Shared>, generation: u64) -> Result<(), Error>
     let resumed = resume.is_some();
     let (opened, fresh_stateful, fresh_id) = if let Some(buffer) = resume {
         let endpoint = shared.transport_endpoint.borrow().clone();
-        let endpoint = with_fresh_token(&shared.resume_recipe(), endpoint).await?;
-        let opened = resume_socket(&endpoint, shared.protocol_kind, &buffer, &liveness).await?;
+        let recipe = shared.resume_recipe();
+        let endpoint = with_fresh_token(&recipe, endpoint).await?;
+        let opened = resume_socket(&endpoint, shared.protocol_kind, &buffer, &recipe).await?;
         (opened, None, None)
     } else {
         // The negotiated transports in the server's order, as the .NET client tries them; one
@@ -392,10 +393,15 @@ async fn attempt_once(shared: &Rc<Shared>, generation: u64) -> Result<(), Error>
             &shared.recipe,
             |recipe| async move { HttpClient::negotiate(&recipe).await },
             |configuration, transport| async move {
-                let endpoint =
-                    with_fresh_token(&configuration.get_recipe(), configuration.get_endpoint())
-                        .await?;
-                start_transport(transport, &endpoint, &liveness).await
+                let recipe = configuration.get_recipe();
+                // Only a WebSocket carries the token in its URL; HTTP transports send it in the
+                // `Authorization` header.
+                let endpoint = if transport == TransportKind::WebSockets {
+                    with_fresh_token(&recipe, configuration.get_endpoint()).await?
+                } else {
+                    configuration.get_endpoint()
+                };
+                start_transport(transport, &endpoint, &recipe).await
             },
         )
         .await?;
@@ -534,12 +540,12 @@ async fn with_timeout<T>(
 async fn start_transport(
     kind: TransportKind,
     endpoint: &str,
-    liveness: &LivenessConfig,
+    recipe: &ConnectionRecipe,
 ) -> Result<(BrowserTransport, SocketEvents), Error> {
     with_timeout(
         TimeoutOperation::Connect,
-        liveness.connect_timeout,
-        BrowserTransport::start(kind, endpoint),
+        recipe.liveness().connect_timeout,
+        BrowserTransport::start(kind, endpoint, recipe),
     )
     .await
 }
@@ -572,6 +578,7 @@ async fn handshake(
                     Some(SocketEvent::Text(text)) => return Ok(Frame::Text(text)),
                     Some(SocketEvent::Binary(bytes)) => return Ok(Frame::Binary(bytes)),
                     Some(SocketEvent::Open) => continue,
+                    Some(SocketEvent::Failed(error)) => return Err(error),
                     Some(SocketEvent::Closed) | None => return Err(Error::handshake(
                         "the SignalR handshake failed: the connection closed before the server \
                          answered",
@@ -614,10 +621,11 @@ async fn resume_socket(
     endpoint: &str,
     protocol_kind: HubProtocolKind,
     buffer: &SharedStatefulBuffer,
-    liveness: &LivenessConfig,
+    recipe: &ConnectionRecipe,
 ) -> Result<Opened, Error> {
+    let liveness = &recipe.liveness();
     // Stateful reconnect runs only over WebSockets.
-    let (socket, events) = start_transport(TransportKind::WebSockets, endpoint, liveness).await?;
+    let (socket, events) = start_transport(TransportKind::WebSockets, endpoint, recipe).await?;
     let (sequence_id, frames) = buffer.borrow_mut().begin_resend()?;
     let resend = (|| {
         let sequence = match protocol_kind {
@@ -736,7 +744,8 @@ impl ReplySink for TransportReplies {
 /// Makes a connected socket of `generation` current and spawns its receiver task.
 fn install(shared: &Rc<Shared>, opened: Opened, generation: u64, initial_ping: bool) {
     let ping = ping_frame(shared.protocol_kind);
-    if initial_ping {
+    // No Ping arms the server's client timeout over a transport with inherent keep-alive.
+    if initial_ping && opened.socket.socket.kind() != TransportKind::LongPolling {
         if let Err(error) = opened.socket.send(&ping) {
             log::debug!("Cannot send the initial Ping: {error}");
         }
@@ -784,11 +793,20 @@ async fn run_receiver(
         ),
         None => return,
     };
+    let inherent_keep_alive = socket.socket.kind() == TransportKind::LongPolling;
     let reason = loop {
         let frame = match pending.take() {
             Some(frame) => frame,
             None => {
-                let action = socket.liveness.borrow().poll(now_ms());
+                // Long Polling keeps itself alive: no Pings and no server timeout over it, as
+                // the .NET client's `IConnectionInherentKeepAliveFeature`.
+                let action = if inherent_keep_alive {
+                    LivenessAction::Idle {
+                        next_deadline: u64::MAX,
+                    }
+                } else {
+                    socket.liveness.borrow().poll(now_ms())
+                };
                 let next_deadline = match action {
                     LivenessAction::SendPing => {
                         if let Err(error) = socket.send(&ping) {
@@ -824,7 +842,9 @@ async fn run_receiver(
                 }
                 let next_deadline = ack_due.map_or(next_deadline, |due| due.min(next_deadline));
                 let wait = Duration::from_millis(next_deadline.saturating_sub(now_ms()));
-                let event = {
+                let event = if next_deadline == u64::MAX {
+                    events.next().await
+                } else {
                     let timer = std::pin::pin!(sleep(wait));
                     match select(events.next(), timer).await {
                         Either::Left((event, _)) => event,
@@ -835,6 +855,7 @@ async fn run_receiver(
                     Some(SocketEvent::Text(text)) => Frame::Text(text),
                     Some(SocketEvent::Binary(bytes)) => Frame::Binary(bytes),
                     Some(SocketEvent::Open) => continue,
+                    Some(SocketEvent::Failed(error)) => break error,
                     Some(SocketEvent::Closed) | None => {
                         let transport = socket.socket.kind();
                         break Error::transport_failure(
@@ -960,11 +981,11 @@ fn socket_closed(shared: &Rc<Shared>, generation: u64, reason: Error) {
 /// Sequence. A failed resume ends the logical connection like an ordinary drop.
 async fn resume_transparently(shared: Rc<Shared>, generation: u64, buffer: SharedStatefulBuffer) {
     let endpoint = shared.transport_endpoint.borrow().clone();
-    let liveness = shared.recipe.liveness();
     let resumed = shared
         .supervise(async {
-            let endpoint = with_fresh_token(&shared.resume_recipe(), endpoint).await?;
-            resume_socket(&endpoint, shared.protocol_kind, &buffer, &liveness).await
+            let recipe = shared.resume_recipe();
+            let endpoint = with_fresh_token(&recipe, endpoint).await?;
+            resume_socket(&endpoint, shared.protocol_kind, &buffer, &recipe).await
         })
         .await;
     let lifecycle = shared.lifecycle.get();

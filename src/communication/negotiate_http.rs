@@ -144,7 +144,7 @@ pub(crate) async fn connect_tcp(host: &str, port: u16) -> Result<TcpStream, Erro
 }
 
 #[cfg(rayx_tls)]
-async fn tls_stream(
+pub(crate) async fn tls_stream(
     tls: &TlsContext,
     host: &str,
     tcp: TcpStream,
@@ -161,7 +161,11 @@ async fn tls_stream(
 }
 
 #[cfg(not(rayx_tls))]
-async fn tls_stream(_tls: &TlsContext, _host: &str, _tcp: TcpStream) -> Result<TcpStream, Error> {
+pub(crate) async fn tls_stream(
+    _tls: &TlsContext,
+    _host: &str,
+    _tcp: TcpStream,
+) -> Result<TcpStream, Error> {
     Err(super::tls::tls_disabled())
 }
 

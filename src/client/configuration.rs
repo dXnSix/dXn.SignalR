@@ -156,6 +156,10 @@ pub(crate) struct ConnectionRecipe {
     maximum_message_size: Option<usize>,
     /// Credentials for the transport when negotiation replaced them (a redirect access token).
     transport_authentication: Option<Authentication>,
+    /// The resolved credentials of the negotiate request that produced this connection (an
+    /// access-token factory's token), which HTTP transports keep using, as the .NET client's
+    /// `AccessTokenHttpMessageHandler` caches the token negotiate fetched.
+    negotiated_authentication: Option<Authentication>,
     #[cfg(not(target_arch = "wasm32"))]
     tls: crate::communication::tls::TlsContext,
     /// The Tokio runtime that owns this connection's I/O, timers and tasks.
@@ -222,10 +226,34 @@ impl ConnectionRecipe {
             .header_value()
     }
 
-    /// The `Authorization` value for a WebSocket being opened: a negotiate redirect's token, else
-    /// the configured credentials, asking an access-token factory for a fresh token, as the .NET
-    /// client asks its `AccessTokenProvider` whenever it opens a WebSocket.
-    #[cfg(not(target_arch = "wasm32"))]
+    /// Records the resolved credentials the negotiate request used.
+    pub(crate) fn with_negotiated_authentication(mut self, authentication: Authentication) -> Self {
+        self.negotiated_authentication = Some(authentication);
+        self
+    }
+
+    /// The `Authorization` value a Long Polling transport starts with: a negotiate redirect's
+    /// token or the configured credentials, else the token negotiate fetched from an access-token
+    /// factory (the factory is asked again only after a 401, as the .NET client's
+    /// `AccessTokenHttpMessageHandler`).
+    pub(crate) fn long_polling_authorization(&self) -> Option<String> {
+        self.transport_authentication
+            .as_ref()
+            .or(self.negotiated_authentication.as_ref())
+            .unwrap_or(&self.authentication)
+            .header_value()
+    }
+
+    /// Whether an access-token factory provides the credentials (a 401 is then retried once with
+    /// a fresh token).
+    pub(crate) fn has_access_token_factory(&self) -> bool {
+        self.transport_authentication.is_none()
+            && matches!(self.authentication, Authentication::Factory(_))
+    }
+
+    /// The `Authorization` value for a transport being started (a native WebSocket, or a Long
+    /// Polling request): a negotiate redirect's token, else the configured credentials, asking an
+    /// access-token factory for a fresh token, as the .NET client asks its `AccessTokenProvider`.
     pub(crate) async fn current_transport_authorization(
         &self,
     ) -> Result<Option<String>, crate::Error> {
@@ -546,6 +574,15 @@ impl ConnectionConfiguration {
         self
     }
 
+    /// Sets how long the server may hold a Long Polling poll, 100 s by default (the JavaScript
+    /// client's poll timeout); each poll is bounded by it plus the connect timeout, and a poll that
+    /// exceeds the bound is reissued, as the .NET client reissues a poll its `HttpClient` timed
+    /// out. Like the liveness durations, every value is accepted.
+    pub fn with_long_polling_timeout(&mut self, timeout: Duration) -> &ConnectionConfiguration {
+        self._liveness.long_polling_timeout = timeout;
+        self
+    }
+
     /// Restricts the transports the connection may use, as the .NET client's
     /// `HttpConnectionOptions.Transports`: every transport by default. Negotiation tries the ones
     /// the server offers, in the server's order, keeping those in this set that carry the hub
@@ -814,6 +851,7 @@ impl ConnectionConfiguration {
             invocation_headers: self._invocation_headers.clone(),
             maximum_message_size: self._maximum_message_size,
             transport_authentication: None,
+            negotiated_authentication: None,
             #[cfg(not(target_arch = "wasm32"))]
             tls: Default::default(),
             #[cfg(not(target_arch = "wasm32"))]

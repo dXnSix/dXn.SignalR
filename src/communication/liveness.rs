@@ -33,6 +33,9 @@ pub(crate) struct LivenessConfig {
     pub(crate) connect_timeout: Duration,
     /// Bounds how long `stop` waits for the transport to close.
     pub(crate) close_timeout: Duration,
+    /// How long the server may hold a Long Polling poll (100 s, the JavaScript client's poll
+    /// timeout); each poll is bounded by it plus the connect timeout.
+    pub(crate) long_polling_timeout: Duration,
 }
 
 impl Default for LivenessConfig {
@@ -45,6 +48,8 @@ impl Default for LivenessConfig {
             connect_timeout: Duration::from_secs(120),
             // The official .NET client's `HttpConnectionOptions.CloseTimeout`.
             close_timeout: Duration::from_secs(5),
+            // The JavaScript client's Long Polling poll timeout.
+            long_polling_timeout: Duration::from_secs(100),
         }
     }
 }
@@ -248,6 +253,7 @@ mod liveness_tests {
             handshake_timeout: Duration::from_millis(1_000),
             connect_timeout: Duration::from_millis(1_000),
             close_timeout: Duration::from_millis(1_000),
+            long_polling_timeout: Duration::from_millis(1_000),
         }
     }
 
@@ -259,6 +265,7 @@ mod liveness_tests {
         assert_eq!(defaults.handshake_timeout, Duration::from_secs(15));
         assert_eq!(defaults.connect_timeout, Duration::from_secs(120));
         assert_eq!(defaults.close_timeout, Duration::from_secs(5));
+        assert_eq!(defaults.long_polling_timeout, Duration::from_secs(100));
     }
 
     #[test]

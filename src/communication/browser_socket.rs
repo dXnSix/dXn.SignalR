@@ -32,6 +32,8 @@ pub(crate) enum SocketEvent {
     Open,
     Text(String),
     Binary(Vec<u8>),
+    /// The error that ended the transport, before its `Closed` (HTTP transports report why).
+    Failed(Error),
     /// The socket closed (or failed); no further events follow.
     Closed,
 }

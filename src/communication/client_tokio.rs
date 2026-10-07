@@ -111,6 +111,9 @@ impl OpenSocket {
 struct ConnectionLiveness {
     started: tokio::time::Instant,
     tracker: Arc<StdMutex<LivenessTracker>>,
+    /// The transport keeps itself alive (Long Polling): no keep-alive Pings and no server
+    /// timeout, as the .NET client's `IConnectionInherentKeepAliveFeature`.
+    inherent_keep_alive: bool,
 }
 
 impl ConnectionLiveness {
@@ -118,7 +121,13 @@ impl ConnectionLiveness {
         Self {
             started: tokio::time::Instant::now(),
             tracker: Arc::new(StdMutex::new(LivenessTracker::new(config, 0))),
+            inherent_keep_alive: false,
         }
+    }
+
+    fn with_inherent_keep_alive(mut self, inherent: bool) -> Self {
+        self.inherent_keep_alive = inherent;
+        self
     }
 
     fn now(&self) -> u64 {
@@ -143,14 +152,16 @@ impl ConnectionLiveness {
         self.tracker().on_received(now);
     }
 
-    /// When the writer must send a Ping unless another frame goes out first.
-    fn ping_deadline(&self) -> tokio::time::Instant {
-        self.instant(self.tracker().ping_deadline())
+    /// When the writer must send a Ping unless another frame goes out first (never over a
+    /// transport with inherent keep-alive).
+    fn ping_deadline(&self) -> Option<tokio::time::Instant> {
+        (!self.inherent_keep_alive).then(|| self.instant(self.tracker().ping_deadline()))
     }
 
-    /// When the receiver treats the transport as dropped unless a frame arrives first.
-    fn timeout_deadline(&self) -> tokio::time::Instant {
-        self.instant(self.tracker().timeout_deadline())
+    /// When the receiver treats the transport as dropped unless a frame arrives first (never
+    /// over a transport with inherent keep-alive).
+    fn timeout_deadline(&self) -> Option<tokio::time::Instant> {
+        (!self.inherent_keep_alive).then(|| self.instant(self.tracker().timeout_deadline()))
     }
 }
 
@@ -1035,7 +1046,8 @@ pub(crate) struct CommunicationConnection {
 impl CommunicationConnection {
     /// Spawns the writer and receiver tasks on the connection's runtime.
     /// `initial_ping` sends a Ping first, as the .NET client does after every handshake so the
-    /// server arms its client timeout (not after a stateful resume, which has no handshake).
+    /// server arms its client timeout (not after a stateful resume, which has no handshake, and
+    /// never over a transport with inherent keep-alive, which the server must not time out).
     fn start(
         socket: OpenSocket,
         storage: impl Storage + Send + 'static,
@@ -1049,10 +1061,12 @@ impl CommunicationConnection {
             .recipe
             .runtime()
             .unwrap_or_else(Handle::current);
+        let inherent_keep_alive = socket.stream.kind() == TransportKind::LongPolling;
         // The clock starts on the connection's runtime, which also runs both tasks' timers.
         let liveness = {
             let _runtime = runtime.enter();
             ConnectionLiveness::new(&disconnection_handler.recipe.liveness())
+                .with_inherent_keep_alive(inherent_keep_alive)
         };
         // The writer only tracks frames for the transport it owns.
         let writer = channels.writer(stateful.clone(), runtime.clone());
@@ -1068,7 +1082,7 @@ impl CommunicationConnection {
             [ping_frame(protocol_kind), close_frame(protocol_kind)],
             liveness.clone(),
             stop_mode.clone(),
-            initial_ping,
+            initial_ping && !inherent_keep_alive,
         ));
         let receiver = runtime.spawn(Self::run_receiver(
             socket.stream,
@@ -1132,7 +1146,13 @@ impl CommunicationConnection {
                 continue;
             }
             let event = {
-                let ping_due = std::pin::pin!(tokio::time::sleep_until(liveness.ping_deadline()));
+                let deadline = liveness.ping_deadline();
+                let ping_due = std::pin::pin!(async move {
+                    match deadline {
+                        Some(deadline) => tokio::time::sleep_until(deadline).await,
+                        None => std::future::pending().await,
+                    }
+                });
                 let frame = std::pin::pin!(data.recv());
                 let messages = futures::future::select(control.next(), frame);
                 match futures::future::select(messages, ping_due).await {
@@ -1272,8 +1292,15 @@ impl CommunicationConnection {
                             .as_ref()
                             .and_then(|buffer| buffer.locked().acknowledgement_due())
                             .map(|at| liveness.instant(at));
-                        let wake = ack.map_or(timeout, |ack| ack.min(timeout));
-                        match tokio::time::timeout_at(wake, stream.next()).await {
+                        let wake = match (ack, timeout) {
+                            (Some(ack), Some(timeout)) => Some(ack.min(timeout)),
+                            (ack, timeout) => ack.or(timeout),
+                        };
+                        let next = match wake {
+                            Some(wake) => tokio::time::timeout_at(wake, stream.next()).await,
+                            None => Ok(stream.next().await),
+                        };
+                        match next {
                             Ok(Some(item)) => item,
                             Ok(None) => {
                                 let transport = stream.kind();
@@ -1282,7 +1309,11 @@ impl CommunicationConnection {
                                     format!("the server closed the {transport} transport"),
                                 );
                             }
-                            Err(_) if tokio::time::Instant::now() < timeout => {
+                            Err(_)
+                                if timeout.is_none_or(|timeout| {
+                                    tokio::time::Instant::now() < timeout
+                                }) =>
+                            {
                                 if let Some(buffer) = stateful.as_ref() {
                                     if let Err(error) =
                                         Self::flush_ack(buffer, protocol_kind, &writer, &liveness)
@@ -1907,6 +1938,22 @@ impl CommunicationClient {
             TransportKind::WebSockets => Ok(super::transport_tokio::websockets(
                 Self::connect_socket(endpoint, recipe).await?,
             )),
+            TransportKind::LongPolling => {
+                // The first poll (and any token refresh it needs) is bounded like a WebSocket
+                // open; boxed for the same stack-size reason.
+                let timeout = recipe.liveness().connect_timeout;
+                let started = tokio::time::timeout(
+                    timeout,
+                    Box::pin(super::long_polling_tokio::start(
+                        &endpoint,
+                        recipe,
+                        recipe.protocol().transfer_format() == "Binary",
+                    )),
+                )
+                .await
+                .map_err(|_| Error::timed_out(TimeoutOperation::Connect, timeout))??;
+                Ok(super::transport_tokio::long_polling(started))
+            }
             other => Err(Error::transport_failure(
                 Some(other),
                 format!("this client cannot start the {other} transport yet"),
@@ -3478,5 +3525,109 @@ mod wire_parity {
         assert!(ended_by(HubProtocolKind::Json, br#"{"type":99}"#).is_none());
         #[cfg(feature = "messagepack")]
         assert!(ended_by(HubProtocolKind::MessagePack, &[0x91, 0x63]).is_none());
+    }
+}
+
+#[cfg(test)]
+mod long_polling_liveness {
+    use std::{sync::Arc, time::Duration};
+
+    use futures::{channel::mpsc, StreamExt};
+    use tokio_websockets::Message;
+
+    use super::{CommunicationConnection, ConnectionLiveness, WRITER_GRACEFUL};
+    use crate::{
+        communication::liveness::{close_frame, ping_frame, LivenessConfig},
+        protocol::hub_protocol::HubProtocolKind,
+    };
+
+    fn fast_liveness() -> LivenessConfig {
+        LivenessConfig {
+            keep_alive_interval: Duration::from_millis(10),
+            server_timeout: Duration::from_millis(20),
+            ..LivenessConfig::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn long_polling_start_is_bounded_by_the_connect_timeout() {
+        // A server that refuses the first poll, and a factory whose refresh never resolves.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            while let Ok((mut stream, _)) = listener.accept().await {
+                tokio::spawn(async move {
+                    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+                    let mut buffer = [0_u8; 4096];
+                    while let Ok(read) = stream.read(&mut buffer).await {
+                        if read == 0 {
+                            return;
+                        }
+                        let _ = stream
+                            .write_all(b"HTTP/1.1 401 Unauthorized\r\ncontent-length: 0\r\n\r\n")
+                            .await;
+                    }
+                });
+            }
+        });
+        let mut configuration =
+            crate::ConnectionConfiguration::new("127.0.0.1".into(), "hub".into());
+        configuration.unsecure();
+        configuration.with_port(i32::from(port));
+        configuration.with_connect_timeout(Duration::from_millis(300));
+        configuration.with_access_token_factory(std::future::pending::<Result<String, String>>);
+        let recipe = configuration.connection_recipe();
+        let started = std::time::Instant::now();
+        let error = super::CommunicationClient::start_transport(
+            crate::TransportKind::LongPolling,
+            format!("ws://127.0.0.1:{port}/hub?id=token")
+                .parse()
+                .unwrap(),
+            &recipe,
+        )
+        .await
+        .err()
+        .unwrap();
+        assert_eq!(error.kind(), crate::ErrorKind::Timeout);
+        assert!(started.elapsed() < Duration::from_secs(5));
+    }
+
+    #[tokio::test]
+    async fn long_polling_inherent_keep_alive_has_no_ping_or_server_timeout() {
+        let config = fast_liveness();
+        let websocket = ConnectionLiveness::new(&config);
+        assert!(websocket.ping_deadline().is_some());
+        assert!(websocket.timeout_deadline().is_some());
+        let long_polling = ConnectionLiveness::new(&config).with_inherent_keep_alive(true);
+        assert!(long_polling.ping_deadline().is_none());
+        assert!(long_polling.timeout_deadline().is_none());
+
+        // An idle writer sends no keep-alive Ping however long nothing goes out.
+        let (control, control_receiver) = mpsc::unbounded::<Message>();
+        let (data, data_receiver) = tokio::sync::mpsc::channel(4);
+        let (sink, writes) = mpsc::unbounded::<Message>();
+        let writer = tokio::spawn(CommunicationConnection::run_writer(
+            sink,
+            control_receiver,
+            data_receiver,
+            [
+                ping_frame(HubProtocolKind::Json),
+                close_frame(HubProtocolKind::Json),
+            ],
+            long_polling,
+            Arc::new(std::sync::atomic::AtomicU8::new(WRITER_GRACEFUL)),
+            false,
+        ));
+        // Twenty keep-alive intervals.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        drop((control, data));
+        writer.await.unwrap();
+        let written: Vec<Message> = writes.collect().await;
+        assert!(
+            written
+                .iter()
+                .all(|message| message.as_text() != Some("{\"type\":6}\u{1e}")),
+            "no keep-alive Ping over Long Polling"
+        );
     }
 }

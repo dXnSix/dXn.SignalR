@@ -40,11 +40,41 @@ fn websocket_error(message: String) -> Error {
 /// Sends frames to the server, in order, with the transport's backpressure.
 pub(crate) enum TransportSender {
     WebSockets(SplitSink<WebSocket, Message>),
+    LongPolling(super::long_polling_tokio::FrameSender),
 }
 
 /// Yields the server's frames until the transport ends with an error or closes (`None`).
 pub(crate) enum TransportReceiver {
     WebSockets(SplitStream<WebSocket>),
+    /// The poll task's items; `ended` once the server ended the connection or it failed.
+    LongPolling {
+        polls: super::long_polling_tokio::FrameReceiver,
+        ended: bool,
+    },
+}
+
+/// The sender/receiver pair of a started Long Polling transport.
+pub(crate) fn long_polling(
+    (sender, polls): (
+        super::long_polling_tokio::FrameSender,
+        super::long_polling_tokio::FrameReceiver,
+    ),
+) -> (TransportSender, TransportReceiver) {
+    (
+        TransportSender::LongPolling(sender),
+        TransportReceiver::LongPolling {
+            polls,
+            ended: false,
+        },
+    )
+}
+
+/// The error a Long Polling send fails with once the transport stopped.
+fn long_polling_closed() -> Error {
+    Error::transport_failure(
+        Some(TransportKind::LongPolling),
+        "the Long Polling transport stopped before the message was sent",
+    )
 }
 
 /// The sender/receiver pair of an open WebSocket.
@@ -69,6 +99,9 @@ impl Sink<Message> for TransportSender {
             TransportSender::WebSockets(sink) => {
                 Pin::new(sink).poll_ready(context).map_err(send_failed)
             }
+            TransportSender::LongPolling(sender) => Pin::new(sender)
+                .poll_ready(context)
+                .map_err(|_| long_polling_closed()),
         }
     }
 
@@ -77,6 +110,9 @@ impl Sink<Message> for TransportSender {
             TransportSender::WebSockets(sink) => {
                 Pin::new(sink).start_send(item).map_err(send_failed)
             }
+            TransportSender::LongPolling(sender) => Pin::new(sender)
+                .start_send(item)
+                .map_err(|_| long_polling_closed()),
         }
     }
 
@@ -85,6 +121,9 @@ impl Sink<Message> for TransportSender {
             TransportSender::WebSockets(sink) => {
                 Pin::new(sink).poll_flush(context).map_err(send_failed)
             }
+            TransportSender::LongPolling(sender) => Pin::new(sender)
+                .poll_flush(context)
+                .map_err(|_| long_polling_closed()),
         }
     }
 
@@ -93,6 +132,10 @@ impl Sink<Message> for TransportSender {
             TransportSender::WebSockets(sink) => {
                 Pin::new(sink).poll_close(context).map_err(send_failed)
             }
+            // Closing the queue ends the send task, which then sends the DELETE.
+            TransportSender::LongPolling(sender) => Pin::new(sender)
+                .poll_close(context)
+                .map_err(|_| long_polling_closed()),
         }
     }
 }
@@ -102,6 +145,7 @@ impl TransportReceiver {
     pub(crate) fn kind(&self) -> TransportKind {
         match self {
             TransportReceiver::WebSockets(_) => TransportKind::WebSockets,
+            TransportReceiver::LongPolling { .. } => TransportKind::LongPolling,
         }
     }
 }
@@ -140,6 +184,23 @@ impl Stream for TransportReceiver {
                     })
                 })
             }),
+            TransportReceiver::LongPolling { polls, ended } => {
+                if *ended {
+                    return Poll::Ready(None);
+                }
+                match polls.poll_recv(context) {
+                    Poll::Ready(Some(Ok(Some(frame)))) => Poll::Ready(Some(Ok(frame))),
+                    Poll::Ready(Some(Err(error))) => {
+                        *ended = true;
+                        Poll::Ready(Some(Err(error)))
+                    }
+                    Poll::Ready(Some(Ok(None)) | None) => {
+                        *ended = true;
+                        Poll::Ready(None)
+                    }
+                    Poll::Pending => Poll::Pending,
+                }
+            }
         }
     }
 }
