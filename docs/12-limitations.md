@@ -10,8 +10,14 @@ prove. Each item says what to do instead where there is an alternative.
   `withCredentials`, as the .NET client's browser `HttpClient` does by default; there is no option
   to change it, so cookies (for example a load balancer's sticky-session cookie) are not sent to
   a hub on another origin.
-- **Proxies.** Native clients connect directly; HTTP `CONNECT` proxies and system proxy settings
-  are not used. Browsers use the browser's proxy configuration.
+- **Operating-system proxy settings, HTTPS and SOCKS proxies.** Natively the system proxy comes
+  from the proxy environment variables; the operating system's own proxy settings (and proxy
+  auto-configuration) are not read yet, and only `http://` proxies are supported: an `https://`
+  or `socks` proxy URL in the environment is skipped, and `with_proxy` refuses one. Use
+  `with_proxy` or the environment variables. Browsers use the browser's proxy configuration.
+- **Proxy authentication schemes.** Proxies authenticate with Basic only, sent after the proxy's
+  407 challenge offers it; Digest, NTLM and Negotiate challenges fail with `ErrorKind::Proxy`
+  (407).
 - **Invocation timeout.** There is no per-call timeout; wrap calls in your runtime's timeout.
 - **Status events.** There is no status-change callback; use a disconnection handler or poll
   `status()`.

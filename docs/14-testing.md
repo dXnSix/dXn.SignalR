@@ -40,6 +40,16 @@ Service-dependent tests run only through .NET Aspire. The AppHost
 - `wasm-bindgen-cli`: the fixture's exact `wasm-bindgen` CLI, installed under
   `artifacts-temp/tools/wasm-bindgen/<version>` (a machine-wide CLI is never used);
 - `wasm-fixture-build` and `wasm-fixture-bindgen`: the browser fixture build;
+- `test-proxy`: a test-only HTTP `CONNECT` proxy (`dotnet/RayX.SignalR.TestProxy`) for the
+  `proxy` scenario. It requires the run's credentials (user `rayx`, a password the test runner
+  generates per run), refuses `denied.invalid:80`, counts its tunnels, and answers `GET /stats`
+  with the counters and the local ports of its tunnels. Tunnels to the service's allocated ports
+  go straight to the ports the service listens on (it reports them at `/e2e/listening`), past
+  Aspire's own endpoint proxy, so the service sees the tunnel as its peer (hub method `PeerPort`).
+  Cells receive `RAYX_SIGNALR_E2E_PROXY_URL` and `RAYX_SIGNALR_E2E_PROXY_CREDENTIALS`. Native
+  cells and the performance binaries never inherit the machine's proxy variables, so the
+  client's default system proxy cannot route them through a developer proxy; builds and tool
+  commands keep them;
 - `fixture-host`: a static host for the fixture and the host pages, on its own origin;
 - optionally the threaded (atomics) fixture, served cross-origin isolated.
 

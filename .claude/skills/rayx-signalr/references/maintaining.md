@@ -67,7 +67,8 @@ dotnet test dotnet/RayX.SignalR.E2E.Tests --filter "Category=WorkflowContract|Ca
   `tests/e2e/<scenario>.rs` (+ `tests/e2e/main.rs`), and the wasm fixture plus Playwright spec
   together; `Category=Catalog` fails on a mismatch.
 - .NET projects keep sources under `src/` next to the `.csproj`; the test service is
-  `dotnet/RayX.SignalR.TestService`.
+  `dotnet/RayX.SignalR.TestService`; the `proxy` scenario's CONNECT proxy is
+  `dotnet/RayX.SignalR.TestProxy` (Aspire resource `test-proxy`).
 
 ## Documentation duty
 

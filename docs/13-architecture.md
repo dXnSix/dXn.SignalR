@@ -16,6 +16,7 @@ the receive loop, and names the invariants that the tests protect.
 | `src/communication/negotiation.rs` | The negotiate state machine shared by both targets: request, redirect, error and connection outcomes, URL building, `skip_negotiation`. The HTTP request is injected. Transport selection (`select_transports`: the server's order, the configured set and the transfer format) and the fallback errors (`transports_failed`). |
 | `src/communication/negotiate_http.rs` | Native negotiate: one hyper HTTP/1.1 POST over the connection's own TCP or rustls stream, bounded by the connect timeout, with redacted error excerpts. |
 | `src/communication/common.rs` | `HttpClient` (negotiate per target, browser `fetch`), `ConnectionData`, Close-message parsing. |
+| `src/communication/proxy.rs` | Native proxies: `ProxyConfig` (explicit, disabled, or the system's environment variables with curl's `NO_PROXY` rules), redacted proxy URLs, and the HTTP `CONNECT` tunnel every native connection opens before TLS. |
 | `src/communication/tls.rs` | Native rustls: feature detection, provider and verifier selection, PEM roots, one `ClientConfig` per connection. |
 | `src/communication/client_tokio.rs` | The native connection: runtime-owned writer and receiver tasks, the reconnect coordinator, pause/resume, stateful resume. |
 | `src/communication/client_wasm.rs` | The browser connection: one generation-checked receiver task per socket, the same lifecycle on a single thread. |

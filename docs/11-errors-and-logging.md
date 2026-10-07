@@ -22,7 +22,7 @@ that carry them:
 | `Authentication` | The server refused the credentials, or the access-token factory returned `Err` (`access token factory failed: <message>`, no status). | `status()`: 401 or 403. |
 | `Timeout` | An operation exceeded its bound. | `timeout_operation()` (`Connect`, `Negotiate`, `Handshake`, `ServerTimeout`) and `timeout()`. |
 | `Tls` | The TLS handshake or certificate verification failed (native). | |
-| `Proxy` | A proxy refused or failed the tunnel. Not produced yet: the client does not use proxies (see [Limitations](12-limitations.md)). | |
+| `Proxy` | A proxy refused or failed the `CONNECT` tunnel (native), or could not be reached. | `status()` when the proxy answered (407, 403, 5xx); 407 and 403 are not transient. |
 | `Transport` | The network or the transport failed or dropped. | `transport()` when one was involved; `server_allows_reconnect()`. |
 | `TransportUnavailable` | No transport could be used: the server offers none the client can use, or several were tried and each failed to start (a single failed transport returns its own error). | `attempts()`: each transport with why it was skipped or failed. |
 | `Handshake` | The SignalR handshake failed. | |

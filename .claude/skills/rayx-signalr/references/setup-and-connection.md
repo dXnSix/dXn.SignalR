@@ -74,6 +74,7 @@ let mut client = SignalRClient::connect_with("localhost", "hubs/chat", |c| {
 | `with_maximum_message_size(usize)` | all | unbounded |
 | `with_close_timeout(Duration)` | all | 5 s |
 | `with_long_polling_timeout(Duration)` | all | 100 s |
+| `with_proxy(url)` / `with_system_proxy()` / `without_proxy()` | native | system proxy |
 | `with_messagepack_protocol()` | all, `messagepack` | JSON |
 | `with_keep_alive_interval(Duration)` | all | 15 s |
 | `with_server_timeout(Duration)` | all | 30 s (a value not above keep-alive is logged) |
@@ -123,6 +124,16 @@ server must read `access_token` for hub paths (JWT `OnMessageReceived`).
   All three start on both targets; MessagePack skips Server-Sent Events, and a MessagePack
   connection restricted to Server-Sent Events alone fails `new` with `Configuration`
   (`with_transports`).
+- Proxies (native; browsers use the browser's): default system proxy as .NET
+  `HttpEnvironmentProxy`, read per connection: `https_proxy`/`HTTPS_PROXY` (secure),
+  `http_proxy`/`HTTP_PROXY` (plain; `HTTP_PROXY` ignored when `GATEWAY_INTERFACE` is set),
+  `all_proxy`/`ALL_PROXY`; empty or non-`http://` values are skipped; `no_proxy`/`NO_PROXY` with
+  curl rules (hosts + subdomains, IPs, CIDR, `host:port`, `*`).
+  `with_proxy("http://[user:pass@]host[:port]")` (else `Configuration`/`with_proxy`),
+  `without_proxy()`. Every native connection opens an HTTP `CONNECT` tunnel, TLS runs inside it;
+  Basic credentials only after a 407 offering Basic; failures are `ErrorKind::Proxy` with
+  `status()` (407/403 not transient); credentials are never logged. OS proxy settings, PAC,
+  HTTPS and SOCKS proxies are not supported yet.
 - Server-Sent Events (both targets, JSON only): one streaming `GET` (`Accept: text/event-stream`;
   native parser per the HTML event-stream rules; browsers `EventSource` without automatic
   reconnection); sends as for Long Polling; closing ends the stream (no `DELETE`); native

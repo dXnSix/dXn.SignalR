@@ -28,9 +28,11 @@ redacted (no tokens, `Authorization` values, URL credentials). `From<Error> for 
 | `Transport` from `connect` | DNS/TCP; check host, port, `secure()` vs `unsecure()` (default is https) |
 | `Authentication`, `status()` 401/403 | credentials rejected at negotiate |
 | `Negotiate`, `status()` | negotiate HTTP error (404: wrong hub path); no status: server `error` answer, unreadable body, or too many redirects |
-| `TransportUnavailable` | server does not offer WebSockets with `Text`/`Binary`; enable WebSockets, `AddMessagePackProtocol()` for MessagePack |
+| `TransportUnavailable` | no offered transport the client may use (its message names each with the reason); enable a transport, `AddMessagePackProtocol()` for MessagePack (Server-Sent Events carry text only) |
 | `Timeout`, `timeout_operation()` `Negotiate`/`Connect`/`Handshake` | setup exceeded `with_connect_timeout` / `with_handshake_timeout` |
 | `Tls` | untrusted server certificate (native) |
+| `Proxy`, `status()` 407 / 403 / 5xx / none | native proxy tunnel failed: missing or refused credentials, no Basic scheme offered, target denied, proxy failure, or proxy unreachable (check `with_proxy` and the proxy environment variables) |
+| `Configuration`, `setting() == "with_proxy"` | proxy URL is not `http://[user:pass@]host[:port]` |
 | `Handshake` | server rejected the handshake (protocol not enabled) |
 | `Transport` from a call | call while reconnecting, after a manual-mode drop, or pending call failed by a drop or ordinary reconnect |
 | `Paused` | call while paused, or pending call failed by `pause()` |
@@ -61,7 +63,8 @@ rejected Acks, Sequences or messages with the reason. Every record starts with `
 
 ## Limitations
 
-- No HTTP CONNECT or system proxy support natively.
+- Native proxies: `http://` CONNECT proxies only, Basic authentication only, system proxy from
+  environment variables (no OS settings, PAC, HTTPS or SOCKS proxies yet).
 - No per-call timeout; no status-change events.
 - Browsers use the default `same-origin` credentials mode (no `withCredentials`, as the .NET
   browser client): no cookies to a hub on another origin.

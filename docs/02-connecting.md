@@ -292,6 +292,39 @@ let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
 })?;
 ```
 
+## Proxies
+
+Native clients use the system's proxy settings by default, as the .NET client's default proxy
+(`HttpEnvironmentProxy`), read each time a connection is opened: `https_proxy`, then
+`HTTPS_PROXY`, for secure endpoints; `http_proxy`, then `HTTP_PROXY`, for plain ones (a CGI
+process, with `GATEWAY_INTERFACE` set, ignores `HTTP_PROXY`, which a request's `Proxy:` header
+could set); `all_proxy`, then `ALL_PROXY`, when neither applies. A variable that is empty or not
+an `http://` proxy URL is skipped (`https://` and `socks` proxies are not supported yet).
+`no_proxy` (else `NO_PROXY`) exempts hosts with curl's rules: host names with their subdomains
+(`example.com`, `.example.com`), IP addresses, CIDR ranges (`10.0.0.0/8`), entries with a port
+(`example.com:8443`), and `*` for every host. Browsers always use the browser's proxy settings and
+have none of these options.
+
+```rust
+let client = rayx_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
+    // An explicit proxy instead of the system's; credentials are optional.
+    c.with_proxy("http://user:password@proxy.example.com:3128");
+    // Or: c.without_proxy(); to connect directly, or c.with_system_proxy(); (the default).
+})?;
+```
+
+Every native connection (negotiate, the WebSocket, Long Polling and Server-Sent Events) to a
+proxied endpoint opens an HTTP `CONNECT` tunnel through the proxy, and runs TLS with the
+connection's own configuration inside the tunnel for secure endpoints, so the proxy never sees the
+traffic or terminates TLS. As in the .NET client, the URL's credentials (percent-encode `:` and
+`@` in them) go out only when the proxy asks for them: after a 407 that offers the Basic scheme,
+the tunnel request is sent again with Basic `Proxy-Authorization`. A tunnel that fails fails the
+connection with `ErrorKind::Proxy`, with `status()` when the proxy answered: 407 (no or refused
+credentials, or no Basic scheme offered) and 403 are not transient, an unreachable proxy (no
+status) and 5xx are. Proxy credentials never appear in logs or errors. A proxy URL other than
+`http://[user:password@]host[:port]` fails `new` and `connect` with `ErrorKind::Configuration`
+naming `with_proxy`.
+
 ## Hub protocol
 
 JSON is the default. With the `messagepack` feature:
@@ -344,6 +377,7 @@ otherwise the runtime `connect` is called from, otherwise `connect` fails before
 | `with_connect_timeout(Duration)` | all | 120 s | [Lifecycle](06-connection-lifecycle.md#liveness) |
 | `with_close_timeout(Duration)` | all | 5 s | [Lifecycle](06-connection-lifecycle.md#stopping) |
 | `with_long_polling_timeout(Duration)` | all | 100 s | [Long Polling](#long-polling) |
+| `with_proxy(url)`, `with_system_proxy()`, `without_proxy()` | native | the system proxy | [Proxies](#proxies) |
 | `with_reconnection_policy(ReconnectionConfig)` | all | never reconnect | [Reconnection](07-reconnection.md) |
 | `with_disconnection_handler(handler)` | all | none | [Manual reconnection](07-reconnection.md#manual-reconnection) |
 | `with_stateful_reconnect(StatefulReconnectConfig)` | all | off | [Stateful reconnect](07-reconnection.md#stateful-reconnect) |
