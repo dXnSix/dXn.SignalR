@@ -21,7 +21,7 @@ use futures::{channel::mpsc, StreamExt};
 use log::{debug, warn};
 
 use crate::{
-    client::SignalRClient,
+    client::WeakSignalRClient,
     error::Error,
     platform::LockExt,
     protocol::{
@@ -287,22 +287,30 @@ enum Command {
 struct Registration {
     id: u64,
     callback: Callback,
-    client: SignalRClient,
 }
 
 type Registrations = HashMap<String, Vec<Shared<Registration>>>;
+
+/// The dispatch task's channel (its receiver until the task starts) and the reply sink of the
+/// transport that delivers the next calls.
+struct Channel {
+    commands: mpsc::UnboundedSender<Command>,
+    pending: Option<mpsc::UnboundedReceiver<Command>>,
+    replies: Option<Replies>,
+    /// A local close ended the task; calls are dropped until `open` makes a new channel.
+    closed: bool,
+}
 
 /// The callbacks of one client and the channel to their dispatch task.
 #[derive(Clone)]
 pub(crate) struct CallbackRegistry {
     registrations: Shared<Mutex<Registrations>>,
-    /// The current transport's reply sink, for the calls that arrive on it.
-    replies: Shared<Mutex<Option<Replies>>>,
+    /// The client the callbacks receive, as a handle that does not keep it alive: neither the
+    /// registrations nor the registry keep a client open, so no reference cycle forms.
+    owner: Shared<Mutex<Option<WeakSignalRClient>>>,
+    channel: Shared<Mutex<Channel>>,
     /// Counts the logical connections: a stateful resume keeps one, a fresh negotiation starts one.
     logical_connection: Shared<AtomicU64>,
-    commands: mpsc::UnboundedSender<Command>,
-    /// The task's end of the channel until the task starts.
-    pending: Shared<Mutex<Option<mpsc::UnboundedReceiver<Command>>>>,
     next_id: Shared<AtomicU64>,
 }
 
@@ -311,38 +319,45 @@ impl CallbackRegistry {
         let (commands, receiver) = mpsc::unbounded();
         Self {
             registrations: Shared::new(Mutex::new(HashMap::new())),
-            replies: Shared::new(Mutex::new(None)),
+            owner: Shared::new(Mutex::new(None)),
+            channel: Shared::new(Mutex::new(Channel {
+                commands,
+                pending: Some(receiver),
+                replies: None,
+                closed: false,
+            })),
             logical_connection: Shared::new(AtomicU64::new(0)),
-            commands,
-            pending: Shared::new(Mutex::new(Some(receiver))),
             next_id: Shared::new(AtomicU64::new(1)),
         }
     }
 
     /// Registers `callback` for `target` after the ones already registered; returns the
-    /// registration id that unregisters only it.
+    /// registration id that unregisters only it. `client` becomes the client the callbacks
+    /// receive (held weakly) when none is set yet.
     pub(crate) fn register(
         &self,
         target: String,
         callback: Callback,
-        client: SignalRClient,
+        client: WeakSignalRClient,
     ) -> u64 {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
-        let registration = Shared::new(Registration {
-            id,
-            callback,
-            client,
-        });
+        let registration = Shared::new(Registration { id, callback });
         self.registrations
             .locked()
             .entry(target)
             .or_default()
             .push(registration);
+        self.owner.locked().get_or_insert(client);
         id
     }
 
+    /// Sets the client the callbacks receive.
+    pub(crate) fn set_owner(&self, client: WeakSignalRClient) {
+        *self.owner.locked() = Some(client);
+    }
+
     pub(crate) fn unregister(&self, target: String, id: u64) {
-        // Dropped outside the lock: a registration holds a client handle.
+        // Dropped outside the lock: a callback can own anything.
         let removed = {
             let mut registrations = self.registrations.locked();
             let Some(callbacks) = registrations.get_mut(&target) else {
@@ -368,9 +383,22 @@ impl CallbackRegistry {
         drop(removed);
     }
 
+    /// Prepares the dispatch task of a started client: after a local close, a new task starts
+    /// with the next transport.
+    pub(crate) fn open(&self) {
+        let mut channel = self.channel.locked();
+        if channel.closed {
+            let (commands, receiver) = mpsc::unbounded();
+            channel.commands = commands;
+            channel.pending = Some(receiver);
+            channel.closed = false;
+        }
+    }
+
     /// Sets the reply sink of the transport that delivers the next calls.
     pub(crate) fn set_replies(&self, replies: Option<Replies>) {
-        *self.replies.locked() = replies;
+        let previous = std::mem::replace(&mut self.channel.locked().replies, replies);
+        drop(previous);
     }
 
     /// Records that a fresh logical connection replaced the previous one: answers to calls that
@@ -387,23 +415,30 @@ impl CallbackRegistry {
 
     /// Queues one server-to-client call for the dispatch task.
     pub(crate) fn dispatch(&self, mut invocation: OwnedInvocation) {
-        invocation.replies = self.replies.locked().clone();
         invocation.logical_connection = self.logical_connection.load(Ordering::Acquire);
-        if self
-            .commands
-            .unbounded_send(Command::Invoke(invocation))
-            .is_err()
-        {
+        let sent = {
+            let channel = self.channel.locked();
+            invocation.replies = channel.replies.clone();
+            channel.commands.unbounded_send(Command::Invoke(invocation))
+        };
+        if let Err(error) = sent {
             debug!("The callback dispatch task has ended");
+            // The call (and its reply sink) is dropped outside the lock.
+            drop(error);
         }
     }
 
-    /// Drops every callback and ends the dispatch task after the calls already queued.
+    /// Closes the registry on a local close: the callbacks stay registered for a restart, and
+    /// the dispatch task ends after the calls already queued (which no callback receives any
+    /// more); `open` prepares a new task for the next start.
     pub(crate) fn close(&self) {
-        let registrations = std::mem::take(&mut *self.registrations.locked());
-        drop(registrations);
-        self.set_replies(None);
-        let _ = self.commands.unbounded_send(Command::Close);
+        let (unstarted, replies) = {
+            let mut channel = self.channel.locked();
+            channel.closed = true;
+            let _ = channel.commands.unbounded_send(Command::Close);
+            (channel.pending.take(), channel.replies.take())
+        };
+        drop((unstarted, replies));
     }
 
     /// The callbacks registered for `target` now, cloned out of the lock.
@@ -418,7 +453,7 @@ impl CallbackRegistry {
     /// Starts the dispatch task on the current runtime (natively from the receive loop on the
     /// connection's runtime, in the browser on the event loop); later calls do nothing.
     pub(crate) fn start(&self) {
-        let Some(receiver) = self.pending.locked().take() else {
+        let Some(receiver) = self.channel.locked().pending.take() else {
             return;
         };
         #[cfg(not(target_arch = "wasm32"))]
@@ -431,8 +466,8 @@ impl CallbackRegistry {
     /// (tests and benchmarks dispatch without a connection).
     #[cfg(any(test, all(feature = "bench-internals", not(target_arch = "wasm32"))))]
     pub(crate) fn run_queued(&self) {
-        let mut pending = self.pending.locked();
-        let Some(receiver) = pending.as_mut() else {
+        // Taken out of the lock: a callback may close the registry, which replaces the channel.
+        let Some(mut receiver) = self.channel.locked().pending.take() else {
             return;
         };
         while let Ok(command) = receiver.try_recv() {
@@ -446,6 +481,10 @@ impl CallbackRegistry {
             if futures::FutureExt::now_or_never(invoking.as_mut()).is_none() {
                 futures::executor::block_on(invoking);
             }
+        }
+        let mut channel = self.channel.locked();
+        if channel.pending.is_none() && !channel.closed {
+            channel.pending = Some(receiver);
         }
     }
 
@@ -466,10 +505,19 @@ impl CallbackRegistry {
             warn!("No callback is registered for {}", invocation.target);
             return;
         }
+        // Upgraded outside the lock: dropping the handle afterwards can close the client.
+        let owner = self.owner.locked().clone();
+        let Some(client) = owner.and_then(|owner| owner.upgrade()) else {
+            debug!(
+                "The client is gone; the call to {} is dropped",
+                invocation.target
+            );
+            return;
+        };
         for registration in registrations {
             debug!("Running callback {}", invocation.target);
             let context = InvocationContext::create(
-                registration.client.clone(),
+                client.clone(),
                 invocation.arguments.clone(),
                 hold.as_ref().map(ResultHold::share),
             );
@@ -492,6 +540,7 @@ impl CallbackRegistry {
                 hold.record_panic(message);
             }
         }
+        drop(client);
         drop(hold);
     }
 }
@@ -520,7 +569,7 @@ async fn run(registry: CallbackRegistry, mut receiver: mpsc::UnboundedReceiver<C
 
 /// Runs user code; natively a panic is caught and logged and becomes the error message (the
 /// panic text), and dispatch goes on.
-fn guarded<R>(target: &str, run: impl FnOnce() -> R) -> Result<R, String> {
+pub(crate) fn guarded<R>(target: &str, run: impl FnOnce() -> R) -> Result<R, String> {
     #[cfg(not(target_arch = "wasm32"))]
     {
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(run))
@@ -595,7 +644,7 @@ mod callback_msgpack_args {
             Callback::sync(move |context| {
                 *slot.lock().unwrap() = Some(context.argument::<T>(0));
             }),
-            SignalRClient::detached(storage.clone()),
+            SignalRClient::detached(storage.clone()).downgrade(),
         );
         let mut record = Vec::new();
         rmpv::encode::write_value(
@@ -1001,7 +1050,8 @@ mod callback_dispatch {
         eventually("the added callback", || calls.lock().unwrap().len() == 1).await;
     }
 
-    /// Closing the registry (a local close) drops the callbacks; later calls run nothing.
+    /// Closing the registry (a local close) ends the dispatch task, so later calls run nothing;
+    /// the callbacks stay registered for a restart.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn callback_dispatch_stops_when_the_client_closes() {
         let mut storage = UpdatableActionStorage::new();
@@ -1019,7 +1069,11 @@ mod callback_dispatch {
         invocation(&mut storage, "Notify", 2);
         tokio::time::sleep(Duration::from_millis(50)).await;
         assert_eq!(*calls.lock().unwrap(), 1);
-        assert_eq!(Arc::strong_count(&calls), 1, "the callback was dropped");
+        assert_eq!(
+            Arc::strong_count(&calls),
+            2,
+            "the callback stays registered for a restart"
+        );
     }
 }
 

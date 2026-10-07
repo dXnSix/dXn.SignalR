@@ -289,7 +289,7 @@ impl Receiver {
                     handler(argument);
                 }
             }),
-            client,
+            client.downgrade(),
         );
     }
 

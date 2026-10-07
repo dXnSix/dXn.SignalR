@@ -158,7 +158,7 @@ mod reconnect_lifecycle_storage {
             crate::execution::Callback::sync(move |_| {
                 counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             }),
-            crate::client::SignalRClient::detached(storage.clone()),
+            crate::client::SignalRClient::detached(storage.clone()).downgrade(),
         );
         storage.insert("invocation".to_string(), TestAction);
 
@@ -314,7 +314,7 @@ mod invocation_ids {
             Callback::sync(move |_| {
                 counted.fetch_add(1, Ordering::SeqCst);
             }),
-            SignalRClient::detached(storage.clone()),
+            SignalRClient::detached(storage.clone()).downgrade(),
         );
         calls
     }

@@ -266,6 +266,11 @@ pub fn encode_ping() -> Vec<u8> {
     vec![0x91, 0x06]
 }
 
+/// A client's Close message without an error: fixarray(3), fixint(7), nil, false.
+pub fn encode_close() -> Vec<u8> {
+    vec![0x93, 0x07, 0xc0, 0xc2]
+}
+
 // ── Inbound Decoding ────────────────────────────────────────────────────
 
 /// Parse a full MessagePack message into an rmpv::Value array.

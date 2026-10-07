@@ -74,7 +74,9 @@ webpki-roots = { version = "1.0.8", optional = true }
 jni = { version = "0.22", default-features = false, optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread", "time"] }
+tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread", "time", "io-util"] }
+# The unit tests' loopback SignalR server.
+tokio-websockets = { version = "0.13.3", default-features = false, features = ["sha1_smol", "fastrand", "server"] }
 env_logger = "0.11"
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
 proptest = { version = "1.5", default-features = false, features = ["std"] }

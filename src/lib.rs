@@ -20,11 +20,12 @@ mod test_logging;
 
 pub use client::{
     CallbackArguments, ConnectionConfiguration, DisconnectionHandler, InvocationContext,
-    ReconnectionHandler, SignalRClient,
+    ReconnectionHandler, SignalRClient, WeakSignalRClient,
 };
 pub use communication::reconnection::{
-    ConnectionStatus, ConstantDelayPolicy, DefaultRetryPolicy, ExponentialBackoffPolicy,
-    LinearBackoffPolicy, NoReconnectPolicy, ReconnectionConfig, ReconnectionPolicy,
+    ConnectionStatus, ConstantDelayPolicy, DefaultRetryPolicy, DelayListPolicy,
+    ExponentialBackoffPolicy, LinearBackoffPolicy, NoReconnectPolicy, ReconnectionConfig,
+    ReconnectionPolicy, RetryContext,
 };
 pub use communication::transport::TransportKind;
 pub use completer::{CompletedFuture, ManualFuture, ManualStream};

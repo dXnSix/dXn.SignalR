@@ -10,7 +10,8 @@ pub use storage::CallbackHandler;
 
 pub(crate) use actions::UpdatableAction;
 pub(crate) use callback::{
-    call_connection_replaced, Callback, ReplyFuture, ReplySink, ResultHold, BINDING_FAILURE,
+    call_connection_replaced, guarded, Callback, ReplyFuture, ReplySink, ResultHold,
+    BINDING_FAILURE,
 };
 pub(crate) use storage::{Storage, StorageUnregistrationHandler};
 

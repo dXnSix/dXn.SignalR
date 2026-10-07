@@ -115,6 +115,16 @@ impl BrowserSocket {
     pub(crate) fn close(&self) {
         let _ = self.socket.close();
     }
+
+    /// Bytes queued by `send` that the browser has not transmitted yet.
+    pub(crate) fn buffered_amount(&self) -> u32 {
+        self.socket.buffered_amount()
+    }
+
+    /// Whether the closing handshake completed (or the socket failed).
+    pub(crate) fn is_closed(&self) -> bool {
+        self.socket.ready_state() == WebSocket::CLOSED
+    }
 }
 
 impl Drop for BrowserSocket {

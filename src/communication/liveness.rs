@@ -31,6 +31,8 @@ pub(crate) struct LivenessConfig {
     pub(crate) handshake_timeout: Duration,
     /// Bounds each negotiate request and opening the transport.
     pub(crate) connect_timeout: Duration,
+    /// Bounds how long `stop` waits for the transport to close.
+    pub(crate) close_timeout: Duration,
 }
 
 impl Default for LivenessConfig {
@@ -41,48 +43,67 @@ impl Default for LivenessConfig {
             handshake_timeout: Duration::from_secs(15),
             // The official .NET client's negotiate bound (its HttpClient timeout).
             connect_timeout: Duration::from_secs(120),
+            // The official .NET client's `HttpConnectionOptions.CloseTimeout`.
+            close_timeout: Duration::from_secs(5),
         }
     }
 }
 
+/// The official .NET client checks its liveness timers once per second, so a zero keep-alive
+/// interval or server timeout acts as one second there; it does here too.
+const ZERO_TIMER: Duration = Duration::from_secs(1);
+
+fn timer(value: Duration) -> Duration {
+    if value.is_zero() {
+        ZERO_TIMER
+    } else {
+        value
+    }
+}
+
 impl LivenessConfig {
-    /// Rejects zero durations and a server timeout that does not exceed the keep-alive interval.
-    pub(crate) fn validate(&self) -> Result<(), Error> {
-        for (setting, name, value) in [
-            (
-                "with_keep_alive_interval",
-                "keep-alive interval",
-                self.keep_alive_interval,
-            ),
-            ("with_server_timeout", "server timeout", self.server_timeout),
-            (
-                "with_handshake_timeout",
-                "handshake timeout",
-                self.handshake_timeout,
-            ),
-            (
-                "with_connect_timeout",
-                "connect timeout",
-                self.connect_timeout,
-            ),
+    /// Every duration is accepted, as the official .NET client accepts them; values that cannot
+    /// work are reported here and logged as warnings when the client is built.
+    pub(crate) fn warnings(&self) -> Vec<String> {
+        let mut warnings = Vec::new();
+        for (name, value) in [
+            ("keep-alive interval", self.keep_alive_interval),
+            ("server timeout", self.server_timeout),
         ] {
             if value.is_zero() {
-                return Err(Error::configuration(
-                    setting,
-                    format!("the {name} must be greater than zero"),
+                warnings.push(format!(
+                    "the {name} is zero; it acts as {ZERO_TIMER:?}, the official .NET client's timer tick"
                 ));
             }
         }
-        if self.server_timeout <= self.keep_alive_interval {
-            return Err(Error::configuration(
-                "with_server_timeout",
-                format!(
-                    "the server timeout ({:?}) must be greater than the keep-alive interval ({:?})",
-                    self.server_timeout, self.keep_alive_interval
-                ),
+        for (name, value) in [
+            ("handshake timeout", self.handshake_timeout),
+            ("connect timeout", self.connect_timeout),
+        ] {
+            if value.is_zero() {
+                warnings.push(format!(
+                    "the {name} is zero, so every connection attempt times out at once"
+                ));
+            }
+        }
+        let keep_alive = timer(self.keep_alive_interval);
+        let server_timeout = timer(self.server_timeout);
+        if server_timeout <= keep_alive {
+            warnings.push(format!(
+                "the server timeout ({server_timeout:?}) is not greater than the keep-alive \
+                 interval ({keep_alive:?}), so the connection is considered lost whenever the \
+                 server is idle; the server's keep-alive interval should be well below the \
+                 client's server timeout (the defaults are 15 s and 30 s)"
             ));
         }
-        Ok(())
+        warnings
+    }
+
+    /// Logs the values that cannot work.
+    pub(crate) fn warn(&self) {
+        for warning in self.warnings() {
+            log::warn!("{warning}");
+        }
     }
 }
 
@@ -111,8 +132,8 @@ pub(crate) struct LivenessTracker {
 impl LivenessTracker {
     pub(crate) fn new(config: &LivenessConfig, now: u64) -> Self {
         Self {
-            keep_alive_ms: config.keep_alive_interval.as_millis() as u64,
-            server_timeout_ms: config.server_timeout.as_millis() as u64,
+            keep_alive_ms: timer(config.keep_alive_interval).as_millis() as u64,
+            server_timeout_ms: timer(config.server_timeout).as_millis() as u64,
             last_sent: now,
             last_received: now,
         }
@@ -161,6 +182,18 @@ pub(crate) fn ping_frame(protocol: HubProtocolKind) -> SerializedFrame {
         #[cfg(feature = "messagepack")]
         HubProtocolKind::MessagePack => SerializedFrame::binary(
             crate::protocol::msgpack::frame_message(&crate::protocol::msgpack::encode_ping()),
+        ),
+    }
+}
+
+/// The SignalR Close message a client sends before it closes the transport, as the official
+/// clients' `stop` does: `{"type":7}` or `[7, nil, false]`.
+pub(crate) fn close_frame(protocol: HubProtocolKind) -> SerializedFrame {
+    match protocol {
+        HubProtocolKind::Json => SerializedFrame::text("{\"type\":7}\u{1e}"),
+        #[cfg(feature = "messagepack")]
+        HubProtocolKind::MessagePack => SerializedFrame::binary(
+            crate::protocol::msgpack::frame_message(&crate::protocol::msgpack::encode_close()),
         ),
     }
 }
@@ -214,6 +247,7 @@ mod liveness_tests {
             server_timeout: Duration::from_millis(server_timeout),
             handshake_timeout: Duration::from_millis(1_000),
             connect_timeout: Duration::from_millis(1_000),
+            close_timeout: Duration::from_millis(1_000),
         }
     }
 
@@ -224,22 +258,41 @@ mod liveness_tests {
         assert_eq!(defaults.server_timeout, Duration::from_secs(30));
         assert_eq!(defaults.handshake_timeout, Duration::from_secs(15));
         assert_eq!(defaults.connect_timeout, Duration::from_secs(120));
-        assert!(defaults.validate().is_ok());
+        assert_eq!(defaults.close_timeout, Duration::from_secs(5));
     }
 
     #[test]
-    fn liveness_rejects_zero_durations_and_a_short_server_timeout() {
-        assert!(config(0, 30_000).validate().is_err());
-        assert!(config(15_000, 0).validate().is_err());
-        assert!(config(15_000, 15_000).validate().is_err());
-        assert!(config(15_000, 10_000).validate().is_err());
-        let mut zero_handshake = config(1_000, 2_000);
-        zero_handshake.handshake_timeout = Duration::ZERO;
-        assert!(zero_handshake.validate().is_err());
-        let mut zero_connect = config(1_000, 2_000);
-        zero_connect.connect_timeout = Duration::ZERO;
-        let error = zero_connect.validate().unwrap_err();
-        assert_eq!(error.setting(), Some("with_connect_timeout"));
+    fn liveness_parity_accepts_every_duration_and_warns_about_values_that_cannot_work() {
+        assert!(LivenessConfig::default().warnings().is_empty());
+        assert!(config(1_000, 2_000).warnings().is_empty());
+        let zero_keep_alive = config(0, 30_000).warnings();
+        assert_eq!(zero_keep_alive.len(), 1, "{zero_keep_alive:?}");
+        assert!(zero_keep_alive[0].contains("keep-alive interval is zero"));
+        for short in [
+            config(15_000, 15_000),
+            config(15_000, 10_000),
+            config(15_000, 0),
+        ] {
+            assert!(
+                short
+                    .warnings()
+                    .iter()
+                    .any(|warning| warning.contains("not greater than the keep-alive")),
+                "{:?}",
+                short.warnings()
+            );
+        }
+        let mut zero_setup = config(1_000, 2_000);
+        zero_setup.handshake_timeout = Duration::ZERO;
+        zero_setup.connect_timeout = Duration::ZERO;
+        assert_eq!(zero_setup.warnings().len(), 2);
+    }
+
+    #[test]
+    fn liveness_parity_zero_timers_act_as_the_dotnet_timer_tick() {
+        let tracker = LivenessTracker::new(&config(0, 0), 0);
+        assert!(matches!(tracker.poll(500), LivenessAction::Idle { .. }));
+        assert_eq!(tracker.poll(1_000), LivenessAction::TimedOut);
     }
 
     #[test]
@@ -358,28 +411,6 @@ mod liveness_tests {
         assert_eq!(liveness.server_timeout, Duration::from_secs(2));
         assert_eq!(liveness.handshake_timeout, Duration::from_secs(3));
         assert_eq!(liveness.connect_timeout, Duration::from_secs(4));
-    }
-
-    /// The host does not resolve, so only validation before any I/O can produce this error.
-    #[cfg(not(target_arch = "wasm32"))]
-    #[test]
-    fn liveness_invalid_options_fail_connect_before_io() {
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap();
-        let error = runtime
-            .block_on(crate::SignalRClient::connect_with(
-                "liveness.invalid",
-                "hub",
-                |configuration| {
-                    configuration.with_keep_alive_interval(Duration::from_secs(30));
-                },
-            ))
-            .err()
-            .expect("an invalid liveness configuration must fail connect");
-        assert_eq!(error.kind(), crate::ErrorKind::Configuration);
-        assert_eq!(error.setting(), Some("with_server_timeout"));
     }
 
     #[test]

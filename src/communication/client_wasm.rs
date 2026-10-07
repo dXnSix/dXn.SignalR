@@ -50,12 +50,14 @@ use crate::{
 use super::{
     browser_socket::{BrowserSocket, SocketEvent},
     common::Communication,
+    hooks::LifecycleHooks,
     liveness::{
-        parse_handshake_response, ping_frame, LivenessAction, LivenessConfig, LivenessTracker,
+        close_frame, parse_handshake_response, ping_frame, LivenessAction, LivenessConfig,
+        LivenessTracker,
     },
     reconnection::{
-        ConnectionStatus, FirstAttempt, Lifecycle, LifecycleState, PauseOutcome,
-        ReconnectionConfig, ResumeOutcome,
+        ask_policy, AttemptOutcome, ConnectionStatus, FirstAttempt, Lifecycle, LifecycleState,
+        PauseOutcome, ReconnectionConfig, ResumeOutcome, RetryContext, Runs,
     },
     stateful::{SerializedFrame, StatefulMessageBuffer, TrackResult},
     transport::TransportKind,
@@ -170,8 +172,15 @@ struct Shared {
     /// connection.
     lifecycle: Cell<Lifecycle>,
     /// Why the client is disconnected (a terminal close, a manual-mode drop, or exhausted
-    /// attempts); sends in that state fail with it.
+    /// attempts); sends in that state fail with it. `None` after a failed start.
     disconnect_reason: RefCell<Option<Error>>,
+    /// The start or reconnect run in flight, which a local close cancels.
+    runs: Runs,
+    hooks: LifecycleHooks,
+    /// The negotiated id of the current logical connection (`None` without negotiation).
+    connection_id: RefCell<Option<String>>,
+    /// The start or reconnect attempt in flight, which calls made meanwhile wait for.
+    attempt: RefCell<Option<AttemptOutcome>>,
 }
 
 impl Shared {
@@ -194,9 +203,37 @@ impl Shared {
         self.lifecycle.get().superseded()
     }
 
+    /// The negotiated id of the current connection, while connected.
+    fn current_connection_id(&self) -> Option<String> {
+        (self.state() == LifecycleState::Connected)
+            .then(|| self.connection_id.borrow().clone())
+            .flatten()
+    }
+
+    /// The replay buffer while the logical connection is stateful: a disposed buffer means the
+    /// client is configured for stateful reconnect but its logical connection is ordinary (not
+    /// started yet, ended, or negotiated by a server that declined stateful reconnect).
+    fn active_stateful(&self) -> Option<SharedStatefulBuffer> {
+        self.stateful
+            .as_ref()
+            .filter(|buffer| !buffer.borrow().is_disposed())
+            .cloned()
+    }
+
+    /// Runs the start or reconnect run of `generation` until it ends or a local close cancels it.
+    async fn supervise<T>(
+        &self,
+        generation: u64,
+        future: impl std::future::Future<Output = Result<T, Error>>,
+    ) -> Result<T, Error> {
+        self.runs
+            .supervise(generation, future, || self.superseded())
+            .await
+    }
+
     /// Fails ordinary pending work; stateful pending work waits for the resume.
     fn fail_ordinary_pending(&self, reason: &Error) {
-        if self.stateful.is_none() {
+        if self.active_stateful().is_none() {
             let mut storage = self.storage.clone();
             storage.fail_pending(reason);
         }
@@ -208,13 +245,16 @@ impl Shared {
             LifecycleState::Paused => Error::paused(),
             LifecycleState::LocalClosed => Error::closed_locally(),
             LifecycleState::Reconnecting => websocket_error("the connection is reconnecting"),
+            LifecycleState::NotStarted => Error::not_started(),
+            LifecycleState::Connecting => Error::invalid_state("the connection is starting"),
             LifecycleState::Disconnected | LifecycleState::Connected => {
                 match self.disconnect_reason.borrow().clone() {
                     Some(reason) if reason.kind() == crate::ErrorKind::ConnectionClosed => reason,
                     Some(reason) => {
                         websocket_error("the connection is disconnected").with_source(reason)
                     }
-                    None => websocket_error("the connection is not open"),
+                    // A failed start.
+                    None => Error::not_started(),
                 }
             }
         }
@@ -251,7 +291,10 @@ impl WasmReconnectionContext {
     pub async fn reconnect(&self) -> Result<(), Error> {
         self.refuse_terminal_close()?;
         let generation = begin_reconnect(&self.shared, &replaced_by_reconnect())?;
-        let result = attempt(&self.shared, generation).await;
+        let result = self
+            .shared
+            .supervise(generation, attempt(&self.shared, generation))
+            .await;
         if let Err(error) = &result {
             fail_generation(&self.shared, generation, error);
         }
@@ -261,7 +304,14 @@ impl WasmReconnectionContext {
     pub async fn reconnect_with_policy(&self) -> Result<(), Error> {
         self.refuse_terminal_close()?;
         let generation = begin_reconnect(&self.shared, &replaced_by_reconnect())?;
-        run_policy_to_end(&self.shared, generation, FirstAttempt::WithoutDelay).await
+        run_policy_to_end(
+            &self.shared,
+            generation,
+            FirstAttempt::WithoutDelay,
+            None,
+            &self.reason,
+        )
+        .await
     }
 
     pub async fn is_connected(&self) -> bool {
@@ -288,25 +338,40 @@ fn fail_generation(shared: &Shared, generation: u64, reason: &Error) -> bool {
         return false;
     }
     shared.disconnect_reason.replace(Some(reason.clone()));
+    shared.hooks.closed(Some(reason.clone()));
     true
 }
 
-/// One connect attempt of `generation`: a stateful resume, or a fresh negotiation and handshake.
-/// The socket is installed only if the generation still runs.
+/// One connect attempt of `generation` (a start or a reconnect): a stateful resume, or a fresh
+/// negotiation and handshake. The socket is installed only if the generation still runs.
 async fn attempt(shared: &Rc<Shared>, generation: u64) -> Result<(), Error> {
+    if !shared.owns(generation) {
+        return Err(shared.superseded());
+    }
+    // Calls made while the attempt runs wait for its outcome.
+    let (report, outcome) = AttemptOutcome::new();
+    let id = outcome.id();
+    shared.attempt.replace(Some(outcome));
+    let result = attempt_once(shared, generation).await;
+    let current = shared.attempt.borrow().as_ref().map(AttemptOutcome::id);
+    if current == Some(id) {
+        shared.attempt.replace(None);
+    }
+    report.report(&result);
+    result
+}
+
+async fn attempt_once(shared: &Rc<Shared>, generation: u64) -> Result<(), Error> {
     let liveness = shared.recipe.liveness();
-    // A disposed buffer means the stateful logical connection ended (a pause: browsers cannot
-    // drop a socket without the closing handshake, after which the server disposes it; or a
-    // terminal close or exhausted attempts): negotiate a fresh one instead of resuming.
-    let resume = shared
-        .stateful
-        .as_ref()
-        .filter(|buffer| !buffer.borrow().is_disposed());
+    // A disposed buffer means no stateful logical connection is resumable (not started yet; a
+    // pause: browsers cannot drop a socket without the closing handshake, after which the server
+    // disposes it; or a terminal close or exhausted attempts): negotiate a fresh one instead.
+    let resume = shared.active_stateful();
     let resumed = resume.is_some();
-    let (opened, fresh_stateful) = if let Some(buffer) = resume {
+    let (opened, fresh_stateful, fresh_id) = if let Some(buffer) = resume {
         let endpoint = shared.transport_endpoint.borrow().clone();
-        let opened = resume_socket(&endpoint, shared.protocol_kind, buffer, &liveness).await?;
-        (opened, None)
+        let opened = resume_socket(&endpoint, shared.protocol_kind, &buffer, &liveness).await?;
+        (opened, None, None)
     } else {
         let configuration = HttpClient::negotiate(&shared.recipe).await?;
         let stateful = configuration.stateful_reconnect();
@@ -317,7 +382,12 @@ async fn attempt(shared: &Rc<Shared>, generation: u64) -> Result<(), Error> {
             &liveness,
         )
         .await?;
-        (opened, stateful.map(|_| configuration.get_endpoint()))
+        let connection_id = configuration.get_connection_id();
+        (
+            opened,
+            stateful.map(|_| configuration.get_endpoint()),
+            Some((!connection_id.is_empty()).then_some(connection_id)),
+        )
     };
 
     if !shared.lifecycle(|lifecycle| lifecycle.complete(generation)) {
@@ -329,13 +399,17 @@ async fn attempt(shared: &Rc<Shared>, generation: u64) -> Result<(), Error> {
         buffer.borrow_mut().renew();
         shared.transport_endpoint.replace(endpoint);
     }
-    // Every reconnect but a stateful resume starts a new logical connection.
+    // Every connection but a stateful resume starts a new logical connection with its own id.
+    if let Some(connection_id) = fresh_id {
+        shared.connection_id.replace(connection_id);
+    }
     if !resumed {
         shared.storage.callbacks().new_logical_connection();
     }
     shared.disconnect_reason.replace(None);
     install(shared, opened, generation);
-    info!("WASM reconnect completed");
+    shared.hooks.opened();
+    info!("WASM connection established");
     Ok(())
 }
 
@@ -345,6 +419,8 @@ async fn run_policy(
     shared: &Rc<Shared>,
     generation: u64,
     first: FirstAttempt,
+    initial: Option<Duration>,
+    reason: &Error,
 ) -> Result<(), Error> {
     let started = now_ms();
     let mut retry_count = 0;
@@ -353,14 +429,14 @@ async fn run_policy(
         if !shared.owns(generation) {
             return Err(shared.superseded());
         }
-        let delay = {
-            let config = shared.reconnection_config.borrow();
-            first.delay(
-                config.policy.as_ref(),
-                retry_count,
-                now_ms().saturating_sub(started),
-            )
-        };
+        // The policy is user code: no borrow is held while it runs.
+        let policy = shared.reconnection_config.borrow().policy.clone();
+        let context = RetryContext::new(
+            retry_count,
+            Duration::from_millis(now_ms().saturating_sub(started)),
+            last_error.clone().unwrap_or_else(|| reason.clone()),
+        );
+        let delay = first.delay(policy.as_ref(), &context, initial);
         let Some(delay) = delay else {
             return Err(Error::reconnect_exhausted(last_error));
         };
@@ -392,8 +468,15 @@ async fn run_policy_to_end(
     shared: &Rc<Shared>,
     generation: u64,
     first: FirstAttempt,
+    initial: Option<Duration>,
+    reason: &Error,
 ) -> Result<(), Error> {
-    let result = run_policy(shared, generation, first).await;
+    let result = shared
+        .supervise(
+            generation,
+            run_policy(shared, generation, first, initial, reason),
+        )
+        .await;
     if let Err(error) = &result {
         if fail_generation(shared, generation, error) {
             if let Some(buffer) = &shared.stateful {
@@ -552,9 +635,19 @@ async fn resume_socket(
 /// Tracks (with stateful reconnect) and sends one message on the connection's current socket.
 async fn send_on(shared: &Shared, message: OutboundMessage) -> Result<(), Error> {
     if shared.state() != LifecycleState::Connected {
-        return Err(shared.send_error());
+        // As the official .NET client's connection lock, a call made while a start or reconnect
+        // attempt is in flight waits for it; during a reconnect delay it fails at once.
+        let attempt = shared.attempt.borrow().clone();
+        match attempt {
+            Some(attempt) => attempt.wait().await?,
+            None => return Err(shared.send_error()),
+        }
+        if shared.state() != LifecycleState::Connected {
+            return Err(shared.send_error());
+        }
     }
-    if let Some(buffer) = &shared.stateful {
+    let stateful = shared.active_stateful();
+    if let Some(buffer) = &stateful {
         loop {
             // The replay buffer shares the frame's bytes.
             let result = buffer
@@ -574,7 +667,7 @@ async fn send_on(shared: &Shared, message: OutboundMessage) -> Result<(), Error>
     match socket {
         Some(socket) => socket.send(&message.frame),
         // A tracked frame is replayed by the stateful resume once a socket is back.
-        None if shared.stateful.is_some() => Ok(()),
+        None if stateful.is_some() => Ok(()),
         None => Err(shared.send_error()),
     }
 }
@@ -599,6 +692,10 @@ impl ReplySink for TransportReplies {
             let current = shared.storage.callbacks().logical_connection();
             if current.load(std::sync::atomic::Ordering::Acquire) != logical_connection {
                 return Err(call_connection_replaced());
+            }
+            // A reply never waits for a connection attempt: it belongs to this one.
+            if shared.state() != LifecycleState::Connected {
+                return Err(shared.send_error());
             }
             send_on(&shared, message).await
         })
@@ -725,13 +822,14 @@ fn socket_closed(shared: &Rc<Shared>, generation: u64, reason: Error) {
         return;
     }
 
-    if let Some(buffer) = &shared.stateful {
+    if let Some(buffer) = shared.active_stateful() {
         if let Err(error) = buffer.borrow_mut().disconnected() {
             error!("Cannot enter WASM stateful resume: {}", error);
             shared.lifecycle(Lifecycle::transport_lost);
             shared.disconnect_reason.replace(Some(error.clone()));
             let mut storage = shared.storage.clone();
             storage.fail_pending(&error);
+            shared.hooks.closed(Some(error));
             return;
         }
     }
@@ -742,24 +840,50 @@ fn socket_closed(shared: &Rc<Shared>, generation: u64, reason: Error) {
         shared.lifecycle(Lifecycle::transport_lost);
         shared.disconnect_reason.replace(Some(reason.clone()));
         shared.fail_ordinary_pending(&transport_lost(&reason));
+        shared.hooks.closed(Some(reason.clone()));
         handler(WasmReconnectionContext {
             shared: shared.clone(),
             server_allows_reconnect: true,
             reason,
         });
-    } else {
-        let Ok(generation) = begin_reconnect(shared, &transport_lost(&reason)) else {
-            return;
-        };
-        let shared = shared.clone();
-        spawn_local(async move {
-            if let Err(error) =
-                run_policy_to_end(&shared, generation, FirstAttempt::AfterPolicyDelay).await
-            {
-                warn!("WASM automatic reconnect stopped: {}", error);
-            }
-        });
+        return;
     }
+
+    // A policy that allows no attempt ends the connection here, as the .NET client does when its
+    // retry policy returns no delay: no `Reconnecting`, then `Closed` with the reason.
+    let policy = shared.reconnection_config.borrow().policy.clone();
+    let first_context = RetryContext::new(0, Duration::ZERO, reason.clone());
+    let Some(first_delay) = ask_policy(policy.as_ref(), &first_context) else {
+        shared.lifecycle(Lifecycle::transport_lost);
+        shared.disconnect_reason.replace(Some(reason.clone()));
+        if let Some(buffer) = &shared.stateful {
+            buffer.borrow_mut().dispose();
+        }
+        let mut storage = shared.storage.clone();
+        storage.fail_pending(&transport_lost(&reason));
+        info!("The WASM connection was lost and the reconnection policy allows no attempt");
+        shared.hooks.closed(Some(reason));
+        return;
+    };
+    let Ok(generation) = begin_reconnect(shared, &transport_lost(&reason)) else {
+        return;
+    };
+    shared.hooks.reconnecting(&reason);
+    let shared = shared.clone();
+    spawn_local(async move {
+        let result = run_policy_to_end(
+            &shared,
+            generation,
+            FirstAttempt::AfterPolicyDelay,
+            Some(first_delay),
+            &reason,
+        )
+        .await;
+        match result {
+            Ok(()) => shared.hooks.reconnected(shared.current_connection_id()),
+            Err(error) => warn!("WASM automatic reconnect stopped: {}", error),
+        }
+    });
 }
 
 /// Handles a transport end that forbids reconnecting (a server Close without permission, or a
@@ -774,6 +898,7 @@ fn terminal_close(shared: &Rc<Shared>, reason: Error) {
     if let Some(buffer) = &shared.stateful {
         buffer.borrow_mut().dispose();
     }
+    shared.hooks.closed(Some(reason.clone()));
     let handler = shared.disconnection_handler.borrow().clone();
     if let Some(handler) = handler {
         handler(WasmReconnectionContext {
@@ -825,8 +950,8 @@ fn handle_record(
             return None;
         }
     };
-    if let Some(buffer) = shared.stateful.as_ref() {
-        match sequence(buffer, &message, shared, socket) {
+    if let Some(buffer) = shared.active_stateful() {
+        match sequence(&buffer, &message, shared, socket) {
             Ok(true) => {}
             Ok(false) => return None,
             Err(error) => {
@@ -910,48 +1035,59 @@ impl Clone for CommunicationClient {
     }
 }
 
+/// A client handle that does not keep the client alive.
+#[derive(Clone)]
+pub(crate) struct WeakCommunicationClient {
+    shared: std::rc::Weak<Shared>,
+    owners: std::rc::Weak<Cell<usize>>,
+}
+
+impl WeakCommunicationClient {
+    pub(crate) fn upgrade(&self) -> Option<CommunicationClient> {
+        let shared = self.shared.upgrade()?;
+        let owners = self.owners.upgrade()?;
+        // A client whose last handle was dropped is closed for good.
+        if owners.get() == 0 {
+            return None;
+        }
+        owners.set(owners.get() + 1);
+        Some(CommunicationClient { shared, owners })
+    }
+}
+
 impl Drop for CommunicationClient {
     fn drop(&mut self) {
         let remaining = self.owners.get().saturating_sub(1);
         self.owners.set(remaining);
         if remaining == 0 {
-            self.disconnect_internal();
+            drop(self.disconnect_internal());
         }
     }
 }
 
 impl Communication for CommunicationClient {
-    async fn connect(configuration: &super::ConnectionData) -> Result<Self, Error> {
-        let opened = open_socket(
-            &configuration.get_endpoint(),
-            configuration.get_protocol_kind(),
-            configuration.stateful_reconnect().is_some(),
-            &configuration.get_recipe().liveness(),
-        )
-        .await?;
-        let shared = Rc::new(Shared {
-            socket: RefCell::new(None),
-            storage: UpdatableActionStorage::new(),
-            recipe: configuration.get_recipe(),
-            transport_endpoint: RefCell::new(configuration.get_endpoint()),
-            protocol_kind: configuration.get_protocol_kind(),
-            stateful: configuration
-                .stateful_reconnect()
-                .map(|config| {
-                    StatefulMessageBuffer::new(config.buffer_size_bytes)
-                        .map(|buffer| Rc::new(RefCell::new(buffer)))
-                })
-                .transpose()?,
-            reconnection_config: RefCell::new(ReconnectionConfig::default()),
-            disconnection_handler: RefCell::new(None),
-            lifecycle: Cell::new(Lifecycle::connected()),
-            disconnect_reason: RefCell::new(None),
-        });
-        install(&shared, opened, 0);
-        Ok(Self {
-            shared,
-            owners: Rc::new(Cell::new(1)),
-        })
+    async fn start(&self) -> Result<(), Error> {
+        let shared = &self.shared;
+        let generation = shared.lifecycle(Lifecycle::start)?;
+        // A start always begins a new logical connection: a stateful one the client could still
+        // resume ends, and its pending work can never complete.
+        if let Some(buffer) = &shared.stateful {
+            buffer.borrow_mut().dispose();
+        }
+        shared.disconnect_reason.replace(None);
+        shared.storage.callbacks().open();
+        let mut storage = shared.storage.clone();
+        storage.fail_pending(&replaced_by_reconnect());
+        let result = shared
+            .supervise(generation, attempt(shared, generation))
+            .await;
+        if let Err(error) = &result {
+            info!("The connection could not be started: {error}");
+            if shared.lifecycle(|lifecycle| lifecycle.fail(generation)) {
+                shared.disconnect_reason.replace(None);
+            }
+        }
+        result
     }
 
     async fn send_message(&mut self, message: OutboundMessage) -> Result<(), Error> {
@@ -967,18 +1103,79 @@ impl Communication for CommunicationClient {
     }
 
     async fn disconnect(&self) {
-        self.disconnect_internal();
+        drop(self.disconnect_internal());
+    }
+
+    async fn stop(&self) {
+        let Some(socket) = self.disconnect_internal() else {
+            return;
+        };
+        let timeout = self.shared.recipe.liveness().close_timeout;
+        let closed = async {
+            while !socket.socket.is_closed() {
+                sleep(Duration::from_millis(10)).await;
+            }
+            Ok(())
+        };
+        if with_timeout(TimeoutOperation::Connect, timeout, closed)
+            .await
+            .is_err()
+        {
+            info!("The WASM socket did not close within {timeout:?}");
+        }
     }
 
     async fn release(&mut self) {
         // Only the last handle closes the connection; dropping it (see `Drop`) does the same.
         if self.owners.get() <= 1 {
-            self.disconnect_internal();
+            drop(self.disconnect_internal());
         }
     }
 }
 
 impl CommunicationClient {
+    pub(crate) fn downgrade(&self) -> WeakCommunicationClient {
+        WeakCommunicationClient {
+            shared: Rc::downgrade(&self.shared),
+            owners: Rc::downgrade(&self.owners),
+        }
+    }
+
+    /// A client that is not started: no I/O happens until `start`.
+    pub(crate) fn create(recipe: ConnectionRecipe) -> Result<Self, Error> {
+        // The replay buffer serves stateful logical connections only; it stays disposed until a
+        // negotiation accepts stateful reconnect.
+        let stateful = recipe
+            .stateful_reconnect()
+            .map(|config| {
+                StatefulMessageBuffer::new(config.buffer_size_bytes).map(|mut buffer| {
+                    buffer.dispose();
+                    Rc::new(RefCell::new(buffer))
+                })
+            })
+            .transpose()?;
+        let shared = Rc::new(Shared {
+            socket: RefCell::new(None),
+            storage: UpdatableActionStorage::new(),
+            protocol_kind: recipe.protocol(),
+            recipe,
+            transport_endpoint: RefCell::new(String::new()),
+            stateful,
+            reconnection_config: RefCell::new(ReconnectionConfig::default()),
+            disconnection_handler: RefCell::new(None),
+            lifecycle: Cell::new(Lifecycle::new()),
+            disconnect_reason: RefCell::new(None),
+            runs: Runs::default(),
+            hooks: LifecycleHooks::new(),
+            connection_id: RefCell::new(None),
+            attempt: RefCell::new(None),
+        });
+        Ok(Self {
+            shared,
+            owners: Rc::new(Cell::new(1)),
+        })
+    }
+
     pub fn set_reconnection_config(&mut self, config: ReconnectionConfig) {
         self.shared.reconnection_config.replace(config);
     }
@@ -1017,7 +1214,14 @@ impl CommunicationClient {
             return Ok(());
         };
         shared.fail_ordinary_pending(&replaced_by_reconnect());
-        run_policy_to_end(shared, generation, FirstAttempt::Always).await
+        run_policy_to_end(
+            shared,
+            generation,
+            FirstAttempt::Always,
+            None,
+            &Error::paused(),
+        )
+        .await
     }
 
     pub fn set_disconnection_handler(
@@ -1035,21 +1239,57 @@ impl CommunicationClient {
         send_on(&self.shared, message).await
     }
 
-    fn disconnect_internal(&self) {
+    /// Stops the client locally, as `StopAsync`; returns the socket that is closing.
+    fn disconnect_internal(&self) -> Option<Rc<LiveSocket>> {
         let shared = &self.shared;
         if shared.state() == LifecycleState::LocalClosed {
-            return;
+            return None;
         }
+        // As the .NET client, a stop that interrupts a reconnect closes with a cancellation.
+        let closed = (shared.state() == LifecycleState::Reconnecting)
+            .then(|| Error::canceled("the connection was stopped during a reconnect"));
         shared.lifecycle(Lifecycle::local_close);
-        if let Some(previous) = shared.socket.replace(None) {
-            previous.socket.close();
-        }
+        shared.runs.cancel_all();
+        shared.attempt.replace(None);
+        let closing = shared.socket.replace(None).map(|previous| {
+            // As the official clients' `stop`: a SignalR Close message, then the WebSocket
+            // Close once the browser sent what is buffered (WebKit can drop a binary frame queued
+            // right before `close()`), at most after the close timeout.
+            if let Err(error) = previous.socket.send(&close_frame(shared.protocol_kind)) {
+                log::debug!("Cannot send the Close message: {error}");
+            }
+            let socket = previous.socket;
+            let timeout = shared.recipe.liveness().close_timeout;
+            let closing = socket.clone();
+            spawn_local(async move {
+                let flushed = async {
+                    while closing.socket.buffered_amount() > 0 {
+                        sleep(Duration::from_millis(5)).await;
+                    }
+                    Ok(())
+                };
+                let _ = with_timeout(TimeoutOperation::Connect, timeout, flushed).await;
+                closing.close();
+            });
+            socket
+        });
         if let Some(buffer) = &shared.stateful {
             buffer.borrow_mut().dispose();
         }
         let mut storage = shared.storage.clone();
-        storage.fail_pending(&Error::closed_locally());
-        // The callbacks end with the connection.
+        // The callbacks stay registered for a restart; their dispatch task ends.
         storage.callbacks().close();
+        storage.fail_pending(&Error::closed_locally());
+        shared.hooks.closed(closed);
+        closing
+    }
+
+    pub(crate) fn hooks(&self) -> &LifecycleHooks {
+        &self.shared.hooks
+    }
+
+    /// The negotiated id of the current connection, while connected.
+    pub(crate) fn connection_id(&self) -> Option<String> {
+        self.shared.current_connection_id()
     }
 }

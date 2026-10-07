@@ -5,7 +5,7 @@ use super::{
     UpdatableAction,
 };
 use crate::{
-    client::SignalRClient,
+    client::WeakSignalRClient,
     completer::{ManualFuture, ManualStream, StreamDropHandler},
     error::Error,
     protocol::codec::InboundMessage,
@@ -47,7 +47,12 @@ pub trait Storage: Clone {
 
     /// Registers `callback` for `target` after the callbacks already registered for it; returns
     /// the id that unregisters only this one.
-    fn add_callback(&mut self, target: String, callback: Callback, client: SignalRClient) -> u64 {
+    fn add_callback(
+        &mut self,
+        target: String,
+        callback: Callback,
+        client: WeakSignalRClient,
+    ) -> u64 {
         debug!("Adding a callback for target {}", target);
         self.callbacks().register(target, callback, client)
     }

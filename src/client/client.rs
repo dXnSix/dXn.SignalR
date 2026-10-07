@@ -1,9 +1,10 @@
 use crate::completer::ManualStream;
-use log::{info, warn};
+use log::warn;
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
 
-use crate::communication::{Communication, CommunicationClient, HttpClient};
+use crate::communication::hooks::{HookKind, LifecycleHooks};
+use crate::communication::{Communication, CommunicationClient, WeakCommunicationClient};
 use crate::error::Error;
 use crate::execution::{
     ArgumentConfiguration, Callback, CallbackHandler, Storage, StorageUnregistrationHandler,
@@ -13,7 +14,7 @@ use crate::protocol::codec::OutboundMessage;
 use crate::protocol::hub_protocol::HubProtocolKind;
 use crate::protocol::invoke::Invocation;
 
-use super::{CallbackArguments, ConnectionConfiguration, ConnectionRecipe, InvocationContext};
+use super::{CallbackArguments, ConnectionConfiguration, InvocationContext};
 
 #[cfg(not(target_arch = "wasm32"))]
 use crate::communication::ReconnectionContext;
@@ -276,6 +277,64 @@ pub struct SignalRClient {
     _connection: Option<CommunicationClient>,
 }
 
+/// A handle to a [`SignalRClient`] that does not keep it alive, from
+/// [`SignalRClient::downgrade`].
+///
+/// Callbacks and lifecycle hooks that need their client should capture a weak handle: a captured
+/// `SignalRClient` would form a reference cycle (the client owns its callbacks and hooks), so the
+/// client would never stop when its last handle is dropped and would never be freed.
+///
+/// # Examples
+///
+/// ```no_run
+/// # fn example(client: &rayx_signalr::SignalRClient) {
+/// // Restart after the server closed the connection, as `Closed += ... StartAsync()` in .NET.
+/// let weak = client.downgrade();
+/// let _restart = client.on_closed(move |error| {
+///     // `None`, or a cancellation during a reconnect: stopped by the application.
+///     let Some(error) = error else { return };
+///     if error.kind() == rayx_signalr::ErrorKind::Canceled {
+///         return;
+///     }
+///     if let Some(client) = weak.upgrade() {
+///         tokio::spawn(async move {
+///             let _ = client.start().await;
+///         });
+///     }
+/// });
+/// # }
+/// ```
+#[derive(Clone)]
+pub struct WeakSignalRClient {
+    inner: WeakClient,
+}
+
+#[derive(Clone)]
+enum WeakClient {
+    Connected(WeakCommunicationClient),
+    /// A client without a connection (tests and benchmarks); it holds the storage itself.
+    Detached(UpdatableActionStorage),
+}
+
+impl WeakSignalRClient {
+    /// The client, unless every [`SignalRClient`] handle was dropped.
+    pub fn upgrade(&self) -> Option<SignalRClient> {
+        match &self.inner {
+            WeakClient::Connected(connection) => {
+                let connection = connection.upgrade()?;
+                Some(SignalRClient {
+                    _actions: connection.get_storage().ok()?,
+                    _connection: Some(connection),
+                })
+            }
+            WeakClient::Detached(actions) => Some(SignalRClient {
+                _actions: actions.clone(),
+                _connection: None,
+            }),
+        }
+    }
+}
+
 /// Runs a future that almost always completes in its first poll (an uncontended lock); it
 /// enters an executor only when it must wait, so dropping or disconnecting a handle inside a
 /// callback or another executor's `block_on` does not nest executors.
@@ -299,70 +358,46 @@ impl Drop for SignalRClient {
 }
 
 impl SignalRClient {
-    /// Connects to a SignalR hub using the default connection configuration.
+    /// Builds a client that is not started, as the official .NET client's
+    /// `HubConnectionBuilder.Build()` does: the configuration is validated and nothing connects
+    /// until [`start`](Self::start). Register callbacks and handlers first, so hub messages the
+    /// server sends right after connecting (from `OnConnectedAsync`) reach them.
     ///
-    /// # Arguments
-    ///
-    /// * `domain` - A string slice that holds the domain of the SignalR server.
-    /// * `hub` - A string slice that holds the name of the hub to connect to.
-    ///
-    /// # Returns
-    ///
-    /// * `Result<Self, Error>` - On success, returns an instance of `Self`.
+    /// Natively the connection's Tokio runtime is resolved here: the one configured with
+    /// `with_runtime_handle`, or the runtime this is called on.
     ///
     /// # Errors
     ///
-    /// See [`connect_with`](Self::connect_with).
+    /// [`ErrorKind::Configuration`](crate::ErrorKind::Configuration), naming the rejected setting
+    /// (for example `skip_negotiation` with stateful reconnect, a zero replay buffer, a missing
+    /// Tokio runtime, or a secure endpoint without TLS features). Liveness durations are never
+    /// rejected; values that cannot work are logged as warnings.
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let client = SignalRClient::connect("localhost", "test").await.unwrap();
+    /// ```no_run
+    /// # async fn example() -> Result<(), rayx_signalr::Error> {
+    /// use rayx_signalr::SignalRClient;
+    ///
+    /// let mut client = SignalRClient::new("localhost", "chat", |configuration| {
+    ///     configuration.with_port(5000);
+    /// })?;
+    /// let _welcome = client.register_typed("Welcome", |_context, (text,): (String,)| {
+    ///     println!("{text}");
+    /// });
+    /// client.start().await?;
+    /// # Ok(())
+    /// # }
     /// ```
-    pub async fn connect(domain: &str, hub: &str) -> Result<Self, Error> {
-        SignalRClient::connect_internal(domain, hub, None::<fn(&mut ConnectionConfiguration)>).await
-    }
-
-    /// Connects to a SignalR hub with custom connection properties.
-    ///
-    /// # Arguments
-    ///
-    /// * `domain` - A string slice that holds the domain of the SignalR server.
-    /// * `hub` - A string slice that holds the name of the hub to connect to.
-    /// * `options` - A closure that allows the user to configure the connection properties.
-    ///
-    /// # Errors
-    ///
-    /// - [`ErrorKind::Configuration`](crate::ErrorKind::Configuration) before any I/O, naming the
-    ///   rejected setting (for example a zero timeout, `skip_negotiation` with stateful reconnect,
-    ///   a missing Tokio runtime, or a secure endpoint without TLS features).
-    /// - [`ErrorKind::Negotiate`](crate::ErrorKind::Negotiate) or
-    ///   [`ErrorKind::Authentication`](crate::ErrorKind::Authentication) with the HTTP status when
-    ///   negotiation fails.
-    /// - [`ErrorKind::Timeout`](crate::ErrorKind::Timeout) naming the negotiate, connect or
-    ///   handshake step.
-    /// - [`ErrorKind::Tls`](crate::ErrorKind::Tls), [`ErrorKind::Transport`](crate::ErrorKind::Transport),
-    ///   [`ErrorKind::TransportUnavailable`](crate::ErrorKind::TransportUnavailable) or
-    ///   [`ErrorKind::Handshake`](crate::ErrorKind::Handshake) when the transport cannot be
-    ///   opened.
-    pub async fn connect_with<F>(domain: &str, hub: &str, options: F) -> Result<Self, Error>
+    pub fn new<F>(domain: &str, hub: &str, configure: F) -> Result<Self, Error>
     where
-        F: FnMut(&mut ConnectionConfiguration),
-    {
-        SignalRClient::connect_internal(domain, hub, Some(options)).await
-    }
-
-    async fn connect_internal<F>(domain: &str, hub: &str, options: Option<F>) -> Result<Self, Error>
-    where
-        F: FnMut(&mut ConnectionConfiguration),
+        F: FnOnce(&mut ConnectionConfiguration),
     {
         let mut config = ConnectionConfiguration::new(domain.to_string(), hub.to_string());
-
-        if let Some(mut ops) = options {
-            (ops)(&mut config);
-        }
-        // Liveness durations are validated before any I/O.
-        config.liveness().validate()?;
+        configure(&mut config);
+        // Every liveness duration is accepted, as the .NET client accepts them; values that
+        // cannot work are logged.
+        config.liveness().warn();
 
         let disconnection_handler = config.get_disconnection_handler();
         let reconnection_config = config.get_reconnection_config();
@@ -389,53 +424,126 @@ impl SignalRClient {
                 "the stateful reconnect buffer size must be greater than zero",
             ));
         }
+        if recipe.skips_negotiation() && recipe.stateful_reconnect().is_some() {
+            return Err(Error::configuration(
+                "skip_negotiation",
+                crate::communication::negotiation::SKIP_WITH_STATEFUL,
+            ));
+        }
 
-        let mut client = Self::open(recipe).await?;
-        let storage = client.get_storage()?;
+        let mut connection = CommunicationClient::create(recipe)?;
+        let storage = connection.get_storage()?;
+        // Callbacks receive the client without keeping it alive.
+        storage.callbacks().set_owner(WeakSignalRClient {
+            inner: WeakClient::Connected(connection.downgrade()),
+        });
 
-        client.set_reconnection_config(reconnection_config);
+        connection.set_reconnection_config(reconnection_config);
         if let Some(handler) = disconnection_handler {
             // Shared with the native code path, where the handler is `Send + Sync`.
             #[cfg_attr(target_arch = "wasm32", allow(clippy::arc_with_non_send_sync))]
             let handler = Arc::new(handler);
             let h_clone = handler.clone();
-            client.set_disconnection_handler(move |context| {
+            connection.set_disconnection_handler(move |context| {
                 h_clone.on_disconnected(ReconnectionHandler { context });
             });
         }
 
         Ok(SignalRClient {
             _actions: storage,
-            _connection: Some(client),
+            _connection: Some(connection),
         })
     }
 
-    /// Negotiates and opens the connection; natively on the connection's runtime, so the caller's
-    /// executor never polls Tokio I/O or timers.
-    async fn open(recipe: ConnectionRecipe) -> Result<CommunicationClient, Error> {
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let runtime = recipe
-                .runtime()
-                .ok_or_else(crate::client::configuration::no_runtime)?;
-            runtime
-                .spawn(Self::negotiate_and_connect(recipe))
-                .await
-                .map_err(|error| {
-                    Error::canceled(format!("the connection task stopped: {error}"))
-                        .with_source(error)
-                })?
-        }
-        #[cfg(target_arch = "wasm32")]
-        {
-            Self::negotiate_and_connect(recipe).await
+    /// Starts the client, as the official .NET client's `HubConnection.StartAsync`: negotiates,
+    /// connects and completes the handshake. Natively the work runs on the connection's runtime,
+    /// so this future may be awaited from any executor.
+    ///
+    /// `start` also restarts a client that [`disconnect`](Self::disconnect) stopped, or that the
+    /// server or exhausted reconnect attempts ended: always with a fresh negotiation (a new
+    /// connection id and, with stateful reconnect, a new logical connection). Registered
+    /// callbacks and handlers stay. A failed start leaves the client
+    /// [`Disconnected`](crate::ConnectionStatus::Disconnected), and `start` may be called again.
+    /// [`disconnect`](Self::disconnect) during `start` cancels it.
+    ///
+    /// # Errors
+    ///
+    /// - [`ErrorKind::InvalidState`](crate::ErrorKind::InvalidState) when the client is starting,
+    ///   connected, reconnecting or paused; it is left unchanged.
+    /// - [`ErrorKind::ConnectionClosed`](crate::ErrorKind::ConnectionClosed)
+    ///   ([`CloseReason::Local`](crate::CloseReason::Local)) when `disconnect` canceled it.
+    /// - [`ErrorKind::Negotiate`](crate::ErrorKind::Negotiate) or
+    ///   [`ErrorKind::Authentication`](crate::ErrorKind::Authentication) with the HTTP status when
+    ///   negotiation fails.
+    /// - [`ErrorKind::Timeout`](crate::ErrorKind::Timeout) naming the negotiate, connect or
+    ///   handshake step.
+    /// - [`ErrorKind::Tls`](crate::ErrorKind::Tls), [`ErrorKind::Transport`](crate::ErrorKind::Transport),
+    ///   [`ErrorKind::TransportUnavailable`](crate::ErrorKind::TransportUnavailable) or
+    ///   [`ErrorKind::Handshake`](crate::ErrorKind::Handshake) when the transport cannot be
+    ///   opened.
+    pub async fn start(&self) -> Result<(), Error> {
+        match &self._connection {
+            Some(connection) => connection.start().await,
+            None => Err(Error::closed_locally()),
         }
     }
 
-    async fn negotiate_and_connect(recipe: ConnectionRecipe) -> Result<CommunicationClient, Error> {
-        let configuration = HttpClient::negotiate(&recipe).await?;
-        info!("Negotiation successful for {}", recipe.display_endpoint());
-        CommunicationClient::connect(&configuration).await
+    /// A handle that does not keep the client alive, for callbacks and lifecycle hooks that need
+    /// their client (see [`WeakSignalRClient`]).
+    pub fn downgrade(&self) -> WeakSignalRClient {
+        let inner = match &self._connection {
+            Some(connection) => WeakClient::Connected(connection.downgrade()),
+            None => WeakClient::Detached(self._actions.clone()),
+        };
+        WeakSignalRClient { inner }
+    }
+
+    /// Connects to a SignalR hub using the default connection configuration: [`new`](Self::new)
+    /// and [`start`](Self::start).
+    ///
+    /// # Arguments
+    ///
+    /// * `domain` - A string slice that holds the domain of the SignalR server.
+    /// * `hub` - A string slice that holds the name of the hub to connect to.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<Self, Error>` - On success, returns an instance of `Self`.
+    ///
+    /// # Errors
+    ///
+    /// See [`connect_with`](Self::connect_with).
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let client = SignalRClient::connect("localhost", "test").await.unwrap();
+    /// ```
+    pub async fn connect(domain: &str, hub: &str) -> Result<Self, Error> {
+        Self::connect_with(domain, hub, |_| {}).await
+    }
+
+    /// Connects to a SignalR hub with custom connection properties: [`new`](Self::new) and
+    /// [`start`](Self::start). Register callbacks before `start` (with `new`) when the server
+    /// sends right after connecting.
+    ///
+    /// # Arguments
+    ///
+    /// * `domain` - A string slice that holds the domain of the SignalR server.
+    /// * `hub` - A string slice that holds the name of the hub to connect to.
+    /// * `options` - A closure that allows the user to configure the connection properties.
+    ///
+    /// # Errors
+    ///
+    /// The errors of [`new`](Self::new) (before any I/O) and of [`start`](Self::start).
+    /// Liveness durations are never rejected (values that cannot work are logged).
+    pub async fn connect_with<F>(domain: &str, hub: &str, options: F) -> Result<Self, Error>
+    where
+        F: FnMut(&mut ConnectionConfiguration),
+    {
+        let client = Self::new(domain, hub, options)?;
+        client.start().await?;
+        Ok(client)
     }
 
     /// Registers a callback that can be called by the SignalR hub.
@@ -578,7 +686,7 @@ impl SignalRClient {
     fn register_callback(&mut self, target: String, callback: Callback) -> impl CallbackHandler {
         let id = self
             ._actions
-            .add_callback(target.clone(), callback, self.clone());
+            .add_callback(target.clone(), callback, self.downgrade());
         StorageUnregistrationHandler::new(self._actions.clone(), target, id)
     }
 
@@ -712,8 +820,12 @@ impl SignalRClient {
         // Registered before sending, so a fast Completion always finds its awaiter.
         let ret = self._actions.add_invocation::<T>(invocation_id.clone());
         if let Err(error) = Self::send_invocation(conn, &invocation).await {
-            // The server never saw the invocation: nothing will complete it.
+            // The server never saw the invocation: nothing will complete it. The send error is
+            // the call's error, even when the connection failed pending work meanwhile (a send
+            // that waited for a reconnect attempt fails with that attempt's error).
             self._actions.fail_action(&invocation_id, &error);
+            drop(ret);
+            return Err(error);
         }
         ret.await
     }
@@ -1040,11 +1152,122 @@ impl SignalRClient {
         }
     }
 
+    /// Stops the connection as [`disconnect`](Self::disconnect) does, and returns once the
+    /// transport closed, as the official .NET client's `HubConnection.StopAsync`. Stopping is
+    /// graceful: what was already sent goes out, then a SignalR Close message, then the transport
+    /// closes, so the hub's `OnDisconnectedAsync` sees no error. Waits at most the close timeout
+    /// ([`with_close_timeout`](crate::ConnectionConfiguration::with_close_timeout), 5 s by
+    /// default), after which the transport is dropped. Natively the wait runs on the connection's
+    /// runtime, so this future may be awaited from any executor. Stopping a stopped client
+    /// returns at once.
+    pub async fn stop(&self) {
+        if let Some(conn) = &self._connection {
+            conn.stop().await;
+        }
+    }
+
     /// The connection's current status, shared by every clone of this client.
     pub fn status(&self) -> crate::ConnectionStatus {
         self._connection
             .as_ref()
             .map_or(crate::ConnectionStatus::Closed, CommunicationClient::status)
+    }
+
+    /// The negotiated connection id (`Context.ConnectionId` on the hub), as the official .NET
+    /// client's `HubConnection.ConnectionId`: a new id after every fresh connection (a start or
+    /// an ordinary reconnect), unchanged by a stateful resume, and `None` with
+    /// `skip_negotiation` and while the client is not connected.
+    pub fn connection_id(&self) -> Option<String> {
+        self._connection
+            .as_ref()
+            .and_then(CommunicationClient::connection_id)
+    }
+
+    /// Adds a hook for the official .NET client's `Closed` event: the connection ended and
+    /// nothing reconnects automatically. The argument is `None` after
+    /// [`disconnect`](Self::disconnect) or [`stop`](Self::stop), or an
+    /// [`ErrorKind::Canceled`](crate::ErrorKind::Canceled) error when the stop interrupted a
+    /// reconnect (as .NET's `OperationCanceledException`); otherwise why it ended: a server close
+    /// without reconnect permission, a dropped transport the reconnection policy allows no attempt
+    /// for, a drop in manual mode (before the [`DisconnectionHandler`] runs), or exhausted
+    /// reconnect attempts. It is raised once per established connection; a failed
+    /// [`start`](Self::start) raises none.
+    ///
+    /// Lifecycle hooks may be added before [`start`](Self::start) and stay across restarts.
+    /// Several hooks per event run in registration order; events run one at a time in the order
+    /// the connection raised them, on a task of their own (natively on the Tokio blocking pool,
+    /// in the browser on the event loop), so a hook never blocks the connection. Natively a hook
+    /// must be `Send + Sync`, and one that panics is caught and logged. A hook that needs the
+    /// client should capture a [`WeakSignalRClient`] ([`downgrade`](Self::downgrade)). The
+    /// returned handle removes the hook.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(client: &rayx_signalr::SignalRClient) {
+    /// let _closed = client.on_closed(|error| match error {
+    ///     Some(error) => eprintln!("connection lost: {error}"),
+    ///     None => println!("stopped"),
+    /// });
+    /// # }
+    /// ```
+    pub fn on_closed(
+        &self,
+        hook: impl Fn(Option<&Error>) + crate::platform::MaybeSendSync + 'static,
+    ) -> impl CallbackHandler {
+        let hooks = self
+            ._connection
+            .as_ref()
+            .map(|connection| connection.hooks().clone());
+        let id = hooks.as_ref().map_or(0, |hooks| hooks.on_closed(hook));
+        HookRegistration {
+            hooks,
+            kind: HookKind::Closed,
+            id,
+        }
+    }
+
+    /// Adds a hook for the official .NET client's `Reconnecting` event: an automatic reconnect
+    /// run begins after the transport dropped, before its first delay; ordinary pending work has
+    /// already failed. The argument says why the transport ended. It is not raised when the
+    /// reconnection policy allows no attempt (`Closed` follows instead), in manual mode, or for
+    /// [`resume`](Self::resume). Hooks run as described for [`on_closed`](Self::on_closed).
+    pub fn on_reconnecting(
+        &self,
+        hook: impl Fn(&Error) + crate::platform::MaybeSendSync + 'static,
+    ) -> impl CallbackHandler {
+        let hooks = self
+            ._connection
+            .as_ref()
+            .map(|connection| connection.hooks().clone());
+        let id = hooks
+            .as_ref()
+            .map_or(0, |hooks| hooks.on_reconnecting(hook));
+        HookRegistration {
+            hooks,
+            kind: HookKind::Reconnecting,
+            id,
+        }
+    }
+
+    /// Adds a hook for the official .NET client's `Reconnected` event: an automatic reconnect run
+    /// succeeded. The argument is the connection id ([`connection_id`](Self::connection_id)): a
+    /// new one after an ordinary reconnect, the same after a stateful resume, `None` without
+    /// negotiation. Hooks run as described for [`on_closed`](Self::on_closed).
+    pub fn on_reconnected(
+        &self,
+        hook: impl Fn(Option<&str>) + crate::platform::MaybeSendSync + 'static,
+    ) -> impl CallbackHandler {
+        let hooks = self
+            ._connection
+            .as_ref()
+            .map(|connection| connection.hooks().clone());
+        let id = hooks.as_ref().map_or(0, |hooks| hooks.on_reconnected(hook));
+        HookRegistration {
+            hooks,
+            kind: HookKind::Reconnected,
+            id,
+        }
     }
 
     /// Pauses the connection, for example while a mobile app is in the background: ends the
@@ -1103,6 +1326,21 @@ impl SignalRClient {
     }
 }
 
+/// Removes one lifecycle hook.
+struct HookRegistration {
+    hooks: Option<LifecycleHooks>,
+    kind: HookKind,
+    id: u64,
+}
+
+impl CallbackHandler for HookRegistration {
+    fn unregister(self) {
+        if let Some(hooks) = self.hooks {
+            hooks.remove(self.kind, self.id);
+        }
+    }
+}
+
 impl Clone for SignalRClient {
     fn clone(&self) -> Self {
         Self {
@@ -1119,32 +1357,32 @@ mod unsent_stream_invocation {
     use super::SignalRClient;
     use crate::{
         client::ConnectionConfiguration,
-        communication::{Communication, CommunicationClient, ConnectionData},
+        communication::{Communication, CommunicationClient},
         execution::Storage,
         protocol::hub_protocol::HubProtocolKind,
     };
 
-    /// A client whose connection never opened, so every send fails. Its tasks belong to
-    /// `runtime`.
+    /// A client without a transport, so every send fails, whose callbacks run as on a started
+    /// client. Its tasks belong to `runtime`.
     pub(super) fn not_connected_client(
         protocol: HubProtocolKind,
         runtime: tokio::runtime::Handle,
     ) -> SignalRClient {
         let mut configuration = ConnectionConfiguration::new("127.0.0.1".into(), "hub".into());
         configuration.unsecure();
+        #[cfg(feature = "messagepack")]
+        if protocol == HubProtocolKind::MessagePack {
+            configuration.with_messagepack_protocol();
+        }
         let recipe = configuration.connection_recipe().with_runtime(runtime);
-        let data = ConnectionData::new(
-            "ws://127.0.0.1/hub".to_string(),
-            String::new(),
-            protocol,
-            recipe,
-            None,
-        );
-        let connection = CommunicationClient::create(&data).unwrap();
-        SignalRClient {
+        let connection = CommunicationClient::create(recipe).unwrap();
+        assert_eq!(connection.get_protocol_kind(), protocol);
+        let client = SignalRClient {
             _actions: connection.get_storage().unwrap(),
             _connection: Some(connection),
-        }
+        };
+        client._actions.callbacks().set_owner(client.downgrade());
+        client
     }
 
     fn a_stream_that_cannot_be_sent_ends_with_the_send_error(protocol: HubProtocolKind) {
@@ -1163,7 +1401,7 @@ mod unsent_stream_invocation {
             "the stream must end at once"
         );
         let error = stream.error().expect("the send error must end the stream");
-        assert_eq!(error.kind(), crate::ErrorKind::Transport, "{error}");
+        assert_eq!(error.kind(), crate::ErrorKind::InvalidState, "{error}");
         assert!(!client._actions.contains("1"));
 
         drop(stream);
@@ -1187,7 +1425,7 @@ mod unsent_stream_invocation {
 }
 
 /// An argument that cannot be encoded fails the call with `Serialization` before anything is
-/// sent: the client's connection never opened, so a send attempt would fail with `Transport`.
+/// sent: the client was never started, so a send attempt would fail with `InvalidState`.
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod argument_encoding {
     use futures::{executor::block_on, FutureExt, StreamExt};
@@ -1474,5 +1712,692 @@ mod runtime_ownership {
             .unwrap();
         let unconfigured = ConnectionConfiguration::new("host".into(), "hub".into());
         ambient.block_on(async { assert!(unconfigured.resolve_runtime().is_ok()) });
+    }
+}
+
+/// An unstarted client and `start`, as `HubConnectionBuilder.Build()` and
+/// `HubConnection.StartAsync` (R16.C2), and restarts after a stop or a remote end (R16.C3).
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod client_lifecycle_api {
+    use std::{
+        sync::{Arc, Mutex},
+        time::Duration,
+    };
+
+    use super::SignalRClient;
+    use crate::{
+        communication::loopback_server::{LoopbackOptions, LoopbackServer},
+        execution::Storage,
+        protocol::codec,
+        CallbackHandler, CloseReason, ConnectionStatus, ErrorKind, StatefulReconnectConfig,
+    };
+
+    /// A loopback port with nothing listening on it, so connects are refused at once.
+    fn closed_port() -> i32 {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        i32::from(listener.local_addr().unwrap().port())
+    }
+
+    /// A loopback server that accepts connections and never answers, so a start stays in flight.
+    async fn silent_server() -> (i32, tokio::task::JoinHandle<()>) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = i32::from(listener.local_addr().unwrap().port());
+        let server = tokio::spawn(async move {
+            let mut held = Vec::new();
+            while let Ok((socket, _)) = listener.accept().await {
+                held.push(socket);
+            }
+        });
+        (port, server)
+    }
+
+    fn client_for(port: i32) -> SignalRClient {
+        SignalRClient::new("127.0.0.1", "hub", |configuration| {
+            configuration.unsecure();
+            configuration.with_port(port);
+        })
+        .unwrap()
+    }
+
+    async fn status_becomes(client: &SignalRClient, status: ConnectionStatus) {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while client.status() != status {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("the status never became {status:?}"));
+    }
+
+    fn notify(storage: &mut crate::execution::UpdatableActionStorage) {
+        storage.dispatch(
+            codec::decode_json(r#"{"type":1,"target":"Notify","arguments":[]}"#).unwrap(),
+        );
+    }
+
+    #[tokio::test]
+    async fn client_start_new_builds_an_unstarted_client_without_io() {
+        // Nothing listens on the port: `new` must not connect.
+        let mut client = client_for(closed_port());
+        assert_eq!(client.status(), ConnectionStatus::Disconnected);
+        let registration = client.register("Notify", |_| {});
+
+        let invoked = client
+            .invoke::<i32>("Target".to_string())
+            .await
+            .unwrap_err();
+        assert_eq!(invoked.kind(), ErrorKind::InvalidState, "{invoked}");
+        let sent = client.send("Target".to_string()).await.unwrap_err();
+        assert_eq!(sent.kind(), ErrorKind::InvalidState, "{sent}");
+        for result in [client.pause().await, client.resume().await] {
+            assert_eq!(result.unwrap_err().kind(), ErrorKind::InvalidState);
+        }
+        assert_eq!(client.status(), ConnectionStatus::Disconnected);
+        registration.unregister();
+    }
+
+    #[test]
+    fn client_start_new_rejects_invalid_configuration_before_io() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let entered = runtime.enter();
+        let port = closed_port();
+        let zero_buffer = SignalRClient::new("127.0.0.1", "hub", |configuration| {
+            configuration.unsecure();
+            configuration.with_port(port);
+            configuration.with_stateful_reconnect(StatefulReconnectConfig {
+                buffer_size_bytes: 0,
+            });
+        })
+        .err()
+        .unwrap();
+        assert_eq!(zero_buffer.kind(), ErrorKind::Configuration);
+        assert_eq!(zero_buffer.setting(), Some("with_stateful_reconnect"));
+
+        let direct_stateful = SignalRClient::new("127.0.0.1", "hub", |configuration| {
+            configuration.unsecure();
+            configuration.with_port(port);
+            configuration.skip_negotiation();
+            configuration.with_stateful_reconnect(StatefulReconnectConfig::default());
+        })
+        .err()
+        .unwrap();
+        assert_eq!(direct_stateful.kind(), ErrorKind::Configuration);
+        assert_eq!(direct_stateful.setting(), Some("skip_negotiation"));
+        drop(entered);
+
+        // Natively the connection's runtime is resolved by `new`.
+        let no_runtime = std::thread::spawn(move || {
+            SignalRClient::new("127.0.0.1", "hub", |configuration| {
+                configuration.unsecure();
+                configuration.with_port(port);
+            })
+            .err()
+            .unwrap()
+        })
+        .join()
+        .unwrap();
+        assert_eq!(no_runtime.kind(), ErrorKind::Configuration);
+        assert_eq!(no_runtime.setting(), Some("with_runtime_handle"));
+    }
+
+    #[tokio::test]
+    async fn liveness_parity_new_accepts_durations_that_cannot_work() {
+        let client = SignalRClient::new("127.0.0.1", "hub", |configuration| {
+            configuration.unsecure();
+            configuration.with_port(closed_port());
+            configuration.with_keep_alive_interval(Duration::ZERO);
+            configuration.with_server_timeout(Duration::ZERO);
+            configuration.with_handshake_timeout(Duration::ZERO);
+            configuration.with_connect_timeout(Duration::ZERO);
+        });
+        assert!(client.is_ok(), "{:?}", client.err());
+    }
+
+    #[tokio::test]
+    async fn client_start_a_failed_start_leaves_the_client_disconnected_and_startable() {
+        let mut client = client_for(closed_port());
+        for _ in 0..2 {
+            let error = client.start().await.unwrap_err();
+            assert_eq!(error.kind(), ErrorKind::Transport, "{error}");
+            assert_eq!(client.status(), ConnectionStatus::Disconnected);
+            let sent = client.send("Target".to_string()).await.unwrap_err();
+            assert_eq!(sent.kind(), ErrorKind::InvalidState, "{sent}");
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn client_start_reports_connecting_and_rejects_a_second_start() {
+        let (port, server) = silent_server().await;
+        let client = client_for(port);
+        let starting = tokio::spawn({
+            let client = client.clone();
+            async move { client.start().await }
+        });
+        status_becomes(&client, ConnectionStatus::Connecting).await;
+
+        let error = client.start().await.unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::InvalidState, "{error}");
+        assert_eq!(
+            client.status(),
+            ConnectionStatus::Connecting,
+            "a rejected start leaves the client unchanged"
+        );
+        client.disconnect();
+        let _ = starting.await.unwrap();
+        server.abort();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn client_restart_disconnect_cancels_a_start() {
+        let (port, server) = silent_server().await;
+        let client = client_for(port);
+        let starting = tokio::spawn({
+            let client = client.clone();
+            async move { client.start().await }
+        });
+        status_becomes(&client, ConnectionStatus::Connecting).await;
+
+        client.disconnect();
+        let error = tokio::time::timeout(Duration::from_secs(2), starting)
+            .await
+            .expect("disconnect must cancel the start at once")
+            .unwrap()
+            .unwrap_err();
+        assert_eq!(error.close_reason(), Some(CloseReason::Local), "{error}");
+        assert_eq!(client.status(), ConnectionStatus::Closed);
+
+        // A stopped client starts again (and stays connecting here: the server never answers).
+        let restarting = tokio::spawn({
+            let client = client.clone();
+            async move { client.start().await }
+        });
+        status_becomes(&client, ConnectionStatus::Connecting).await;
+        client.disconnect();
+        let _ = restarting.await.unwrap();
+        server.abort();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn client_restart_keeps_callbacks_after_disconnect() {
+        let mut client = client_for(closed_port());
+        let calls = Arc::new(Mutex::new(0));
+        let recorded = calls.clone();
+        let _registration = client.register("Notify", move |_| *recorded.lock().unwrap() += 1);
+        let mut storage = client._actions.clone();
+        let eventually = |expected: i32| {
+            let calls = calls.clone();
+            async move {
+                tokio::time::timeout(Duration::from_secs(5), async {
+                    while *calls.lock().unwrap() != expected {
+                        tokio::time::sleep(Duration::from_millis(5)).await;
+                    }
+                })
+                .await
+                .unwrap_or_else(|_| panic!("the callback never ran {expected} times"));
+            }
+        };
+
+        // A start opens the callbacks (the refused connect does not matter here); the receive
+        // loop of a connected transport would start the dispatch task.
+        let _ = client.start().await;
+        storage.callbacks().start();
+        notify(&mut storage);
+        eventually(1).await;
+
+        client.disconnect();
+        notify(&mut storage);
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!(
+            *calls.lock().unwrap(),
+            1,
+            "a stopped client runs no callback"
+        );
+
+        let _ = client.start().await;
+        storage.callbacks().start();
+        notify(&mut storage);
+        eventually(2).await;
+    }
+
+    #[tokio::test]
+    async fn connection_id_is_none_for_an_unstarted_or_failed_client() {
+        let client = client_for(closed_port());
+        assert_eq!(client.connection_id(), None);
+        let _ = client.start().await;
+        assert_eq!(client.connection_id(), None);
+        let detached = SignalRClient::detached(crate::execution::UpdatableActionStorage::new());
+        assert_eq!(detached.connection_id(), None);
+    }
+
+    #[tokio::test]
+    async fn lifecycle_events_a_failed_start_raises_no_event() {
+        let client = client_for(closed_port());
+        let raised = Arc::new(Mutex::new(0));
+        let counted = raised.clone();
+        let _closed = client.on_closed(move |_| *counted.lock().unwrap() += 1);
+        let _ = client.start().await;
+        client.disconnect();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!(*raised.lock().unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn graceful_stop_returns_at_once_without_a_transport() {
+        let client = client_for(closed_port());
+        let started = std::time::Instant::now();
+        client.stop().await;
+        assert_eq!(client.status(), ConnectionStatus::Closed);
+        client.stop().await;
+        assert!(started.elapsed() < Duration::from_secs(1));
+
+        // A failed start leaves no transport either; a stop from another executor returns too.
+        let _ = client.start().await;
+        let stopping = client.clone();
+        std::thread::spawn(move || futures::executor::block_on(stopping.stop()))
+            .join()
+            .unwrap();
+        assert_eq!(client.status(), ConnectionStatus::Closed);
+    }
+
+    async fn loopback(
+        options: LoopbackOptions,
+        configure: impl FnOnce(&mut crate::ConnectionConfiguration),
+    ) -> (LoopbackServer, SignalRClient) {
+        let server = LoopbackServer::start(options).await;
+        let port = i32::from(server.port);
+        let client = SignalRClient::new("127.0.0.1", "hub", |configuration| {
+            configuration.unsecure();
+            configuration.with_port(port);
+            configure(configuration);
+        })
+        .unwrap();
+        (server, client)
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn client_start_callbacks_registered_before_start_receive_the_first_message() {
+        let (_server, mut client) = loopback(
+            LoopbackOptions {
+                greeting: Some(r#"{"type":1,"target":"connected","arguments":["hello"]}"#),
+                ..LoopbackOptions::default()
+            },
+            |_| {},
+        )
+        .await;
+        let greetings = Arc::new(Mutex::new(Vec::new()));
+        let recorded = greetings.clone();
+        let _greeting = client.register_typed("connected", move |_context, (text,): (String,)| {
+            recorded.lock().unwrap().push(text);
+        });
+        client.start().await.unwrap();
+        assert_eq!(client.status(), ConnectionStatus::Connected);
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while greetings.lock().unwrap().is_empty() {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("the greeting never reached the callback");
+        assert_eq!(*greetings.lock().unwrap(), ["hello"]);
+        client.disconnect();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn connection_id_reports_the_negotiated_id_until_a_reconnect_replaces_it() {
+        let (server, client) = loopback(LoopbackOptions::default(), |configuration| {
+            configuration.with_reconnection_policy(crate::ReconnectionConfig {
+                policy: Arc::new(crate::ConstantDelayPolicy::new(
+                    Duration::from_millis(10),
+                    Some(50),
+                )),
+            });
+        })
+        .await;
+        client.start().await.unwrap();
+        assert_eq!(client.connection_id().as_deref(), Some("conn-1"));
+        server.drop_connection();
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while client.connection_id().as_deref() != Some("conn-2") {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("the reconnect never negotiated a new id");
+        assert_eq!(server.negotiations(), 2);
+        client.disconnect();
+        assert_eq!(client.connection_id(), None);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn reconnect_call_wait_a_call_during_the_start_runs_on_the_new_connection() {
+        let (server, client) = loopback(
+            LoopbackOptions {
+                handshake_delay: Duration::from_millis(300),
+                ..LoopbackOptions::default()
+            },
+            |_| {},
+        )
+        .await;
+        let starting = tokio::spawn({
+            let client = client.clone();
+            async move { client.start().await }
+        });
+        status_becomes(&client, ConnectionStatus::Connecting).await;
+        let mut caller = client.clone();
+        caller
+            .send_with_args("Record".to_string(), |arguments| {
+                arguments.argument("while starting");
+            })
+            .await
+            .unwrap();
+        starting.await.unwrap().unwrap();
+        let record = server.next_record().await;
+        assert!(
+            record.contains("\"target\":\"Record\"") && record.contains("while starting"),
+            "{record}"
+        );
+        client.disconnect();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn reconnect_call_wait_a_call_during_a_failed_attempt_fails_with_its_error() {
+        let (port, server) = silent_server().await;
+        let client = SignalRClient::new("127.0.0.1", "hub", |configuration| {
+            configuration.unsecure();
+            configuration.with_port(port);
+            configuration.with_connect_timeout(Duration::from_millis(500));
+        })
+        .unwrap();
+        let starting = tokio::spawn({
+            let client = client.clone();
+            async move { client.start().await }
+        });
+        status_becomes(&client, ConnectionStatus::Connecting).await;
+        let sent = client.clone().send("Target".to_string()).await.unwrap_err();
+        let started = starting.await.unwrap().unwrap_err();
+        assert_eq!(started.kind(), ErrorKind::Timeout, "{started}");
+        assert_eq!(
+            sent.kind(),
+            ErrorKind::Timeout,
+            "the call fails with the attempt's error: {sent}"
+        );
+        server.abort();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn reconnect_call_wait_calls_during_the_policy_delay_fail_at_once() {
+        let (server, client) = loopback(LoopbackOptions::default(), |configuration| {
+            configuration.with_reconnection_policy(crate::ReconnectionConfig {
+                policy: Arc::new(crate::ConstantDelayPolicy::new(
+                    Duration::from_secs(30),
+                    None,
+                )),
+            });
+        })
+        .await;
+        client.start().await.unwrap();
+        server.drop_connection();
+        status_becomes(&client, ConnectionStatus::Reconnecting).await;
+        let started = std::time::Instant::now();
+        let error = client.clone().send("Target".to_string()).await.unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::Transport, "{error}");
+        assert!(started.elapsed() < Duration::from_secs(1));
+        client.disconnect();
+    }
+
+    fn policy(delay: Duration, attempts: Option<u32>) -> crate::ReconnectionConfig {
+        crate::ReconnectionConfig {
+            policy: Arc::new(crate::ConstantDelayPolicy::new(delay, attempts)),
+        }
+    }
+
+    type Events = Arc<Mutex<Vec<String>>>;
+
+    fn record_events(client: &SignalRClient) -> Events {
+        let events = Events::default();
+        let recorded = events.clone();
+        std::mem::forget(client.on_reconnecting(move |error| {
+            recorded
+                .lock()
+                .unwrap()
+                .push(format!("reconnecting {:?}", error.kind()));
+        }));
+        let recorded = events.clone();
+        std::mem::forget(client.on_reconnected(move |id| {
+            recorded.lock().unwrap().push(format!("reconnected {id:?}"));
+        }));
+        let recorded = events.clone();
+        std::mem::forget(client.on_closed(move |error| {
+            recorded
+                .lock()
+                .unwrap()
+                .push(format!("closed {:?}", error.map(crate::Error::kind)));
+        }));
+        events
+    }
+
+    async fn events_reach(events: &Events, count: usize) -> Vec<String> {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                let seen = events.lock().unwrap().clone();
+                if seen.len() >= count {
+                    return seen;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("the lifecycle events never came")
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn reconnect_call_wait_a_call_during_a_reconnect_attempt_runs_on_the_new_connection() {
+        let (server, client) = loopback(
+            LoopbackOptions {
+                handshake_delay: Duration::from_millis(300),
+                ..LoopbackOptions::default()
+            },
+            |configuration| {
+                configuration.with_reconnection_policy(policy(Duration::ZERO, Some(5)));
+            },
+        )
+        .await;
+        client.start().await.unwrap();
+        server.drop_connection();
+        status_becomes(&client, ConnectionStatus::Reconnecting).await;
+        // The attempt is in flight: its handshake answer takes 300 ms.
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let mut caller = client.clone();
+        caller
+            .send_with_args("Record".to_string(), |arguments| {
+                arguments.argument("while reconnecting");
+            })
+            .await
+            .unwrap();
+        assert_eq!(client.status(), ConnectionStatus::Connected);
+        assert_eq!(server.negotiations(), 2);
+        let record = server.next_record().await;
+        assert!(record.contains("while reconnecting"), "{record}");
+        client.disconnect();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn reconnect_call_wait_a_call_during_a_failed_reconnect_attempt_gets_its_error() {
+        let (server, client) = loopback(
+            LoopbackOptions {
+                reject_after: Some(1),
+                rejection_delay: Duration::from_millis(300),
+                ..LoopbackOptions::default()
+            },
+            |configuration| {
+                configuration.with_reconnection_policy(policy(Duration::ZERO, Some(1)));
+            },
+        )
+        .await;
+        client.start().await.unwrap();
+        server.drop_connection();
+        status_becomes(&client, ConnectionStatus::Reconnecting).await;
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        // An invocation waits too, and gets the attempt's error rather than the error the ended
+        // run fails pending work with.
+        let invoking = tokio::spawn({
+            let mut client = client.clone();
+            async move { client.invoke::<i32>("Target".to_string()).await }
+        });
+        let error = client.clone().send("Target".to_string()).await.unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::Negotiate, "{error}");
+        assert_eq!(error.status(), Some(503), "{error}");
+        let invoked = invoking.await.unwrap().unwrap_err();
+        assert_eq!(invoked.kind(), ErrorKind::Negotiate, "{invoked}");
+        status_becomes(&client, ConnectionStatus::Disconnected).await;
+        client.disconnect();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn lifecycle_events_reconnected_precedes_the_events_of_the_next_drop() {
+        let (server, client) = loopback(LoopbackOptions::default(), |configuration| {
+            configuration.with_reconnection_policy(policy(Duration::from_millis(10), None));
+        })
+        .await;
+        let events = record_events(&client);
+        client.start().await.unwrap();
+        for round in 1..=3 {
+            server.wait_for_connections(1).await;
+            server.drop_connection();
+            events_reach(&events, 2 * round).await;
+        }
+        client.stop().await;
+        assert_eq!(
+            events_reach(&events, 7).await,
+            [
+                "reconnecting Transport",
+                "reconnected Some(\"conn-2\")",
+                "reconnecting Transport",
+                "reconnected Some(\"conn-3\")",
+                "reconnecting Transport",
+                "reconnected Some(\"conn-4\")",
+                "closed None",
+            ]
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn lifecycle_events_a_stop_during_a_reconnect_closes_with_a_cancellation() {
+        let (server, client) = loopback(LoopbackOptions::default(), |configuration| {
+            configuration.with_reconnection_policy(policy(Duration::from_secs(30), None));
+        })
+        .await;
+        let events = record_events(&client);
+        client.start().await.unwrap();
+        server.drop_connection();
+        status_becomes(&client, ConnectionStatus::Reconnecting).await;
+        client.stop().await;
+        assert_eq!(
+            events_reach(&events, 2).await,
+            ["reconnecting Transport", "closed Some(Canceled)"]
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn client_restart_callbacks_and_hooks_never_keep_a_client_alive() {
+        let (server, mut client) = loopback(LoopbackOptions::default(), |_| {}).await;
+        let probe = Arc::new(());
+        let held = probe.clone();
+        let weak = client.downgrade();
+        let callback = client.register("Notify", move |_| {
+            let _ = (&held, weak.upgrade());
+        });
+        let upgraded = Arc::new(Mutex::new(Vec::new()));
+        let seen = upgraded.clone();
+        let weak = client.downgrade();
+        let held = probe.clone();
+        let closed = client.on_closed(move |error| {
+            let _ = &held;
+            seen.lock()
+                .unwrap()
+                .push((error.is_none(), weak.upgrade().is_some()));
+        });
+        client.start().await.unwrap();
+        server.wait_for_connections(1).await;
+
+        // The last handle stops the client although callbacks and hooks hold weak handles.
+        drop(client);
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while upgraded.lock().unwrap().is_empty() {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("dropping the last handle must stop the client");
+        assert_eq!(
+            *upgraded.lock().unwrap(),
+            [(true, false)],
+            "Closed(None) runs once the client is gone"
+        );
+        // Registration handles keep only their callbacks and hooks.
+        drop((callback, closed));
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while Arc::strong_count(&probe) > 1 {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("the callbacks and hooks are freed with the client");
+    }
+
+    #[tokio::test]
+    async fn client_restart_a_failed_start_never_keeps_the_client_alive() {
+        let mut client = client_for(closed_port());
+        let probe = Arc::new(());
+        let held = probe.clone();
+        let callback = client.register("Notify", move |_| {
+            let _ = &held;
+        });
+        let _ = client.start().await;
+        drop(client);
+        drop(callback);
+        assert_eq!(Arc::strong_count(&probe), 1);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn graceful_stop_sends_queued_messages_then_the_close_message() {
+        let (server, client) = loopback(LoopbackOptions::default(), |_| {}).await;
+        client.start().await.unwrap();
+        let mut caller = client.clone();
+        caller
+            .send_with_args("Record".to_string(), |arguments| {
+                arguments.argument("last");
+            })
+            .await
+            .unwrap();
+        client.stop().await;
+        assert!(server.next_record().await.contains("last"));
+        assert_eq!(server.next_record().await, r#"{"type":7}"#);
+        assert_eq!(client.status(), ConnectionStatus::Closed);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn graceful_stop_waits_at_most_the_close_timeout() {
+        let (_server, client) = loopback(
+            LoopbackOptions {
+                stall_after_handshake: true,
+                ..LoopbackOptions::default()
+            },
+            |configuration| {
+                configuration.with_close_timeout(Duration::from_millis(300));
+            },
+        )
+        .await;
+        client.start().await.unwrap();
+        let started = std::time::Instant::now();
+        client.stop().await;
+        assert!(
+            started.elapsed() < Duration::from_secs(3),
+            "stop waited {:?}",
+            started.elapsed()
+        );
+        assert_eq!(client.status(), ConnectionStatus::Closed);
     }
 }

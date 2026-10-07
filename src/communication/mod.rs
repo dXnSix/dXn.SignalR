@@ -1,7 +1,10 @@
 #[cfg(target_arch = "wasm32")]
 mod browser_socket;
 mod common;
+pub(crate) mod hooks;
 pub(crate) mod liveness;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+pub(crate) mod loopback_server;
 #[cfg(not(target_arch = "wasm32"))]
 mod negotiate_http;
 pub(crate) mod negotiation;
@@ -19,9 +22,11 @@ mod client_tokio;
 
 #[cfg(all(feature = "bench-internals", not(target_arch = "wasm32")))]
 pub(crate) use common::dispatch_decoded;
+pub use common::Communication;
 pub(crate) use common::HttpClient;
-pub use common::{Communication, ConnectionData};
 
+#[cfg(target_arch = "wasm32")]
+pub(crate) use client_wasm::WeakCommunicationClient;
 #[cfg(target_arch = "wasm32")]
 pub use client_wasm::{CommunicationClient, WasmReconnectionContext};
 
@@ -29,6 +34,8 @@ pub use client_wasm::{CommunicationClient, WasmReconnectionContext};
 pub(crate) use client_tokio::websocket_message;
 #[cfg(not(target_arch = "wasm32"))]
 pub use client_tokio::CommunicationClient;
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) use client_tokio::WeakCommunicationClient;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use client_tokio::ReconnectionContext;

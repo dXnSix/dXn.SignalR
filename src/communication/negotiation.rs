@@ -291,7 +291,6 @@ fn connection_data(
     Ok(ConnectionData::new(
         socket_url(base, &parameters),
         response.connection_id().to_string(),
-        protocol,
         recipe
             .clone()
             .with_transport_authentication(authentication.clone()),
@@ -311,7 +310,6 @@ fn direct_connection(recipe: &ConnectionRecipe) -> Result<ConnectionData, Error>
     Ok(ConnectionData::new(
         socket_url(&recipe.web_url(), &parameters),
         String::new(),
-        recipe.protocol(),
         recipe.clone(),
         None,
     ))

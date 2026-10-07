@@ -428,7 +428,9 @@ impl ConnectionConfiguration {
 
     /// Sends a Ping after this long without outbound messages, so the server (whose
     /// `ClientTimeoutInterval` defaults to 30 s) keeps the connection. Defaults to 15 s.
-    /// Must be greater than zero and less than the server timeout, or `connect` fails before I/O.
+    /// Every value is accepted, as the official .NET client accepts it: zero acts as one second
+    /// (the .NET client's timer tick), and a value not below the server timeout is logged as a
+    /// warning when the client is built.
     pub fn with_keep_alive_interval(&mut self, interval: Duration) -> &ConnectionConfiguration {
         self._liveness.keep_alive_interval = interval;
         self
@@ -436,15 +438,17 @@ impl ConnectionConfiguration {
 
     /// Treats the transport as dropped after this long without any inbound message (the server
     /// pings every `KeepAliveInterval`, 15 s by default); the reconnect path then runs as for any
-    /// dropped transport. Defaults to 30 s. Must be greater than the keep-alive interval, or
-    /// `connect` fails before I/O.
+    /// dropped transport. Defaults to 30 s. Every value is accepted: zero acts as one second, and
+    /// a value not above the keep-alive interval is logged as a warning (the connection is then
+    /// considered lost whenever the server is idle).
     pub fn with_server_timeout(&mut self, timeout: Duration) -> &ConnectionConfiguration {
         self._liveness.server_timeout = timeout;
         self
     }
 
     /// Fails `connect` (and ends a reconnect attempt) when the server does not answer the
-    /// handshake within this time. Defaults to 15 s. Must be greater than zero.
+    /// handshake within this time. Defaults to 15 s. Zero is accepted (with a warning): every
+    /// handshake then times out.
     pub fn with_handshake_timeout(&mut self, timeout: Duration) -> &ConnectionConfiguration {
         self._liveness.handshake_timeout = timeout;
         self
@@ -453,14 +457,22 @@ impl ConnectionConfiguration {
     /// Bounds connection setup: each negotiate request, and opening the transport (natively the
     /// TCP connection, TLS and the WebSocket upgrade; in browsers opening the WebSocket). Browsers
     /// abort a negotiate `fetch` that exceeds it. Applies to `connect` and to every reconnect
-    /// attempt. Defaults to 120 s, the official .NET client's bound. Must be greater than zero,
-    /// or `connect` fails before I/O.
+    /// attempt. Defaults to 120 s, the official .NET client's bound. Zero is accepted (with a
+    /// warning): every attempt then times out.
     ///
     /// A setup that exceeds the bound fails with [`ErrorKind::Timeout`](crate::ErrorKind::Timeout)
     /// naming [`TimeoutOperation::Negotiate`](crate::TimeoutOperation::Negotiate) or
     /// [`TimeoutOperation::Connect`](crate::TimeoutOperation::Connect).
     pub fn with_connect_timeout(&mut self, timeout: Duration) -> &ConnectionConfiguration {
         self._liveness.connect_timeout = timeout;
+        self
+    }
+
+    /// Bounds how long [`stop`](crate::SignalRClient::stop) waits for the transport to close after
+    /// the client sent its Close message, as the official .NET client's `CloseTimeout`. Defaults
+    /// to 5 s; when it elapses the transport is dropped.
+    pub fn with_close_timeout(&mut self, timeout: Duration) -> &ConnectionConfiguration {
+        self._liveness.close_timeout = timeout;
         self
     }
 

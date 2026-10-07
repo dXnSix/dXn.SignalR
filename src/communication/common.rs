@@ -47,7 +47,9 @@ pub(crate) fn log_undecodable(error: &Error) {
 pub struct ConnectionData {
     endpoint: String,
     connection_id: String,
-    protocol_kind: HubProtocolKind,
+    /// The recipe with any transport credentials a redirect issued (browsers carry them in the
+    /// endpoint's query instead).
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     recipe: ConnectionRecipe,
     stateful_reconnect: Option<crate::StatefulReconnectConfig>,
 }
@@ -56,14 +58,12 @@ impl ConnectionData {
     pub(crate) fn new(
         endpoint: String,
         connection_id: String,
-        protocol_kind: HubProtocolKind,
         recipe: ConnectionRecipe,
         stateful_reconnect: Option<crate::StatefulReconnectConfig>,
     ) -> Self {
         Self {
             endpoint,
             connection_id,
-            protocol_kind,
             recipe,
             stateful_reconnect,
         }
@@ -73,15 +73,12 @@ impl ConnectionData {
         self.endpoint.clone()
     }
 
-    #[allow(dead_code)]
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     pub fn get_connection_id(&self) -> String {
         self.connection_id.clone()
     }
 
-    pub fn get_protocol_kind(&self) -> HubProtocolKind {
-        self.protocol_kind
-    }
-
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     pub(crate) fn get_recipe(&self) -> ConnectionRecipe {
         self.recipe.clone()
     }
@@ -92,13 +89,17 @@ impl ConnectionData {
 }
 
 pub trait Communication: Clone {
-    async fn connect(configuration: &ConnectionData) -> Result<Self, Error>;
+    /// Starts (or restarts) the client with a fresh negotiation, as `HubConnection.StartAsync`.
+    async fn start(&self) -> Result<(), Error>;
     /// Sends one encoded hub message (tracked for replay with stateful reconnect).
     async fn send_message(&mut self, message: OutboundMessage) -> Result<(), Error>;
     fn get_storage(&self) -> Result<UpdatableActionStorage, Error>;
     fn get_protocol_kind(&self) -> HubProtocolKind;
-    /// Closes the connection locally for every handle, like the official clients' `stop`.
+    /// Closes the connection locally for every handle, like the official clients' `stop`; the
+    /// transport closes in the background.
     async fn disconnect(&self);
+    /// As `disconnect`, and waits until the transport closed or the close timeout elapsed.
+    async fn stop(&self);
     /// Releases this handle: closes the connection only when no other handle remains.
     async fn release(&mut self);
 }
@@ -232,7 +233,7 @@ mod log_policy {
                 let _ = context.argument::<i32>(0);
                 *seen.lock().unwrap() = context.argument::<String>(0).ok();
             }),
-            SignalRClient::detached(storage.clone()),
+            SignalRClient::detached(storage.clone()).downgrade(),
         );
         move || {
             assert_eq!(result.now_or_never().unwrap().unwrap(), MARKER);

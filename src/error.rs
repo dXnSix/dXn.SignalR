@@ -50,6 +50,10 @@ pub enum ErrorKind {
     Paused,
     /// The operation was canceled before it completed.
     Canceled,
+    /// The operation is not valid in the connection's current state, as the official .NET
+    /// client's `InvalidOperationException`: `start` on a client that is starting, connected,
+    /// reconnecting or paused, or a call on a client that is not started.
+    InvalidState,
 }
 
 /// The operation a [`ErrorKind::Timeout`] error bounded.
@@ -354,6 +358,15 @@ impl Error {
 
     pub(crate) fn canceled(message: impl Into<String>) -> Self {
         Self::build(Inner::new(ErrorKind::Canceled, message.into()))
+    }
+
+    pub(crate) fn invalid_state(message: impl Into<String>) -> Self {
+        Self::build(Inner::new(ErrorKind::InvalidState, message.into()))
+    }
+
+    /// A call or control on a client that was never started (or whose start failed).
+    pub(crate) fn not_started() -> Self {
+        Self::invalid_state("the connection is not started; call `start` first")
     }
 
     // ── Builders (used while the error is still uniquely owned) ─────────
