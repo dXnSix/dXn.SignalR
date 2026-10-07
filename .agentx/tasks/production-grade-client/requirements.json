@@ -45,6 +45,11 @@
           "id": "R2.C4",
           "descriptionMarkdown": "In one Aspire run with `RAYX_SIGNALR_PERF_SCALE=full`, the release Rust client meets these budgets against the official .NET client for JSON and MessagePack: `invoke-latency` p50 and p99 at most 1.10x of the .NET client, `stream-throughput`, `send-throughput` and `fan-in` throughput at least 0.95x of it. Verified by a `ReferenceClientBudget` test over the run's results.",
           "verification": "automated"
+        },
+        {
+          "id": "R2.C5",
+          "descriptionMarkdown": "Native sends complete once the transport accepts the message, as the official .NET client's `SendAsync` completes once the message is in the transport's pipe: the caller waits only for room in the bounded outbound queue and, with stateful reconnect, in the replay buffer, and tracks the frame for replay and queues it under the replay buffer's lock, so stateful sequence order equals queue order. The writer task writes each queued frame together with the frames queued behind it as one WebSocket message (up to 64 KiB), as the official transports send what their pipe holds. Errors that exist before acceptance (not connected, paused, a message larger than the replay buffer, a stale transport) still fail the call. Unit group `outbound_writer_`.",
+          "verification": "automated"
         }
       ]
     },

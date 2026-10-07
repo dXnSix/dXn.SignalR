@@ -1,12 +1,12 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 42,
-  "planRevision": 9,
+  "revision": 58,
+  "planRevision": 11,
   "specHashes": {
-    "requirements": "50dd3151611c4baf98d7355092dc4d1df790fcac141348b06695aeaac9bfd18b",
-    "design": "d7f4d3efa4689e6495ec031aa353849788d7b718ff1387f9526749fa6ae158d4",
-    "plan": "8cd6e632f3dae6f74203e422dc5723c081c9ad3696c3eb50f004bc2d093aed6f"
+    "requirements": "b5ff0debaa1b5a28eec0bd570fe0199dcfa134ad978a51a022ab623a2c870b30",
+    "design": "f5cfde4f74bcadbd1c33c0768a4792dfa8dc040e6cdd9dd6fa881f9a3f61b08e",
+    "plan": "78b650c17c340294c946811da195ec9514f3de2ba762a54eba15e6b00ba66f96"
   },
   "tasks": {
     "S1.T1": {
@@ -52,16 +52,28 @@
       ]
     },
     "S3.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S3.T2": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S3.T3": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S3.T4": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S4.T1": {
       "status": "pending"
@@ -157,7 +169,10 @@
       ]
     },
     "S3.T5": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "P1.T1": {
       "status": "pending"
@@ -241,6 +256,33 @@
         }
       },
       "recordedAt": "2026-10-07T08:49:36Z"
+    },
+    "0bf50bff3d0171afa88a2ae4cf19cb0ef40a55bb52df20f896b95631a7c762ab": {
+      "snapshot": {
+        "specHash": "1f42e25586538c3488840a8685ad0c789cd95712ed2e6699d8bb91bf490b9c6d",
+        "repositories": {
+          "rayx-signalr": "e407f852ab84efcf9c1726c37b8d0a3a7b0e4651836b10f8a484c2e6e9351620"
+        }
+      },
+      "recordedAt": "2026-10-07T08:59:24Z"
+    },
+    "369e29aeb45557d4924ff5730ef83d36a66a3e9a94f31e702bc6941c4a833e4b": {
+      "snapshot": {
+        "specHash": "7b7bace3f8429145467239daa134b436a6cda914fa883506e1f2a8eb3580333e",
+        "repositories": {
+          "rayx-signalr": "635f1f13e672717bbeb9624ca47c8f2dfbad1a1b0c81c35d40d0e8399a64d5ef"
+        }
+      },
+      "recordedAt": "2026-10-07T10:03:07Z"
+    },
+    "a27b7af8bfaa11b654a0d7cf9a6294b34c345f03ed80e44dd5d82dc760e0cf1d": {
+      "snapshot": {
+        "specHash": "16cd19e5cf4121716d3dcb129d9ff86ca7af50341211267d1afe98a0ba882e5f",
+        "repositories": {
+          "rayx-signalr": "8afb886815e2b3cc288dabcd5d64336236fd325214cc950bf55c4eeffcca7e56"
+        }
+      },
+      "recordedAt": "2026-10-07T10:59:18Z"
     }
   },
   "checkResults": {
@@ -515,6 +557,261 @@
       "logPath": "artifacts-temp/agentx/production-grade-client/S2-final-be363e2706be.log",
       "logSha256": "297aa5f5dd1b8cb74a0a4d6df8eff9e7e5ae03584b3864dabb758720e917502c",
       "inputsHash": "f1bb6ff8d2214340a1c634fa87fbf0349359c1e726210447220af7f24cb2ac9a"
+    },
+    "S3/s3-micro-budget/baseline": {
+      "checkId": "s3-micro-budget",
+      "boundaryId": "S3",
+      "phase": "baseline",
+      "batchId": "0bf50bff3d0171afa88a2ae4cf19cb0ef40a55bb52df20f896b95631a7c762ab",
+      "definitionHash": "ce36d1ef64b45d0a6cd9b359ab74c7e41f2629e0ad2c63a9a1174ba2c6866f1b",
+      "basisHash": "3f8c7a78b7f2d547bb74b5b80162e3379313f28da1cf6ff6c31df9306e018d71",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 0,
+      "durationSeconds": 359.4394,
+      "recordedAt": "2026-10-07T08:59:24Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S3-baseline-21af9aa20c99.log",
+      "logSha256": "612ef4c082ad2d4405b2dd7da70df7625c3e0d53d6855f4b9eb0b6492006db6b",
+      "inputsHash": "569a52bdf11b9798ca2b49953828971cbcf26089f382cb4e8f128d2dc3024532"
+    },
+    "S3/s3-wire-codec/final": {
+      "checkId": "s3-wire-codec",
+      "boundaryId": "S3",
+      "phase": "final",
+      "batchId": "a27b7af8bfaa11b654a0d7cf9a6294b34c345f03ed80e44dd5d82dc760e0cf1d",
+      "definitionHash": "aca0f7ccd7ae1a2b603d500a8621cd58f73a1b999134905dd1be64a452f6c089",
+      "basisHash": "8bec7abecc8538ac7cef64236b8d2de9374abc0c68bbdab59123d799105be005",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 20,
+      "durationSeconds": 6.0375,
+      "recordedAt": "2026-10-07T10:49:58Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S3-final-43dbaaabc8be.log",
+      "logSha256": "44f530744d018f9687f1b7f0058d8210806734b8c399ff0bc989261d1de4e748",
+      "inputsHash": "251c01a2f7db134aab09eb1b59b98c921205a9c0e27713b9d95b1544665c75cf"
+    },
+    "S3/s3-log-policy/final": {
+      "checkId": "s3-log-policy",
+      "boundaryId": "S3",
+      "phase": "final",
+      "batchId": "a27b7af8bfaa11b654a0d7cf9a6294b34c345f03ed80e44dd5d82dc760e0cf1d",
+      "definitionHash": "31c631d00078a07236d521e9d97bb2f6bbfd5103cd90283e5a3a2244cb5e0a3c",
+      "basisHash": "7dcb1a4f12fa7e13bb32d6c4b1da501b6ec91b21f2171bc2299a94fdc96fecdd",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 0.5672,
+      "recordedAt": "2026-10-07T10:49:58Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S3-final-da0712a3eb4e.log",
+      "logSha256": "77776d917f16ca6ffca4355c04211e2a71f129d31eb041a74a8c7d1dcd75319d",
+      "inputsHash": "251c01a2f7db134aab09eb1b59b98c921205a9c0e27713b9d95b1544665c75cf"
+    },
+    "S3/s3-robustness/final": {
+      "checkId": "s3-robustness",
+      "boundaryId": "S3",
+      "phase": "final",
+      "batchId": "a27b7af8bfaa11b654a0d7cf9a6294b34c345f03ed80e44dd5d82dc760e0cf1d",
+      "definitionHash": "123783f10525b014b5ea1c14181aaff5c1e7f3f4f6911634f78d9f01ab846166",
+      "basisHash": "7bb390743cc66bd0db3b6852bea400a2a238c69b7be60de6c1a0636e9690384e",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 9,
+      "durationSeconds": 0.7094,
+      "recordedAt": "2026-10-07T10:49:59Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S3-final-8f5246602a35.log",
+      "logSha256": "a83961eb8b32bfe3e67e9d57cae78a5ec78d143790b71b4cf3111a87b237c7b2",
+      "inputsHash": "251c01a2f7db134aab09eb1b59b98c921205a9c0e27713b9d95b1544665c75cf"
+    },
+    "S3/s3-panic-lints/final": {
+      "checkId": "s3-panic-lints",
+      "boundaryId": "S3",
+      "phase": "final",
+      "batchId": "a27b7af8bfaa11b654a0d7cf9a6294b34c345f03ed80e44dd5d82dc760e0cf1d",
+      "definitionHash": "4c4b36aaaf63380c156033175500a39f24755816635e406322becf2fb9a2b07d",
+      "basisHash": "cf33306adc485a1df930f426c5fe1890b2be55eecb861f7500e021924975f590",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 0,
+      "durationSeconds": 2.3688,
+      "recordedAt": "2026-10-07T10:50:01Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S3-final-966e59dcbfdf.log",
+      "logSha256": "1a41e4a09aa31e9365c8c4a91cccfc476e51cbee3c8b237fca1e388e25efc23a",
+      "inputsHash": "251c01a2f7db134aab09eb1b59b98c921205a9c0e27713b9d95b1544665c75cf"
+    },
+    "S3/s3-micro-budget/final": {
+      "checkId": "s3-micro-budget",
+      "boundaryId": "S3",
+      "phase": "final",
+      "batchId": "a27b7af8bfaa11b654a0d7cf9a6294b34c345f03ed80e44dd5d82dc760e0cf1d",
+      "definitionHash": "e34a9ed41ee83105f1d32940ecb2be51b14a8543835e00cc38a98d982d8734d2",
+      "basisHash": "71b668bef3d545622bec98f7233860435284552610078ad693bf841f7b904335",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 1,
+      "durationSeconds": 357.517,
+      "recordedAt": "2026-10-07T10:55:59Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S3-final-a0f5018058c2.log",
+      "logSha256": "f1c2ed9c49c26a30c4a0d2e20ccece5861d9c396ec53f7228f2d24a772d33025",
+      "inputsHash": "5a57c32d2e78d39a4c2099ac51182248e939b640e675d414ea88dd20184757a7"
+    },
+    "S3/s3-reference-budget/final": {
+      "checkId": "s3-reference-budget",
+      "boundaryId": "S3",
+      "phase": "final",
+      "batchId": "a27b7af8bfaa11b654a0d7cf9a6294b34c345f03ed80e44dd5d82dc760e0cf1d",
+      "definitionHash": "4430c10a6a99f62f46450891f1b779c8264a250e25cb1a99848e032665eea704",
+      "basisHash": "525ed3587ed4b59c2196b33dbe1500b1395de782c8fd7ce20939cc798f6b350d",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 9,
+      "durationSeconds": 128.7214,
+      "recordedAt": "2026-10-07T10:58:08Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S3-final-42ebcd6d7db2.log",
+      "logSha256": "08a62489bc2bb7c687c0f98a223c671405867d36c8133b0ff881a7787e0f50b6",
+      "inputsHash": "aff15df09d74a41d7119714b932dc8ecd72427068c939abb89f2885a467c0e65"
+    },
+    "S3/s3-invocation-ids/final": {
+      "checkId": "s3-invocation-ids",
+      "boundaryId": "S3",
+      "phase": "final",
+      "batchId": "a27b7af8bfaa11b654a0d7cf9a6294b34c345f03ed80e44dd5d82dc760e0cf1d",
+      "definitionHash": "0f55f28b9876ed463eb56ba4f535916bf8edd12a90d0a8c2bb85cbb9dbeeec99",
+      "basisHash": "41ea1bf4b4fec3ec6fced380a79efde81ea74a1971426c63ee99ed93f24f17b4",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 3,
+      "durationSeconds": 0.343,
+      "recordedAt": "2026-10-07T10:58:08Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S3-final-25b288e4b3f6.log",
+      "logSha256": "0d76aaf18f29a024fb2ce3335091f20befd6c8b70857d9ad89f73d97032eb98a",
+      "inputsHash": "251c01a2f7db134aab09eb1b59b98c921205a9c0e27713b9d95b1544665c75cf"
+    },
+    "S3/s3-msgpack-args/final": {
+      "checkId": "s3-msgpack-args",
+      "boundaryId": "S3",
+      "phase": "final",
+      "batchId": "a27b7af8bfaa11b654a0d7cf9a6294b34c345f03ed80e44dd5d82dc760e0cf1d",
+      "definitionHash": "0052b9b906bc1c837ea44e9760b722d416847850652e30a6c01144f5375218ba",
+      "basisHash": "fcebead37a7b3e1bf53be3632e5085964fafedca18fe74ee75ce0a2dc64113ad",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 0.2861,
+      "recordedAt": "2026-10-07T10:58:08Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S3-final-1cd9366cc2ed.log",
+      "logSha256": "9c1990658eba16dc056d288a78a5f8c6f702bf7ab0cf112960ebf308ef0a98e0",
+      "inputsHash": "251c01a2f7db134aab09eb1b59b98c921205a9c0e27713b9d95b1544665c75cf"
+    },
+    "S3/s3-msgpack-fidelity/final": {
+      "checkId": "s3-msgpack-fidelity",
+      "boundaryId": "S3",
+      "phase": "final",
+      "batchId": "a27b7af8bfaa11b654a0d7cf9a6294b34c345f03ed80e44dd5d82dc760e0cf1d",
+      "definitionHash": "365cefa5c7bebd67151b2fae9bb5dd91737b0f4ef3b06469687910d2162f2c10",
+      "basisHash": "04e825151887a25cd55e604df554148af2dd7914f240d045623da6acc393af16",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 29.2705,
+      "recordedAt": "2026-10-07T10:58:38Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S3-final-e2e51607a2b9.log",
+      "logSha256": "068720a84d86a47322a801d3c4bb160b7d30d01bf79b26c4e3da39e4aeecc608",
+      "inputsHash": "458e663f9de9f69fa19508900bf9a79917554b054b490533c9817027bb948110"
+    },
+    "S3/s3-msgpack-fidelity-android/final": {
+      "checkId": "s3-msgpack-fidelity-android",
+      "boundaryId": "S3",
+      "phase": "final",
+      "batchId": "a27b7af8bfaa11b654a0d7cf9a6294b34c345f03ed80e44dd5d82dc760e0cf1d",
+      "definitionHash": "06bdbdaec135a717295117c72e405159fd48ae865f27d4e0b4ee6fe8b92c4281",
+      "basisHash": "7f63394b3b4655e676210483461b13cae9bd050259a8d79832ca63366f2da77a",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 1,
+      "durationSeconds": 18.0364,
+      "recordedAt": "2026-10-07T10:58:56Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S3-final-f8161e854224.log",
+      "logSha256": "cce01f9df7bbcc2bf2dbff211ef3e0de592106caad8525f5a991d39c5072714c",
+      "inputsHash": "458e663f9de9f69fa19508900bf9a79917554b054b490533c9817027bb948110"
+    },
+    "S3/s3-outbound-writer/final": {
+      "checkId": "s3-outbound-writer",
+      "boundaryId": "S3",
+      "phase": "final",
+      "batchId": "a27b7af8bfaa11b654a0d7cf9a6294b34c345f03ed80e44dd5d82dc760e0cf1d",
+      "definitionHash": "46f66cff2a585bfa5bdb44a99337da79099cad3f65373ccff4c9d0c24f23c68f",
+      "basisHash": "a3b984f2c8cb66d5af82f8d0b652e39c2815f4b0cf183faca10434d997cf7549",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 10,
+      "durationSeconds": 0.3714,
+      "recordedAt": "2026-10-07T10:58:56Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S3-final-5025c8849e87.log",
+      "logSha256": "c051e34cd961260169b864e745ca565f6c4695915cd931e32c385ca7c0cee532",
+      "inputsHash": "251c01a2f7db134aab09eb1b59b98c921205a9c0e27713b9d95b1544665c75cf"
+    },
+    "S3/s3-dotnet-build/final": {
+      "checkId": "s3-dotnet-build",
+      "boundaryId": "S3",
+      "phase": "final",
+      "batchId": "369e29aeb45557d4924ff5730ef83d36a66a3e9a94f31e702bc6941c4a833e4b",
+      "definitionHash": "99ad9e5fbe8c7ae964a633fe2f0c2c9870c50018bb3a32257d6819fdc453bbe9",
+      "basisHash": "ce40c07af2f1dbd7764e0791ae071e77310834abd4c2fb077f25235f014b25d0",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 0,
+      "durationSeconds": 1.5986,
+      "recordedAt": "2026-10-07T10:02:41Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S3-final-008b3d8e938a.log",
+      "logSha256": "ec34f94ee2edd585f4570b9df746ed034de509b2e2ffad90ee0dfbfde0b4898a",
+      "inputsHash": "5c8c213b9228b580f2bad0a83dfc50a679df19facdd12728ab98185681fefd52"
+    },
+    "S3/s3-static-categories/final": {
+      "checkId": "s3-static-categories",
+      "boundaryId": "S3",
+      "phase": "final",
+      "batchId": "a27b7af8bfaa11b654a0d7cf9a6294b34c345f03ed80e44dd5d82dc760e0cf1d",
+      "definitionHash": "9b7722f68c24a94f91021155a6814774b47805be1377c421136fb142d51cf9de",
+      "basisHash": "62d1bf22bfd2d801271f1e5d24811a23ab4c7cc410855bb145674b84c82a6f3a",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 32,
+      "durationSeconds": 20.8139,
+      "recordedAt": "2026-10-07T10:59:17Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S3-final-84c2828e4a38.log",
+      "logSha256": "f8310ab827fad695569e4cfec3c7e9caa4b049b3f1efb36e4a122fd1b86c99ed",
+      "inputsHash": "8df8543c51e192eb880f3ae40ac3a156f75bfdef34be96eb30186a442dc9796b"
+    },
+    "S3/s3-panic-lints-wasm/final": {
+      "checkId": "s3-panic-lints-wasm",
+      "boundaryId": "S3",
+      "phase": "final",
+      "batchId": "a27b7af8bfaa11b654a0d7cf9a6294b34c345f03ed80e44dd5d82dc760e0cf1d",
+      "definitionHash": "028b89e38b3086f58f753508cfe62f50078a3a2771aaa02984e8a909877099d5",
+      "basisHash": "7f8171283e022b9a71e6431377a01c8b7a5a4f628bfaef62c8bf7a8277759ae2",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 0,
+      "durationSeconds": 0.9046,
+      "recordedAt": "2026-10-07T10:59:18Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S3-final-7a397a02b353.log",
+      "logSha256": "d5ddf0ec005eae7aac956198574362f6fff5e2e0325eb968c41e30cf386aceb5",
+      "inputsHash": "251c01a2f7db134aab09eb1b59b98c921205a9c0e27713b9d95b1544665c75cf"
     }
   },
   "reviews": {
@@ -1207,6 +1504,484 @@
         "S2-F7"
       ],
       "recordedAt": "2026-10-07T08:51:44Z"
+    },
+    "S3": {
+      "reviewerId": "s3-reviewer-3",
+      "snapshotId": "a27b7af8bfaa11b654a0d7cf9a6294b34c345f03ed80e44dd5d82dc760e0cf1d",
+      "criterionIds": [
+        "R2.C1",
+        "R2.C2",
+        "R2.C3",
+        "R2.C4",
+        "R2.C5",
+        "R3.C1",
+        "R16.C10",
+        "R16.C12"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/codec.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C1",
+            "R3.C1",
+            "R16.C10"
+          ],
+          "sha256": "4e6e0927483165ca4eeaa2f5a7f62dd4d2c0b1d9e0161facf10d6b2043871281"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/msgpack.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C1",
+            "R16.C10"
+          ],
+          "sha256": "011b178388bf94ea694e0756756bf86afcd2a7a337d5a228e589ceaa11e88ad7"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/invoke.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C1"
+          ],
+          "sha256": "69eba94c0097ed189bc3b685548c7cbd7dedeac44ce76b1a43ac6cf7eff504ad"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/mod.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C1"
+          ],
+          "sha256": "a6fb3755d554ce72efe72e4a5659d3f6e51cd64bcf8e3b9fb96db50374623eb0"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/actions.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C1"
+          ],
+          "sha256": "9419e66b088b92e3e771c73140a3a6eaac8f383238855aafd030ae7c22307444"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/storage.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C1",
+            "R16.C12"
+          ],
+          "sha256": "365cfe0098426043d7bfeedf72da73680a2e623ff93d2d74f3c91c56edbf986d"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/storage_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C1",
+            "R16.C12"
+          ],
+          "sha256": "77f2c537759168a1b704e562e4628d02484ac770cba44ee8120f3ae6119f9725"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/storage_wasm.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C1",
+            "R16.C12"
+          ],
+          "sha256": "936c2940bf9a319227673486e73b5e86cc4b2dd9eea7f8d3694ab124ad59b1b4"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/invocation.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C1",
+            "R2.C2"
+          ],
+          "sha256": "a1ef4771d2cc7949e6fffbdf4fc425d6d849231960158d5dc082b5c96827b1e7"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/enumerable.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C1",
+            "R2.C2"
+          ],
+          "sha256": "3e32b05af676621aca7f49e601d392212c6a143623856a9fb804fbafc3061e57"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C10"
+          ],
+          "sha256": "7f05d226f0d2011732b34534059ef1593d95af65726bc03fcef5412a4a680c94"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/context.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C10"
+          ],
+          "sha256": "c8a0d936f293e7a9f19fc44d8e4165eaeb1e520364a8ca9eb425f84528c90bcb"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C1",
+            "R16.C12"
+          ],
+          "sha256": "6f7d442f969306e7846623f3fb6dcc34b010780efc5f8788cb3c956ac3393262"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/common.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C1",
+            "R2.C2",
+            "R3.C1"
+          ],
+          "sha256": "84f85b4a88eb766f883cd87c1cc6bc1fc80411a809b40dd0da14fb9c7515952b"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C1",
+            "R2.C5",
+            "R3.C1"
+          ],
+          "sha256": "5ca9b5f5e540cc923a8c3358cf0bc302e4de896c459b360e5a951f0d3986c3c7"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C1",
+            "R3.C1"
+          ],
+          "sha256": "45ef107c1e65764ec9e8c25ead9578b94ea1b95f7d82a1b3b42750611282fbf1"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/stateful.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C5",
+            "R3.C1"
+          ],
+          "sha256": "4ad0c6b3bf535c4192c6921ed49f2221957d2e0de3577fc7a9fcfb1beed99f36"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C1"
+          ],
+          "sha256": "a485d8fda771f666a2647432350109c7684474b69cde94063604311120c9fc5e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/liveness.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C1"
+          ],
+          "sha256": "0a6f16bcf479a9fd9c7e3d68af0baea8a03d5ea44b4073475bfe9417a0e0fda0"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/reconnection.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C1"
+          ],
+          "sha256": "ab52443965407cc17115623f94e0e2b864baa3f17c5efb216dd161311966aae1"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/tls.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C1"
+          ],
+          "sha256": "207691ba562a7f11568577d7d699f903540ebb3028761e33fbb16fcf1ee67d36"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/platform.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C1"
+          ],
+          "sha256": "7cf0e9763d64170263f9dc32d6042d7e0fdbaccbff0ee00b290cd1207d3dfadd"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/bench_support.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C3"
+          ],
+          "sha256": "d78b49205619710159ced321e19e41df95c635fabada1ffb7c8e3d5fb059104b"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Performance/MicroBenchmarkBudget.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C3"
+          ],
+          "sha256": "83ea6ed47b4bcdbb5ccd559a4e1b4fe3fd280b105f71ac624f1115fd596b3aa6"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Performance/ReferenceClientBudget.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C4"
+          ],
+          "sha256": "1efb413d12432eea90207f964b30020641c409db7c760d51b2b8ca29b0630cf8"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/ScenarioCatalog.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C10"
+          ],
+          "sha256": "ce8ee7dbe9b32af5cd76e020edd413b47d1304b2f3fd67d5c46ac3c0bdc41ea2"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/TestHub.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C10"
+          ],
+          "sha256": "f962021a6d934fea48cb9b7d105c1ddbb6bb65971a321593941a5af9334cde06"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/03-calling-the-hub.md",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C5"
+          ],
+          "sha256": "4ed7e762ab92bf4f2f578df4610e9581c5a5d488c6d275576316575466bbc852"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/13-architecture.md",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C1",
+            "R2.C5"
+          ],
+          "sha256": "13c5a0d9179e1dfb7a1a3c3e4dc44aa001101d831cea15f4fad0de92331fb73e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/codec.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R2.C1",
+            "R3.C1"
+          ],
+          "sha256": "4e6e0927483165ca4eeaa2f5a7f62dd4d2c0b1d9e0161facf10d6b2043871281"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/common.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R2.C2"
+          ],
+          "sha256": "84f85b4a88eb766f883cd87c1cc6bc1fc80411a809b40dd0da14fb9c7515952b"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R2.C5"
+          ],
+          "sha256": "5ca9b5f5e540cc923a8c3358cf0bc302e4de896c459b360e5a951f0d3986c3c7"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/storage_tokio.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C12"
+          ],
+          "sha256": "77f2c537759168a1b704e562e4628d02484ac770cba44ee8120f3ae6119f9725"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/invocation.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R2.C1"
+          ],
+          "sha256": "a1ef4771d2cc7949e6fffbdf4fc425d6d849231960158d5dc082b5c96827b1e7"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/enumerable.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R2.C1"
+          ],
+          "sha256": "3e32b05af676621aca7f49e601d392212c6a143623856a9fb804fbafc3061e57"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C10"
+          ],
+          "sha256": "7f05d226f0d2011732b34534059ef1593d95af65726bc03fcef5412a4a680c94"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C12"
+          ],
+          "sha256": "6f7d442f969306e7846623f3fb6dcc34b010780efc5f8788cb3c956ac3393262"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/msgpack_fidelity.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C10"
+          ],
+          "sha256": "11d738f268542aaf0d3d5a999b2e532e2c0e168bed1cf01f5ccb4a9f518f38fd"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C10"
+          ],
+          "sha256": "e39b1b5fea896e19cab150368d0e7b9b8a423142d70a664ae13a8c48404ca132"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/tests/signalr-functional.spec.ts",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C10"
+          ],
+          "sha256": "907e8d5062017adc408dbf16c3327ef2e2b8cff0fe0de38ed47004954f48db29"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/CatalogTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C10"
+          ],
+          "sha256": "fb33fd59685b0e75b1d3a59a9de1cc2639f6dbe6fe63a6fcb0577f1dca170bdb"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Performance/MicroBenchmarkBudgetTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R2.C3"
+          ],
+          "sha256": "91b0a93a0ca11689bb00891a65bf6827e585e78d4375a6e1f09ccc1e6dc1a996"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Performance/ReferenceClientBudgetTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R2.C4"
+          ],
+          "sha256": "04e0c63567e1b72f1ea6b8ac4ca63c53fc9840059052ad0ec6bac30a4522614d"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/calls-and-streams.md",
+          "kind": "source",
+          "criterionIds": [
+            "R2.C5"
+          ],
+          "sha256": "b4c77ae518788864ea8b54beaedbc64f12a20a61bee079441f45c1062bc85f32"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/perf/micro-budget-20261007-105559-2352.txt",
+          "kind": "runtime",
+          "criterionIds": [
+            "R2.C3"
+          ],
+          "sha256": "4315b9bc51d53849a1d459e20e2a6e66b0ec6b5edfa0ba69aaf6398c83217ebc"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/perf/reference-budget-20261007-105629-19256.txt",
+          "kind": "runtime",
+          "criterionIds": [
+            "R2.C4"
+          ],
+          "sha256": "928b4777f59975aabc9c40886d91b8fd579b65f3187fe7e504dab60afae21e66"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/s3-check-4.json",
+          "kind": "runtime",
+          "criterionIds": [
+            "R2.C1",
+            "R2.C2",
+            "R2.C3",
+            "R2.C4",
+            "R2.C5",
+            "R3.C1",
+            "R16.C10",
+            "R16.C12"
+          ],
+          "sha256": "add7931fdc5f1d1375ac8772d01c92619f90e7c912149eeee153bb7676af9be9"
+        }
+      ],
+      "summaryMarkdown": "Passed. The three minor findings left by the second review (S3-F8, S3-F9, S3-F10) are resolved, and the repairs introduced no regression. S3-F1 to S3-F7 stay resolved.\n\n**Verified**\n- The native writer drains queued control frames (stateful Acks) before every carried coalesced batch (S3-F8). A new loop-level test drives the real `run_writer` through a mock sink and proves the order is data, Ack, data.\n- The writer closes the outbound queue as soon as it stops, so late sends fail and do not report a dropped frame as sent (S3-F8).\n- Stop and close semantics are unchanged:\n  - The stop flag is checked every iteration, including carried ones.\n  - `WRITER_DROP` finishes the frame being written and drops the socket without a Close.\n  - With stateful reconnect, a carried frame stays in the replay buffer; in ordinary mode it is dropped (the documented `StopAsync` race).\n- docs/03 and docs/13 now describe acceptance semantics, the writer's role and the action storage correctly (S3-F9).\n- `tls.rs` carries the panic-lint denials and uses the poison-recovering `LockExt::locked` (S3-F10). The TLS build-once behavior is unchanged.\n\n**Evidence**\n- All 14 S3 checks passed in one run at this snapshot (`s3-check-4.json`, revision 56).\n- The newest reference budget run meets every ratio. The tightest is JSON invoke p99 at 1.034, and MessagePack p99 is 0.985.\n- The newest micro budget run shows every inbound and outbound id well above the required speedups.\n- I re-ran the `outbound_writer_` and `tls` unit groups (21 passed) and native library Clippy with `-D warnings` (clean).\n",
+      "findingIds": [
+        "S3-F1",
+        "S3-F2",
+        "S3-F3",
+        "S3-F4",
+        "S3-F5",
+        "S3-F6",
+        "S3-F7",
+        "S3-F8",
+        "S3-F9",
+        "S3-F10"
+      ],
+      "recordedAt": "2026-10-07T11:02:49Z"
     }
   },
   "checkpoints": {
@@ -1225,6 +2000,14 @@
       },
       "reviewHash": "831fb8a8d56bbf7f4a0539044014e42232de945efc8a4c061f0ee2091b0be7c0",
       "recordedAt": "2026-10-07T08:52:43Z"
+    },
+    "S3": {
+      "snapshotId": "a27b7af8bfaa11b654a0d7cf9a6294b34c345f03ed80e44dd5d82dc760e0cf1d",
+      "commits": {
+        "rayx-signalr": "8825ed773597fb3ed27b932ba1464ca564bb956c"
+      },
+      "reviewHash": "504b52c79ba3fa2ace51d774e3f99ddd92ca2f907b3b9e3c83731a72b57869c8",
+      "recordedAt": "2026-10-07T11:03:06Z"
     }
   },
   "findings": [
@@ -1487,9 +2270,284 @@
         }
       ],
       "boundaryId": "S2"
+    },
+    {
+      "id": "S3-F1",
+      "criterionIds": [
+        "R2.C5"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**Resolved: native sends now feel the bounded outbound queue.** `ConnectionWriter` holds one `tokio::sync::mpsc::Sender<SerializedFrame>` (capacity `OUTBOUND_CAPACITY` = 64) shared by every clone. `send` takes a slot with `reserve().await` (runtime-agnostic) before it tracks the frame, and then queues it with `permit.send` (client_tokio.rs:219-249), so the capacity no longer grows with each sender. `outbound_writer_waits_while_the_outbound_queue_is_full` sends through a **clone** of the writer into a capacity-1 queue and asserts that the second send stays pending until a frame is received. It passed in my local run of the `outbound_writer_` group (9/9).",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "ConnectionWriter::send"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "outbound_writer_waits_while_the_outbound_queue_is_full"
+        }
+      ],
+      "boundaryId": "S3"
+    },
+    {
+      "id": "S3-F2",
+      "criterionIds": [
+        "R2.C5",
+        "R3.C1"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**Resolved: the replay-buffer wait no longer needs a Tokio context on the caller's side.** On `TrackResult::Backpressured`, the send now awaits `self.runtime.spawn(sleep(5 ms))`, which runs on the connection's runtime. A `JoinHandle` can be awaited from any executor. If that runtime has shut down, the send fails with `closed_before_sent` and does not panic. The replay-buffer lock is released before the await. `outbound_writer_waits_for_the_replay_buffer_on_any_executor` asserts that `Handle::try_current()` is an error, blocks with `futures::executor::block_on` on a held send, and acknowledges from another thread. The wait still polls every 5 ms (a `Notify` signalled by `acknowledge` would avoid that), but the behavior is correct.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "ConnectionWriter::send"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "outbound_writer_waits_for_the_replay_buffer_on_any_executor"
+        }
+      ],
+      "boundaryId": "S3"
+    },
+    {
+      "id": "S3-F3",
+      "criterionIds": [
+        "R2.C5"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Resolved: coalesced messages stay within 64 KiB.** `next_batch` (client_tokio.rs:1481-1498) stops before the first queued frame that would exceed `COALESCE_LIMIT` and returns it as `carried`. A first frame at or above the limit goes out alone, uncopied through `websocket_message`. `run_writer` writes the carried frame next. `outbound_writer_batches_stay_within_the_coalescing_limit` covers the 10+100 / 64 KiB / 10+1 sequence. A frame carried when the writer stops is lost in ordinary mode, like any other still-queued frame (documented), and with stateful reconnect it stays in the replay buffer. See S3-F8 for a side effect of the carried loop.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "next_batch"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "CommunicationConnection::run_writer"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "outbound_writer_batches_stay_within_the_coalescing_limit"
+        }
+      ],
+      "boundaryId": "S3"
+    },
+    {
+      "id": "S3-F4",
+      "criterionIds": [
+        "R2.C1"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Resolved: a malformed Close still closes, and the compact path reports the server's error.**\n- JSON: when the envelope fails but `{\"type\":7}` still parses, `decode_json` returns `Close { error: None, allow_reconnect: false }` (codec.rs:338-357).\n- MessagePack: a mistyped error member is skipped and read as `None`, and a mistyped `allowReconnect` is read as `false` (codec.rs:692-713).\n- Compact JSON: `ResultMember` prefers `error` and returns `Hub`. `InvocationAction::on_completion` passes a `Hub` error through without context, and `EnumerableAction::on_completion` fails the stream through `Payload::server_error`.\n\nTests: `wire_codec_json_malformed_close_still_closes`, the extended MessagePack close cases, and `wire_codec_json_compact_records_decode_their_payload_in_one_pass` (result+error gives `Hub(\"boom\")` on both paths). docs/13 documents that the compact shape is recognized by its prefix.\n\nResidual, accepted: in a compact record with both members, a `result` that does not fit `T` gives `Serialization` instead of `Hub`. ASP.NET Core never sends both members.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/codec.rs",
+          "symbol": "decode_json"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/codec.rs",
+          "symbol": "decode_messagepack"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/codec.rs",
+          "symbol": "wire_codec_json_malformed_close_still_closes"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/enumerable.rs",
+          "symbol": "EnumerableAction::on_completion"
+        }
+      ],
+      "boundaryId": "S3"
+    },
+    {
+      "id": "S3-F5",
+      "criterionIds": [
+        "R3.C1"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Resolved: the denials now cover the shared transport code, and the browser build is linted.**\n- `communication/common.rs` and `communication/reconnection.rs` carry the module-level `deny(unwrap_used, expect_used, panic, indexing_slicing)`.\n- `ReconnectCoordinator::with` uses the poison-recovering `LockExt::locked`.\n- The two wasm `arc_with_non_send_sync` sites (client.rs:389, completer/manual_stream.rs:43) carry wasm-only `allow`s with a reason.\n- The new check `s3-panic-lints-wasm` runs `cargo clippy --target wasm32-unknown-unknown --lib --all-features -- -D warnings`.\n\nI re-ran native and wasm32 Clippy with `-D warnings`: both clean. One TLS module is still outside the denials (S3-F10).",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/common.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/reconnection.rs",
+          "symbol": "ReconnectCoordinator::with"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs"
+        }
+      ],
+      "boundaryId": "S3"
+    },
+    {
+      "id": "S3-F6",
+      "criterionIds": [
+        "R2.C1",
+        "R16.C12"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Resolved: no storage lock or borrow is held while payloads decode or callbacks run, and D2's restated invariant holds.**\n- `UpdatableAction` hooks take `&self`. Both storages keep `Arc`/`Rc<dyn UpdatableAction>` in an `ActionMap`, clone or take the entry under a short map lock or borrow, and run it with nothing held.\n- `InvocationAction` decodes first and locks only to take the completer. Its `Drop` recovers a poisoned completer slot.\n- `EnumerableAction` decodes before pushing.\n- Callbacks live in their own map as `CallbackAction`: an `Rc` call with no borrow in the browser, and a private per-callback `std::sync::Mutex` natively, taken only by the receive path (public callbacks are `Send`, not `Sync`).\n\n`complete`, `fail_pending` and `fail_action` remove under the map lock, so exactly one of them owns an action, and the completer `take()` keeps completion at most once. The reentrancy test in `disconnect_every_handle` (a callback that registers, unregisters and disconnects) passes.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/actions.rs",
+          "symbol": "UpdatableAction"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/storage_tokio.rs",
+          "symbol": "ActionMap"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/storage_wasm.rs",
+          "symbol": "ActionMap"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/invocation.rs",
+          "symbol": "InvocationAction::on_completion"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs",
+          "symbol": "CallbackAction::invoke"
+        }
+      ],
+      "boundaryId": "S3"
+    },
+    {
+      "id": "S3-F7",
+      "criterionIds": [
+        "R2.C5",
+        "R2.C2"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Resolved for the cited places.**\n- docs/03 \"Sending\" and docs/13 \"The wire codec\" describe acceptance semantics, the shared bounded queue, the replay-buffer wait on the connection runtime, and the documented drop race on `disconnect()`/`pause()`.\n- The skill's `calls-and-streams.md` (call errors and `send`) is updated.\n- docs/11 moves unknown callback targets to `warn` and states the trace-only payload policy.\n- `msgpack.rs` gives `decode_payload` its own doc comment.\n\nOther stale statements remain and are reported as S3-F9.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/03-calling-the-hub.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/11-errors-and-logging.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/13-architecture.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/calls-and-streams.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/msgpack.rs",
+          "symbol": "decode_payload"
+        }
+      ],
+      "boundaryId": "S3"
+    },
+    {
+      "id": "S3-F8",
+      "criterionIds": [
+        "R2.C5"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Resolved: Acks go out between coalesced messages, and a stopped writer closes the outbound queue.**\n- `run_writer` is now generic over `Sink<Message> + Unpin`. Before it writes a carried batch, it calls `write_control`, which drains every queued control frame with `try_recv` and records `liveness.sent()` for each. A control frame now waits behind at most one coalesced message, as it did before the S3-F3 repair. The `select` path still polls `control` before `data`.\n- After the loop, `data.close()` runs before `sink.close()` or the drop. Sends that reserve during a slow close now fail with `closed_before_sent` instead of returning `Ok` for a frame that is dropped.\n- No regression found in stop handling. `stopping()` is still checked at the top of every iteration, including carried ones. `WRITER_DROP` still finishes the frame being written, then drops the socket. A carried frame that is never written stays in the replay buffer with stateful reconnect. In ordinary mode it is dropped, like any other queued frame, which is the documented `StopAsync` race. A closed control channel in `write_control` ends the drain without error, and the next uncarried iteration sees `Control(None)` and stops.\n- `outbound_writer_sends_acks_between_coalesced_messages` drives the real loop. Two frames of `COALESCE_LIMIT - 10` bytes go through a sink that queues an Ack on its first write. The test asserts the order is data, Ack, data, which would be data, data, Ack without the fix. It then stops the writer and asserts that `reserve()` fails. I ran the `outbound_writer_` group (10/10) and native Clippy with `-D warnings`, and both passed.\n- Cosmetic: the comment in `stop_writer` (\"queued senders fail once it drops the outbound queue\") predates the explicit `close()`, but it is still true.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "CommunicationConnection::run_writer"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "CommunicationConnection::write_control"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "outbound_writer_sends_acks_between_coalesced_messages"
+        }
+      ],
+      "boundaryId": "S3"
+    },
+    {
+      "id": "S3-F9",
+      "criterionIds": [
+        "R2.C5",
+        "R2.C1"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Resolved: the cited documentation now matches the behavior.**\n- docs/03: the call table says `send` returns \"once the transport accepts the message\". The invoke error list says \"cannot be accepted (not connected, paused, closed)\", and a later socket failure goes through the pending-work path.\n- docs/13: the pipeline diagram's writer line reads \"owns the sink: Acks first, coalesced frames, Pings\". With S3-F8 resolved, that is accurate, and tracking and backpressure are no longer attributed to the writer. The `src/execution/` row describes the two namespaces (shared `UpdatableAction`s, `CallbackAction`s) in `Arc<Mutex<HashMap>>` and `Rc<RefCell<HashMap>>` maps.\n- docs/13 Action storage: the section opens with the two kinds of action, says senders track and wait themselves, and says the writer only writes.\n- The skill's `calls-and-streams.md` and docs/09 (\"stateful backpressure ... run on that runtime\") match too.\n\nNo other stale wording turned up in docs/, README or the skill references for the repaired behavior.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/03-calling-the-hub.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/13-architecture.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/calls-and-streams.md"
+        }
+      ],
+      "boundaryId": "S3"
+    },
+    {
+      "id": "S3-F10",
+      "criterionIds": [
+        "R3.C1"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Resolved: `tls.rs` carries the panic-lint denials, and its config slot recovers from poisoning.**\n- `src/communication/tls.rs` has the module-level `#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing))]`.\n- `TlsContext::config` takes the slot with `LockExt::locked`. The `expect` remains only in the `cfg(all(rayx_tls, test))` helper `is_built`.\n- The lazy build-once behavior is unchanged. A poisoned slot holds either `None` (rebuilt) or a complete config, so recovery is consistent.\n- The only `allow`s are the existing `unreachable_patterns` allows on feature-dependent matches, which are not panic lints.\n- `s3-panic-lints` (native, `--all-features`, so `rayx_tls` is set) passed at this snapshot. I re-ran native Clippy with `-D warnings` and the `tls` unit tests (11/11), and both passed.\n- Every file under `src/communication/` except the declarations-only `mod.rs` now carries the denials.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/tls.rs",
+          "symbol": "TlsContext::config"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/platform.rs",
+          "symbol": "LockExt"
+        }
+      ],
+      "boundaryId": "S3"
     }
   ],
-  "handoffMarkdown": "Communication::disconnect(&self) closes for every handle; release() keeps last-handle drop; SignalRClient::disconnect(&self) documented as StopAsync parity; disconnect_ unit group; disconnect-every-handle scenario (native/fixture/lifecycle spec/catalog); concurrency-and-clones drops a clone; error-kinds invoke-after-disconnect restored; docs 04/06/11 + skill refs updated",
+  "handoffMarkdown": "R16.C12: storage has two namespaces (pending by invocation id, callbacks by target) on both targets (ActionMap), invocation ids are per-connection counters \"1\",\"2\",... (AtomicUsize / Cell); completions never remove callbacks; unregister removes only the callback (invocation_ids_, 3 tests). R16.C10: callback contexts keep OwnedPayload in the original encoding, MessagePack args decode via rmp_serde (+PascalCase retry): byte[] -> bytes types (serde_bytes::ByteBuf, not Vec<u8>), DateTime -> ext -1 via _ExtStruct, Dictionary<int,string> -> HashMap<i32,String> (callback_msgpack_args_, 4 tests). Scenario msgpack-fidelity (TestHub.TriggerFidelityCallback; native tests/e2e/msgpack_fidelity.rs messagepack-only; fixture msgpack_fidelity; Playwright messagePackScenarios; catalog Scenario.Protocols filter + Catalog test). native+chromium+firefox+webkit cells pass; Android pending in checks. Docs 04/05/12/13 and skill references updated.",
   "protectedPaths": {
     "rayx-signalr": {
       ".agentx/tasks/resilient-reconnect-and-production-gates/**": "a4110a3f5f2c68d64ddf8fbedb70479c98f46dde78b064b5b3ac826772db49a6",

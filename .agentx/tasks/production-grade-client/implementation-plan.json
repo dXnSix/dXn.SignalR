@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 9,
+  "revision": 11,
   "title": "Production-grade rayx-signalr: typed errors, all transports, proxies, refreshable auth, suspension-aware liveness, proven TLS paths, reference-class performance, and stretch SOCKS/PAC/OS proxies, HTTP/2 and HTTP/3",
   "validationMode": "sprint",
   "repositories": [
@@ -4693,6 +4693,121 @@
         "RAYX_SIGNALR_E2E_TRANSPORTS": "websockets",
         "RAYX_SIGNALR_SOAK_SECONDS": "120"
       }
+    },
+    {
+      "id": "s3-outbound-writer",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R2.C5"
+      ],
+      "descriptionMarkdown": "New `outbound_writer_` group: sends complete on queueing, a full outbound queue (shared by every handle) holds the send, stateful frames are tracked in queue order, a full replay buffer holds the send until an Ack, also from a non-Tokio executor, an oversized message fails with `Configuration`, a stopped writer fails sends, queued frames coalesce into one WebSocket message, and coalesced messages stay within 64 KiB.",
+      "argv": [
+        "cargo",
+        "test",
+        "--lib",
+        "--all-features",
+        "--",
+        "outbound_writer_"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 9
+      },
+      "inputs": [
+        "Cargo.toml",
+        "build.rs",
+        "src/**"
+      ],
+      "timeoutSeconds": 1200
+    },
+    {
+      "id": "s3-dotnet-build",
+      "repositoryId": "rayx-signalr",
+      "kind": "build",
+      "criterionIds": [
+        "R2.C3",
+        "R16.C10"
+      ],
+      "descriptionMarkdown": "S3 changed the test service (`TriggerFidelityCallback`), the scenario catalog and the E2E test project (budget categories): every .NET project builds (CLAUDE.md rule for .NET changes).",
+      "argv": [
+        "dotnet",
+        "build",
+        "RayX.SignalR.slnx"
+      ],
+      "expected": {
+        "exitCode": 0
+      },
+      "inputs": [
+        "global.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**"
+      ],
+      "timeoutSeconds": 1800
+    },
+    {
+      "id": "s3-static-categories",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R16.C10",
+        "R2.C3"
+      ],
+      "descriptionMarkdown": "The static .NET categories CLAUDE.md requires for S3's catalog (protocol-specific scenarios), test project and dependency (`bytes`, `proptest`) changes: WorkflowContract, Repository, Catalog, Toolchain and DependencySecurity (`cargo-audit`).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=WorkflowContract|Category=Repository|Category=Catalog|Category=Toolchain|Category=DependencySecurity"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 15
+      },
+      "inputs": [
+        "Cargo.toml",
+        "build.rs",
+        "src/**",
+        "tests/**",
+        "global.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        ".github/**",
+        "tools-node/**"
+      ],
+      "timeoutSeconds": 3600
+    },
+    {
+      "id": "s3-panic-lints-wasm",
+      "repositoryId": "rayx-signalr",
+      "kind": "static",
+      "criterionIds": [
+        "R3.C1"
+      ],
+      "descriptionMarkdown": "Library Clippy for `wasm32-unknown-unknown`, so the panic/unwrap/indexing denials also hold in browser-only code (`client_wasm.rs`, `browser_socket.rs`, the browser negotiate in `common.rs`).",
+      "argv": [
+        "cargo",
+        "clippy",
+        "--target",
+        "wasm32-unknown-unknown",
+        "--lib",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "expected": {
+        "exitCode": 0
+      },
+      "inputs": [
+        "Cargo.toml",
+        "build.rs",
+        "src/**"
+      ],
+      "timeoutSeconds": 1800
     }
   ],
   "finalCheckIds": [
@@ -5010,7 +5125,7 @@
         {
           "id": "S3.T1",
           "title": "Single-pass inbound and typed outbound codec",
-          "descriptionMarkdown": "Run the required `s3-micro-budget` baseline first (saves `pre-optimization`). Implement `protocol::codec` per D2 (`serde_json` `raw_value`, MessagePack marker reads without `rmpv` trees), route storage/actions/callbacks through `InboundMessage`, make outbound messages typed with reused buffers and shared `Bytes`, remove `json_frame` re-parsing, and add the `wire_codec_` group. Golden frame tests stay unchanged.",
+          "descriptionMarkdown": "Run the required `s3-micro-budget` baseline first (saves `pre-optimization`). Implement `protocol::codec` per D2 (`serde_json` `raw_value`, MessagePack marker reads without `rmpv` trees), route storage/actions/callbacks through `InboundMessage`, make outbound messages typed with reused buffers and shared `Bytes`, remove `json_frame` re-parsing, and add the `wire_codec_` group. Golden frame tests stay unchanged. Review repair S3-F4: a malformed Close still closes without reconnect permission (JSON and MessagePack), and the compact JSON path reports a completion that carries both a result and an error as the server's error, as the general decode does.",
           "criterionIds": [
             "R2.C1"
           ],
@@ -5078,7 +5193,7 @@
         {
           "id": "S3.T3",
           "title": "Panic-free parsing and property tests",
-          "descriptionMarkdown": "Add `proptest` (dev), module-level `#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]` (outside `cfg(test)`) to the protocol, transport and negotiation modules, fix every finding, and add the `robustness_` property group.",
+          "descriptionMarkdown": "Add `proptest` (dev), module-level `#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]` (outside `cfg(test)`) to the protocol, transport and negotiation modules, fix every finding, and add the `robustness_` property group. Review repair S3-F5: the denials also cover `communication/common.rs` and `communication/reconnection.rs` (its coordinator lock recovers from poisoning), and `s3-panic-lints-wasm` lints the browser build.",
           "criterionIds": [
             "R3.C1"
           ],
@@ -5090,7 +5205,8 @@
           ],
           "checkIds": [
             "s3-robustness",
-            "s3-panic-lints"
+            "s3-panic-lints",
+            "s3-panic-lints-wasm"
           ],
           "sourceRefs": [
             {
@@ -5110,10 +5226,11 @@
         {
           "id": "S3.T4",
           "title": "Meet the micro and reference-client budgets",
-          "descriptionMarkdown": "Add the `MicroBenchmarkBudget` and `ReferenceClientBudget` categories. Profile (release, `cargo flamegraph` or `perf` where available) and remove remaining per-message costs until R2.C3 and R2.C4 hold: e.g. avoid per-message `String` allocation for ids, avoid channel hops between receiver and storage, batch writer flushes, size buffers from the frame length. If a budget proves unreachable for a measured, explained reason, amend the criterion with that evidence rather than weakening silently.",
+          "descriptionMarkdown": "Add the `MicroBenchmarkBudget` and `ReferenceClientBudget` categories. Profile (release, `cargo flamegraph` or `perf` where available) and remove remaining per-message costs until R2.C3 and R2.C4 hold: e.g. avoid per-message `String` allocation for ids, avoid channel hops between receiver and storage, batch writer flushes, size buffers from the frame length. If a budget proves unreachable for a measured, explained reason, amend the criterion with that evidence rather than weakening silently. Finding (2026-10-07, quick-scale reference run): `send-throughput` reached 0.075x of the .NET client because every send waited for its own socket write and flush; R2.C5 adopts the .NET acceptance semantics and writer coalescing (`outbound_writer_`). JSON stream items and result completions in ASP.NET Core's compact shape decode their payload in one pass with the record (`wire_codec_`). `bench_support`'s JSON frame builders wrote members alphabetically (`serde_json::json!`), not in ASP.NET Core's order as documented; they now write ASP.NET Core's order. The pre-optimization parser's cost does not depend on member order, so the saved baseline stays comparable. Review repairs: S3-F1 the outbound queue is Tokio's bounded channel with a shared `reserve()`, so every handle feels its capacity; S3-F2 the replay-buffer wait runs on the connection's runtime; S3-F3 coalesced messages stay within 64 KiB (`next_batch`); S3-F6 pending actions are shared and decode before any lock, browser callbacks run without a borrow.",
           "criterionIds": [
             "R2.C3",
-            "R2.C4"
+            "R2.C4",
+            "R2.C5"
           ],
           "designIds": [
             "D1",
@@ -5125,7 +5242,9 @@
           ],
           "checkIds": [
             "s3-micro-budget",
-            "s3-reference-budget"
+            "s3-reference-budget",
+            "s3-outbound-writer",
+            "s3-dotnet-build"
           ],
           "sourceRefs": [
             {
@@ -5149,7 +5268,7 @@
         {
           "id": "S3.T5",
           "title": "Invocation ids and MessagePack argument fidelity",
-          "descriptionMarkdown": "On top of the single-pass codec: per-connection invocation ids in a map separate from callbacks (R16.C12) and callback arguments decoded from the original MessagePack values (R16.C10), with the `invocation_ids_` and `callback_msgpack_args_` groups and the `msgpack-fidelity` scenario (test hub callback with `byte[]`, `DateTime` and `Dictionary<int,string>`; native, fixture, Android).",
+          "descriptionMarkdown": "On top of the single-pass codec: per-connection invocation ids in a map separate from callbacks (R16.C12) and callback arguments decoded from the original MessagePack values (R16.C10), with the `invocation_ids_` and `callback_msgpack_args_` groups and the `msgpack-fidelity` scenario (test hub callback with `byte[]`, `DateTime` and `Dictionary<int,string>`; native, fixture, Android). The scenario catalog gains per-scenario protocols (`Scenario.Protocols`), so `msgpack-fidelity` is MessagePack only; a Catalog test covers the filter.",
           "criterionIds": [
             "R16.C10",
             "R16.C12"
@@ -5165,7 +5284,8 @@
             "s3-invocation-ids",
             "s3-msgpack-args",
             "s3-msgpack-fidelity",
-            "s3-msgpack-fidelity-android"
+            "s3-msgpack-fidelity-android",
+            "s3-static-categories"
           ],
           "sourceRefs": [
             {
