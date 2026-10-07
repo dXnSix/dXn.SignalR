@@ -85,6 +85,7 @@ pub async fn run_functional_scenario(
         "ordinary-reconnect" => ordinary_reconnect(messagepack).await,
         "negotiate-timeout" => negotiate_timeout_scenario(messagepack).await,
         "transport-fallback" => transport_fallback(messagepack).await,
+        "client-to-server-stream" => client_to_server_stream(messagepack).await,
         other => Err(format!("unknown functional scenario {other}")),
     };
     outcome
@@ -165,6 +166,182 @@ fn spawn<T: 'static>(future: impl Future<Output = T> + 'static) -> oneshot::Rece
         let _ = sender.send(future.await);
     });
     receiver
+}
+
+/// Client-to-server streams, as the .NET client's `IAsyncEnumerable<T>`/`ChannelReader<T>`
+/// arguments: `invoke` with a stream bound to an `IAsyncEnumerable<int>` and to a
+/// `ChannelReader<int>` parameter (also after an ordinary argument), `enumerate` with a stream the
+/// hub streams back, and `send` with a stream the hub reads to its end; dropping an `invoke`
+/// future or an `enumerate` stream before it ended ends the upload with the .NET client's
+/// `Stream canceled by client.`. A browser pause always ends a stateful logical connection, so an
+/// upload in flight ends with its call.
+async fn client_to_server_stream(messagepack: bool) -> Outcome {
+    use futures::stream;
+
+    async fn outcome(client: &mut SignalRClient) -> Result<String, String> {
+        Ok(client.invoke::<String>("StreamOutcome".to_string()).await?)
+    }
+
+    let mut client = connect("test", messagepack, |_| {}).await?;
+    let sum: i32 = client
+        .invoke_with_args("SumStream".to_string(), |c| {
+            c.stream(stream::iter(1..=10));
+        })
+        .await?;
+    ensure!(sum == 55, "SumStream returned {sum}");
+
+    let paced = stream::iter(1..=5).then(|number| async move {
+        sleep(20).await;
+        number
+    });
+    let sum: i32 = client
+        .invoke_with_args("SumChannel".to_string(), |c| {
+            c.stream(paced);
+        })
+        .await?;
+    ensure!(sum == 15, "SumChannel returned {sum}");
+
+    let sum: i32 = client
+        .invoke_with_args("SumWithOffset".to_string(), |c| {
+            c.stream(stream::iter(1..=3)).argument(100);
+        })
+        .await?;
+    ensure!(sum == 106, "SumWithOffset returned {sum}");
+
+    let doubled: Vec<i32> = client
+        .enumerate_with_args::<i32, _>("DoubleStream".to_string(), |c| {
+            c.stream(stream::iter(1..=3));
+        })
+        .await
+        .collect()
+        .await;
+    ensure!(doubled == [2, 4, 6], "DoubleStream streamed {doubled:?}");
+
+    client
+        .send_with_args("ObserveStream".to_string(), |c| {
+            c.stream(stream::iter([4, 5, 6]));
+        })
+        .await?;
+    let completed = eventually("the sent stream's end", 10_000.0, || {
+        let mut probe = client.clone();
+        async move {
+            outcome(&mut probe)
+                .await
+                .ok()
+                .filter(|outcome| outcome != "none")
+        }
+    })
+    .await?;
+    ensure!(
+        completed == "completed:15",
+        "the sent stream ended with {completed}"
+    );
+
+    // Dropping the invoke future cancels its stream.
+    let endless = stream::iter([1]).chain(stream::pending());
+    let mut invoking = client.clone();
+    // Boxed so that it can be dropped as soon as the timer wins.
+    let invoke = Box::pin(
+        invoking.invoke_with_args::<i32, _>("ObserveStream".to_string(), |c| {
+            c.stream(endless);
+        }),
+    );
+    let timer = std::pin::pin!(sleep(500));
+    match futures::future::select(invoke, timer).await {
+        Either::Left((result, _)) => {
+            return Err(format!("the endless stream completed: {result:?}"));
+        }
+        Either::Right(((), invoke)) => drop(invoke),
+    }
+    let canceled = eventually("the canceled stream's end", 10_000.0, || {
+        let mut probe = client.clone();
+        async move {
+            outcome(&mut probe)
+                .await
+                .ok()
+                .filter(|outcome| outcome.starts_with("error:"))
+        }
+    })
+    .await?;
+    ensure!(
+        canceled == "error:Stream canceled by client.",
+        "the canceled stream ended with {canceled}"
+    );
+
+    client.disconnect();
+
+    // Dropping an enumerate stream before it ended cancels its upload (a fresh connection, whose
+    // outcome nothing recorded yet).
+    let mut observer = connect("test", messagepack, |_| {}).await?;
+    let endless = stream::iter([1]).chain(stream::pending());
+    let observing = observer
+        .enumerate_with_args::<i32, _>("ObserveUpload".to_string(), |c| {
+            c.stream(endless);
+        })
+        .await;
+    sleep(300).await;
+    let open = outcome(&mut observer).await?;
+    ensure!(open == "none", "the upload ended early: {open}");
+    drop(observing);
+    let dropped = eventually("the dropped stream's upload end", 10_000.0, || {
+        let mut probe = observer.clone();
+        async move {
+            outcome(&mut probe)
+                .await
+                .ok()
+                .filter(|outcome| outcome != "none")
+        }
+    })
+    .await?;
+    ensure!(
+        dropped == "error:Stream canceled by client.",
+        "the dropped stream's upload ended with {dropped}"
+    );
+    observer.disconnect();
+
+    // A browser pause ends a stateful logical connection: an upload in flight ends with its call.
+    let mut stateful = connect("test-stateful", messagepack, |configuration| {
+        configuration.with_stateful_reconnect(rayx_signalr::StatefulReconnectConfig::default());
+    })
+    .await?;
+    let paced = stream::iter(1..=10).then(|number| async move {
+        sleep(100).await;
+        number
+    });
+    let (result, received) = futures::channel::oneshot::channel();
+    let mut invoking = stateful.clone();
+    spawn_local(async move {
+        let sum = invoking
+            .invoke_with_args::<i32, _>("SumStream".to_string(), |c| {
+                c.stream(paced);
+            })
+            .await;
+        let _ = result.send(sum);
+    });
+    sleep(350).await;
+    stateful
+        .pause()
+        .await
+        .map_err(|error| format!("pause failed: {error}"))?;
+    stateful
+        .resume()
+        .await
+        .map_err(|error| format!("resume failed: {error}"))?;
+    let ended = received
+        .await
+        .map_err(|_| "the paused call never ended".to_string())?;
+    ensure!(
+        ended.is_err(),
+        "an upload across a browser pause completed: {ended:?}"
+    );
+    let sum: i32 = stateful
+        .invoke_with_args("SumStream".to_string(), |c| {
+            c.stream(stream::iter(1..=3));
+        })
+        .await?;
+    ensure!(sum == 6, "SumStream after the resume returned {sum}");
+    stateful.disconnect();
+    Ok(())
 }
 
 /// Transport fallback: against hubs restricted server-side, the default transport set connects

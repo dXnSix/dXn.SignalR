@@ -32,6 +32,7 @@ const scenarios = [
   "token-factory",
   "negotiate-timeout",
   "transport-fallback",
+  "client-to-server-stream",
 ];
 
 // Scenarios whose values exist only in one protocol.

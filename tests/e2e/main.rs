@@ -12,6 +12,7 @@ mod authentication;
 mod callback_dispatch;
 mod callbacks;
 mod client_result_errors;
+mod client_to_server_stream;
 mod concurrency_and_clones;
 mod connect_negotiate;
 mod connected_callback;

@@ -13,6 +13,7 @@ namespace RayX.SignalR.TestService
     {
         static readonly ConcurrentDictionary<string, CancellationProbeState> _cancellationProbes = new();
         static readonly ConcurrentDictionary<string, int> _transportAborts = new();
+        static readonly ConcurrentDictionary<string, string> _streamOutcomes = new();
 
         public async Task<TestEntity> SingleEntity()
         {
@@ -236,6 +237,101 @@ namespace RayX.SignalR.TestService
 
         public int TransportAbortCount() =>
             _transportAborts.TryGetValue(Context.ConnectionId, out var count) ? count : 0;
+
+        /// <summary>Sums a client-to-server stream (an <c>IAsyncEnumerable</c> parameter).</summary>
+        public async Task<int> SumStream(IAsyncEnumerable<int> numbers)
+        {
+            int sum = 0;
+            await foreach (int number in numbers)
+            {
+                sum += number;
+            }
+
+            return sum;
+        }
+
+        /// <summary>Sums a client-to-server stream (a <c>ChannelReader</c> parameter).</summary>
+        public async Task<int> SumChannel(System.Threading.Channels.ChannelReader<int> numbers)
+        {
+            int sum = 0;
+            await foreach (int number in numbers.ReadAllAsync())
+            {
+                sum += number;
+            }
+
+            return sum;
+        }
+
+        /// <summary>Adds an ordinary argument to the sum of a client-to-server stream.</summary>
+        public async Task<int> SumWithOffset(int offset, IAsyncEnumerable<int> numbers) =>
+            offset + await SumStream(numbers);
+
+        /// <summary>Streams back every item of a client-to-server stream, doubled.</summary>
+        public async IAsyncEnumerable<int> DoubleStream(IAsyncEnumerable<int> numbers)
+        {
+            await foreach (int number in numbers)
+            {
+                yield return number * 2;
+            }
+        }
+
+        /// <summary>
+        /// Reads a client-to-server stream to its end and records how it ended for
+        /// <see cref="StreamOutcome"/>: <c>completed:&lt;sum&gt;</c>, or <c>error:&lt;message&gt;</c>
+        /// when the client ended it with an error Completion.
+        /// </summary>
+        public async Task<int> ObserveStream(IAsyncEnumerable<int> numbers)
+        {
+            string connectionId = Context.ConnectionId;
+            int sum = 0;
+            try
+            {
+                await foreach (int number in numbers)
+                {
+                    sum += number;
+                }
+            }
+            catch (Exception exception)
+            {
+                _streamOutcomes[connectionId] = $"error:{exception.Message}";
+                throw;
+            }
+
+            _streamOutcomes[connectionId] = $"completed:{sum}";
+            return sum;
+        }
+
+        /// <summary>
+        /// A streaming method that streams nothing and records, for <see cref="StreamOutcome"/>,
+        /// how its client-to-server stream ended, read apart from the call so that canceling the
+        /// call does not decide the outcome.
+        /// </summary>
+        public System.Threading.Channels.ChannelReader<int> ObserveUpload(System.Threading.Channels.ChannelReader<int> numbers)
+        {
+            string connectionId = Context.ConnectionId;
+            _ = Task.Run(async () =>
+            {
+                int sum = 0;
+                try
+                {
+                    await foreach (int number in numbers.ReadAllAsync())
+                    {
+                        sum += number;
+                    }
+
+                    _streamOutcomes[connectionId] = $"completed:{sum}";
+                }
+                catch (Exception exception)
+                {
+                    _streamOutcomes[connectionId] = $"error:{exception.Message}";
+                }
+            });
+            return System.Threading.Channels.Channel.CreateUnbounded<int>().Reader;
+        }
+
+        /// <summary>How the last stream <see cref="ObserveStream"/> read on this connection ended.</summary>
+        public string StreamOutcome() =>
+            _streamOutcomes.TryGetValue(Context.ConnectionId, out string? outcome) ? outcome : "none";
 
         public async Task<string> DelayedConnectionIdentity(int delayMilliseconds)
         {

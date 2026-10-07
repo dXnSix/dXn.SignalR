@@ -319,9 +319,11 @@ public sealed class BrowserCellRunner : ICellRunner
 
     if(title is not null)
     {
-      // Playwright matches against "<project> <file> <title>"; anchor on the whole title.
+      // Playwright matches against "<project> <file> <title>" (no spec uses describe blocks);
+      // anchor on the spec file and the whole title, so "server stream" never also selects
+      // "client to server stream".
       arguments.Add("--grep");
-      arguments.Add($"/ {EscapeJavaScriptRegex(title)}$/");
+      arguments.Add($@"/\.spec\.ts {EscapeJavaScriptRegex(title)}$/");
     }
 
     return new ProcessCommand("node", arguments, Path.Combine(repositoryRoot, "tools-node"))
