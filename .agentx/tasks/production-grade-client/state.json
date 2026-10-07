@@ -1,12 +1,12 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 20,
-  "planRevision": 4,
+  "revision": 41,
+  "planRevision": 8,
   "specHashes": {
-    "requirements": "fa4b191d89399fb7513c45859057f398f2cc8380e8a4ca4f7bf6cd54015811d6",
-    "design": "8db53748247faa68cd2d1d7441dfb322707b35f6d4f8257d23b0e13c0fcee31d",
-    "plan": "fdff3af2f9fb74dc84ff1a32fc2bf874e64f5adabd8aa0ef2dbe5abb039b1132"
+    "requirements": "e538ef2d95f0cb09cc23f465727d83984412b74f729f1dd5ee16ef9c6e7cf0c0",
+    "design": "c641a5c4bc8c8675dddaab7c2cd5fb12ce93af431651aa351c9d8b12c5d99a10",
+    "plan": "b3626c851b5d00c5a7ff21858e0d2070c39b6ba209c3bc03a777b534a90f4a14"
   },
   "tasks": {
     "S1.T1": {
@@ -28,16 +28,28 @@
       ]
     },
     "S2.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S2.T2": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S2.T3": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S2.T4": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S3.T1": {
       "status": "pending"
@@ -137,6 +149,12 @@
     },
     "S15.T3": {
       "status": "pending"
+    },
+    "S2.T5": {
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     }
   },
   "validationBatches": {
@@ -148,6 +166,15 @@
         }
       },
       "recordedAt": "2026-10-06T20:54:32Z"
+    },
+    "377e1143fc6a3acb2c065190711113f19468c409da40db4c98117a446ddf6511": {
+      "snapshot": {
+        "specHash": "9f2333b3a8aa27c7e3ec395cf6ffd4fd726e4d6334c685961747962e76faae85",
+        "repositories": {
+          "rayx-signalr": "e407f852ab84efcf9c1726c37b8d0a3a7b0e4651836b10f8a484c2e6e9351620"
+        }
+      },
+      "recordedAt": "2026-10-07T08:49:36Z"
     }
   },
   "checkResults": {
@@ -201,6 +228,227 @@
       "logPath": "artifacts-temp/agentx/production-grade-client/S1-final-7e8544ad29a1.log",
       "logSha256": "f28c22d72fb3a8c1c4e096dbe7aed1389aa4ef845ea1e3177694e8aa4cc1cfc9",
       "inputsHash": "cc6820b26742b29fcdb2a1129c2dae3565004a820593121f76d239a88be91424"
+    },
+    "S2/s2-error-model/final": {
+      "checkId": "s2-error-model",
+      "boundaryId": "S2",
+      "phase": "final",
+      "batchId": "377e1143fc6a3acb2c065190711113f19468c409da40db4c98117a446ddf6511",
+      "definitionHash": "1ec8f98b3aca6b2933f3dcc7fee61edbf568e5f149967b4af490f2525dec4266",
+      "basisHash": "57c93ba2adee425eebf4ae1fbabdc142e4520092fbc091f92004c66cf5625c79",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 15,
+      "durationSeconds": 7.4666,
+      "recordedAt": "2026-10-07T08:39:18Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S2-final-5d8969f0a0ae.log",
+      "logSha256": "85b4c385040345cdb804e5defbce5703d576e3153a54dd858db9ad6452f48a3f",
+      "inputsHash": "2bdc45a0ca0d454c93ab3307c03672d6b986d21ebafebb347865307d0e1ea0b1"
+    },
+    "S2/s2-public-error-types/final": {
+      "checkId": "s2-public-error-types",
+      "boundaryId": "S2",
+      "phase": "final",
+      "batchId": "377e1143fc6a3acb2c065190711113f19468c409da40db4c98117a446ddf6511",
+      "definitionHash": "c1ef991dc29f056c9dab0684ad9cce978814aabed6d9aef8e38b6853c55cb250",
+      "basisHash": "3de5381b5d4427236a0f2d918ae3102a46f050a01961810c00635550ffcca93f",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 1,
+      "durationSeconds": 4.9972,
+      "recordedAt": "2026-10-07T08:39:23Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S2-final-1c605c0e16ba.log",
+      "logSha256": "c8e0f20571d4291bc7efb245c20825a16262f394cb8b89fd412b8b19e8bc33b3",
+      "inputsHash": "89eccf030e2ab5e3ea4ecc8ba521ca184cb34c9d4e726442bfddca7f21710ee1"
+    },
+    "S2/s2-public-error-types-wasm/final": {
+      "checkId": "s2-public-error-types-wasm",
+      "boundaryId": "S2",
+      "phase": "final",
+      "batchId": "377e1143fc6a3acb2c065190711113f19468c409da40db4c98117a446ddf6511",
+      "definitionHash": "80d09c9384e131c7badfc884e0647330342fef7d4e4eed791497b084c06cd40f",
+      "basisHash": "3236c0b16dd25dcd3915035e3fbf4e6455712d7620849b73238d3f238479c5ed",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 0,
+      "durationSeconds": 1.423,
+      "recordedAt": "2026-10-07T08:39:25Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S2-final-a5c5cb84e7d8.log",
+      "logSha256": "c9ac8e3e320fbbda67fd8e05b229af033b612fe77f52359aeaeec1d6d8bde6e7",
+      "inputsHash": "2bdc45a0ca0d454c93ab3307c03672d6b986d21ebafebb347865307d0e1ea0b1"
+    },
+    "S2/s2-unit-migrated/final": {
+      "checkId": "s2-unit-migrated",
+      "boundaryId": "S2",
+      "phase": "final",
+      "batchId": "377e1143fc6a3acb2c065190711113f19468c409da40db4c98117a446ddf6511",
+      "definitionHash": "29a91b575eb115b2cd2b5241312d4e690fc8a529474d3b1b99421becc4ccc9cf",
+      "basisHash": "6d9a16ed3c646ff6fc5979b562dc20a35e9141e8f0202398a4f266e8822a4eee",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 156,
+      "durationSeconds": 7.1907,
+      "recordedAt": "2026-10-07T08:39:32Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S2-final-634dac7255b9.log",
+      "logSha256": "cc32667374c03947c9acbd836f9b904ea1a2e1db3119dc4e71b0c8e78756e6bf",
+      "inputsHash": "fa267c7322f158954c0f3bbc1a2cbea87d726e9fd1c2242568a988262a1d8d13"
+    },
+    "S2/s2-error-kinds/final": {
+      "checkId": "s2-error-kinds",
+      "boundaryId": "S2",
+      "phase": "final",
+      "batchId": "377e1143fc6a3acb2c065190711113f19468c409da40db4c98117a446ddf6511",
+      "definitionHash": "de4a1d21421514f62a852d17be26faf1fce9367d4c352290a58adf12ce2f28a1",
+      "basisHash": "eefd5f3cf627f38fc329ac2dc4508ae027e538f476c2bf2c68b1137249f19968",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 8,
+      "durationSeconds": 66.3885,
+      "recordedAt": "2026-10-07T08:40:38Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S2-final-ff7956c5c7b6.log",
+      "logSha256": "d1a110453ff30ba1858f5dde5b82efabadfc09fdac93081ea4b101a810da10e3",
+      "inputsHash": "440dbcb5436392b246e9deb7bd00fb5939b53254d79c98e03b4c0243d31e7fd4"
+    },
+    "S2/s2-error-kinds-android/final": {
+      "checkId": "s2-error-kinds-android",
+      "boundaryId": "S2",
+      "phase": "final",
+      "batchId": "377e1143fc6a3acb2c065190711113f19468c409da40db4c98117a446ddf6511",
+      "definitionHash": "4744692e8302f0aedc273bee2976cd0fd3d2f120b46cbba58a59a676b1277980",
+      "basisHash": "1f870e251d1a2e39083599c3fe107d363fb528230eaf7855df09b029a9753acb",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 39.4404,
+      "recordedAt": "2026-10-07T08:41:18Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S2-final-1edafd1ca5a1.log",
+      "logSha256": "031d0c4c0f6a3a4b6cbc0b37939eae09a51340ba2540717c30b97d53944c3743",
+      "inputsHash": "309d919045667e691451b4adbd09fde8557b4d472168f928abeb813af2b71026"
+    },
+    "S2/s2-catalog-native/final": {
+      "checkId": "s2-catalog-native",
+      "boundaryId": "S2",
+      "phase": "final",
+      "batchId": "377e1143fc6a3acb2c065190711113f19468c409da40db4c98117a446ddf6511",
+      "definitionHash": "fc6b36d2def969fbd40e7fd19502ca3ddc468b7dd701ea9c3bbd2ad9b6b8fd5c",
+      "basisHash": "9d22b6a642b161abd19f2ca2001eda3e4c88036927f4e996792f4702853ed075",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 50,
+      "durationSeconds": 131.5706,
+      "recordedAt": "2026-10-07T08:43:29Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S2-final-d7411dd24180.log",
+      "logSha256": "08505a8729eb65adf046f0795adbeeb0613a3a6c4c0391e879b0aebc1f9d7187",
+      "inputsHash": "309d919045667e691451b4adbd09fde8557b4d472168f928abeb813af2b71026"
+    },
+    "S2/s2-catalog-chromium/final": {
+      "checkId": "s2-catalog-chromium",
+      "boundaryId": "S2",
+      "phase": "final",
+      "batchId": "377e1143fc6a3acb2c065190711113f19468c409da40db4c98117a446ddf6511",
+      "definitionHash": "06e78b556f29f89033245fdf94fa0232b652ea99b9d03a1ccd357a418296ca46",
+      "basisHash": "70723d2183209030d74323255910875a0808d57da7bab18e6d160a42a7dec016",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 56,
+      "durationSeconds": 242.8905,
+      "recordedAt": "2026-10-07T08:47:32Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S2-final-4091f0102dc4.log",
+      "logSha256": "4291481d33c0b702d958d529254f316b4103f1414b8e53f7f48c48af9e796019",
+      "inputsHash": "440dbcb5436392b246e9deb7bd00fb5939b53254d79c98e03b4c0243d31e7fd4"
+    },
+    "S2/s2-disconnect-unit/final": {
+      "checkId": "s2-disconnect-unit",
+      "boundaryId": "S2",
+      "phase": "final",
+      "batchId": "377e1143fc6a3acb2c065190711113f19468c409da40db4c98117a446ddf6511",
+      "definitionHash": "50a5d2460e1d7100a9b4b06aa87fd38019b331bf7a91f252c22a324470adaa7e",
+      "basisHash": "b5823aba8d3729e11f1fcd6028ac99e3e1429f3fb70a1b241e55896313a29446",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 3,
+      "durationSeconds": 0.3705,
+      "recordedAt": "2026-10-07T08:47:33Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S2-final-a20d47018fe9.log",
+      "logSha256": "29ea0dcc05311cf9e678a042a27165795e4a484260f2ed53d5cf22ce82d96b0f",
+      "inputsHash": "2bdc45a0ca0d454c93ab3307c03672d6b986d21ebafebb347865307d0e1ea0b1"
+    },
+    "S2/s2-disconnect-every-handle/final": {
+      "checkId": "s2-disconnect-every-handle",
+      "boundaryId": "S2",
+      "phase": "final",
+      "batchId": "377e1143fc6a3acb2c065190711113f19468c409da40db4c98117a446ddf6511",
+      "definitionHash": "9f870e99f01b2a6f88c6927463f0217091a2f3ac280134b74baea7c34e676410",
+      "basisHash": "e4baec0fdc2f9d7625173ec9734ec4197758d187dd809ca9669ca2293ec6a1c1",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 16,
+      "durationSeconds": 61.1762,
+      "recordedAt": "2026-10-07T08:48:34Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S2-final-f18cafac7ed3.log",
+      "logSha256": "414db7aae434f4f872d45588ae084bb8ad91007bba53556423384a714d963b7a",
+      "inputsHash": "440dbcb5436392b246e9deb7bd00fb5939b53254d79c98e03b4c0243d31e7fd4"
+    },
+    "S2/s2-disconnect-every-handle-android/final": {
+      "checkId": "s2-disconnect-every-handle-android",
+      "boundaryId": "S2",
+      "phase": "final",
+      "batchId": "377e1143fc6a3acb2c065190711113f19468c409da40db4c98117a446ddf6511",
+      "definitionHash": "e4a25f2d20f800164c46ba37f7f6794715f67a5ed1e3d62f33c0e0425886de7a",
+      "basisHash": "de0ba09a8bb57ba523ba4cd8c3e57385fcdcbf40994c9a8a3fb183a8f001d283",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 24.3728,
+      "recordedAt": "2026-10-07T08:48:58Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S2-final-cb52b37c6175.log",
+      "logSha256": "233efc386cd53e1c41fa9fa6b66bc8c85a6cf477e77a02d663abf6e25e548211",
+      "inputsHash": "440dbcb5436392b246e9deb7bd00fb5939b53254d79c98e03b4c0243d31e7fd4"
+    },
+    "S2/s2-dotnet-build/final": {
+      "checkId": "s2-dotnet-build",
+      "boundaryId": "S2",
+      "phase": "final",
+      "batchId": "377e1143fc6a3acb2c065190711113f19468c409da40db4c98117a446ddf6511",
+      "definitionHash": "5419b36d07a52aeac745099a1666d483912a5923a0d4090f529021b7465a40a1",
+      "basisHash": "e153e6f52a50877adc129951c5abcf69938a1ad985c5d45f8b642a34c1dc0f63",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 0,
+      "durationSeconds": 2.2638,
+      "recordedAt": "2026-10-07T08:49:01Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S2-final-47bcf2565fd7.log",
+      "logSha256": "f814be94bffb3ed2fee89a9526212dcd9e1bd4ceb85ff608e183f49372217683",
+      "inputsHash": "601c0b2298d330e01b934efeb2aacf403ab184bfb842816460fc3e01507d3f92"
+    },
+    "S2/s2-static-categories/final": {
+      "checkId": "s2-static-categories",
+      "boundaryId": "S2",
+      "phase": "final",
+      "batchId": "377e1143fc6a3acb2c065190711113f19468c409da40db4c98117a446ddf6511",
+      "definitionHash": "2ff788dccd036ced9278ff833aecf6540d3e36fdbd80d5af8bd2abe1ecc01b14",
+      "basisHash": "190aedc0731e25691beb3211a02530fd619f99c230f345ca37253a26979c80af",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 57,
+      "durationSeconds": 35.256,
+      "recordedAt": "2026-10-07T08:49:36Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S2-final-be363e2706be.log",
+      "logSha256": "297aa5f5dd1b8cb74a0a4d6df8eff9e7e5ae03584b3864dabb758720e917502c",
+      "inputsHash": "f1bb6ff8d2214340a1c634fa87fbf0349359c1e726210447220af7f24cb2ac9a"
     }
   },
   "reviews": {
@@ -424,6 +672,475 @@
         "S1-F4"
       ],
       "recordedAt": "2026-10-06T20:56:41Z"
+    },
+    "S2": {
+      "reviewerId": "s2-review-fourth-b5d2e81f",
+      "snapshotId": "377e1143fc6a3acb2c065190711113f19468c409da40db4c98117a446ddf6511",
+      "criterionIds": [
+        "R12.C1",
+        "R12.C2",
+        "R12.C3",
+        "R12.C4",
+        "R16.C1"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/error.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C1",
+            "R12.C2",
+            "R12.C4"
+          ],
+          "sha256": "c7f097a9cce7a61af062dc1c2604a5b77fbd6acee3a15f23edbdf023229d86d8"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/lib.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C2"
+          ],
+          "sha256": "65f9520781a5b3ba98cceead71cd7e433f10b922c958a4a81e19f2691370e63e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C2",
+            "R12.C4",
+            "R16.C1"
+          ],
+          "sha256": "1b22d1efc170dadccd97696e2204b8363920f0f63a92288e06a583eb9c7f3ba4"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/context.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C2",
+            "R12.C4"
+          ],
+          "sha256": "8cc777a4ea86237ec9651c5c3dbd86cb64e4316bf8a7c2ddb5aa0b9de5645d4f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C1",
+            "R12.C4"
+          ],
+          "sha256": "2a52ce71aa8a30f012c8e1c8f9dd1a1fbac573c4dd8c3cbc0d2feac72759eb60"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/completer/manual_stream.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C2"
+          ],
+          "sha256": "33056480ed1f4dfd4e794db9c1644186f781fa1faa5f6011c6206d01fbf22a20"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C1",
+            "R12.C3",
+            "R12.C4"
+          ],
+          "sha256": "10bbc1c3869adce00f6c577368f1fca8b8fbfd761bb849c44a59e55c5155e84d"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C1",
+            "R12.C3"
+          ],
+          "sha256": "9bcc584c700fd222787627e86ebb2d9397b2f999510ca2478af7465fcdad2c9b"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/common.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C3",
+            "R12.C4",
+            "R16.C1"
+          ],
+          "sha256": "8110821a1cbe9272698b51731c3e782a6dca6b18f4698d61e304f8822d86b7ad"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/stateful.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C1",
+            "R12.C4"
+          ],
+          "sha256": "d6751b2f3a65200925fbc55dfc2934de9613b3d2f539545c57dc5d846a09b16e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/reconnection.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C4",
+            "R16.C1"
+          ],
+          "sha256": "6632ee1b8f84f4a8491766624a26e3f3a5b6efc44ad204e03861660388ec2633"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C2",
+            "R12.C4",
+            "R16.C1"
+          ],
+          "sha256": "923f754a53c5f03add18f4446c127c7e7c4ed356b8bbdacace6a8215d6ffa198"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C2",
+            "R12.C4",
+            "R16.C1"
+          ],
+          "sha256": "6c8f5d563d8e62618aaeaf0ab3738bf051279d0cd7f50bb6b0fcd51cfd2bc453"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/storage_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C4",
+            "R16.C1"
+          ],
+          "sha256": "d2ff8cae90f20b4f9911979116ad01a1a8d462e6e670ef9752754f94ef220576"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/storage_wasm.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C1"
+          ],
+          "sha256": "9d2a902a5a38874f02d4d6e60913689494ed7b56bc32a351625a23a85c0587d6"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/Program.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C3"
+          ],
+          "sha256": "552046d74f051e7af9f5c26ab8dfed58fb5ca29208e87f9ebc563b10438eb70c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/11-errors-and-logging.md",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C4"
+          ],
+          "sha256": "dbde07ef5d5e77f7b744fe5c4a43bffd30c154aea770ae70cdd59cbacde3b47e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/01-getting-started.md",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C4"
+          ],
+          "sha256": "4b89f4c873f7dc14c20c1c76c76e55aff69ba5f9ffdacfeb8f0ab1e5d1de6e89"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/02-connecting.md",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C4"
+          ],
+          "sha256": "695d2502b78f182adf6b93b4fb835ca3bfd784e106ebc124516ed0803794e1fb"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/04-server-callbacks.md",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C4"
+          ],
+          "sha256": "0c689a238b37a52bbbbbc585930526e27146af3412e513ebb2e0d0fa9d3aaaad"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/06-connection-lifecycle.md",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C4",
+            "R16.C1"
+          ],
+          "sha256": "560b8ba67396470df4d8b8891884405a389b1ede06cabe55661bbe1dc8d23797"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/07-reconnection.md",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C4"
+          ],
+          "sha256": "f32fbd729f8f71f18d2186a084face4593fc3b370fcf1cc7d9f92a589dc2419a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/09-platforms.md",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C4"
+          ],
+          "sha256": "ebbc108dab298d2d720751a389ca8f59d2bb6ac46670488e5c89ba765fc5df80"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/13-architecture.md",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C4",
+            "R16.C1"
+          ],
+          "sha256": "d6aab44fd3f2639046e515f70e1e1d38e6e031f6f170e7791d363f11ce8ecb2a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/reconnection.md",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C4"
+          ],
+          "sha256": "22a1fbab153d0857e2aee13a1bb7cd5f08d4cbb685e35202165fc440e3f7ec4f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "README.md",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C4"
+          ],
+          "sha256": "f0f33c242f50709d8774cf4095866c4e1829fce4da6bf429e62c9e3c4ff74216"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "Cargo.toml",
+          "kind": "source",
+          "criterionIds": [
+            "R12.C4"
+          ],
+          "sha256": "43cd41e2f51bfce985e8cd5ee2074eba2ed8ea65bc6f22ddba33efd60d8fd9cf"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/public_error_types.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R12.C2"
+          ],
+          "sha256": "c708c0645a44d81c8627ff1340c50cb3ec5139ca824772f20f4bfda4ec4bbc84"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/MobileTlsTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R12.C2"
+          ],
+          "sha256": "56b61c59dc7bfd5e5df885c2b9a79da9cad8fee391fabefaa5bb37dc7524e6c4"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/error_kinds.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R12.C3"
+          ],
+          "sha256": "25fcf148a07bfa4fd1a1f705fa47a46b5f29f3de5d964a582029a43a19bc5b77"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R12.C3",
+            "R16.C1"
+          ],
+          "sha256": "278a7f6446868efbf2228a4e5e81c018cbb1887b91ccf2aeaaead329602a3348"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/tests/signalr-functional.spec.ts",
+          "kind": "test",
+          "criterionIds": [
+            "R12.C3"
+          ],
+          "sha256": "e2599a6d3f5c9288b1b85888ce6d555f25d1326a4169d140eb5720a24e278d74"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/disconnect_every_handle.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C1"
+          ],
+          "sha256": "fc0aab3cbe2b0674bb10a8738f478f4fe2d03c147ed3a8ffd90ab420eb14fdb9"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/concurrency_and_clones.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C1"
+          ],
+          "sha256": "eb902a5316c889b4ca6dfc10750540fd882a9778ea16e650f4f6d21761d47d8e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/tests/signalr-lifecycle.spec.ts",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C1"
+          ],
+          "sha256": "6f1bc55ff80e91240275493abd7addd9deeaa783ef6ff7397670cf6c262f689c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/S2-final-5d8969f0a0ae.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R12.C1"
+          ],
+          "sha256": "85b4c385040345cdb804e5defbce5703d576e3153a54dd858db9ad6452f48a3f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/S2-final-1c605c0e16ba.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R12.C2"
+          ],
+          "sha256": "c8e0f20571d4291bc7efb245c20825a16262f394cb8b89fd412b8b19e8bc33b3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/S2-final-a5c5cb84e7d8.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R12.C2"
+          ],
+          "sha256": "c9ac8e3e320fbbda67fd8e05b229af033b612fe77f52359aeaeec1d6d8bde6e7"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/S2-final-be363e2706be.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R12.C2"
+          ],
+          "sha256": "297aa5f5dd1b8cb74a0a4d6df8eff9e7e5ae03584b3864dabb758720e917502c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/S2-final-ff7956c5c7b6.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R12.C3"
+          ],
+          "sha256": "d1a110453ff30ba1858f5dde5b82efabadfc09fdac93081ea4b101a810da10e3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/S2-final-1edafd1ca5a1.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R12.C3"
+          ],
+          "sha256": "031d0c4c0f6a3a4b6cbc0b37939eae09a51340ba2540717c30b97d53944c3743"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/S2-final-634dac7255b9.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R12.C3"
+          ],
+          "sha256": "cc32667374c03947c9acbd836f9b904ea1a2e1db3119dc4e71b0c8e78756e6bf"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/S2-final-d7411dd24180.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R12.C3"
+          ],
+          "sha256": "08505a8729eb65adf046f0795adbeeb0613a3a6c4c0391e879b0aebc1f9d7187"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/S2-final-4091f0102dc4.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R12.C3"
+          ],
+          "sha256": "4291481d33c0b702d958d529254f316b4103f1414b8e53f7f48c48af9e796019"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/S2-final-a20d47018fe9.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C1"
+          ],
+          "sha256": "29ea0dcc05311cf9e678a042a27165795e4a484260f2ed53d5cf22ce82d96b0f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/S2-final-f18cafac7ed3.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C1"
+          ],
+          "sha256": "414db7aae434f4f872d45588ae084bb8ad91007bba53556423384a714d963b7a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/S2-final-cb52b37c6175.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C1"
+          ],
+          "sha256": "233efc386cd53e1c41fa9fa6b66bc8c85a6cf477e77a02d663abf6e25e548211"
+        }
+      ],
+      "summaryMarkdown": "Passed. Since the third review, only documentation changed: the `Configuration` definition and one example. All 13 S2 checks pass on this snapshot.\n\n**Criteria:**\n- **R12.C1 met:** `error_model_`, 15 tests.\n- **R12.C2 met:** `public_error_types`, the wasm check, and the static categories (57 tests).\n- **R12.C3 met:** `error-kinds` passed natively and in the browsers (8 cells) and on Android (2 cells). The native (50) and Chromium (56) catalogs pass, as does the migrated unit suite (154 tests).\n- **R16.C1 met:** `disconnect_`, 3 tests. `disconnect-every-handle` passed in 16 cells and on Android in 4 cells.\n- **R12.C4 now met:**\n  - S2-F6: the `ErrorKind::Configuration` rustdoc and the docs/11 kind row now cover the call-time replay-buffer limit enforced by `StatefulMessageBuffer::track`.\n  - S2-F7: the docs/01 browser example converts through `to_string()` into `JsValue`.\n  - A re-scan of the Rust examples in README, docs/ and the skill found no example broken by the typed error API.\n\nS2-F1 through S2-F7 are resolved and none remain open.",
+      "findingIds": [
+        "S2-F1",
+        "S2-F2",
+        "S2-F3",
+        "S2-F4",
+        "S2-F5",
+        "S2-F6",
+        "S2-F7"
+      ],
+      "recordedAt": "2026-10-07T08:51:44Z"
     }
   },
   "checkpoints": {
@@ -434,6 +1151,14 @@
       },
       "reviewHash": "5e22c65c3591f0425c79046cc5e668ed3c25c45544fc4b66fb57b4b5789439ad",
       "recordedAt": "2026-10-06T20:57:41Z"
+    },
+    "S2": {
+      "snapshotId": "377e1143fc6a3acb2c065190711113f19468c409da40db4c98117a446ddf6511",
+      "commits": {
+        "rayx-signalr": "f2610e8493bd6cf5a7b125db399f4c508eb9a870"
+      },
+      "reviewHash": "831fb8a8d56bbf7f4a0539044014e42232de945efc8a4c061f0ee2091b0be7c0",
+      "recordedAt": "2026-10-07T08:52:43Z"
     }
   },
   "findings": [
@@ -540,9 +1265,165 @@
       ],
       "descriptionMarkdown": "**Expected:** the repository's documentation duty updates the skill references together with the `docs/` chapter for the new `rayx_signalr::stateful` target.\n\n**Observed (original):** only `docs/11-errors-and-logging.md` documented it.\n\n**Verified resolved:** the skill's `troubleshooting.md` Logging section documents the target, `RUST_LOG=rayx_signalr::stateful=debug`, the `generation=` tag, resend outcomes, rejections and the no-payload guarantee, and `reconnection.md` points to it from the stateful section. With S1-F2's decode routing, the claim that every rejected Ack, Sequence or message is recorded now holds.",
       "boundaryId": "S1"
+    },
+    {
+      "id": "S2-F1",
+      "criterionIds": [
+        "R16.C1"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**Was:** natively, `UpdatableActionStorage::update` held the storage mutex while a callback ran, so `disconnect()` (through `fail_pending`), `register` or `unregister` called from a callback deadlocked the receiver.\n\n**Still resolved on snapshot 377e1143 (code unchanged since the third review):** `src/execution/storage_tokio.rs` stores each action as `Arc<Mutex<Box<dyn UpdatableAction>>>`. `update` clones the handle under the map lock and runs the action after releasing it. `remove`, `fail_pending` and `fail_action` take entries out under the map lock and drop or fail them outside it, as the browser storage does. `disconnect_from_a_callback_returns_and_closes_every_handle` (`s2-disconnect-unit`, 3 tests) and the server-triggered callback disconnect in `disconnect-every-handle` passed on native, Chromium, Firefox, WebKit and Android in both protocols (`s2-disconnect-every-handle` 16 cells, `s2-disconnect-every-handle-android` 4 cells).",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/storage_tokio.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/disconnect_every_handle.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs"
+        }
+      ],
+      "boundaryId": "S2"
+    },
+    {
+      "id": "S2-F2",
+      "criterionIds": [
+        "R12.C2"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**Was:** `MobileTlsTests.AndroidReExportsTheVerifierInitialization` asserted the removed `init_with_env` re-export, and none of the .NET contract categories that CLAUDE.md requires for S2's dependency, mobile and .NET changes had run.\n\n**Still resolved:** the contract asserts the `init_with_refs`/`init_with_runtime`/`Runtime` re-exports and the `init_with_env` wrapper returning `Result<(), crate::Error>`, which matches `src/lib.rs`. `s2-static-categories` passed on this snapshot (57 tests: WorkflowContract, Repository, Catalog, Toolchain, Platform, DependencySecurity). `s2-dotnet-build` passed, reused because none of its inputs changed.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/MobileTlsTests.cs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/lib.rs"
+        }
+      ],
+      "boundaryId": "S2"
+    },
+    {
+      "id": "S2-F3",
+      "criterionIds": [
+        "R12.C4"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Was:** rows in `docs/11-errors-and-logging.md` and the `pause` rustdoc disagreed with the code.\n\n**Still resolved:**\n- The `Serialization` row says an undecodable stream item is logged and skipped.\n- A zero stateful buffer names `with_stateful_reconnect`.\n- The Calls table says native stateful pending calls wait for `resume`.\n- `SignalRClient::pause` names `ErrorKind::Paused`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/11-errors-and-logging.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs"
+        }
+      ],
+      "boundaryId": "S2"
+    },
+    {
+      "id": "S2-F4",
+      "criterionIds": [
+        "R16.C1"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Was:** no test proved that dropping the last handle still closes the connection.\n\n**Still resolved:** `disconnect_by_drop_closes_only_with_the_last_handle` drops a clone, asserting the status and pending work are unchanged. It then drops the last handle and asserts the pending invocation fails with `ConnectionClosed`/`CloseReason::Local`. Native `release` closes only when `Arc::strong_count` is 1. `concurrency-and-clones` proves on every target that dropping a non-last clone keeps the connection.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/concurrency_and_clones.rs"
+        }
+      ],
+      "boundaryId": "S2"
+    },
+    {
+      "id": "S2-F5",
+      "criterionIds": [
+        "R12.C2"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Was:** the path-dependent consumers (RayX `rayx_devkit::SignalRService`, RayX.GameX `gamex_sbk_services`) would not compile against the 0.2 typed errors, and no paired change existed.\n\n**Still resolved by user decision (2026-10-07):** consumers are migrated once at the end of the epic. The plan's S15.T2 still records this: prepare the paired consumer changes, validate their affected crates, and hand them to the user.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/tasks/production-grade-client/implementation-plan.json"
+        }
+      ],
+      "boundaryId": "S2"
+    },
+    {
+      "id": "S2-F6",
+      "criterionIds": [
+        "R12.C4"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Was:** `ErrorKind::Configuration` was defined as rejected \"before any I/O\" in the docs/11 kind table and the `ErrorKind` rustdoc. The Calls table, docs/07 and the `invoke_with_args`/`send_with_args` rustdoc also document a call-time `Configuration` error for a message larger than the stateful replay buffer.\n\n**Resolved:** both definitions are now qualified.\n- `src/error.rs`: \"rejected before any I/O, or a call exceeded a limit it sets (a message larger than the stateful replay buffer). [`Error::setting`] names the setting.\"\n- The docs/11 table row says the same.\n\nThis matches the code. `StatefulMessageBuffer::track` (src/communication/stateful.rs) returns `Error::configuration(\"StatefulReconnectConfig::buffer_size_bytes\", ..)` when `bytes > capacity`. It also agrees with docs/11 Calls table line 128, docs/07 line 174 and the client.rs rustdoc lines 530-531 and 674-675. The remaining \"before any I/O\" phrases (docs/02, 06, 08, 09, 11 \"Before any I/O\" section, `connect` rustdoc) describe `connect`-time validation only, and they are correct.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/error.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/11-errors-and-logging.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/stateful.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs"
+        }
+      ],
+      "boundaryId": "S2"
+    },
+    {
+      "id": "S2-F7",
+      "criterionIds": [
+        "R12.C4"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Was:** the browser example in docs/01 called `web_sys::console::error_1(&error.into())` with `error: rayx_signalr::Error`. No `From<Error> for JsValue` exists, so the example did not compile.\n\n**Resolved:** line 143 is now `web_sys::console::error_1(&error.to_string().into());`. It type-checks:\n- `Error: Display` gives `to_string() -> String`.\n- `error_1` expects `&JsValue`, so `.into()` resolves to wasm-bindgen's `impl From<String> for JsValue`.\n\n**Re-scan:** I extracted every Rust block in README, `docs/` and the skill files. None depends on a `String` error type or on an absent conversion.\n- README's `return Err(error.into())` and docs/11's `Result<SignalRClient, Error>` and `Option<i32>` helpers type-check against the accessors (`setting() -> Option<&'static str>`, `server_message() -> Option<&str>`, `close_reason() -> Option<CloseReason>`, `timeout_operation()`).\n- docs/07's `reconnect_with_policy() -> Result<(), Error>` and `{error}` Display type-check.\n- `ticks.error()` with Display type-checks.\n- The skill's platforms.md and tls.md mix `.map_err(|e| e.to_string())?` with the crate's `?`. This compiles in both a `Box<dyn Error>` and a `Result<_, String>` context, through `From<Error> for String`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/01-getting-started.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "README.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/11-errors-and-logging.md"
+        }
+      ],
+      "boundaryId": "S2"
     }
   ],
-  "handoffMarkdown": "",
+  "handoffMarkdown": "Communication::disconnect(&self) closes for every handle; release() keeps last-handle drop; SignalRClient::disconnect(&self) documented as StopAsync parity; disconnect_ unit group; disconnect-every-handle scenario (native/fixture/lifecycle spec/catalog); concurrency-and-clones drops a clone; error-kinds invoke-after-disconnect restored; docs 04/06/11 + skill refs updated",
   "protectedPaths": {
     "rayx-signalr": {
       ".agentx/tasks/resilient-reconnect-and-production-gates/**": "a4110a3f5f2c68d64ddf8fbedb70479c98f46dde78b064b5b3ac826772db49a6",

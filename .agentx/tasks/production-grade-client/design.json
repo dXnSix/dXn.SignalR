@@ -409,7 +409,7 @@
       "requirementIds": [
         "R12"
       ],
-      "descriptionMarkdown": "**One public `Error` with a matchable `ErrorKind`.**\n- `src/error.rs` defines `pub struct Error { kind: ErrorKind, detail: Box<ErrorDetail> }`-style or a `#[non_exhaustive] enum Error` with struct variants; either way `ErrorKind` is a `Copy` `#[non_exhaustive]` enum for matching and structured accessors expose status, transport, timeout operation and bound, server message and close reason. Sources are `Arc<dyn std::error::Error + Send + Sync>` so `Error` is `Clone` (one failure completes many pending calls).\n- Internally, layers return the typed error directly (codec -> `Protocol`/`Serialization`, negotiate -> `Negotiate`/`Authentication`/`Timeout`, TLS -> `Tls`, transports -> `Transport`, lifecycle -> `ConnectionClosed`/`Paused`); `String` errors are removed from every path that reaches the public API. `thiserror` derives `Display`; redaction reuses the existing redaction helpers and is applied when the error is built, never at display time only.\n- The disconnection handler receives a `DisconnectReason` carrying the `Error` that ended the transport.\n- The crate version moves to the next major; README migration notes map old string checks to kinds.",
+      "descriptionMarkdown": "**One public `Error` with a matchable `ErrorKind`.**\n- `src/error.rs` defines `pub struct Error { kind: ErrorKind, detail: Box<ErrorDetail> }`-style or a `#[non_exhaustive] enum Error` with struct variants; either way `ErrorKind` is a `Copy` `#[non_exhaustive]` enum for matching and structured accessors expose status, transport, timeout operation and bound, server message and close reason. Sources are `Arc<dyn std::error::Error + Send + Sync>` so `Error` is `Clone` (one failure completes many pending calls).\n- Internally, layers return the typed error directly (codec -> `Protocol`/`Serialization`, negotiate -> `Negotiate`/`Authentication`/`Timeout`, TLS -> `Tls`, transports -> `Transport`, lifecycle -> `ConnectionClosed`/`Paused`); `String` errors are removed from every path that reaches the public API. `thiserror` derives `Display`; redaction reuses the existing redaction helpers and is applied when the error is built, never at display time only.\n- The disconnection handler learns why the transport ended from `ReconnectionHandler::reason()`, the `Error` that ended it (`Transport`, `Timeout` for the server timeout, `ConnectionClosed` for a server Close, `Protocol`); the `DisconnectionHandler` trait keeps its signature, so existing handlers compile unchanged.\n- The crate version moves to the next major; README migration notes map old string checks to kinds.",
       "invariantsMarkdown": "- `Display` never contains tokens, credentials, proxy userinfo or `access_token` values.\n- Error construction never allocates on the per-message success path.\n- `ErrorKind` additions are non-breaking (`#[non_exhaustive]`).",
       "rationaleMarkdown": "Callers need to distinguish retryable from fatal failures, authentication from network problems, and server hub errors from client errors without parsing strings; a single cloneable type with a kind enum matches common Rust client libraries and keeps the public surface small. Doing it before the hot-path and transport work lets every later feature emit typed errors from the start.",
       "sourceRefs": [
@@ -501,6 +501,39 @@
         {
           "repositoryId": "rayx-signalr",
           "path": "dotnet/RayX.SignalR.AppHost/src/AppHost.cs"
+        }
+      ]
+    },
+    {
+      "id": "D16",
+      "requirementIds": [
+        "R16"
+      ],
+      "descriptionMarkdown": "**The official .NET client is the behavioral reference.**\n- `disconnect` maps to `HubConnection.StopAsync`: the connection's `Communication::disconnect(&self)` closes unconditionally (lifecycle `LocalClosed`, stateful buffer disposed, `fail_pending` with `Error::closed_locally()`), while `SignalRClient`'s `Drop` calls `Communication::release`, which closes only for the last handle (native `Arc` strong count, browser owner count). `disconnect` takes `&self` so shared handles can stop the connection; it stays synchronous (an un-awaited async stop would silently not stop).\n- Further parity gaps are audited against the .NET client source and added to R16 with their own criteria, tasks and test groups.",
+      "invariantsMarkdown": "- Only an explicit `disconnect` closes the connection for other handles; dropping a non-last handle never does.\n- A local close is terminal for every handle and fails all pending work exactly once.",
+      "rationaleMarkdown": "The user requires full compatibility with the official .NET client. Last-handle-only `disconnect` made `StopAsync`-style shutdown impossible while callbacks or clones existed and made R12.C3's invoke-after-disconnect case unobservable.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/common.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs"
+        }
+      ],
+      "memoryDecisionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/memory/decisions/client-runtime/connection-lifecycle/2026-10-06-client-runtime-connection-lifecycle-liveness-and-lifecycle-controls.md"
         }
       ]
     }

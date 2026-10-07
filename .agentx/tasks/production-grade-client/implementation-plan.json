@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 4,
+  "revision": 8,
   "title": "Production-grade rayx-signalr: typed errors, all transports, proxies, refreshable auth, suspension-aware liveness, proven TLS paths, reference-class performance, and stretch SOCKS/PAC/OS proxies, HTTP/2 and HTTP/3",
   "validationMode": "sprint",
   "repositories": [
@@ -2644,6 +2644,176 @@
         "RAYX_SIGNALR_E2E_TRANSPORTS": "websockets",
         "RAYX_SIGNALR_SOAK_SECONDS": "120"
       }
+    },
+    {
+      "id": "s2-disconnect-unit",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R16.C1"
+      ],
+      "descriptionMarkdown": "New `disconnect_` unit group: `disconnect` closes every handle; dropping a clone does not.",
+      "argv": [
+        "cargo",
+        "test",
+        "--lib",
+        "--all-features",
+        "--",
+        "disconnect_"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 2
+      },
+      "inputs": [
+        "Cargo.toml",
+        "build.rs",
+        "src/**"
+      ],
+      "timeoutSeconds": 1200
+    },
+    {
+      "id": "s2-disconnect-every-handle",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R16.C1"
+      ],
+      "descriptionMarkdown": "New `disconnect-every-handle` scenario plus `concurrency-and-clones` (dropping a clone keeps the connection) on native and every browser engine. Selection: targets `native,chromium,firefox,webkit`, scenarios `disconnect-every-handle,concurrency-and-clones`, protocols `json,messagepack` (16 cells).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 16
+      },
+      "inputs": [
+        "Cargo.toml",
+        "build.rs",
+        "src/**",
+        "tests/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        "tools-node/tests/**",
+        "tools-node/wasm-host/**",
+        "tools-node/playwright.config.ts",
+        "tools-node/package.json"
+      ],
+      "timeoutSeconds": 2400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "native,chromium,firefox,webkit",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "disconnect-every-handle,concurrency-and-clones",
+        "RAYX_SIGNALR_E2E_TRANSPORTS": "websockets",
+        "RAYX_SIGNALR_SOAK_SECONDS": "120"
+      }
+    },
+    {
+      "id": "s2-disconnect-every-handle-android",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R16.C1"
+      ],
+      "descriptionMarkdown": "The same two scenarios on Android. Prerequisite: a running x86_64 emulator (AVD `Pixel_9_Pro_XL` or `RAYX_SIGNALR_E2E_ANDROID_SERIAL`). Selection: targets `android`, protocols `json,messagepack` (4 cells).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 4
+      },
+      "inputs": [
+        "Cargo.toml",
+        "build.rs",
+        "src/**",
+        "tests/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        "tools-node/tests/**",
+        "tools-node/wasm-host/**",
+        "tools-node/playwright.config.ts",
+        "tools-node/package.json"
+      ],
+      "timeoutSeconds": 2400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "android",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "disconnect-every-handle,concurrency-and-clones",
+        "RAYX_SIGNALR_E2E_TRANSPORTS": "websockets",
+        "RAYX_SIGNALR_SOAK_SECONDS": "120"
+      }
+    },
+    {
+      "id": "s2-dotnet-build",
+      "repositoryId": "rayx-signalr",
+      "kind": "build",
+      "criterionIds": [
+        "R12.C3"
+      ],
+      "descriptionMarkdown": "S2 changed the test service (`/test-hang/negotiate`), the scenario catalog and a contract test: every .NET project builds (CLAUDE.md rule for .NET changes).",
+      "argv": [
+        "dotnet",
+        "build",
+        "RayX.SignalR.slnx"
+      ],
+      "expected": {
+        "exitCode": 0
+      },
+      "inputs": [
+        "global.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**"
+      ],
+      "timeoutSeconds": 1800
+    },
+    {
+      "id": "s2-static-categories",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R12.C2"
+      ],
+      "descriptionMarkdown": "The static .NET categories CLAUDE.md requires for S2's .NET, catalog, Android-surface and dependency (`thiserror`, `jni`) changes: WorkflowContract, Repository, Catalog, Toolchain, Platform (Android build and the typed `init_with_env` contract) and DependencySecurity (`cargo-audit`).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=WorkflowContract|Category=Repository|Category=Catalog|Category=Toolchain|Category=Platform|Category=DependencySecurity"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 20
+      },
+      "inputs": [
+        "Cargo.toml",
+        "build.rs",
+        "src/**",
+        "tests/**",
+        "global.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        ".github/**",
+        "tools-node/**"
+      ],
+      "timeoutSeconds": 3600
     }
   ],
   "finalCheckIds": [
@@ -2776,7 +2946,8 @@
         "client-runtime/public-api",
         "client-runtime/hub-protocol",
         "client-runtime/action-execution",
-        "interop-validation/rust-tests"
+        "interop-validation/rust-tests",
+        "client-runtime/connection-lifecycle"
       ],
       "tasks": [
         {
@@ -2807,7 +2978,7 @@
         {
           "id": "S2.T2",
           "title": "Typed public API on both targets",
-          "descriptionMarkdown": "Replace every `String` error on paths reaching the public API (client, invocations, streams, lifecycle, configuration validation, handlers via `DisconnectReason`, TLS/Android initialization) on native and wasm; add `tests/public_error_types.rs`.",
+          "descriptionMarkdown": "Replace every `String` error on paths reaching the public API (client, invocations, streams, lifecycle, configuration validation, handlers via `ReconnectionHandler::reason()`, TLS/Android initialization) on native and wasm; add `tests/public_error_types.rs`.",
           "criterionIds": [
             "R12.C2"
           ],
@@ -2819,7 +2990,8 @@
           ],
           "checkIds": [
             "s2-public-error-types",
-            "s2-public-error-types-wasm"
+            "s2-public-error-types-wasm",
+            "s2-static-categories"
           ],
           "sourceRefs": [
             {
@@ -2862,7 +3034,8 @@
             "s2-error-kinds",
             "s2-error-kinds-android",
             "s2-catalog-native",
-            "s2-catalog-chromium"
+            "s2-catalog-chromium",
+            "s2-dotnet-build"
           ],
           "sourceRefs": [
             {
@@ -2901,6 +3074,43 @@
             {
               "repositoryId": "rayx-signalr",
               "path": "Cargo.toml"
+            }
+          ]
+        },
+        {
+          "id": "S2.T5",
+          "title": "Disconnect stops every handle (StopAsync parity)",
+          "descriptionMarkdown": "Split `Communication::disconnect` (unconditional local close) from `release` (drop: last handle only); make `SignalRClient::disconnect` take `&self`; add the `disconnect_` unit group and the `disconnect-every-handle` scenario (native, fixture, Playwright, catalog); change `concurrency-and-clones` to drop a clone; restore R12.C3's invoke-after-disconnect case; update the lifecycle, callbacks and errors chapters and the skill references. Review repair S2-F1: the native action storage releases its map lock before an action runs (each action has its own lock, as the browser storage already did), so `disconnect`/`register`/`unregister` inside a callback return; `disconnect_` covers it and the last-handle drop, and `disconnect-every-handle` has a server-triggered callback that disconnects.",
+          "criterionIds": [
+            "R16.C1"
+          ],
+          "designIds": [
+            "D16"
+          ],
+          "dependsOn": [
+            "S2.T3"
+          ],
+          "checkIds": [
+            "s2-disconnect-unit",
+            "s2-disconnect-every-handle",
+            "s2-disconnect-every-handle-android"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/client/client.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/communication/common.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "tests/e2e/disconnect_every_handle.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "docs/06-connection-lifecycle.md"
             }
           ]
         }
@@ -3233,7 +3443,7 @@
         {
           "id": "S5.T3",
           "title": "Configurable connect timeout and bounded browser negotiate",
-          "descriptionMarkdown": "Replace `CONNECT_TIMEOUT` with `with_connect_timeout`, bound browser negotiate with `AbortController`, add `/test-hang/negotiate`, the `connect_timeout_` group and the `negotiate-timeout` scenario (native, fixture, Android).",
+          "descriptionMarkdown": "S2.T3 already replaced `CONNECT_TIMEOUT` with `with_connect_timeout` (validated nonzero, bounding negotiate and transport setup on both targets), bounded the browser negotiate `fetch` with an `AbortController`, and added `/test-hang/negotiate`, because R12.C3's `error-kinds` scenario needs the 2 s negotiate bound. This task adds the `connect_timeout_` group, keeps the timeout error free of the URL and token, and adds the `negotiate-timeout` scenario (native, fixture, Android).",
           "criterionIds": [
             "R4.C3"
           ],
@@ -4050,7 +4260,7 @@
         {
           "id": "S15.T2",
           "title": "Documentation and memory",
-          "descriptionMarkdown": "Write the `docs/` chapters, the measured performance summary from the `perf / compare` report, the remaining the limitations chapter (`docs/12-limitations.md`) residual risks, the testing chapter (`docs/14-testing.md`), and memory updates per R11.C3.",
+          "descriptionMarkdown": "Write the `docs/` chapters, the measured performance summary from the `perf / compare` report, the remaining the limitations chapter (`docs/12-limitations.md`) residual risks, the testing chapter (`docs/14-testing.md`), and memory updates per R11.C3. Prepare the paired consumer changes for the final public API (RayX `rayx_devkit::SignalRService` and RayX.GameX `gamex_sbk_services` still return `Result<_, String>` around `connect`), validate their affected crates, and hand them to the user for merging with the epic branch; the user explicitly chose on 2026-10-07 to update the consumers once at the end of the epic rather than per sprint (CLAUDE.md consumer rule; the consumer repositories are not epic execution repositories).",
           "criterionIds": [
             "R11.C3"
           ],
