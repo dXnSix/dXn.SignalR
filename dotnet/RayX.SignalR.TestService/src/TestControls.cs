@@ -17,6 +17,7 @@ namespace RayX.SignalR.TestService
         static readonly ConcurrentDictionary<string, ConcurrentQueue<string>> _recordedSends = new();
         static readonly ConcurrentDictionary<string, int> _disconnects = new();
         static readonly ConcurrentDictionary<string, int> _clientResults = new();
+        static readonly ConcurrentDictionary<string, string> _clientResultErrors = new();
         static readonly ConcurrentDictionary<string, HubConnectionContext> _connections = new();
         static readonly ConcurrentDictionary<string, (string Name, string Scheme)> _authenticatedTokens = new();
 
@@ -69,6 +70,14 @@ namespace RayX.SignalR.TestService
 
         public static int? ClientResult(string connectionId) =>
             _clientResults.TryGetValue(connectionId, out var value) ? value : null;
+
+        /// <summary>Records the <see cref="HubException"/> text a client-result request observed.</summary>
+        public static void RecordClientResultError(string connectionId, string message) =>
+            _clientResultErrors[connectionId] = message;
+
+        /// <summary>Returns and clears the last client-result error of a connection.</summary>
+        public static string? TakeClientResultError(string connectionId) =>
+            _clientResultErrors.TryRemove(connectionId, out var message) ? message : null;
 
         /// <summary>Sends a SignalR Close message to a connection after a delay and aborts it.</summary>
         public static void ScheduleClose(string connectionId, bool allowReconnect, TimeSpan delay)

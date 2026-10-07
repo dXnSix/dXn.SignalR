@@ -109,7 +109,9 @@ public static class ScenarioCatalog
     Everywhere("unsent-stream"),
     Everywhere("error-kinds"),
     Everywhere("disconnect-every-handle"),
-    Everywhere("msgpack-fidelity") with { Protocols = ["messagepack"] }
+    Everywhere("msgpack-fidelity") with { Protocols = ["messagepack"] },
+    Everywhere("callback-dispatch"),
+    Everywhere("client-result-errors")
   ];
 
   /// <summary>Looks up a target by name.</summary>

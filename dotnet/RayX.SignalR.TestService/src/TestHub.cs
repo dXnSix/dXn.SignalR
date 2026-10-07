@@ -105,7 +105,9 @@ namespace RayX.SignalR.TestService
 
         /// <summary>
         /// Asks the caller for a client result outside this invocation (the hub processes one
-        /// invocation per connection at a time) and records the value for <see cref="ClientResult"/>.
+        /// invocation per connection at a time) and records the value for <see cref="ClientResult"/>,
+        /// or the <see cref="HubException"/> text an error Completion produced for
+        /// <see cref="TakeClientResultError"/>.
         /// </summary>
         public void RequestClientResult(string callback, int value)
         {
@@ -113,12 +115,22 @@ namespace RayX.SignalR.TestService
             _ = Task.Run(async () =>
             {
                 using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(20));
-                int result = await hubContext.Clients.Client(connectionId).InvokeAsync<int>(callback, value, timeout.Token);
-                TestControls.RecordClientResult(connectionId, result);
+                try
+                {
+                    int result = await hubContext.Clients.Client(connectionId).InvokeAsync<int>(callback, value, timeout.Token);
+                    TestControls.RecordClientResult(connectionId, result);
+                }
+                catch (HubException exception)
+                {
+                    TestControls.RecordClientResultError(connectionId, exception.Message);
+                }
             });
         }
 
         public int? ClientResult() => TestControls.ClientResult(Context.ConnectionId);
+
+        /// <summary>Returns and clears the caller's last client-result error text.</summary>
+        public string? TakeClientResultError() => TestControls.TakeClientResultError(Context.ConnectionId);
 
         public int DisconnectCount(string connectionId) => TestControls.DisconnectCount(connectionId);
 

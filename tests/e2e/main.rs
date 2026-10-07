@@ -9,7 +9,9 @@
 mod support;
 
 mod authentication;
+mod callback_dispatch;
 mod callbacks;
+mod client_result_errors;
 mod concurrency_and_clones;
 mod connect_negotiate;
 mod disconnect_every_handle;

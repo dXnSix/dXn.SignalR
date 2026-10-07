@@ -18,6 +18,8 @@ const scenarios = [
   "skip-negotiation",
   "message-burst",
   "error-kinds",
+  "callback-dispatch",
+  "client-result-errors",
 ];
 
 // Scenarios whose values exist only in one protocol.

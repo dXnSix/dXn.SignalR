@@ -70,6 +70,8 @@ pub async fn run_functional_scenario(
         "error-kinds" => error_kinds(messagepack).await,
         "disconnect-every-handle" => disconnect_every_handle(messagepack).await,
         "msgpack-fidelity" => msgpack_fidelity(messagepack).await,
+        "callback-dispatch" => callback_dispatch(messagepack).await,
+        "client-result-errors" => client_result_errors(messagepack).await,
         other => Err(format!("unknown functional scenario {other}")),
     };
     outcome
@@ -2076,6 +2078,343 @@ async fn msgpack_fidelity(messagepack: bool) -> Outcome {
             && map.get(&2).map(String::as_str) == Some("two"),
         "Dictionary<int,string> argument was {map:?}"
     );
+    registration.unregister();
+    client.disconnect();
+    Ok(())
+}
+
+/// Server-to-client calls run on the client's dispatch task, one at a time and in arrival order,
+/// as in the official .NET client, so a slow callback never delays an invoke completion.
+async fn callback_dispatch(messagepack: bool) -> Outcome {
+    let mut client = connect("test", messagepack, |_| {}).await?;
+    let events = Rc::new(RefCell::new(Vec::<String>::new()));
+    let (release, released) = oneshot::channel::<()>();
+    let released = Rc::new(RefCell::new(Some(released)));
+    let recorded = events.clone();
+    let registration = client.register_async("dispatchProbe".to_string(), move |context| {
+        let events = recorded.clone();
+        // The first call waits until the scenario releases it.
+        let wait = released.borrow_mut().take();
+        async move {
+            let value = context.argument::<i32>(0).unwrap_or(-1);
+            events.borrow_mut().push(format!("start {value}"));
+            if let Some(wait) = wait {
+                let _ = wait.await;
+            }
+            events.borrow_mut().push(format!("end {value}"));
+        }
+    });
+
+    client
+        .send_with_args("TriggerOrderedCallbacks".to_string(), |arguments| {
+            arguments.argument("dispatchProbe".to_string());
+            arguments.argument(3);
+        })
+        .await
+        .map_err(|error| format!("TriggerOrderedCallbacks failed: {error}"))?;
+    eventually("the first callback", 5_000.0, || {
+        let events = events.clone();
+        async move { (!events.borrow().is_empty()).then_some(()) }
+    })
+    .await?;
+
+    // The first callback still runs; an invoke completes regardless.
+    let started = js_sys::Date::now();
+    let echoed = client
+        .invoke_with_args::<i32, _>("Echo".to_string(), |arguments| {
+            arguments.argument(7);
+        })
+        .await
+        .map_err(|error| format!("Echo failed behind a callback: {error}"))?;
+    let waited = js_sys::Date::now() - started;
+    ensure!(echoed == 7, "Echo returned {echoed}");
+    ensure!(
+        waited.total_cmp(&2_000.0).is_lt(),
+        "the invoke waited {waited} ms behind a callback"
+    );
+    let so_far = events.borrow().clone();
+    ensure!(
+        so_far == ["start 1"],
+        "callbacks did not run one at a time: {so_far:?}"
+    );
+
+    let _ = release.send(());
+    let all = eventually("every callback", 5_000.0, || {
+        let events = events.clone();
+        async move {
+            let events = events.borrow();
+            (events.len() == 6).then(|| events.clone())
+        }
+    })
+    .await?;
+    ensure!(
+        all == ["start 1", "end 1", "start 2", "end 2", "start 3", "end 3"],
+        "callbacks ran out of order: {all:?}"
+    );
+    registration.unregister();
+    client.disconnect();
+    Ok(())
+}
+
+const MISSING_RESULT: &str = "Client didn't provide a result.";
+const BINDING_FAILURE: &str = "Client failed to parse argument(s).";
+
+/// Asks the hub to call `callback` with a result expected.
+async fn request_client_result(client: &mut SignalRClient, callback: &str) -> Outcome {
+    client
+        .invoke_with_args::<(), _>("RequestClientResult".to_string(), |arguments| {
+            arguments.argument(callback.to_string()).argument(21);
+        })
+        .await
+        .map_err(|error| format!("RequestClientResult({callback}) failed: {error}"))
+}
+
+/// The error text the hub's `InvokeAsync` saw for `callback`.
+async fn hub_client_result_error(
+    client: &mut SignalRClient,
+    callback: &str,
+) -> Result<String, String> {
+    request_client_result(client, callback).await?;
+    eventually("the hub's client-result error", 10_000.0, || {
+        let mut probe = client.clone();
+        async move {
+            probe
+                .invoke::<Option<String>>("TakeClientResultError".to_string())
+                .await
+                .ok()
+                .flatten()
+        }
+    })
+    .await
+}
+
+/// Client-result errors as in the official .NET client: missing result, `fail`, a dropped
+/// context, a binding failure, and a second completion that stays local.
+async fn client_result_errors(messagepack: bool) -> Outcome {
+    let mut client = connect("test", messagepack, |_| {}).await?;
+
+    let missing = hub_client_result_error(&mut client, "resultMissing").await?;
+    ensure!(
+        missing == MISSING_RESULT,
+        "missing callback produced {missing:?}"
+    );
+
+    let failing = client.register("resultFail".to_string(), |mut context| {
+        InvocationContext::spawn(async move {
+            let _ = context.fail("declined by the client").await;
+        });
+    });
+    let failed = hub_client_result_error(&mut client, "resultFail").await?;
+    ensure!(
+        failed == "declined by the client",
+        "fail produced {failed:?}"
+    );
+
+    let dropping = client.register("resultDrop".to_string(), |_context| {});
+    let dropped = hub_client_result_error(&mut client, "resultDrop").await?;
+    ensure!(
+        dropped == MISSING_RESULT,
+        "a dropped context produced {dropped:?}"
+    );
+
+    let typed_ran = Rc::new(Cell::new(false));
+    let ran = typed_ran.clone();
+    let typed = client.register_typed("resultTyped", move |_context, (_text,): (String,)| {
+        ran.set(true);
+    });
+    let unbound = hub_client_result_error(&mut client, "resultTyped").await?;
+    ensure!(
+        unbound == BINDING_FAILURE,
+        "a binding failure produced {unbound:?}"
+    );
+    ensure!(
+        !typed_ran.get(),
+        "a callback whose arguments do not bind ran"
+    );
+
+    let second = Rc::new(RefCell::new(None::<Result<(), Error>>));
+    let recorded = second.clone();
+    let twice = client.register("resultTwice".to_string(), move |mut context| {
+        let value = context.argument::<i32>(0).unwrap_or_default();
+        let recorded = recorded.clone();
+        InvocationContext::spawn(async move {
+            let _ = context.complete(value * 2).await;
+            let again = context.complete(0).await;
+            *recorded.borrow_mut() = Some(again);
+        });
+    });
+    request_client_result(&mut client, "resultTwice").await?;
+    let result = eventually("the client result at the hub", 10_000.0, || {
+        let mut probe = client.clone();
+        async move {
+            probe
+                .invoke::<Option<i32>>("ClientResult".to_string())
+                .await
+                .ok()
+                .flatten()
+        }
+    })
+    .await?;
+    ensure!(result == 42, "the hub received {result}");
+    let again = eventually("the second completion", 5_000.0, || {
+        let second = second.clone();
+        async move { second.borrow_mut().take() }
+    })
+    .await?;
+    ensure!(
+        matches!(&again, Err(error) if error.kind() == ErrorKind::Protocol),
+        "a second completion returned {again:?}"
+    );
+    let leftover = client
+        .invoke::<Option<String>>("TakeClientResultError".to_string())
+        .await
+        .map_err(|error| format!("TakeClientResultError failed: {error}"))?;
+    ensure!(
+        leftover.is_none(),
+        "a second completion reached the hub: {leftover:?}"
+    );
+
+    failing.unregister();
+    dropping.unregister();
+    typed.unregister();
+    twice.unregister();
+    client.disconnect();
+
+    client_result_after_a_stateful_resume(messagepack).await?;
+    client_result_after_an_ordinary_reconnect(messagepack).await
+}
+
+/// After an ordinary reconnect (a new logical connection) the server has forgotten the call, so
+/// completing it fails locally, as in the .NET client.
+async fn client_result_after_an_ordinary_reconnect(messagepack: bool) -> Outcome {
+    let mut client = connect("test", messagepack, |configuration| {
+        configuration.with_reconnection_policy(fast_reconnect());
+    })
+    .await?;
+    let initial = identity(&mut client).await?;
+    let (release, released) = oneshot::channel::<()>();
+    let released = Rc::new(RefCell::new(Some(released)));
+    let started = Rc::new(Cell::new(false));
+    let started_flag = started.clone();
+    let outcome = Rc::new(RefCell::new(None::<Result<(), Error>>));
+    let recorded = outcome.clone();
+    let registration = client.register_async("resultReplaced".to_string(), move |mut context| {
+        let released = released.borrow_mut().take();
+        let started = started_flag.clone();
+        let recorded = recorded.clone();
+        async move {
+            started.set(true);
+            if let Some(released) = released {
+                let _ = released.await;
+            }
+            *recorded.borrow_mut() = Some(context.complete(1).await);
+        }
+    });
+    request_client_result(&mut client, "resultReplaced").await?;
+    eventually("the result callback", 10_000.0, || {
+        let started = started.clone();
+        async move { started.get().then_some(()) }
+    })
+    .await?;
+
+    client
+        .send("AbortPhysicalTransport".to_string())
+        .await
+        .map_err(|error| format!("AbortPhysicalTransport failed: {error}"))?;
+    eventually("a fresh logical connection", 20_000.0, || {
+        let mut probe = client.clone();
+        let initial = initial.clone();
+        async move {
+            match identity(&mut probe).await {
+                Ok(id) if id != initial => Some(()),
+                _ => None,
+            }
+        }
+    })
+    .await?;
+
+    let _ = release.send(());
+    let completed = eventually("the late completion", 5_000.0, || {
+        let outcome = outcome.clone();
+        async move { outcome.borrow_mut().take() }
+    })
+    .await?;
+    ensure!(
+        matches!(&completed, Err(error) if error.kind() == ErrorKind::Transport),
+        "completing after an ordinary reconnect returned {completed:?}"
+    );
+    registration.unregister();
+    client.disconnect();
+    Ok(())
+}
+
+/// With stateful reconnect, a result completed after the transport was lost and resumed still
+/// reaches the hub: the reply follows the logical connection the call arrived on.
+async fn client_result_after_a_stateful_resume(messagepack: bool) -> Outcome {
+    let mut client = connect("test-stateful", messagepack, |configuration| {
+        configuration.with_stateful_reconnect(rayx_signalr::StatefulReconnectConfig::default());
+        configuration.with_reconnection_policy(fast_reconnect());
+    })
+    .await?;
+    let connection_id = identity(&mut client).await?;
+    let (release, released) = oneshot::channel::<()>();
+    let released = Rc::new(RefCell::new(Some(released)));
+    let started = Rc::new(Cell::new(false));
+    let started_flag = started.clone();
+    let registration = client.register_async("resultResume".to_string(), move |mut context| {
+        let released = released.borrow_mut().take();
+        let started = started_flag.clone();
+        async move {
+            let value = context.argument::<i32>(0).unwrap_or_default();
+            started.set(true);
+            if let Some(released) = released {
+                let _ = released.await;
+            }
+            let _ = context.complete(value * 2).await;
+        }
+    });
+    request_client_result(&mut client, "resultResume").await?;
+    eventually("the result callback", 10_000.0, || {
+        let started = started.clone();
+        async move { started.get().then_some(()) }
+    })
+    .await?;
+
+    client
+        .send("AbortPhysicalTransport".to_string())
+        .await
+        .map_err(|error| format!("AbortPhysicalTransport failed: {error}"))?;
+    eventually("the transport abort", 10_000.0, || {
+        let mut probe = client.clone();
+        async move {
+            (probe
+                .invoke::<i32>("TransportAbortCount".to_string())
+                .await
+                .ok()?
+                == 1)
+                .then_some(())
+        }
+    })
+    .await?;
+    let resumed = identity(&mut client).await?;
+    ensure!(
+        resumed == connection_id,
+        "the stateful resume changed the connection: {resumed} != {connection_id}"
+    );
+
+    let _ = release.send(());
+    let result = eventually("the client result after the resume", 10_000.0, || {
+        let mut probe = client.clone();
+        async move {
+            probe
+                .invoke::<Option<i32>>("ClientResult".to_string())
+                .await
+                .ok()
+                .flatten()
+        }
+    })
+    .await?;
+    ensure!(result == 42, "the hub received {result} after the resume");
     registration.unregister();
     client.disconnect();
     Ok(())
