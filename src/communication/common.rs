@@ -94,7 +94,10 @@ pub trait Communication: Clone {
     async fn send_binary(&mut self, data: Vec<u8>) -> Result<(), Error>;
     fn get_storage(&self) -> Result<UpdatableActionStorage, Error>;
     fn get_protocol_kind(&self) -> HubProtocolKind;
-    async fn disconnect(&mut self);
+    /// Closes the connection locally for every handle, like the official clients' `stop`.
+    async fn disconnect(&self);
+    /// Releases this handle: closes the connection only when no other handle remains.
+    async fn release(&mut self);
 }
 
 pub struct HttpClient {}

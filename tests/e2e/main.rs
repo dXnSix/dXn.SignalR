@@ -12,6 +12,7 @@ mod authentication;
 mod callbacks;
 mod concurrency_and_clones;
 mod connect_negotiate;
+mod disconnect_every_handle;
 mod error_kinds;
 mod executor_independence;
 mod handshake_timeout;

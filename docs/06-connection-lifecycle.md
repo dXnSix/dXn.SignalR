@@ -10,7 +10,7 @@
 | `Reconnecting` | An automatic, manual or `resume` reconnect is running. | Registered callbacks wait; calls fail (stateful pending calls wait). |
 | `Paused` | The application called `pause()`. No transport, keep-alive or automatic reconnect. | `resume()`. Calls fail. |
 | `Disconnected` | The transport is gone and nothing is reconnecting: a drop in manual mode, exhausted reconnect attempts, or a server close. | `resume()` or a manual reconnect. Calls fail. |
-| `Closed` | Closed locally by `disconnect` or by dropping the last handle. Terminal. | Nothing; `pause`/`resume` return an error. |
+| `Closed` | Closed locally by `disconnect` (on any handle) or by dropping the last handle. Terminal. | Nothing; `pause`/`resume` return an error. |
 
 `status()` is synchronous and cheap, so a UI can poll it. There is no status-change event; watch
 for drops with a [disconnection handler](07-reconnection.md#manual-reconnection) or poll.
@@ -101,14 +101,13 @@ ASP.NET Core disposes a stateful connection as soon as the client sends a WebSoc
 `SignalRClient` is `Clone`. Clones share the connection, the callbacks, the lifecycle and the
 status. Use them to make concurrent calls or to hand the client to other parts of the application.
 
-The connection closes when the **last** handle closes it:
-
-- `disconnect(self)` consumes a handle. If other handles still exist it only drops this one; the
-  last `disconnect` closes the connection.
-- Dropping a handle does the same as `disconnect`.
-- Each registered callback holds a handle (see
-  [Server-to-client calls](04-server-callbacks.md#registrations-keep-the-connection-alive)), and
-  so does every `InvocationContext` while it lives.
+- `disconnect(&self)` stops the connection for **every** handle, as the official .NET client's
+  `HubConnection.StopAsync` does: other clones, registered callbacks and live `InvocationContext`s
+  do not keep it open, and their pending invocations and open streams fail at once.
+- Dropping a handle closes the connection only when it is the **last** one. Each registered
+  callback holds a handle (see
+  [Server-to-client calls](04-server-callbacks.md#registrations-keep-a-dropped-client-alive)), and
+  so does every `InvocationContext` while it lives, so call `disconnect` when you are done.
 
 Closing locally is terminal: it supersedes a running reconnect or pause, fails pending invocations
 and streams with `ErrorKind::ConnectionClosed` (`CloseReason::Local`), disposes the stateful

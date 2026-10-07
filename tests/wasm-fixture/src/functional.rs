@@ -68,6 +68,7 @@ pub async fn run_functional_scenario(
         "pause-resume-stateful" => pause_resume_stateful(messagepack).await,
         "unsent-stream" => unsent_stream(messagepack).await,
         "error-kinds" => error_kinds(messagepack).await,
+        "disconnect-every-handle" => disconnect_every_handle(messagepack).await,
         other => Err(format!("unknown functional scenario {other}")),
     };
     outcome
@@ -634,7 +635,7 @@ async fn concurrency_and_clones(messagepack: bool) -> Outcome {
         "clones must share one connection"
     );
     let mut probe = connect("test", messagepack, |_| {}).await?;
-    first.disconnect();
+    drop(first);
     sleep(750).await;
     ensure!(
         disconnects(&mut probe, &connection_id).await? == 0,
@@ -1698,7 +1699,7 @@ async fn error_kinds(messagepack: bool) -> Outcome {
     errors.push(undecodable_result(messagepack).await?);
     errors.push(invoke_while_paused(messagepack).await?);
     errors.push(server_close_with_message(messagepack).await?);
-    errors.push(reconnect_after_disconnect(messagepack).await?);
+    errors.push(invoke_after_disconnect(messagepack).await?);
     for error in &errors {
         let text = format!("{error} {error:?}");
         ensure!(
@@ -1851,40 +1852,129 @@ async fn server_close_with_message(messagepack: bool) -> Result<Error, String> {
     Ok(error)
 }
 
-/// Keeps the reconnection handler of a drop, as an application that reconnects later does.
-#[derive(Clone, Default)]
-struct KeptHandler(Rc<RefCell<Option<ReconnectionHandler>>>);
-
-impl DisconnectionHandler for KeptHandler {
-    fn on_disconnected(&self, reconnection: ReconnectionHandler) {
-        *self.0.borrow_mut() = Some(reconnection);
+/// Invoking after `disconnect`: `ConnectionClosed`, local, through every handle.
+async fn invoke_after_disconnect(messagepack: bool) -> Result<Error, String> {
+    let client = connect("test", messagepack, |_| {}).await?;
+    let mut clone = client.clone();
+    client.disconnect();
+    match identity(&mut clone).await {
+        Err(error) if closed_locally(&error) => Ok(error),
+        other => Err(format!("invoking after disconnect returned {other:?}")),
     }
 }
 
-/// A manual reconnect after the last handle disconnected: `ConnectionClosed`, local.
-async fn reconnect_after_disconnect(messagepack: bool) -> Result<Error, String> {
-    let kept = KeptHandler::default();
-    let mut handler = Some(kept.clone());
-    let mut client = connect("test", messagepack, |configuration| {
-        if let Some(handler) = handler.take() {
-            configuration.with_disconnection_handler(handler);
-        }
-    })
-    .await?;
-    schedule_close(&mut client, true, 200).await?;
-    let reconnection = eventually("the disconnection handler", 10_000.0, || {
-        let kept = kept.clone();
-        async move { kept.0.borrow_mut().take() }
-    })
-    .await?;
-    client.disconnect();
-    match reconnection.reconnect().await {
-        Err(error)
-            if (error.kind(), error.close_reason())
-                == (ErrorKind::ConnectionClosed, Some(CloseReason::Local)) =>
-        {
-            Ok(error)
-        }
-        other => Err(format!("a reconnect after disconnect returned {other:?}")),
+fn closed_locally(error: &Error) -> bool {
+    (error.kind(), error.close_reason()) == (ErrorKind::ConnectionClosed, Some(CloseReason::Local))
+}
+
+/// Disconnect stops the connection for every handle, as the official .NET client's
+/// `HubConnection.StopAsync` does (see `tests/e2e/disconnect_every_handle.rs`).
+async fn disconnect_every_handle(messagepack: bool) -> Outcome {
+    use rayx_signalr::ConnectionStatus;
+
+    let mut first = connect("test", messagepack, |_| {}).await?;
+    let mut second = first.clone();
+    let connection_id = identity(&mut first).await?;
+
+    // Work held by the second handle: a callback, an open stream and a pending invocation (the
+    // stream starts first because the hub runs ordinary invocations one at a time).
+    let registration = second.register("Notify".to_string(), |_| {});
+    let mut stream = second
+        .enumerate_with_args::<i32, _>("CancellationProbeStream".to_string(), |arguments| {
+            arguments.argument(50);
+        })
+        .await;
+    let first_item = stream.next().await;
+    ensure!(
+        first_item == Some(1),
+        "the stream started with {first_item:?}"
+    );
+    let pending = pending_identity(&second);
+    sleep(300).await;
+
+    let mut probe = connect("test", messagepack, |_| {}).await?;
+    let started = js_sys::Date::now();
+    first.disconnect();
+
+    match pending.await {
+        Ok(Err(error)) if closed_locally(&error) => {}
+        other => return Err(format!("pending work after disconnect: {other:?}")),
     }
+    while stream.next().await.is_some() {}
+    ensure!(
+        stream.error().is_some_and(closed_locally),
+        "the stream ended with {:?}",
+        stream.error()
+    );
+    ensure!(
+        (js_sys::Date::now() - started).total_cmp(&5_000.0).is_lt(),
+        "work held by another handle did not end at once"
+    );
+
+    for client in [&mut first, &mut second] {
+        ensure!(
+            client.status() == ConnectionStatus::Closed,
+            "status after disconnect: {:?}",
+            client.status()
+        );
+        match identity(client).await {
+            Err(error) if closed_locally(&error) => {}
+            other => return Err(format!("a call after disconnect returned {other:?}")),
+        }
+    }
+    match second.resume().await {
+        Err(error) if closed_locally(&error) => {}
+        other => return Err(format!("resume after disconnect returned {other:?}")),
+    }
+
+    eventually("the hub disconnect", 10_000.0, || {
+        let mut probe = probe.clone();
+        let connection_id = connection_id.clone();
+        async move { (disconnects(&mut probe, &connection_id).await.ok() == Some(1)).then_some(()) }
+    })
+    .await?;
+    sleep(500).await;
+    ensure!(
+        disconnects(&mut probe, &connection_id).await? == 1,
+        "the hub must observe exactly one disconnect"
+    );
+    registration.unregister();
+
+    disconnect_from_a_callback(messagepack, &mut probe).await?;
+    probe.disconnect();
+    Ok(())
+}
+
+/// A callback that calls `disconnect` on the client it was registered on: the call returns and the
+/// hub sees the disconnect.
+async fn disconnect_from_a_callback(messagepack: bool, probe: &mut SignalRClient) -> Outcome {
+    use rayx_signalr::ConnectionStatus;
+
+    let mut client = connect("test", messagepack, |_| {}).await?;
+    let connection_id = identity(&mut client).await?;
+    let called = Rc::new(Cell::new(false));
+    let flag = called.clone();
+    let registration = client.register("Disconnect".to_string(), move |context| {
+        context.client.disconnect();
+        flag.set(true);
+    });
+    trigger(&mut client, "Disconnect").await?;
+    eventually("the disconnecting callback", 5_000.0, || {
+        let called = called.clone();
+        async move { called.get().then_some(()) }
+    })
+    .await?;
+    ensure!(
+        client.status() == ConnectionStatus::Closed,
+        "status after a callback disconnected: {:?}",
+        client.status()
+    );
+    eventually("the hub disconnect", 10_000.0, || {
+        let mut probe = probe.clone();
+        let connection_id = connection_id.clone();
+        async move { (disconnects(&mut probe, &connection_id).await.ok() == Some(1)).then_some(()) }
+    })
+    .await?;
+    registration.unregister();
+    Ok(())
 }

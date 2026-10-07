@@ -65,8 +65,9 @@ Each pending operation is an `UpdatableAction` in a map keyed by string:
 `fail_pending(reason)` completes every non-persistent entry with an error. It runs on ordinary drops,
 pause, server close, exhausted reconnects and local close; stateful resumes do not run it.
 
-In the browser, lookups clone the entry and release the map borrow before calling into the action,
-so a callback can call back into the client without a `RefCell` double borrow.
+On both targets, lookups clone the entry and release the map lock (natively) or borrow (in the
+browser) before calling into the action, so a callback can register, unregister or disconnect
+without a deadlock or a `RefCell` double borrow.
 
 ## The lifecycle state machine
 

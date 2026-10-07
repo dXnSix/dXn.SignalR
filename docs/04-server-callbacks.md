@@ -121,12 +121,13 @@ let registration = client.register("Joined".to_string(), |ctx| {
 });
 ```
 
-## Registrations keep the connection alive
+## Registrations keep a dropped client alive
 
-Each registration holds a clone of the client. The connection closes only when the last clone is
-disconnected or dropped (see
+Each registration holds a clone of the client. `disconnect()` stops the connection for every
+handle, registrations included, but dropping handles closes it only with the last one (see
 [Connection lifecycle](06-connection-lifecycle.md#clones-and-ownership)), so an active registration
-keeps it open. Unregister every callback before calling `disconnect()`:
+keeps a client that was only dropped connected. Call `disconnect()` when you are done, and
+unregister callbacks you no longer need:
 
 ```rust
 on_message.unregister();

@@ -277,9 +277,12 @@ pub struct SignalRClient {
 }
 
 impl Drop for SignalRClient {
+    /// Dropping a handle closes the connection only when it is the last one (registered callbacks
+    /// and live `InvocationContext`s are handles too); [`disconnect`](SignalRClient::disconnect)
+    /// closes it for every handle.
     fn drop(&mut self) {
         if let Some(mut conn) = self._connection.take() {
-            futures::executor::block_on(conn.disconnect());
+            futures::executor::block_on(conn.release());
         }
     }
 }
@@ -963,8 +966,22 @@ impl SignalRClient {
         }
     }
 
-    pub fn disconnect(mut self) {
-        if let Some(ref mut conn) = self._connection {
+    /// Stops the connection for every handle, as the official .NET client's
+    /// `HubConnection.StopAsync` does: clones, registered callbacks and live `InvocationContext`s
+    /// do not keep it open. A running reconnect or a pause is superseded, the stateful replay
+    /// buffer is disposed, pending invocations and open streams of every handle fail with
+    /// [`ErrorKind::ConnectionClosed`](crate::ErrorKind::ConnectionClosed)
+    /// ([`CloseReason::Local`](crate::CloseReason::Local)), later calls on any handle fail with the
+    /// same error, and [`status`](Self::status) reports
+    /// [`ConnectionStatus::Closed`](crate::ConnectionStatus::Closed). Closing a closed client does
+    /// nothing.
+    ///
+    /// Dropping a handle closes the connection only when it is the last one.
+    ///
+    /// The call is synchronous: it briefly blocks the calling thread to update the shared
+    /// connection state.
+    pub fn disconnect(&self) {
+        if let Some(conn) = &self._connection {
             futures::executor::block_on(conn.disconnect());
         }
     }
@@ -1176,6 +1193,122 @@ mod argument_encoding {
     #[test]
     fn error_model_messagepack_unencodable_argument_fails_the_call_before_sending() {
         an_unencodable_argument_fails_the_call_before_sending(HubProtocolKind::MessagePack);
+    }
+}
+
+/// `disconnect` stops the connection for every handle, as `HubConnection.StopAsync` does;
+/// dropping a handle closes it only when it is the last one.
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod disconnect_every_handle {
+    use futures::{executor::block_on, FutureExt, StreamExt};
+
+    use super::unsent_stream_invocation::not_connected_client;
+    use crate::{
+        execution::Storage,
+        protocol::{
+            hub_protocol::{HubProtocolKind, MessagePayload},
+            negotiate::MessageType,
+        },
+        CallbackHandler, CloseReason, ConnectionStatus, Error, ErrorKind,
+    };
+
+    fn closed_locally(error: &Error) -> bool {
+        (error.kind(), error.close_reason())
+            == (ErrorKind::ConnectionClosed, Some(CloseReason::Local))
+    }
+
+    #[test]
+    fn disconnect_closes_the_connection_for_every_handle() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let first = not_connected_client(HubProtocolKind::Json, runtime.handle().clone());
+        let mut second = first.clone();
+        // A registered callback holds a handle too; it must not keep the connection open.
+        let registration = second.register("Notify".to_string(), |_| {});
+        first.disconnect();
+
+        for client in [&first, &second] {
+            assert_eq!(client.status(), ConnectionStatus::Closed);
+        }
+        let invoked = block_on(second.invoke::<i32>("Target".to_string())).unwrap_err();
+        assert!(closed_locally(&invoked), "{invoked}");
+        let sent = block_on(second.send("Target".to_string())).unwrap_err();
+        assert!(closed_locally(&sent), "{sent}");
+        let mut stream = block_on(second.enumerate::<i32>("Numbers".to_string()));
+        assert_eq!(stream.next().now_or_never(), Some(None));
+        assert!(stream.error().is_some_and(closed_locally));
+        for result in [block_on(second.pause()), block_on(second.resume())] {
+            assert!(result.as_ref().is_err_and(closed_locally), "{result:?}");
+        }
+
+        // Closing a closed client does nothing.
+        second.disconnect();
+        assert_eq!(first.status(), ConnectionStatus::Closed);
+        registration.unregister();
+    }
+
+    #[test]
+    fn disconnect_by_drop_closes_only_with_the_last_handle() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let first = not_connected_client(HubProtocolKind::Json, runtime.handle().clone());
+        let second = first.clone();
+        let mut storage = first._actions.clone();
+        let pending = storage.add_invocation::<i32>("Probe_1".to_string());
+        let before = second.status();
+        assert_ne!(before, ConnectionStatus::Closed);
+
+        drop(first);
+        assert_eq!(
+            second.status(),
+            before,
+            "dropping a clone keeps the connection"
+        );
+        assert!(
+            !pending.is_completed(),
+            "dropping a clone keeps pending work"
+        );
+
+        // The last handle closes the connection, which fails pending work.
+        drop(second);
+        let failure = pending
+            .now_or_never()
+            .expect("pending work fails")
+            .unwrap_err();
+        assert!(closed_locally(&failure), "{failure}");
+    }
+
+    /// Callbacks run user code; `disconnect`, `register` and `unregister` inside a callback must
+    /// return instead of deadlocking on the action storage.
+    #[test]
+    fn disconnect_from_a_callback_returns_and_closes_every_handle() {
+        let (done, finished) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .build()
+                .unwrap();
+            let mut client = not_connected_client(HubProtocolKind::Json, runtime.handle().clone());
+            let observer = client.clone();
+            let registration = client.register("Notify".to_string(), |context| {
+                let mut client = context.client.clone();
+                client.register("Other".to_string(), |_| {}).unregister();
+                context.client.disconnect();
+            });
+            let mut storage = client._actions.clone();
+            let dispatched = storage.process_message(
+                MessagePayload::Text(r#"{"type":1,"target":"Notify","arguments":[]}"#.to_string()),
+                MessageType::Invocation,
+            );
+            registration.unregister();
+            let _ = done.send((dispatched.is_ok(), observer.status()));
+        });
+        let (dispatched, status) = finished
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .expect("disconnect inside a callback must not deadlock");
+        assert!(dispatched);
+        assert_eq!(status, ConnectionStatus::Closed);
     }
 }
 

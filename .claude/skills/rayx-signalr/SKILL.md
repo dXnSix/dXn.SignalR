@@ -42,8 +42,9 @@ the crate by path (`rayx-signalr = { path = "../RayX.SignalR" }`) through
   `ReconnectionConfig { policy: Arc::new(DefaultRetryPolicy) }` or another policy.
 - Native `connect` needs a Tokio runtime: call it inside one, or pass `with_runtime_handle`.
 - In browsers use Bearer tokens (sent as `access_token`); Basic credentials reach only negotiate.
-- Import `CallbackHandler` to call `unregister()`, and unregister callbacks before `disconnect()`:
-  each registration holds a client clone, and the connection closes only with the last handle.
+- Import `CallbackHandler` to call `unregister()`. `disconnect()` stops the connection for every
+  handle (like .NET `StopAsync`); dropping handles closes it only with the last one, and each
+  registration holds a client clone, so call `disconnect()` when done.
 - Import `futures::StreamExt` to iterate `ManualStream`; check `error()` after it ends; drop it to
   cancel the server stream.
 - Match wire names on both sides: `#[serde(rename_all = "camelCase")]` in Rust, and for

@@ -1,5 +1,6 @@
 //! Concurrency and clones: 200 concurrent invocations correlate correctly; clones share one
-//! connection, and the hub sees exactly one disconnect, only after the last clone disconnects.
+//! connection, dropping a clone keeps it for the others, and the hub sees exactly one disconnect,
+//! when a remaining clone disconnects.
 
 use std::time::Duration;
 
@@ -36,7 +37,7 @@ async fn scenario(protocol: Protocol) {
     );
 
     let mut probe = support::connect("test", protocol, |_| {}).await;
-    first.disconnect();
+    drop(first);
     tokio::time::sleep(Duration::from_millis(750)).await;
     assert_eq!(disconnects(&mut probe, &connection_id).await, 0);
     assert_eq!(

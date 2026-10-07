@@ -143,6 +143,10 @@ Version 0.2 replaced the `String` errors of 0.1 with `rayx_signalr::Error`.
   `.map(ToString::to_string)` where a string is needed.
 - `StatefulReconnectConfig::new` and `InvocationContext::argument` return `Result<_, Error>`.
 - A disconnection handler can read why the transport ended from `ReconnectionHandler::reason()`.
+- `disconnect` takes `&self` and stops the connection for every handle, as the official .NET
+  client's `HubConnection.StopAsync` does; in 0.1 it only released the calling handle while other
+  clones or registered callbacks existed. Dropping a handle still closes the connection only when
+  it is the last one.
 - Replace checks of message text with kinds and fields:
 
 | 0.1 check | 0.2 check |

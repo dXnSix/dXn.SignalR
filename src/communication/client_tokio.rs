@@ -33,7 +33,7 @@ use futures::{
     SinkExt, StreamExt,
 };
 use http::Uri;
-use log::{error, info};
+use log::{debug, error, info};
 use tokio::{net::TcpStream, runtime::Handle, sync::Mutex, task::JoinHandle};
 use tokio_websockets::{ClientBuilder, MaybeTlsStream, Message, WebSocketStream};
 
@@ -1214,22 +1214,19 @@ impl Communication for CommunicationClient {
         self.writer().await?.send(message, tracking).await
     }
 
-    async fn disconnect(&mut self) {
-        // Check how many CommunicationClient clones share this state.
-        // strong_count includes this instance, so subtract 1 to get "other" references.
-        // Only disconnect when this is the last client using the connection.
+    async fn release(&mut self) {
+        // strong_count includes this handle; only the last handle closes the connection.
         let other_refs = Arc::strong_count(&self._state) - 1;
-
         if other_refs > 0 {
-            info!(
-                "The underlying connection has {} more references, not disconnecting.",
-                other_refs
-            );
+            debug!("Releasing one of {} connection handles", other_refs + 1);
             return;
         }
+        self.disconnect().await;
+    }
 
-        // A local close is terminal in every state: it also supersedes a running reconnect, a
-        // pause or a manual-mode disconnection, and fails pending work.
+    async fn disconnect(&self) {
+        // A local close is terminal in every state and for every handle: it also supersedes a
+        // running reconnect, a pause or a manual-mode disconnection, and fails pending work.
         let previous = {
             let mut state = self._state.lock().await;
             if matches!(
@@ -1911,7 +1908,7 @@ mod native_connection_runs {
 
     #[tokio::test]
     async fn native_connection_runs_stop_when_the_client_disconnects() {
-        let (mut client, context) =
+        let (client, context) =
             stateful_client(ConstantDelayPolicy::new(Duration::from_millis(20), None));
         let run = tokio::spawn(async move { context.reconnect_with_policy().await });
         tokio::time::sleep(Duration::from_millis(150)).await;

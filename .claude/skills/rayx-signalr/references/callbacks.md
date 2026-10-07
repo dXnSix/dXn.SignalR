@@ -24,8 +24,8 @@ handler.unregister();
 - Callbacks survive reconnects (persistent storage entries).
 - Callbacks run synchronously on the connection's receive path; a slow callback delays every later
   message. Spawn or channel out slow work.
-- Each registration holds a client clone: unregister all callbacks before `disconnect()`, or the
-  connection stays open.
+- Each registration holds a client clone: `disconnect()` still closes the connection for every
+  handle, but a client that is only dropped stays connected while callbacks are registered.
 
 ## InvocationContext
 

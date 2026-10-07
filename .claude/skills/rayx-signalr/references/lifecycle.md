@@ -50,8 +50,10 @@ client.resume().await?;  // foreground
 ## Clones, disconnect, drop
 
 - Clones share connection, callbacks, lifecycle and status.
-- `disconnect(self)` and dropping a handle release that handle; the **last** release closes the
-  connection. Registered callbacks and live `InvocationContext`s hold handles.
+- `disconnect(&self)` stops the connection for **every** handle (like .NET
+  `HubConnection.StopAsync`): clones, registered callbacks and live `InvocationContext`s do not
+  keep it open, and their pending work fails at once. Dropping a handle closes the connection only
+  when it is the **last** one; registered callbacks and live `InvocationContext`s hold handles.
 - Local close is terminal: supersedes reconnect/pause, fails pending work with `ConnectionClosed`
   (`CloseReason::Local`), disposes the stateful buffer, status `Closed`. Connect a new client
   afterwards; a kept `ReconnectionHandler` fails with the same error.

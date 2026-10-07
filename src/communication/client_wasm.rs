@@ -966,7 +966,12 @@ impl Communication for CommunicationClient {
         Ok(self.shared.storage.clone())
     }
 
-    async fn disconnect(&mut self) {
+    async fn disconnect(&self) {
+        self.disconnect_internal();
+    }
+
+    async fn release(&mut self) {
+        // Only the last handle closes the connection; dropping it (see `Drop`) does the same.
         if self.owners.get() <= 1 {
             self.disconnect_internal();
         }

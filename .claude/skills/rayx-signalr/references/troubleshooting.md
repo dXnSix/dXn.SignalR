@@ -37,7 +37,7 @@ redacted (no tokens, `Authorization` values, URL credentials). `From<Error> for 
 | `Serialization` | argument does not serialize, or result/argument does not match `T`; check Serde names and `()`/`Option` |
 | `Hub` with a generic `server_message()` | server hides exceptions; `EnableDetailedErrors` |
 | callback never fires | wrong (case-sensitive) target, duplicate registration ignored, or `SendAsync` name mismatch |
-| connection does not close on `disconnect()` | other clones or registered callbacks still hold handles; unregister and drop clones |
+| connection stays open after dropping the client | other clones or registered callbacks still hold handles; call `disconnect()`, which stops it for every handle |
 | browser connects but hub is unauthenticated | Basic auth in a browser, or the server does not read `access_token` |
 | MessagePack callback argument `null` or base64 text | timestamps/ext → `null`, `byte[]` → base64; use strings or numbers |
 

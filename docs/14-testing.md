@@ -100,7 +100,7 @@ scenarios:
   `callbacks`, `concurrency-and-clones`, `large-payload`, `server-close`,
   `reconnect-exhaustion`, `tls`, `negotiate-redirect`, `skip-negotiation`, `ordinary-reconnect`,
   `stateful-reconnect`, `stream-cancellation`, `keepalive-idle`, `server-timeout`,
-  `handshake-timeout`, `pause-resume`, `pause-resume-stateful`, `unsent-stream`, `error-kinds`;
+  `handshake-timeout`, `pause-resume`, `pause-resume-stateful`, `unsent-stream`, `error-kinds`, `disconnect-every-handle`;
 - native, Android and iOS: `executor-independence`;
 - browsers: `message-burst`, `worker-transport`, `threaded-wasm`, `short-stream-chaining`.
 

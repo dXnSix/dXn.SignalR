@@ -104,7 +104,8 @@ public static class ScenarioCatalog
     Everywhere("pause-resume"),
     Everywhere("pause-resume-stateful"),
     Everywhere("unsent-stream"),
-    Everywhere("error-kinds")
+    Everywhere("error-kinds"),
+    Everywhere("disconnect-every-handle")
   ];
 
   /// <summary>Looks up a target by name.</summary>

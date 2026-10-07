@@ -4,19 +4,12 @@
 //! (`Negotiate`, 404), a negotiate the service never answers under a 2 s connect timeout
 //! (`Timeout` naming negotiate), a result that cannot be decoded into the requested type
 //! (`Serialization`), invoking while paused (`Paused`), a server close with an error message
-//! (`ConnectionClosed` carrying it), a manual reconnect after the last handle disconnected
-//! (`ConnectionClosed`, local) and an untrusted certificate (`Tls`). No error repeats the test
-//! token.
+//! (`ConnectionClosed` carrying it), invoking after `disconnect` (`ConnectionClosed`, local) and
+//! an untrusted certificate (`Tls`). No error repeats the test token.
 
-use std::{
-    sync::{Arc, Mutex},
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
-use rayx_signalr::{
-    CloseReason, DisconnectionHandler, Error, ErrorKind, ReconnectionHandler, SignalRClient,
-    TimeoutOperation,
-};
+use rayx_signalr::{CloseReason, Error, ErrorKind, SignalRClient, TimeoutOperation};
 
 use crate::support::{self, Protocol};
 
@@ -33,7 +26,7 @@ async fn scenario(protocol: Protocol) {
     errors.push(undecodable_result(protocol).await);
     errors.push(invoke_while_paused(protocol).await);
     errors.push(server_close_with_message(protocol).await);
-    errors.push(reconnect_after_disconnect(protocol).await);
+    errors.push(invoke_after_disconnect(protocol).await);
     errors.push(untrusted_certificate(protocol).await);
     for error in &errors {
         let text = format!("{error} {error:?}");
@@ -199,42 +192,13 @@ async fn server_close_with_message(protocol: Protocol) -> Error {
     error
 }
 
-/// Keeps the reconnection handler of a drop, as an application that reconnects later does.
-#[derive(Clone, Default)]
-struct KeptHandler(Arc<Mutex<Option<ReconnectionHandler>>>);
-
-impl DisconnectionHandler for KeptHandler {
-    fn on_disconnected(&self, reconnection: ReconnectionHandler) {
-        *self.0.lock().unwrap() = Some(reconnection);
-    }
-}
-
-/// A manual reconnect after the last handle disconnected: `ConnectionClosed`, local. A
-/// `disconnect` while other handles exist only drops that handle, so a kept reconnection handler
-/// is how an application still reaches a locally closed connection.
-async fn reconnect_after_disconnect(protocol: Protocol) -> Error {
-    let kept = KeptHandler::default();
-    let mut handler = Some(kept.clone());
-    let mut client = support::connect("test", protocol, |configuration| {
-        if let Some(handler) = handler.take() {
-            configuration.with_disconnection_handler(handler);
-        }
-    })
-    .await;
-    client
-        .invoke_with_args::<(), _>("ScheduleServerClose".to_string(), |arguments| {
-            arguments.argument(true).argument(200);
-        })
-        .await
-        .unwrap();
-    let reconnection =
-        support::eventually("the disconnection handler", Duration::from_secs(10), || {
-            let kept = kept.clone();
-            async move { kept.0.lock().unwrap().take() }
-        })
-        .await;
+/// Invoking after `disconnect`: `ConnectionClosed`, local, through every handle (`disconnect`
+/// stops the connection for all of them, as `HubConnection.StopAsync` does).
+async fn invoke_after_disconnect(protocol: Protocol) -> Error {
+    let client = support::connect("test", protocol, |_| {}).await;
+    let mut clone = client.clone();
     client.disconnect();
-    let error = reconnection.reconnect().await.unwrap_err();
+    let error = support::connection_identity(&mut clone).await.unwrap_err();
     assert_eq!(
         (error.kind(), error.close_reason()),
         (ErrorKind::ConnectionClosed, Some(CloseReason::Local)),

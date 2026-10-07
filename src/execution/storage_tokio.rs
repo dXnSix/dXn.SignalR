@@ -6,7 +6,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-type StoredAction = (bool, Mutex<Box<dyn UpdatableAction>>);
+/// An action and whether it survives `fail_pending`. The action has its own lock so it runs
+/// without the map lock: callbacks run user code, which may register, unregister or disconnect.
+type StoredAction = (bool, Arc<Mutex<Box<dyn UpdatableAction>>>);
 type ActionMap = HashMap<String, StoredAction>;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -50,31 +52,34 @@ impl Storage for UpdatableActionStorage {
     }
 
     fn update(&mut self, key: String, mut f: impl FnMut(&mut Box<dyn UpdatableAction>)) {
-        if let Ok(mut data) = self._data.lock() {
-            if let Some((_, action)) = data.get_mut(&key) {
-                if let Ok(a) = action.get_mut() {
-                    (f)(a);
-                } else {
-                    error!("Cannot unlock action");
-                }
-            } else {
-                error!("Key {} is not found in registered actions", key);
+        // The map lock is released before the action runs.
+        let action = match self._data.lock() {
+            Ok(data) => data.get(&key).map(|(_, action)| action.clone()),
+            Err(_) => {
+                error!("Cannot lock storage");
+                return;
             }
-        } else {
-            error!("Cannot lock storage");
-        }
+        };
+        let Some(action) = action else {
+            error!("Key {} is not found in registered actions", key);
+            return;
+        };
+        match action.lock() {
+            Ok(mut action) => f(&mut action),
+            Err(_) => error!("Cannot unlock action"),
+        };
     }
 
     fn remove(&mut self, key: String) {
-        if let Ok(mut data) = self._data.lock() {
-            if let Some((_, ret)) = data.remove(&key) {
-                if let Ok(action) = ret.into_inner() {
-                    drop(action);
-                }
+        let removed = match self._data.lock() {
+            Ok(mut data) => data.remove(&key),
+            Err(_) => {
+                error!("Cannot lock storage");
+                return;
             }
-        } else {
-            error!("Cannot lock storage");
-        }
+        };
+        // Drop the action (which may complete an awaiter) outside the map lock.
+        drop(removed);
     }
 
     fn dispose(&mut self) {
@@ -105,7 +110,7 @@ impl Storage for UpdatableActionStorage {
         };
         // Complete awaiters outside the storage lock.
         for action in pending {
-            if let Ok(mut action) = action.into_inner() {
+            if let Ok(mut action) = action.lock() {
                 action.fail(error);
             }
         }
@@ -119,8 +124,10 @@ impl Storage for UpdatableActionStorage {
             return;
         };
         // Complete the awaiter outside the storage lock.
-        if let Some(Ok(mut action)) = action.map(Mutex::into_inner) {
-            action.fail(error);
+        if let Some(action) = action {
+            if let Ok(mut action) = action.lock() {
+                action.fail(error);
+            }
         }
     }
 
@@ -146,7 +153,7 @@ impl UpdatableActionStorage {
                     error!("Key {} is already registered as an action", entry.key());
                 }
                 Entry::Vacant(entry) => {
-                    entry.insert((persistent, Mutex::new(Box::new(action))));
+                    entry.insert((persistent, Arc::new(Mutex::new(Box::new(action)))));
                 }
             }
         } else {
