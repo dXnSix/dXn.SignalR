@@ -86,9 +86,14 @@ stopped are dropped, as with the .NET client's `StopAsync`.
 
 Peer input never panics the client: the protocol modules, negotiation, handshake parsing, the
 stateful buffer, the reconnect lifecycle and the transports (including the browser negotiate) deny `unwrap`, `expect`, `panic!` and unchecked indexing outside
-tests, and property tests feed the record splitters, varint framing, envelope decoders, handshake
-and negotiate parsers arbitrary and corrupted input. A malformed record is an error for that record
-only; the records after it in the same frame still decode.
+tests. The transports frame inbound hub messages through `protocol/framing.rs` (`TextRecords`
+and `BinaryRecords`), which carries an incomplete record or length prefix across WebSocket
+messages. Property tests feed that framer arbitrary text and bytes split at arbitrary points (the
+records are the same however the stream is split; an over-long or above-2-GiB length prefix and a
+message above `with_maximum_message_size` are `ErrorKind::Protocol`), and feed the envelope
+decoders, handshake and negotiate parsers arbitrary and corrupted input. A malformed record ends
+the transport with `ErrorKind::Protocol` (the reconnection policy runs), as in the .NET client;
+`protocol/case_insensitive.rs` gives JSON payloads a case-insensitive second decode.
 
 ## Action storage
 

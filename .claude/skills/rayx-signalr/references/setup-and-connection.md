@@ -66,9 +66,13 @@ let mut client = SignalRClient::connect_with("localhost", "hubs/chat", |c| {
 | `authenticate_bearer(String)` | all | none |
 | `authenticate_basic(String, Option<String>)` | all | none |
 | `skip_negotiation()` | all | negotiate |
+| `with_header(name, value)` | all (browser: negotiate only) | none |
+| `with_invocation_headers(hook)` | all | none |
+| `with_maximum_message_size(usize)` | all | unbounded |
+| `with_close_timeout(Duration)` | all | 5 s |
 | `with_messagepack_protocol()` | all, `messagepack` | JSON |
 | `with_keep_alive_interval(Duration)` | all | 15 s |
-| `with_server_timeout(Duration)` | all | 30 s, must exceed keep-alive |
+| `with_server_timeout(Duration)` | all | 30 s (a value not above keep-alive is logged) |
 | `with_handshake_timeout(Duration)` | all | 15 s |
 | `with_connect_timeout(Duration)` | all | 120 s |
 | `with_reconnection_policy(ReconnectionConfig)` | all | `NoReconnectPolicy` |
@@ -82,7 +86,7 @@ let mut client = SignalRClient::connect_with("localhost", "hubs/chat", |c| {
 
 | | Native | Browser |
 |---|---|---|
-| Bearer | `Authorization` on negotiate and WebSocket upgrade, plus `access_token` on the WebSocket URL | `Authorization` on negotiate, `access_token` on the WebSocket URL |
+| Bearer | `Authorization` on negotiate and WebSocket upgrade, never on the URL (as .NET outside browsers) | `Authorization` on negotiate, `access_token` on the WebSocket URL |
 | Basic | `Authorization` on negotiate and WebSocket upgrade | negotiate only (a standard server cannot authenticate the WebSocket) |
 
 One mode per connection (last call wins). Tokens are fixed for the client's lifetime and reused by
@@ -94,10 +98,21 @@ hub paths (JWT `OnMessageReceived`).
 - `POST {hub}/negotiate?negotiateVersion=1` (+ `useStatefulReconnect=true` with stateful).
 - Redirects (`url` + optional `accessToken`, Azure SignalR style) are followed up to 100 times; the
   redirect token replaces configured credentials for the next negotiate and the WebSocket.
-- `{"error": ...}` responses fail `connect` with the server's message.
+- `{"error": ...}` responses fail `connect` with the server's message; a classic ASP.NET SignalR
+  server gets the official `Negotiate` explanation; a response without `negotiateVersion` is v0.
 - The response must offer `WebSockets` with `Text` (JSON) or `Binary` (MessagePack).
 - Each negotiate request and the transport opening are bounded by `with_connect_timeout` (120 s
   default, as in the .NET client) on both targets; browsers abort the negotiate `fetch`. Exceeding it fails with
   `Timeout` naming `Negotiate` or `Connect`.
-- `skip_negotiation()` connects straight to `ws(s)://host[:port]/hub` (Bearer as `access_token`);
-  the server must allow WebSocket-only connections; incompatible with stateful reconnect.
+- `skip_negotiation()` connects straight to `ws(s)://host[:port]/hub` (Bearer in `Authorization`
+  natively, as `access_token` in browsers); the server must allow WebSocket-only connections; it
+  disables stateful reconnect with a warning (as .NET).
+- Headers: native negotiate and WebSocket upgrade send `User-Agent` in the official format
+  (`RayX SignalR/<major.minor> (<version>; <OS>; Rust; Unknown Runtime Version)`) and
+  `X-Requested-With: XMLHttpRequest`, negotiate also `Accept: */*`; browsers send
+  `X-SignalR-User-Agent` on negotiate. `with_header(name, value)` adds an application header
+  (natively also on the upgrade; browsers negotiate only, with a warning). As in .NET it replaces a
+  default of the same name (empty `User-Agent` removes it); `X-Requested-With` and the credentials'
+  `Authorization` always win. Invalid ones and transport-owned names (`Host`, `Content-Length`,
+  `Connection`, `Upgrade`, `Transfer-Encoding`, `TE`, `Trailer`, `Keep-Alive`, `Proxy-Connection`,
+  `Sec-WebSocket-*`) fail `new` with `Configuration`/`with_header`.

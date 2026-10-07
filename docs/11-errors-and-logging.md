@@ -17,7 +17,7 @@ that carry them:
 
 | `ErrorKind` | Meaning | Fields |
 |---|---|---|
-| `Configuration` | A setting cannot work: rejected before any I/O, or, for a call, a limit it sets was exceeded (a message larger than the stateful replay buffer). | `setting()` names the setting. |
+| `Configuration` | A setting cannot work: rejected before any I/O. | `setting()` names the setting. |
 | `Negotiate` | The negotiate request failed, or the server rejected negotiation. | `status()` when the server answered. |
 | `Authentication` | The server refused the credentials. | `status()`: 401 or 403. |
 | `Timeout` | An operation exceeded its bound. | `timeout_operation()` (`Connect`, `Negotiate`, `Handshake`, `ServerTimeout`) and `timeout()`. |
@@ -26,9 +26,9 @@ that carry them:
 | `Transport` | The network or the transport failed or dropped. | `transport()` when one was involved; `server_allows_reconnect()`. |
 | `TransportUnavailable` | The server offers no transport the client supports. | `attempts()`: each transport with its error. |
 | `Handshake` | The SignalR handshake failed. | |
-| `Protocol` | The server sent a malformed or unexpected message. | |
+| `Protocol` | The server sent a malformed or unexpected message, or one larger than `with_maximum_message_size`; the transport ends and the reconnection policy runs. | |
 | `Serialization` | An argument could not be encoded, or a result or callback argument could not be decoded into the requested type. (A stream item that does not decode is logged and skipped; the stream continues.) | |
-| `Hub` | The hub method threw, or the server ended a stream with an error. | `server_message()`. |
+| `Hub` | The hub method threw, or the server ended a stream with an error. | `server_message()`: the server's text verbatim (not redacted, as `HubException.Message`). |
 | `ConnectionClosed` | The connection is closed. | `close_reason()`: `Local`, `Server` (with `server_message()` and `server_allows_reconnect()`), or `ReconnectExhausted` (the last attempt's error is the `source()`). |
 | `Paused` | The connection is paused. | |
 | `Canceled` | The operation ended before it completed: a manual reconnect while another reconnect (or a start) runs or after a newer one superseded it, a connection task whose runtime shut down, an invocation removed before the server completed it, or (as `on_closed`'s argument) a stop that interrupted a reconnect. | |
@@ -39,7 +39,9 @@ wildcard arm. `Error::is_transient()` is `true` for timeouts, network and transp
 negotiate answers 408, 429 and 5xx: retrying the same operation later can succeed.
 
 `Display` is stable, human-readable and redacted when the error is built: it never contains bearer
-tokens, `access_token` values, `Authorization` values or credentials in URLs. It is meant for logs
+tokens, `access_token` values, `Authorization` values or credentials in URLs. `server_message()` is
+the exception: it returns the server's text verbatim, as the .NET client's `HubException.Message`
+does, so treat it like any other server-provided text when you log it. It is meant for logs
 and people; branch on kinds and fields, never on message text.
 
 ### Handling errors
@@ -98,7 +100,7 @@ work are logged as warnings):
 | Cause | `setting()` | Fix |
 |---|---|---|
 | No Tokio runtime (native) | `with_runtime_handle` | Call `connect` inside a runtime, or pass `with_runtime_handle`. |
-| `skip_negotiation()` together with stateful reconnect | `skip_negotiation` | Drop one of them. |
+| An invalid `with_header` name or value, or a header the transport owns | `with_header` | Use a token name the transport does not own (see [Request headers](02-connecting.md#request-headers)) and a value without line breaks or non-ASCII characters. |
 | Stateful buffer of zero bytes | `with_stateful_reconnect` (`StatefulReconnectConfig::new(0)` itself fails with `StatefulReconnectConfig::new`) | Use `StatefulReconnectConfig::new(n)` with `n > 0`. |
 | Secure endpoint without TLS features (native) | `TLS Cargo features` | Enable a verifier and a provider feature (see [TLS](08-tls.md#features)). |
 | `use_webpki_roots()` without `tls-webpki-roots` | `use_webpki_roots` | Enable the feature. |
@@ -126,7 +128,6 @@ work are logged as warnings):
 |---|---|
 | The hub method threw | `Hub`, `server_message()` |
 | The result did not match `T` | `Serialization` |
-| With stateful reconnect, a message larger than the replay buffer | `Configuration`, `setting()` is `StatefulReconnectConfig::buffer_size_bytes` |
 | A call while paused, or an ordinary pending call when `pause()` ran (natively, stateful pending calls wait for `resume`) | `Paused` |
 | A call on a client that is not started, or whose start failed | `InvalidState` |
 | A call while a start or reconnect attempt is in flight | waits for the attempt, then runs or fails with the attempt's error |
@@ -193,8 +194,8 @@ console_log::init_with_level(log::Level::Info).expect("logger");
 
 Levels:
 
-- `error`: protocol or decode problems the client recovered from (an undecodable message or stream
-  item), with the error kind but not the decoder's text.
+- `error`: protocol or decode problems (an undecodable message, which ends the transport, or an
+  undecodable stream item, which is skipped), with the error kind but not the decoder's text.
 - `warn`: unusual but handled situations (a stream cancel that could not be sent, a callback target
   that is not registered, a message for an unknown invocation id).
 - `info`: connection milestones (negotiation, connect, reconnect, close).

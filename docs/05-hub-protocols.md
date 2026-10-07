@@ -23,7 +23,10 @@ MessagePack-CSharp (MessagePack). Field names have to agree.
 ### JSON
 
 ASP.NET Core writes camelCase property names and reads property names case-insensitively. Give
-Rust types camelCase wire names:
+Rust types camelCase wire names. Like the .NET client, this client also reads JSON payloads
+case-insensitively: a result, stream item or callback argument that does not decode with the exact
+Serde names is decoded again with member names matched ignoring case (so `"OrderId"` fills
+`order_id` renamed to `orderId`). Outbound names are always the application's.
 
 ```rust
 use serde::{Deserialize, Serialize};
@@ -74,8 +77,8 @@ protocol: to JSON, or to named MessagePack (`rmp_serde::to_vec_named`). Client r
 
 | Value | JSON | MessagePack |
 |---|---|---|
-| `invoke` result, stream item | `serde_json` into `T` | `rmp_serde` into `T`; if that fails, retried once with map keys converted from PascalCase to camelCase |
-| Callback argument (`ctx.argument::<T>`) | `serde_json` into `T` | like results: `rmp_serde` into `T` from the server's original value, with the same PascalCase retry |
+| `invoke` result, stream item | `serde_json` into `T`; if that fails, retried once matching member names case-insensitively | `rmp_serde` into `T`; if that fails, retried once with map keys converted from PascalCase to camelCase |
+| Callback argument (`ctx.argument::<T>`) | like results | like results: `rmp_serde` into `T` from the server's original value, with the same PascalCase retry |
 
 MessagePack callback arguments keep the server's encoding, as the .NET binder sees it:
 
@@ -90,6 +93,19 @@ MessagePack callback arguments keep the server's encoding, as the .NET binder se
 For values that must look the same in both protocols, prefer strings (ISO 8601 dates, base64
 binary) or plain numbers (Unix milliseconds) over `DateTime` and `byte[]`: JSON carries those as
 strings.
+
+### Framing
+
+As in the .NET client, a hub message may span several WebSocket messages: the incomplete rest of a
+WebSocket message (a JSON record without its separator, or a MessagePack message or its length
+prefix) is kept for the next one. There is no size cap by default (natively the WebSocket layer's
+own limit is lifted too); `with_maximum_message_size(bytes)` bounds an inbound hub message, and a
+larger one ends the transport with `ErrorKind::Protocol` (the reconnection policy runs).
+
+A malformed message, or a WebSocket message of the wrong kind (binary on a JSON connection, text
+on a MessagePack one), ends the transport with `ErrorKind::Protocol`, and the reconnection policy
+runs, as in the .NET client; a stateful connection then negotiates afresh. Message types the client
+does not know are ignored, so a newer server can add them.
 
 ## Void, `null` and `Option`
 

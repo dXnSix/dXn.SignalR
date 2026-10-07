@@ -101,7 +101,28 @@ client
 
 `Ok(())` means the frame was accepted for writing, not that the server processed it. `send` fails
 while the client is not connected (reconnecting, paused, disconnected or closed). With stateful
-reconnect, a full replay buffer makes `send` wait until the server acknowledges earlier messages.
+reconnect, a full replay buffer makes `send` wait until the server acknowledges earlier messages
+(a message larger than the buffer is still sent; the next send waits).
+
+## Invocation headers
+
+`with_invocation_headers(hook)` adds headers to every Invocation and StreamInvocation message
+(`invoke`, `send` and `enumerate`), as the official .NET client adds the W3C `traceparent` and
+`tracestate` headers of the current activity. The hook receives the hub method's name and runs on
+the calling task each time a message is built. ASP.NET Core uses `traceparent` and `tracestate` to
+parent the activity of the hub method's invocation (distributed tracing; hub code sees it as
+`Activity.Current`); it does not expose other invocation headers to hub methods.
+
+```rust
+let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+    c.with_invocation_headers(|_target| {
+        vec![(
+            "traceparent".to_string(),
+            "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01".to_string(),
+        )]
+    });
+})?;
+```
 
 ## Server streams
 

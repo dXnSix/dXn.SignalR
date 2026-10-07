@@ -20,8 +20,10 @@ redacted (no tokens, `Authorization` values, URL credentials). `From<Error> for 
 | `Configuration`, `setting() == "with_runtime_handle"` | native `connect` outside a runtime: call inside one or `with_runtime_handle` |
 | `Configuration`, `setting() == "TLS Cargo features"` | secure endpoint without verifier + provider features |
 | `Configuration`, `setting() == "use_webpki_roots"` | enable `tls-webpki-roots` |
-| `Configuration`, `setting() == "skip_negotiation"` | `skip_negotiation()` with stateful reconnect: drop one |
-| `Configuration`, `setting()` a liveness/connect timeout | zero duration, or server timeout not above the keep-alive interval |
+| `Configuration`, `setting() == "with_header"` | header name not a token or owned by the transport (`Host`, `Connection`, `Sec-WebSocket-*`, ...), or value with line breaks or non-ASCII |
+| warning: liveness duration | a zero duration, or server timeout not above the keep-alive interval (accepted as in .NET) |
+| `Protocol` (transport ended, then reconnect) | malformed message, wrong WebSocket frame kind, a message above `with_maximum_message_size`, or a stateful protocol violation |
+| `Negotiate` "ASP.NET SignalR Server" | the server is classic ASP.NET SignalR, not ASP.NET Core |
 | `Transport` from `connect` | DNS/TCP; check host, port, `secure()` vs `unsecure()` (default is https) |
 | `Authentication`, `status()` 401/403 | credentials rejected at negotiate |
 | `Negotiate`, `status()` | negotiate HTTP error (404: wrong hub path); no status: server `error` answer, unreadable body, or too many redirects |
@@ -35,7 +37,7 @@ redacted (no tokens, `Authorization` values, URL credentials). `From<Error> for 
 | `ConnectionClosed`, `CloseReason::ReconnectExhausted` | policy gave up; `source()` is the last attempt's error; `resume()` |
 | `ConnectionClosed`, `CloseReason::Local` | client closed; connect a new one |
 | `Serialization` | argument does not serialize, or result/argument does not match `T`; check Serde names and `()`/`Option` |
-| `Hub` with a generic `server_message()` | server hides exceptions; `EnableDetailedErrors` |
+| `Hub` with a generic `server_message()` | server hides exceptions; `EnableDetailedErrors` (`server_message()` is the server's text verbatim; `Display` is redacted) |
 | callback never fires | wrong (case-sensitive) target, duplicate registration ignored, or `SendAsync` name mismatch |
 | connection stays open after dropping the client | other clones, a live `InvocationContext`, or a `SignalRClient` captured in a callback or hook (a reference cycle; capture `client.downgrade()`) still hold handles; call `disconnect()`, which stops it for every handle |
 | browser connects but hub is unauthenticated | Basic auth in a browser, or the server does not read `access_token` |

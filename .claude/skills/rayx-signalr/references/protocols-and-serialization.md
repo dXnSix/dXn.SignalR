@@ -36,7 +36,12 @@ public sealed class OrderLine
 }
 ```
 
-- JSON: ASP.NET Core writes camelCase and reads case-insensitively.
+- JSON: ASP.NET Core writes camelCase and reads case-insensitively. The client also reads JSON
+  results, stream items and callback arguments case-insensitively on a second decode (as the .NET
+  client's System.Text.Json web defaults); outbound names stay the Serde names.
+- Framing: a hub message may span WebSocket messages (the rest is carried over); no size cap
+  unless `with_maximum_message_size`. Malformed messages or a wrong frame kind end the transport
+  with `Protocol` and the policy reconnects; unknown message types are ignored.
 - MessagePack outbound: the client writes structs as maps keyed by Serde names
   (`rmp_serde::to_vec_named`) and never rewrites keys. MessagePack-CSharp matches keys exactly, so
   .NET needs string `[Key("...")]` equal to the Serde names. Integer keys (array layout) do not

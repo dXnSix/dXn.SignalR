@@ -158,7 +158,7 @@ let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
 
 | Option | Default | Behavior |
 |---|---|---|
-| `with_keep_alive_interval` | 15 s | After this long without any outbound message, the client sends a SignalR `Ping`. The server's `ClientTimeoutInterval` (30 s by default) drops clients that stay silent longer. |
+| `with_keep_alive_interval` | 15 s | After this long without any outbound message, the client sends a SignalR `Ping`; as the .NET client, it also sends one right after every handshake (not after a stateful resume), so the server arms its client timeout. The server's `ClientTimeoutInterval` (30 s by default) drops clients that stay silent longer. |
 | `with_server_timeout` | 30 s | After this long without any inbound message, the transport counts as dropped and the reconnect path runs. The server pings every `KeepAliveInterval` (15 s by default). |
 | `with_handshake_timeout` | 15 s | `start` (and each reconnect attempt) fails when the server does not answer the handshake in time. |
 | `with_connect_timeout` | 120 s (the official .NET client's bound) | Bounds each negotiate request and opening the transport (natively TCP, TLS and the WebSocket upgrade; in browsers opening the WebSocket). Browsers abort a negotiate `fetch` that exceeds it. `start` (and each reconnect attempt) then fails with `ErrorKind::Timeout` naming `Negotiate` or `Connect`. |

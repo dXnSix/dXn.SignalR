@@ -21,7 +21,9 @@ use it from any UI, a game loop, a service, or a test.
   `register` (several callbacks per target, `register_async`, typed `register_typed`) handles
   server calls on a dispatch task, including client results for `InvokeAsync`.
 - **JSON and MessagePack.** Your Serde types travel unchanged on both protocols; the MessagePack
-  encoder keeps your field names.
+  encoder keeps your field names. As in the .NET client, JSON payloads are read
+  case-insensitively, a hub message may span WebSocket messages (`with_maximum_message_size` caps
+  it), and a protocol violation ends the transport so the reconnection policy runs.
 - **Reconnection that matches the official clients.** Automatic retry policies (including the
   official 0/2/10/30 s schedule), manual reconnection through a handler, and ASP.NET Core
   **stateful reconnect**, which replays unacknowledged messages so in-flight calls survive short
@@ -36,8 +38,10 @@ use it from any UI, a game loop, a service, or a test.
   futures can be awaited from any executor.
 - **A browser transport for threads.** Event-driven, so it runs on the main thread, in Web Workers
   and in multithreaded (atomics) builds.
-- **Negotiation as the official clients do it.** Redirects with access tokens (Azure SignalR
-  Service), and `skip_negotiation()` for direct WebSocket connections.
+- **Negotiation and headers as the official clients do it.** Redirects with access tokens (Azure
+  SignalR Service), `skip_negotiation()` for direct WebSocket connections, the official
+  `User-Agent`, application request headers (`with_header`), and invocation headers such as W3C
+  `traceparent` (`with_invocation_headers`).
 
 ## Platform support
 

@@ -185,8 +185,18 @@ How it works:
 - Negotiation adds `useStatefulReconnect=true`. If the server does not enable stateful reconnect
   for the hub, the connection silently falls back to ordinary reconnect.
 - Every application message the client sends is kept, serialized, until the server acknowledges it
-  (`Ack`). When the buffer is full, sends wait until acknowledgements free space. A single message
-  larger than the buffer fails with `ErrorKind::Configuration`.
+  (`Ack`). As in the .NET client's `MessageBuffer`, a send waits only while the buffer holds more
+  than its size: a message larger than the buffer is still sent, and the next send waits until
+  acknowledgements free space.
+- The client acknowledges what it received at most once per second, and only when something new
+  arrived (the last messages of a burst are acknowledged once the connection is quiet), as the .NET
+  client's Ack timer does.
+- A protocol violation ends the transport with `ErrorKind::Protocol` and is never resumed, since
+  the server would replay the offending message: a malformed, unexpected or oversized message, a
+  WebSocket message of the wrong kind, or a violation of the stateful protocol (for example a
+  message before the `Sequence` after a resume). The reconnect then negotiates a fresh stateful
+  connection. A failed send, including an Ack, is an ordinary loss and is resumed; a message is
+  always dispatched before its Ack is sent.
 - On a drop, the client reconnects to the same connection token without negotiating or
   handshaking again, exchanges `Sequence` messages, replays unacknowledged messages, and discards
   duplicates the server replays.
@@ -195,7 +205,7 @@ How it works:
   because the server gave up, or the policy is exhausted, the logical connection ends: pending work
   fails and the next attempt negotiates a fresh stateful connection.
 
-Stateful reconnect needs negotiation, so it cannot be combined with `skip_negotiation()`. It
+Stateful reconnect needs negotiation, so `skip_negotiation()` disables it (with a warning). It
 needs a reconnection policy, a disconnection handler or `resume()` to actually reconnect. The
 server side must opt in with `AllowStatefulReconnects = true` on the hub (see
 [Server setup](10-server-setup.md#stateful-reconnect)).

@@ -48,7 +48,8 @@ pass borrowed or cloned captures (`args.argument(&name)`), not moved ones.
 Returns once the frame is accepted for writing (not written, not processed), like the .NET
 `SendAsync`; it waits while the bounded outbound queue is full. Fails while not `Connected`; a later
 socket error is not reported to it. With stateful reconnect, a full replay buffer makes it wait for
-server Acks (on the connection's runtime) and a single frame larger than the buffer fails. Without
+server Acks (on the connection's runtime); as in .NET, a frame larger than the buffer is still sent
+and the next send waits. Without
 stateful reconnect, a frame accepted just before `disconnect()`/`pause()` can be dropped unwritten
 (the .NET client's `StopAsync` has the same race); await an `invoke` when delivery must be known.
 
@@ -84,3 +85,11 @@ let (x, y) = futures::join!(a.invoke::<i32>("A".into()), b.invoke::<i32>("B".int
 ```
 
 Server-side `MaximumReceiveMessageSize` (32 KB default) limits client messages.
+
+## Invocation headers
+
+`with_invocation_headers(|target| vec![(name, value)])` adds headers (for example W3C
+`traceparent`) to every Invocation and StreamInvocation (`invoke`, `send`, `enumerate`), as the
+.NET client's activity propagation does. ASP.NET Core parents the hub invocation's activity on
+`traceparent`/`tracestate` (hub code sees `Activity.Current`); other headers are not exposed to hub
+methods.

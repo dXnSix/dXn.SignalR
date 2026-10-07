@@ -49,7 +49,7 @@ statement per option.
 
 Everything that can be validated without the network is validated by `new` (and so by
 `connect`) before any I/O: the stateful buffer size, PEM roots, TLS feature availability, the
-Tokio runtime, and the `skip_negotiation` + stateful conflict. Liveness durations are accepted as
+Tokio runtime and the `with_header` names and values. Liveness durations are accepted as
 the .NET client accepts them; values that cannot work are logged as warnings (see
 [Liveness](06-connection-lifecycle.md#liveness)).
 
@@ -75,7 +75,7 @@ servers usually need `unsecure()` and `with_port(...)`.
 
 | Method | Native | Browser |
 |---|---|---|
-| `authenticate_bearer(token)` | `Authorization: Bearer` on negotiate and on the WebSocket upgrade, plus `access_token` on the WebSocket URL | `Authorization: Bearer` on negotiate, `access_token` on the WebSocket URL |
+| `authenticate_bearer(token)` | `Authorization: Bearer` on negotiate and on the WebSocket upgrade; never on the WebSocket URL, as the .NET client outside browsers | `Authorization: Bearer` on negotiate, `access_token` on the WebSocket URL |
 | `authenticate_basic(user, Some(password))` | `Authorization: Basic` on negotiate and on the WebSocket upgrade | `Authorization: Basic` on negotiate only |
 
 `authenticate_basic(user, None)` sends `user:` with an empty password. The last call wins: a
@@ -94,6 +94,39 @@ token expires, disconnect and connect again with a new one.
 
 Negotiation errors name the endpoint without its query string, which may carry tokens.
 
+## Request headers
+
+Every request carries the official clients' headers:
+
+| Header | Native | Browser |
+|---|---|---|
+| `User-Agent` in the official format, `RayX SignalR/<major.minor> (<version>; <OS>; Rust; Unknown Runtime Version)` | negotiate and WebSocket upgrade | not settable; sent as `X-SignalR-User-Agent` on negotiate |
+| `X-Requested-With: XMLHttpRequest` | negotiate and WebSocket upgrade | negotiate |
+| `Accept: */*` | negotiate | browser default |
+
+`with_header(name, value)` adds an application header, as the .NET client's
+`HttpConnectionOptions.Headers`: natively to negotiate and the WebSocket upgrade; in browsers to
+negotiate only (browsers cannot set WebSocket headers; building the client logs a warning). The
+headers are composed as the .NET client composes them, the same way on negotiate and on the
+upgrade:
+
+1. The defaults above.
+2. The application headers, each replacing a header of the same name (so `User-Agent` or `Accept`
+   can be overridden, never duplicated); an empty `User-Agent` removes it.
+3. `X-Requested-With: XMLHttpRequest`, always.
+4. The credentials' `Authorization`, over an application `Authorization` header.
+
+An invalid name or value, or a header the transport owns (`Host`, `Content-Length`, `Connection`,
+`Upgrade`, `Transfer-Encoding`, `TE`, `Trailer`, `Keep-Alive`, `Proxy-Connection`,
+`Sec-WebSocket-*`), fails `new`/`connect` before any I/O with `ErrorKind::Configuration` naming
+`with_header`; the value is never repeated in the error.
+
+```rust
+let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+    c.with_header("X-Tenant", "blue");
+})?;
+```
+
 ## Negotiation
 
 By default the client negotiates before opening the WebSocket:
@@ -103,10 +136,13 @@ By default the client negotiates before opening the WebSocket:
 2. A **redirect** response (`url` and optional `accessToken`, as Azure SignalR Service returns)
    restarts negotiation at the new URL. Its access token replaces the configured credentials for
    the next negotiate and for the WebSocket. At most 100 redirects are followed.
-3. An **error** response (`{"error": "..."}`) fails `connect` with the server's message.
+3. An **error** response (`{"error": "..."}`) fails `connect` with the server's message. A classic
+   ASP.NET SignalR server (not ASP.NET Core) gets the official clients' explanation as an
+   `ErrorKind::Negotiate` error.
 4. A **connection** response must offer the `WebSockets` transport with the protocol's transfer
    format (`Text` for JSON, `Binary` for MessagePack). The WebSocket URL is the final negotiate URL
-   with `ws`/`wss` and the connection token as `id`.
+   with `ws`/`wss` and the connection token as `id` (a response without `negotiateVersion` is
+   version 0, whose connection id is the `id`).
 
 Each negotiate request and the transport setup (natively TCP, TLS and the WebSocket upgrade; in
 browsers opening the WebSocket) are bounded by `with_connect_timeout`, 120 s by default like the
@@ -126,10 +162,10 @@ let client = rayx_signalr::SignalRClient::connect_with("localhost", "chat", |c| 
 ```
 
 `skip_negotiation()` connects the WebSocket directly to `ws(s)://host[:port]/hub`, like the official
-clients' `skipNegotiation`. A Bearer token goes on the URL as `access_token`. Ordinary reconnects
-connect directly too. The server must accept WebSocket connections without a connection token, and
-the option cannot be combined with stateful reconnect, which needs the token that negotiation
-issues: `connect` then fails before any I/O.
+clients' `skipNegotiation`. A Bearer token goes in the `Authorization` header natively and on the
+URL as `access_token` in browsers. Ordinary reconnects connect directly too. The server must accept
+WebSocket connections without a connection token. As in the .NET client, it disables stateful
+reconnect, which needs the token that negotiation issues, and logs a warning.
 
 ## Hub protocol
 
@@ -171,11 +207,15 @@ otherwise the runtime `connect` is called from, otherwise `connect` fails before
 | `authenticate_basic(String, Option<String>)` | all | none | [Authentication](#authentication) |
 | `authenticate_bearer(String)` | all | none | [Authentication](#authentication) |
 | `skip_negotiation()` | all | negotiate | [Skipping negotiation](#skipping-negotiation) |
+| `with_header(name, value)` | all (browsers: negotiate only) | none | [Request headers](#request-headers) |
+| `with_invocation_headers(hook)` | all | none | [Calling the hub](03-calling-the-hub.md#invocation-headers) |
+| `with_maximum_message_size(usize)` | all | unbounded | [Hub protocols](05-hub-protocols.md#framing) |
 | `with_messagepack_protocol()` | all, `messagepack` feature | JSON | [Hub protocols](05-hub-protocols.md) |
 | `with_keep_alive_interval(Duration)` | all | 15 s | [Lifecycle](06-connection-lifecycle.md#liveness) |
 | `with_server_timeout(Duration)` | all | 30 s | [Lifecycle](06-connection-lifecycle.md#liveness) |
 | `with_handshake_timeout(Duration)` | all | 15 s | [Lifecycle](06-connection-lifecycle.md#liveness) |
 | `with_connect_timeout(Duration)` | all | 120 s | [Lifecycle](06-connection-lifecycle.md#liveness) |
+| `with_close_timeout(Duration)` | all | 5 s | [Lifecycle](06-connection-lifecycle.md#stopping) |
 | `with_reconnection_policy(ReconnectionConfig)` | all | never reconnect | [Reconnection](07-reconnection.md) |
 | `with_disconnection_handler(handler)` | all | none | [Manual reconnection](07-reconnection.md#manual-reconnection) |
 | `with_stateful_reconnect(StatefulReconnectConfig)` | all | off | [Stateful reconnect](07-reconnection.md#stateful-reconnect) |

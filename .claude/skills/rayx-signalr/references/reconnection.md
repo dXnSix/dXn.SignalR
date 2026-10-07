@@ -83,13 +83,17 @@ let client = SignalRClient::connect_with("host", "hub", move |c| {
 
 - Negotiate adds `useStatefulReconnect=true`; a server without it silently gives ordinary
   reconnect.
-- Sent messages are buffered until Acked; full buffer → sends wait; one frame larger than the buffer
-  fails.
+- Sent messages are buffered until Acked; as .NET's `MessageBuffer`, a send waits only while the
+  buffer holds more than its size (an oversized frame is sent, the next send waits). The client
+  Acks at most once per second and only for new messages (one more once quiet).
+- Any protocol violation (malformed, unexpected or oversized message, wrong frame kind, stateful
+  sequencing) ends the transport with `Protocol` and is never resumed: the reconnect negotiates
+  fresh. A failed send (an Ack too) is an ordinary, resumable loss.
 - Resume reuses the connection token without negotiate or handshake, exchanges Sequence, replays,
   suppresses duplicates; pending work survives.
 - Server timeout of the disconnected connection, or an exhausted policy, ends the logical connection:
   pending work fails, next attempt negotiates fresh.
-- Incompatible with `skip_negotiation()`. Still needs a policy, a handler or `resume()` to
+- Disabled by `skip_negotiation()` (with a warning). Still needs a policy, a handler or `resume()` to
   reconnect at all.
 - Trace a resume with `RUST_LOG=rayx_signalr::stateful=debug` (payload-free sequencing records;
   see the Logging section of [troubleshooting](troubleshooting.md)).
