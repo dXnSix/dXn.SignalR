@@ -1,6 +1,9 @@
 using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.SignalR.Protocol;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using RayX.SignalR.TestService;
 
 // Test-only ASP.NET Core SignalR service for RayX.SignalR end-to-end scenarios. The Aspire AppHost
@@ -31,6 +34,12 @@ builder.Services
     .AddHubOptions<TestHub>(options => options.MaximumReceiveMessageSize = 4 * 1024 * 1024)
     .AddLivenessHubOptions()
     .AddMessagePackProtocol();
+// Both protocols count the Close messages clients send (see CloseCountingHubProtocol).
+builder.Services.RemoveAll<IHubProtocol>();
+builder.Services.AddSingleton<IHubProtocol>(services => new CloseCountingHubProtocol(
+    new JsonHubProtocol(services.GetRequiredService<IOptions<JsonHubProtocolOptions>>())));
+builder.Services.AddSingleton<IHubProtocol>(services => new CloseCountingHubProtocol(
+    new MessagePackHubProtocol(services.GetRequiredService<IOptions<MessagePackHubProtocolOptions>>())));
 
 var app = builder.Build();
 
@@ -46,6 +55,11 @@ app.Use(async (context, next) =>
     {
         string hubPath = path[..^"/negotiate".Length];
         TestControls.CountNegotiate(hubPath);
+        if (TestControls.TakeNegotiationDelay(hubPath) is { } delay)
+        {
+            await Task.Delay(delay, context.RequestAborted);
+        }
+
         if (TestControls.IsRejected(hubPath))
         {
             context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
@@ -127,6 +141,7 @@ app.MapHub<TestHub>("/test-tls");
 app.MapHub<TestHub>("/test-direct");
 app.MapHub<TestHub>("/test-stateful", options => options.AllowStatefulReconnects = true);
 app.MapHub<AuthHub>("/test-auth");
+app.MapHub<ConnectedHub>("/test-connected");
 app.MapHub<PerfHub>("/perf");
 app.MapLivenessEndpoints();
 

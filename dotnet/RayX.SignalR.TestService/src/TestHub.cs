@@ -134,6 +134,16 @@ namespace RayX.SignalR.TestService
 
         public int DisconnectCount(string connectionId) => TestControls.DisconnectCount(connectionId);
 
+        /// <summary>How <c>OnDisconnectedAsync</c> saw another connection end: empty when graceful, null while it is connected.</summary>
+        public string? DisconnectError(string connectionId) => TestControls.DisconnectError(connectionId);
+
+        /// <summary>How many SignalR Close messages clients sent since the last reset.</summary>
+        public int ClientCloseMessages() => TestControls.ClientCloseMessages();
+
+        /// <summary>Holds the next negotiate request of a hub path, so a connection attempt stays in flight.</summary>
+        public void DelayNextNegotiation(string hubPath, int milliseconds) =>
+            TestControls.DelayNextNegotiation(hubPath, TimeSpan.FromMilliseconds(milliseconds));
+
         public string EchoText(string payload) => payload;
 
         public int TextLength(string payload) => payload.Length;
@@ -316,6 +326,7 @@ namespace RayX.SignalR.TestService
 
             _cancellationProbes.TryRemove(Context.ConnectionId, out _);
             _transportAborts.TryRemove(Context.ConnectionId, out _);
+            TestControls.RecordDisconnectError(Context.ConnectionId, exception);
 
             return base.OnDisconnectedAsync(exception);
         }

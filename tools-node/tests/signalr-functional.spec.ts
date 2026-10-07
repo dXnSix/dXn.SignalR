@@ -20,6 +20,12 @@ const scenarios = [
   "error-kinds",
   "callback-dispatch",
   "client-result-errors",
+  "connected-callback",
+  "restart-after-stop",
+  "lifecycle-events",
+  "connection-id",
+  "graceful-stop",
+  "reconnect-call-wait",
 ];
 
 // Scenarios whose values exist only in one protocol.

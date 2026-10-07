@@ -6,7 +6,7 @@ use std::{cell::Cell, cell::RefCell, future::Future, rc::Rc, sync::Arc, time::Du
 use futures::{channel::oneshot, future::Either, StreamExt};
 use gloo_timers::future::TimeoutFuture;
 use rayx_signalr::{
-    CallbackHandler, CloseReason, ConnectionConfiguration, ConstantDelayPolicy,
+    CallbackHandler, CloseReason, ConnectionConfiguration, ConnectionStatus, ConstantDelayPolicy,
     DisconnectionHandler, Error, ErrorKind, InvocationContext, ManualStream, ReconnectionConfig,
     ReconnectionHandler, SignalRClient, TimeoutOperation,
 };
@@ -72,6 +72,12 @@ pub async fn run_functional_scenario(
         "msgpack-fidelity" => msgpack_fidelity(messagepack).await,
         "callback-dispatch" => callback_dispatch(messagepack).await,
         "client-result-errors" => client_result_errors(messagepack).await,
+        "connected-callback" => connected_callback(messagepack).await,
+        "restart-after-stop" => restart_after_stop(messagepack).await,
+        "lifecycle-events" => lifecycle_events(messagepack).await,
+        "connection-id" => connection_id(messagepack).await,
+        "graceful-stop" => graceful_stop(messagepack).await,
+        "reconnect-call-wait" => reconnect_call_wait(messagepack).await,
         other => Err(format!("unknown functional scenario {other}")),
     };
     outcome
@@ -2417,5 +2423,558 @@ async fn client_result_after_a_stateful_resume(messagepack: bool) -> Outcome {
     ensure!(result == 42, "the hub received {result} after the resume");
     registration.unregister();
     client.disconnect();
+    Ok(())
+}
+
+/// Builds a client for `hub` on the test service that is not started yet.
+fn unstarted(hub: &str, messagepack: bool) -> Result<SignalRClient, String> {
+    let endpoint = super::service().map_err(|error| format!("{error:?}"))?;
+    SignalRClient::new(&endpoint.host, hub, |configuration| {
+        endpoint.apply(configuration);
+        if messagepack {
+            configuration.with_messagepack_protocol();
+        }
+    })
+    .map_err(|error| format!("the client for {hub} was rejected: {error}"))
+}
+
+/// Registers a recorder of the `/test-connected` greetings (the connection ids).
+fn record_greetings(
+    client: &mut SignalRClient,
+) -> (Rc<RefCell<Vec<String>>>, impl CallbackHandler) {
+    let greetings = Rc::new(RefCell::new(Vec::<String>::new()));
+    let recorded = greetings.clone();
+    let registration = client.register_typed("connected", move |_context, (id,): (String,)| {
+        recorded.borrow_mut().push(id);
+    });
+    (greetings, registration)
+}
+
+/// Waits for greeting number `count` and checks that it names the current connection.
+async fn greeted(
+    client: &mut SignalRClient,
+    greetings: &Rc<RefCell<Vec<String>>>,
+    count: usize,
+) -> Result<String, String> {
+    let greeting = eventually("the greeting", 5_000.0, || {
+        let greetings = greetings.clone();
+        async move { greetings.borrow().get(count - 1).cloned() }
+    })
+    .await?;
+    let identity = identity(client)
+        .await
+        .map_err(|error| format!("ConnectionIdentity failed: {error}"))?;
+    ensure!(
+        greeting == identity,
+        "greeting {count} names {greeting}, not the current connection {identity}"
+    );
+    Ok(identity)
+}
+
+async fn status_becomes(client: &SignalRClient, status: ConnectionStatus) -> Outcome {
+    eventually("the status", 10_000.0, || {
+        let current = client.status();
+        async move { (current == status).then_some(()) }
+    })
+    .await
+    .map_err(|error| {
+        format!(
+            "{error}: the status is {:?}, not {status:?}",
+            client.status()
+        )
+    })
+}
+
+async fn connected_callback(messagepack: bool) -> Outcome {
+    let mut client = unstarted("test-connected", messagepack)?;
+    ensure!(
+        client.status() == ConnectionStatus::Disconnected,
+        "an unstarted client reports {:?}",
+        client.status()
+    );
+    let (greetings, registration) = record_greetings(&mut client);
+    client
+        .start()
+        .await
+        .map_err(|error| format!("start failed: {error}"))?;
+    ensure!(
+        client.status() == ConnectionStatus::Connected,
+        "a started client reports {:?}",
+        client.status()
+    );
+    greeted(&mut client, &greetings, 1).await?;
+    let count = greetings.borrow().len();
+    ensure!(count == 1, "{count} greetings arrived");
+    registration.unregister();
+    client.disconnect();
+    Ok(())
+}
+
+async fn restart_after_stop(messagepack: bool) -> Outcome {
+    let mut client = unstarted("test-connected", messagepack)?;
+    let (greetings, registration) = record_greetings(&mut client);
+    client
+        .start()
+        .await
+        .map_err(|error| format!("start failed: {error}"))?;
+    let first = greeted(&mut client, &greetings, 1).await?;
+
+    // A connected client refuses another start and stays connected.
+    match client.start().await {
+        Err(error) if error.kind() == ErrorKind::InvalidState => {}
+        other => return Err(format!("a second start returned {other:?}")),
+    }
+    ensure!(
+        client.status() == ConnectionStatus::Connected,
+        "a refused start changed the status to {:?}",
+        client.status()
+    );
+
+    // Restart after a local stop.
+    client.disconnect();
+    ensure!(
+        client.status() == ConnectionStatus::Closed,
+        "a stopped client reports {:?}",
+        client.status()
+    );
+    match identity(&mut client).await {
+        Err(error) if error.close_reason() == Some(CloseReason::Local) => {}
+        other => return Err(format!("a call on a stopped client returned {other:?}")),
+    }
+    client
+        .start()
+        .await
+        .map_err(|error| format!("the restart failed: {error}"))?;
+    let second = greeted(&mut client, &greetings, 2).await?;
+    ensure!(second != first, "the restart kept the connection {first}");
+
+    // Restart after the server ended the connection.
+    client
+        .invoke_with_args::<(), _>("ScheduleServerClose".to_string(), |arguments| {
+            arguments.argument(false).argument(0);
+        })
+        .await
+        .map_err(|error| format!("ScheduleServerClose failed: {error}"))?;
+    status_becomes(&client, ConnectionStatus::Disconnected).await?;
+    client
+        .start()
+        .await
+        .map_err(|error| format!("the restart after a server close failed: {error}"))?;
+    let third = greeted(&mut client, &greetings, 3).await?;
+    ensure!(third != second, "the restart kept the connection {second}");
+    registration.unregister();
+    client.disconnect();
+
+    // `disconnect` cancels a start whose negotiation never answers.
+    let hanging = unstarted("test-hang", messagepack)?;
+    let (finished, outcome) = oneshot::channel();
+    let starting = hanging.clone();
+    spawn_local(async move {
+        let _ = finished.send(starting.start().await);
+    });
+    status_becomes(&hanging, ConnectionStatus::Connecting).await?;
+    hanging.disconnect();
+    let timer = std::pin::pin!(sleep(5_000));
+    let canceled = match futures::future::select(outcome, timer).await {
+        Either::Left((Ok(result), _)) => result,
+        Either::Left((Err(_), _)) => return Err("the start task ended without a result".into()),
+        Either::Right(_) => return Err("disconnect did not cancel the start".into()),
+    };
+    match canceled {
+        Err(error) if error.close_reason() == Some(CloseReason::Local) => {}
+        other => return Err(format!("the canceled start returned {other:?}")),
+    }
+    ensure!(
+        hanging.status() == ConnectionStatus::Closed,
+        "a canceled start left {:?}",
+        hanging.status()
+    );
+    Ok(())
+}
+
+/// Builds a client for `hub` on the test service that is not started yet, with extra settings.
+fn unstarted_with(
+    hub: &str,
+    messagepack: bool,
+    configure: impl FnOnce(&mut ConnectionConfiguration),
+) -> Result<SignalRClient, String> {
+    let endpoint = super::service().map_err(|error| format!("{error:?}"))?;
+    SignalRClient::new(&endpoint.host, hub, |configuration| {
+        endpoint.apply(configuration);
+        if messagepack {
+            configuration.with_messagepack_protocol();
+        }
+        configure(configuration);
+    })
+    .map_err(|error| format!("the client for {hub} was rejected: {error}"))
+}
+
+async fn events_reach(
+    events: &Rc<RefCell<Vec<String>>>,
+    count: usize,
+) -> Result<Vec<String>, String> {
+    eventually("the lifecycle events", 20_000.0, || {
+        let events = events.clone();
+        async move {
+            let events = events.borrow();
+            (events.len() >= count).then(|| events.clone())
+        }
+    })
+    .await
+}
+
+async fn lifecycle_events(messagepack: bool) -> Outcome {
+    let mut client = unstarted_with("test", messagepack, |configuration| {
+        configuration.with_reconnection_policy(fast_reconnect());
+    })?;
+    let events = Rc::new(RefCell::new(Vec::<String>::new()));
+    let recorded = events.clone();
+    let reconnecting = client.on_reconnecting(move |error| {
+        recorded
+            .borrow_mut()
+            .push(format!("reconnecting {:?}", error.kind()));
+    });
+    let recorded = events.clone();
+    let reconnected = client.on_reconnected(move |id| {
+        recorded
+            .borrow_mut()
+            .push(format!("reconnected {}", id.unwrap_or("-")));
+    });
+    let recorded = events.clone();
+    let closed = client.on_closed(move |error| {
+        recorded.borrow_mut().push(match error {
+            Some(error) => format!("closed {:?} {:?}", error.kind(), error.close_reason()),
+            None => "closed".to_string(),
+        });
+    });
+    client
+        .start()
+        .await
+        .map_err(|error| format!("start failed: {error}"))?;
+    let first = identity(&mut client)
+        .await
+        .map_err(|error| format!("ConnectionIdentity failed: {error}"))?;
+
+    // A dropped transport: pending ordinary work fails, then Reconnecting and Reconnected.
+    let pending = spawn({
+        let mut clone = client.clone();
+        async move {
+            clone
+                .invoke_with_args::<String, _>(
+                    "DelayedConnectionIdentity".to_string(),
+                    |arguments| {
+                        arguments.argument(10_000);
+                    },
+                )
+                .await
+        }
+    });
+    client
+        .send("AbortPhysicalTransport".to_string())
+        .await
+        .map_err(|error| format!("AbortPhysicalTransport failed: {error}"))?;
+    match pending.await {
+        Ok(Err(error)) if error.kind() == ErrorKind::Transport => {}
+        other => return Err(format!("the pending invocation returned {other:?}")),
+    }
+    events_reach(&events, 2).await?;
+    let second = identity(&mut client)
+        .await
+        .map_err(|error| format!("ConnectionIdentity after the reconnect failed: {error}"))?;
+    ensure!(second != first, "the reconnect kept the connection {first}");
+    let so_far = events.borrow().clone();
+    ensure!(
+        so_far
+            == [
+                "reconnecting Transport".to_string(),
+                format!("reconnected {second}")
+            ],
+        "unexpected events after the drop: {so_far:?}"
+    );
+
+    // A server close without reconnect permission ends the connection.
+    client
+        .invoke_with_args::<(), _>("ScheduleServerClose".to_string(), |arguments| {
+            arguments.argument(false).argument(0);
+        })
+        .await
+        .map_err(|error| format!("ScheduleServerClose failed: {error}"))?;
+    let ended = events_reach(&events, 3).await?;
+    ensure!(
+        ended.get(2).map(String::as_str) == Some("closed ConnectionClosed Some(Server)"),
+        "unexpected events after the server close: {ended:?}"
+    );
+
+    // Hooks stay across a restart; `disconnect` raises Closed without an error.
+    client
+        .start()
+        .await
+        .map_err(|error| format!("the restart failed: {error}"))?;
+    client.disconnect();
+    let stopped = events_reach(&events, 4).await?;
+    ensure!(
+        stopped.get(3).map(String::as_str) == Some("closed"),
+        "unexpected events after disconnect: {stopped:?}"
+    );
+    sleep(200).await;
+    let count = events.borrow().len();
+    ensure!(count == 4, "{count} events were raised");
+    reconnecting.unregister();
+    reconnected.unregister();
+    closed.unregister();
+    Ok(())
+}
+
+/// Aborts the transport and waits until an automatic reconnect (or stateful resume) completed.
+async fn drop_transport(client: &mut SignalRClient) -> Outcome {
+    let reconnects = Rc::new(Cell::new(0));
+    let counted = reconnects.clone();
+    let hook = client.on_reconnected(move |_| counted.set(counted.get() + 1));
+    client
+        .send("AbortPhysicalTransport".to_string())
+        .await
+        .map_err(|error| format!("AbortPhysicalTransport failed: {error}"))?;
+    eventually("the reconnect", 20_000.0, || {
+        let done = reconnects.get() == 1;
+        async move { done.then_some(()) }
+    })
+    .await?;
+    hook.unregister();
+    Ok(())
+}
+
+async fn connection_id(messagepack: bool) -> Outcome {
+    // Ordinary reconnects negotiate a new connection id.
+    let mut client = unstarted_with("test", messagepack, |configuration| {
+        configuration.with_reconnection_policy(fast_reconnect());
+    })?;
+    ensure!(client.connection_id().is_none(), "an id before start");
+    client
+        .start()
+        .await
+        .map_err(|error| format!("start failed: {error}"))?;
+    let first = client
+        .connection_id()
+        .ok_or("no id after a negotiated start")?;
+    let hub = identity(&mut client)
+        .await
+        .map_err(|error| format!("ConnectionIdentity failed: {error}"))?;
+    ensure!(hub == first, "the client reports {first}, the hub {hub}");
+    drop_transport(&mut client).await?;
+    let second = client.connection_id().ok_or("no id after the reconnect")?;
+    ensure!(second != first, "an ordinary reconnect kept the id {first}");
+    let hub = identity(&mut client)
+        .await
+        .map_err(|error| format!("ConnectionIdentity failed: {error}"))?;
+    ensure!(hub == second, "the client reports {second}, the hub {hub}");
+    client.disconnect();
+    ensure!(client.connection_id().is_none(), "an id after disconnect");
+
+    // A stateful resume keeps the logical connection and its id.
+    let mut stateful = unstarted_with("test-stateful", messagepack, |configuration| {
+        configuration.with_reconnection_policy(fast_reconnect());
+        configuration.with_stateful_reconnect(rayx_signalr::StatefulReconnectConfig::default());
+    })?;
+    stateful
+        .start()
+        .await
+        .map_err(|error| format!("the stateful start failed: {error}"))?;
+    let resumable = stateful
+        .connection_id()
+        .ok_or("no id after a stateful start")?;
+    drop_transport(&mut stateful).await?;
+    let resumed = stateful.connection_id();
+    ensure!(
+        resumed.as_deref() == Some(resumable.as_str()),
+        "the stateful resume changed the id from {resumable} to {resumed:?}"
+    );
+    stateful.disconnect();
+
+    // Without negotiation there is no connection id.
+    let direct = unstarted_with("test-direct", messagepack, |configuration| {
+        configuration.skip_negotiation();
+    })?;
+    direct
+        .start()
+        .await
+        .map_err(|error| format!("the direct start failed: {error}"))?;
+    ensure!(
+        direct.connection_id().is_none(),
+        "a direct connection reports an id"
+    );
+    direct.disconnect();
+    Ok(())
+}
+
+/// How the hub's `OnDisconnectedAsync` saw `connection_id` end (empty when graceful).
+async fn disconnect_error(observer: &SignalRClient, connection_id: &str) -> Result<String, String> {
+    eventually("the hub's OnDisconnectedAsync", 10_000.0, || {
+        let mut observer = observer.clone();
+        let connection_id = connection_id.to_string();
+        async move {
+            observer
+                .invoke_with_args::<Option<String>, _>("DisconnectError".to_string(), |arguments| {
+                    arguments.argument(connection_id.clone());
+                })
+                .await
+                .ok()
+                .flatten()
+        }
+    })
+    .await
+}
+
+/// The SignalR Close messages clients sent, as the hub counted them.
+async fn close_messages(observer: &SignalRClient) -> Result<i32, String> {
+    observer
+        .clone()
+        .invoke::<i32>("ClientCloseMessages".to_string())
+        .await
+        .map_err(|error| format!("ClientCloseMessages failed: {error}"))
+}
+
+async fn close_messages_reach(observer: &SignalRClient, count: i32) -> Outcome {
+    eventually("the client's Close message", 10_000.0, || async move {
+        close_messages(observer)
+            .await
+            .ok()
+            .filter(|counted| *counted >= count)
+            .map(|_| ())
+    })
+    .await
+}
+
+async fn graceful_stop(messagepack: bool) -> Outcome {
+    let observer = connect("test", messagepack, |_| {}).await?;
+
+    let mut client = unstarted_with("test", messagepack, |configuration| {
+        configuration.with_close_timeout(Duration::from_secs(5));
+    })?;
+    let before = close_messages(&observer).await?;
+    client
+        .start()
+        .await
+        .map_err(|error| format!("start failed: {error}"))?;
+    let stopped = identity(&mut client)
+        .await
+        .map_err(|error| format!("ConnectionIdentity failed: {error}"))?;
+    let started = js_sys::Date::now();
+    client.stop().await;
+    let waited = js_sys::Date::now() - started;
+    ensure!(
+        waited.total_cmp(&5_000.0).is_lt(),
+        "stop waited {waited} ms"
+    );
+    ensure!(
+        client.status() == ConnectionStatus::Closed,
+        "a stopped client reports {:?}",
+        client.status()
+    );
+    let error = disconnect_error(&observer, &stopped).await?;
+    ensure!(error.is_empty(), "the hub saw an error after stop: {error}");
+    close_messages_reach(&observer, before + 1).await?;
+
+    // `disconnect` stops gracefully too; a stopped client stops at once.
+    client
+        .start()
+        .await
+        .map_err(|error| format!("the restart failed: {error}"))?;
+    let disconnected = identity(&mut client)
+        .await
+        .map_err(|error| format!("ConnectionIdentity failed: {error}"))?;
+    client.disconnect();
+    client.stop().await;
+    let error = disconnect_error(&observer, &disconnected).await?;
+    ensure!(
+        error.is_empty(),
+        "the hub saw an error after disconnect: {error}"
+    );
+    close_messages_reach(&observer, before + 2).await?;
+    observer.disconnect();
+    Ok(())
+}
+
+fn reconnecting_client(messagepack: bool, attempts: u32) -> Result<SignalRClient, String> {
+    unstarted_with("test", messagepack, |configuration| {
+        configuration.with_reconnection_policy(ReconnectionConfig {
+            policy: Arc::new(ConstantDelayPolicy::new(Duration::ZERO, Some(attempts))),
+        });
+    })
+}
+
+/// Holds the next negotiation of `/test` and drops the transport; returns once the client is
+/// reconnecting and its attempt is in flight.
+async fn drop_with_held_negotiation(client: &mut SignalRClient, reject: bool) -> Outcome {
+    client
+        .invoke_with_args::<(), _>("DelayNextNegotiation".to_string(), |arguments| {
+            arguments.argument("/test").argument(3_000);
+        })
+        .await
+        .map_err(|error| format!("DelayNextNegotiation failed: {error}"))?;
+    if reject {
+        client
+            .invoke_with_args::<(), _>("RejectNegotiation".to_string(), |arguments| {
+                arguments.argument("/test").argument(10_000);
+            })
+            .await
+            .map_err(|error| format!("RejectNegotiation failed: {error}"))?;
+    }
+    client
+        .send("AbortPhysicalTransport".to_string())
+        .await
+        .map_err(|error| format!("AbortPhysicalTransport failed: {error}"))?;
+    status_becomes(client, ConnectionStatus::Reconnecting).await?;
+    // The attempt starts at once (no policy delay) and waits for its negotiation.
+    sleep(300).await;
+    Ok(())
+}
+
+async fn reconnect_call_wait(messagepack: bool) -> Outcome {
+    // The call waits for the attempt and runs on the new connection.
+    let mut waiting = reconnecting_client(messagepack, 10)?;
+    waiting
+        .start()
+        .await
+        .map_err(|error| format!("start failed: {error}"))?;
+    let first = identity(&mut waiting)
+        .await
+        .map_err(|error| format!("ConnectionIdentity failed: {error}"))?;
+    drop_with_held_negotiation(&mut waiting, false).await?;
+    let started = js_sys::Date::now();
+    let second = identity(&mut waiting)
+        .await
+        .map_err(|error| format!("the call during the attempt failed: {error}"))?;
+    let waited = js_sys::Date::now() - started;
+    ensure!(
+        waited.total_cmp(&500.0).is_gt(),
+        "the call did not wait for the attempt ({waited} ms)"
+    );
+    ensure!(
+        second != first,
+        "the call did not run on the new connection"
+    );
+    ensure!(
+        waiting.status() == ConnectionStatus::Connected,
+        "the client reports {:?}",
+        waiting.status()
+    );
+    waiting.disconnect();
+
+    // The call fails with the attempt's error.
+    let mut failing = reconnecting_client(messagepack, 1)?;
+    failing
+        .start()
+        .await
+        .map_err(|error| format!("start failed: {error}"))?;
+    drop_with_held_negotiation(&mut failing, true).await?;
+    match identity(&mut failing).await {
+        Err(error) if error.kind() == ErrorKind::Negotiate && error.status() == Some(503) => {}
+        other => {
+            return Err(format!(
+                "the call during a failed attempt returned {other:?}"
+            ))
+        }
+    }
+    failing.disconnect();
     Ok(())
 }

@@ -14,13 +14,17 @@ mod callbacks;
 mod client_result_errors;
 mod concurrency_and_clones;
 mod connect_negotiate;
+mod connected_callback;
+mod connection_id;
 mod disconnect_every_handle;
 mod error_kinds;
 mod executor_independence;
+mod graceful_stop;
 mod handshake_timeout;
 mod invoke;
 mod keepalive_idle;
 mod large_payload;
+mod lifecycle_events;
 // Its values have no JSON equivalent: MessagePack only.
 #[cfg(feature = "messagepack")]
 mod msgpack_fidelity;
@@ -28,7 +32,9 @@ mod negotiate_redirect;
 mod ordinary_reconnect;
 mod pause_resume;
 mod pause_resume_stateful;
+mod reconnect_call_wait;
 mod reconnect_exhaustion;
+mod restart_after_stop;
 mod send;
 mod server_close;
 mod server_stream;

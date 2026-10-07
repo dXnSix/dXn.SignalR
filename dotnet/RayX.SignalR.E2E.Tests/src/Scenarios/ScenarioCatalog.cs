@@ -111,7 +111,13 @@ public static class ScenarioCatalog
     Everywhere("disconnect-every-handle"),
     Everywhere("msgpack-fidelity") with { Protocols = ["messagepack"] },
     Everywhere("callback-dispatch"),
-    Everywhere("client-result-errors")
+    Everywhere("client-result-errors"),
+    Everywhere("connected-callback"),
+    Everywhere("restart-after-stop"),
+    Everywhere("lifecycle-events"),
+    Everywhere("connection-id"),
+    Everywhere("graceful-stop"),
+    Everywhere("reconnect-call-wait")
   ];
 
   /// <summary>Looks up a target by name.</summary>

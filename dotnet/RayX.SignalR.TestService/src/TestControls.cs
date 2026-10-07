@@ -16,6 +16,9 @@ namespace RayX.SignalR.TestService
         static readonly ConcurrentDictionary<string, DateTimeOffset> _rejections = new(StringComparer.OrdinalIgnoreCase);
         static readonly ConcurrentDictionary<string, ConcurrentQueue<string>> _recordedSends = new();
         static readonly ConcurrentDictionary<string, int> _disconnects = new();
+        static readonly ConcurrentDictionary<string, string> _disconnectErrors = new();
+        static readonly ConcurrentDictionary<string, TimeSpan> _negotiationDelays = new(StringComparer.OrdinalIgnoreCase);
+        static int _clientCloses;
         static readonly ConcurrentDictionary<string, int> _clientResults = new();
         static readonly ConcurrentDictionary<string, string> _clientResultErrors = new();
         static readonly ConcurrentDictionary<string, HubConnectionContext> _connections = new();
@@ -28,6 +31,9 @@ namespace RayX.SignalR.TestService
             _rejections.Clear();
             _recordedSends.Clear();
             _disconnects.Clear();
+            _disconnectErrors.Clear();
+            _negotiationDelays.Clear();
+            Interlocked.Exchange(ref _clientCloses, 0);
             _clientResults.Clear();
             _authenticatedTokens.Clear();
         }
@@ -44,6 +50,19 @@ namespace RayX.SignalR.TestService
             _negotiateCounts.TryRemove(hubPath, out _);
             _rejections[hubPath] = DateTimeOffset.UtcNow + duration;
         }
+
+        /// <summary>Holds the next negotiate request of <paramref name="hubPath"/> for <paramref name="delay"/>.</summary>
+        public static void DelayNextNegotiation(string hubPath, TimeSpan delay) => _negotiationDelays[hubPath] = delay;
+
+        /// <summary>Returns and clears the pending negotiate delay of <paramref name="hubPath"/>.</summary>
+        public static TimeSpan? TakeNegotiationDelay(string hubPath) =>
+            _negotiationDelays.TryRemove(hubPath, out var delay) ? delay : null;
+
+        /// <summary>Counts a SignalR Close message a client sent.</summary>
+        public static void CountClientClose() => Interlocked.Increment(ref _clientCloses);
+
+        /// <summary>How many SignalR Close messages clients sent since the last reset.</summary>
+        public static int ClientCloseMessages() => Volatile.Read(ref _clientCloses);
 
         public static bool IsRejected(string hubPath) =>
             _rejections.TryGetValue(hubPath, out var until) && DateTimeOffset.UtcNow < until;
@@ -65,6 +84,14 @@ namespace RayX.SignalR.TestService
 
         public static int DisconnectCount(string connectionId) =>
             _disconnects.TryGetValue(connectionId, out var count) ? count : 0;
+
+        /// <summary>Records the exception the hub's <c>OnDisconnectedAsync</c> received (empty for none).</summary>
+        public static void RecordDisconnectError(string connectionId, Exception? exception) =>
+            _disconnectErrors[connectionId] = exception?.Message ?? string.Empty;
+
+        /// <summary>The <c>OnDisconnectedAsync</c> exception text of a connection: empty when it ended gracefully, null while connected.</summary>
+        public static string? DisconnectError(string connectionId) =>
+            _disconnectErrors.TryGetValue(connectionId, out var message) ? message : null;
 
         public static void RecordClientResult(string connectionId, int value) => _clientResults[connectionId] = value;
 

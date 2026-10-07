@@ -150,6 +150,21 @@ where
     .unwrap_or_else(|error| panic!("connect to {hub} failed: {error}"))
 }
 
+/// Builds a client for `hub` on the test service that is not started yet.
+pub fn unstarted<F>(hub: &str, protocol: Protocol, configure: F) -> SignalRClient
+where
+    F: FnOnce(&mut ConnectionConfiguration),
+{
+    let _ = env_logger::builder().is_test(true).try_init();
+    let endpoint = service();
+    SignalRClient::new(&endpoint.host, hub, |configuration| {
+        endpoint.apply(configuration);
+        apply_protocol(configuration, protocol);
+        configure(configuration);
+    })
+    .unwrap_or_else(|error| panic!("the client for {hub} was rejected: {error}"))
+}
+
 /// Runs a scenario under the scenario bound. A watchdog on a plain OS thread reports a scenario
 /// that outlives the bound, which can only happen when the runtime thread itself is blocked (the
 /// bound is a Tokio timer), and ends the process so the cell fails with that diagnosis.
