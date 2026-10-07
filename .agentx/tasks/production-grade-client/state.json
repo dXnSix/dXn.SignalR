@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 161,
+  "revision": 167,
   "planRevision": 24,
   "specHashes": {
     "requirements": "cfaf45e2157367e6772613c40313c112747d3a01a82bc2c5d6f8c781c391c44d",
@@ -304,7 +304,10 @@
       ]
     },
     "P5.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "P6.T1": {
       "status": "pending"
@@ -463,6 +466,15 @@
         }
       },
       "recordedAt": "2026-10-07T22:01:33Z"
+    },
+    "6db0a8b8cbc01d2a164c1db4627fbf2282fb0757dd3195afbc78e13276f59613": {
+      "snapshot": {
+        "specHash": "8d539c717aa3e9b21290a0eee8595299ee31d0cdbe2e77ded1dabe4cde4ee515",
+        "repositories": {
+          "rayx-signalr": "35b4db89a4c4742fc6551f7c18b1e1b033ea80bef8a35534072b8f4e04477f2f"
+        }
+      },
+      "recordedAt": "2026-10-07T22:44:00Z"
     }
   },
   "checkResults": {
@@ -2216,6 +2228,57 @@
       "logPath": "artifacts-temp/agentx/production-grade-client/S8-final-3ba20c1f5677.log",
       "logSha256": "d590f04d5cbf0269632feb9363d07c7adc5628aea050e149139f93a917c11181",
       "inputsHash": "d82652972efb0bbe46ea32f32246c07c479780363aa181e6be85bdd3ad7850b9"
+    },
+    "P5/p5-client-streams/final": {
+      "checkId": "p5-client-streams",
+      "boundaryId": "P5",
+      "phase": "final",
+      "batchId": "6db0a8b8cbc01d2a164c1db4627fbf2282fb0757dd3195afbc78e13276f59613",
+      "definitionHash": "365858dae67da56aa60fb49f1e6992bd3b7b2c7253a04aafe010e105e3a61a4b",
+      "basisHash": "deb5bf9e7d26a12128129b1cfd2da24cdebb8620d130cafbe63ca32ce9b582eb",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 12,
+      "durationSeconds": 0.3381,
+      "recordedAt": "2026-10-07T22:42:55Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P5-final-28d24146c5f0.log",
+      "logSha256": "a533183765f110aa8bc808524289f1d3a02fbd26e52de18274b2d1cb94c176ed",
+      "inputsHash": "1c12a7ab473dd3eef8be8374fc902f1eea8753213353fbff2fc427a260ee0de6"
+    },
+    "P5/p5-client-streams-e2e/final": {
+      "checkId": "p5-client-streams-e2e",
+      "boundaryId": "P5",
+      "phase": "final",
+      "batchId": "6db0a8b8cbc01d2a164c1db4627fbf2282fb0757dd3195afbc78e13276f59613",
+      "definitionHash": "a4798bc80194bfade462b41a7eb67c395fef69066e2459165f0eaf86f0f6ae49",
+      "basisHash": "879202dd68f461fa59a86840c04fa9078a5eb946d1448022b08f558bf8a97ead",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 8,
+      "durationSeconds": 39.3727,
+      "recordedAt": "2026-10-07T22:43:34Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P5-final-ad79a9b93444.log",
+      "logSha256": "cd4721eb4aaa8e45d8890372448c185dece8226af38b865bf98baddb5600b6c4",
+      "inputsHash": "7c865fdaabc61b60d8528a26d5021a2301f701b0dac2bbadc996c2213402ec7b"
+    },
+    "P5/p5-client-streams-android/final": {
+      "checkId": "p5-client-streams-android",
+      "boundaryId": "P5",
+      "phase": "final",
+      "batchId": "6db0a8b8cbc01d2a164c1db4627fbf2282fb0757dd3195afbc78e13276f59613",
+      "definitionHash": "a705d153b3d76359f180e2c78b618afe645bfde8a91f09e1ba2861189ad6ef21",
+      "basisHash": "8b5d9cefbca121217cd78a6644cf27f97c589681ee03c5eeadc052cfa47fd4fc",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 25.4214,
+      "recordedAt": "2026-10-07T22:44:00Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P5-final-87c4a93821fd.log",
+      "logSha256": "e2040ba4a3419ddc8622fa7c7743d869c6d5e9a03672e6aab051439a104a1962",
+      "inputsHash": "7c865fdaabc61b60d8528a26d5021a2301f701b0dac2bbadc996c2213402ec7b"
     }
   },
   "reviews": {
@@ -5626,6 +5689,186 @@
         "S8-F7-browser-basic-limitation-docs-stale"
       ],
       "recordedAt": "2026-10-07T22:01:55Z"
+    },
+    "P5": {
+      "reviewerId": "p5-independent-auditor-efe9c365",
+      "snapshotId": "6db0a8b8cbc01d2a164c1db4627fbf2282fb0757dd3195afbc78e13276f59613",
+      "criterionIds": [
+        "R16.C24"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/upload.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C24"
+          ],
+          "sha256": "9208cfa2920cf364e52811ae49843a5739cda90a244baf073fafbe81a841bfae"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/arguments.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C24"
+          ],
+          "sha256": "6776eaa2af3d08fa1d10d11af1288b9d4ec37ad9d444eef339a6730782f19f13"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C24"
+          ],
+          "sha256": "0a756c5387058f08b8daa6044d3220c46097400522ae50387c7aab99b9ba9b19"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/storage_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C24"
+          ],
+          "sha256": "0869155e790d37a5b1eec68928880af15f9da035536a2fb26f1c3c781ddf256f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/storage_wasm.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C24"
+          ],
+          "sha256": "17aa32b964b84fcd83ee8b7600e1c652da0675e0fb91961f5e21929b3fe57869"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C24"
+          ],
+          "sha256": "e3cdaeac97ec069d67868abb12c151471a97df803eb6123ccfb982273c550bc2"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/codec.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C24"
+          ],
+          "sha256": "4c89793ecea4c24c14f7d2f6a2d5367e3a824199b1ac806997be95aafaac4109"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/invoke.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C24"
+          ],
+          "sha256": "c5d0343d26b399ce63e02b41134a5b48a6a3b8652a7d18c05d90db0a973542c9"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/msgpack.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C24"
+          ],
+          "sha256": "f9fb53039ee43db6aec14451c7ae712b4e9e787a506253ee0b5f4b6e4a26aefd"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C24"
+          ],
+          "sha256": "c7401a0d6bc3a6801550cbc9cc40f3a25da3f0c95eec70d1a9dc317cebdde5c3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C24"
+          ],
+          "sha256": "7045586b363e9cb37a65cc051a1815b1b3dad0fb10c7febd4f569e97c66e1ade"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/TestHub.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C24"
+          ],
+          "sha256": "ef0632e4f338b9eff51da23deb5cc263fcc5b714b16a5db6f244e28a71b66b66"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/CellRunners.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C24"
+          ],
+          "sha256": "8e352cebbba05c1c0dd62d85e844b426fe3d690eb98607bbdf5592bc98246cb8"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/upload.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C24"
+          ],
+          "sha256": "9208cfa2920cf364e52811ae49843a5739cda90a244baf073fafbe81a841bfae"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C24"
+          ],
+          "sha256": "c7401a0d6bc3a6801550cbc9cc40f3a25da3f0c95eec70d1a9dc317cebdde5c3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/client_to_server_stream.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C24"
+          ],
+          "sha256": "e82dc4e19b5e70ec096a386332ce3806775330d63bc9ee8a0004ac0a306a014c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C24"
+          ],
+          "sha256": "cc5d846a446432d14f679bd0fe2469650eb3b3704132d843fb98af46cc23778f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/ScenarioCatalog.cs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C24"
+          ],
+          "sha256": "6acd719a5cd07805614052f548d04b72e766944fe9b52062769017e0e4a2ed0f"
+        }
+      ],
+      "summaryMarkdown": "All four P5 findings are repaired and verified in source and tests. Upload streams match the .NET client on the wire (JSON/MessagePack StreamItem, void and error Completion, `streamIds`, stream ids before the invocation id), pump in order through the connection's writer with exactly one Completion and the .NET texts, stay on the logical connection the invocation was accepted on, survive native stateful pause/resume and stateful resumes, and are aborted on close, ordinary drop/pause and new logical connections. The `client_streams_` group (12 tests) and the `client-to-server-stream` scenario on every target cover the behavior; the official checks must pass on this snapshot.",
+      "findingIds": [
+        "P5-F1-stale-logical-connection-read",
+        "P5-F2-stateful-pause-kills-pumps",
+        "P5-F3-orphaned-or-unstarted-pumps",
+        "P5-F4-enumerate-cancellation-untested"
+      ],
+      "recordedAt": "2026-10-07T22:45:19Z"
     }
   },
   "checkpoints": {
@@ -5724,6 +5967,14 @@
       },
       "reviewHash": "e7a814c4cc8fa530dba9887e1d004a6d9a8fc10bdb3063a0d78d23af87b8b118",
       "recordedAt": "2026-10-07T22:02:21Z"
+    },
+    "P5": {
+      "snapshotId": "6db0a8b8cbc01d2a164c1db4627fbf2282fb0757dd3195afbc78e13276f59613",
+      "commits": {
+        "rayx-signalr": "dac3565fb57eca3f0acc6ef0b660e261dc27fbc4"
+      },
+      "reviewHash": "19bccc00634427b4e8742a9b7f0006e962bd028d8ed6cfc50ab0631821a4f0a9",
+      "recordedAt": "2026-10-07T22:45:32Z"
     }
   },
   "findings": [
@@ -7775,9 +8026,109 @@
           "path": ".claude/skills/rayx-signalr/references/troubleshooting.md"
         }
       ]
+    },
+    {
+      "id": "P5-F1-stale-logical-connection-read",
+      "boundaryId": "P5",
+      "criterionIds": [
+        "R16.C24"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**Race: the pumps could be bound to a different logical connection than the one the invocation went out on** (the logical connection was read before `send_invocation`, which may wait for an in-flight attempt and send on its new connection), so a call made during a start/reconnect attempt hung forever. **Verified repair:** `ConnectionWriter::send_current` returns `sending_on` (read after the writer fetch that waited for the attempt); `CommunicationClient::send_tracked` on both targets (browser `send_on` reads the counter right after the attempt wait and state check); `SignalRClient::send_invocation` returns it and `invoke`/`send`/`enumerate` pass it to `start_uploads` with no pre-send read. Covered by `client_streams_a_send_reports_the_logical_connection_it_was_accepted_on`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "client_streams_a_send_reports_the_logical_connection_it_was_accepted_on"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "SignalRClient::send_invocation"
+        }
+      ]
+    },
+    {
+      "id": "P5-F2-stateful-pause-kills-pumps",
+      "boundaryId": "P5",
+      "criterionIds": [
+        "R16.C24"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**A stateful pause/resume or lifecycle-driven stateful resume silently killed the pumps while their invocation stayed pending.** **Verified repair:** `upload::Sender::send` retries a failed send while `CallbackRegistry::is_current(L)` holds, waiting on `next_transport(seen)` (with `seen` read before the send, so an install racing the failure is not missed); `transport_installed()` is signalled at both native install sites (fresh/attempt including stateful resume attempts, and transparent resume) and in browser `install`. Native `try_send` fails before tracking in the replay buffer, so a retry cannot duplicate an item. Browsers end stateful connections on pause (pending work fails and `fail_pending` aborts the pumps), which docs/03, the `stream` rustdoc and the skill now state. Covered by `client_streams_a_paused_connection_holds_the_stream_until_its_next_transport` and the scenario's stateful pause/resume step (native/Android: sum 55 after resume; browsers: the call ends and a new upload works).",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/upload.rs",
+          "symbol": "client_streams_a_paused_connection_holds_the_stream_until_its_next_transport"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/client_to_server_stream.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs"
+        }
+      ]
+    },
+    {
+      "id": "P5-F3-orphaned-or-unstarted-pumps",
+      "boundaryId": "P5",
+      "criterionIds": [
+        "R16.C24"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Pumps could be skipped (no lazily installed reply sink) or left running (registered after the connection ended; not aborted on an ordinary pause).** **Verified repair:** pumps send through `CommunicationClient::upload_sink()`, built from the client's own state on both targets (`CallbackRegistry::replies()` removed); `track_upload(abort, L)` aborts at once under the uploads lock when the client is closed or `L` is not current; both `fail_pending` implementations call `abort_uploads()` (ordinary drop, ordinary pause, local close, which also runs after `close()` sets `closed`, closing the abort-then-flag window). Lock order is uploads -> channel only; no lock is held across an await. Covered by `client_streams_of_an_ended_connection_never_start`, `client_streams_failed_pending_work_aborts_the_pumps`, `client_streams_nothing_is_sent_once_the_logical_connection_ended`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/upload.rs",
+          "symbol": "client_streams_of_an_ended_connection_never_start"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/upload.rs",
+          "symbol": "client_streams_failed_pending_work_aborts_the_pumps"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs",
+          "symbol": "CallbackRegistry::track_upload"
+        }
+      ]
+    },
+    {
+      "id": "P5-F4-enumerate-cancellation-untested",
+      "boundaryId": "P5",
+      "criterionIds": [
+        "R16.C24"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Enumerate-drop cancellation and the real id order were untested.** **Verified repair:** the id-order test uses `UpdatableActionStorage::create_key` (stream \"1\", invocation \"2\"); the scenario drops an `enumerate_with_args` stream over an endless upload on a fresh connection, with hub `ObserveUpload(ChannelReader<int>)` reading the upload apart from the call, and asserts `error:Stream canceled by client.` on native and in the fixture. The exposed ordering race is fixed: the enumerate drop handler awaits `UploadCancellation::cancel_and_wait()` (pumps signal their end, also when aborted or never spawned) before sending CancelInvocation.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/upload.rs",
+          "symbol": "client_streams_invocations_list_stream_ids_instead_of_arguments"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/client_to_server_stream.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/TestHub.cs",
+          "symbol": "TestHub.ObserveUpload"
+        }
+      ]
     }
   ],
-  "handoffMarkdown": "transport-fallback scenario (catalog Everywhere; native tests/e2e/transport_fallback.rs, fixture transport_fallback, signalr-functional.spec.ts): /test-longpolling -> LongPolling; /test-no-websockets -> ServerSentEvents for JSON, LongPolling for MessagePack (TransportDetails gained Transport from IHttpTransportFeature); WebSockets-only client against /test-longpolling fails TransportUnavailable with attempts [LongPolling] and a message naming it. negotiation::transports_failed now names every attempt with its reason in the message (.NET AggregateException style), test transport_selection_unavailable_errors_name_every_transport. RepositoryTests now require the Long Polling and Server-Sent Events sections in docs/02 instead of a Long Polling limitation. Diagnostics: transport-fallback 10/10 on native, Chromium, Firefox, WebKit, Android; contract categories 36/36.",
+  "handoffMarkdown": "Upload streams (R16.C24, D21). ArgumentConfiguration::stream(impl Stream<Item=T>) (T: Serialize, MaybeSend) stores an execution::Upload; build_invocation returns (Invocation, Vec<Upload>). Argument closures of invoke_with_args/send_with_args/enumerate_with_args are now FnOnce (a compatible relaxation, so streams move in). Uploads::assign gives stream ids from the connection counter before the invocation id (.NET PackageStreamingParams), Invocation::with_streams lists them in streamIds. After the invocation is sent, Uploads::start spawns one pump per stream (connection runtime natively, spawn_local in browsers) that sends StreamItems through CallbackRegistry::replies() (the ReplySink, so only on the logical connection read before the send) and ends with Completion: void (JSON {\"type\":3,\"invocationId\":id}, MessagePack [3,{},id,2] via msgpack::encode_completion_void), \"Stream errored by client: '<error>'\" for an unencodable item, \"Stream canceled by client.\" on cancellation; a failed send stops silently. Cancellation: invoke wraps it in CancelOnDrop (disarmed once the result arrived); enumerate stores the UploadCancellation for its drop handler; send never cancels. CallbackRegistry tracks pump AbortHandles and aborts them in close() and new_logical_connection(). New OutboundMessage::stream_item/stream_completion, protocol::invoke::StreamItem and Completion::create_void, msgpack::encode_stream_item. Test service: SumStream, SumChannel (ChannelReader), SumWithOffset, DoubleStream, ObserveStream + StreamOutcome. Scenario client-to-server-stream (catalog Everywhere; native, fixture, functional spec). Browser cell runner now greps /\\.spec\\.ts <title>$/ so \"server stream\" no longer also selects \"client to server stream\". Unit group client_streams_ (8). Diagnostics: client-to-server-stream 10/10 on native, Chromium, Firefox, WebKit, Android; full lib unit suite 427 pass; call-path regression cells pass; contracts 36/36. Docs 03/12/13 and skill calls-and-streams/troubleshooting.",
   "protectedPaths": {
     "rayx-signalr": {
       ".agentx/tasks/resilient-reconnect-and-production-gates/**": "a4110a3f5f2c68d64ddf8fbedb70479c98f46dde78b064b5b3ac826772db49a6",
