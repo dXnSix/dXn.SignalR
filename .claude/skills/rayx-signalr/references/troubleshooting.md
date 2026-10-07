@@ -65,5 +65,6 @@ rejected Acks, Sequences or messages with the reason. Every record starts with `
 - Fixed Bearer tokens (no token factory); no per-call timeout; no status-change events.
 - Browser Basic auth cannot authenticate the WebSocket; browser `pause()` ends stateful connections.
 - Background apps/tabs fire liveness timers late; use `pause()`/`resume()`.
-- Not proven by tests: the Android platform verifier inside a real app, physical devices, `aws-lc-rs`
-  end to end, and one unreproduced stall after a third stateful resume on the Android emulator.
+- Not proven by tests: the Android platform verifier inside a real app, physical devices, and
+  `aws-lc-rs` end to end. A stall seen once after a third stateful resume on the Android emulator is
+  retired: `stateful-resume-stress` (500 aborts per cell) and `soak-chaos` do not reproduce it.

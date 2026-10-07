@@ -87,6 +87,7 @@ RAYX_SIGNALR_E2E_TARGETS=native RAYX_SIGNALR_E2E_PROTOCOLS=json RAYX_SIGNALR_E2E
 | `RAYX_SIGNALR_E2E_SCENARIOS` | scenario names, or `all` | `all` |
 | `RAYX_SIGNALR_E2E_ANDROID_SERIAL` | an `adb` device serial | the single running emulator |
 | `RAYX_SIGNALR_E2E_IOS_DEVICE` | a simulator name or UDID | the newest iPhone |
+| `RAYX_SIGNALR_SOAK_SECONDS` | how long `soak-chaos` runs, in seconds (forwarded to every target) | `120` |
 
 Lists are comma-separated. A selection that matches no cataloged cell fails.
 
@@ -100,13 +101,33 @@ scenarios:
   `callbacks`, `concurrency-and-clones`, `large-payload`, `server-close`,
   `reconnect-exhaustion`, `tls`, `negotiate-redirect`, `skip-negotiation`, `ordinary-reconnect`,
   `stateful-reconnect`, `stream-cancellation`, `keepalive-idle`, `server-timeout`,
-  `handshake-timeout`, `pause-resume`, `pause-resume-stateful`, `unsent-stream`, `error-kinds`, `disconnect-every-handle`;
+  `handshake-timeout`, `pause-resume`, `pause-resume-stateful`, `unsent-stream`, `error-kinds`,
+  `disconnect-every-handle`, `callback-dispatch`, `client-result-errors`, `connected-callback`,
+  `restart-after-stop`, `lifecycle-events`, `connection-id`, `graceful-stop`,
+  `reconnect-call-wait`, `request-headers`, `stateful-transparent-resume`,
+  `stateful-resume-fallback`; `msgpack-fidelity` everywhere with MessagePack only;
 - native, Android and iOS: `executor-independence`;
-- browsers: `message-burst`, `worker-transport`, `threaded-wasm`, `short-stream-chaining`.
+- browsers: `message-burst`, `worker-transport`, `threaded-wasm`, `short-stream-chaining`;
+- native, Chromium and Android: `soak-chaos` and `stateful-resume-stress`.
+
+`stateful-resume-stress` gives five fresh stateful connections 100 transport aborts each, every
+abort followed by an invocation and a short stream, and fails on any operation slower than 20 s.
+Its Rust cells log the `rayx_signalr::stateful=debug` sequence trace into the cell output; in
+Chromium the fixture keeps the last 400 trace records and returns them with a failure.
+
+`soak-chaos` runs mixed concurrent traffic (invocations with results, sends, server streams,
+server-to-client callbacks, client results) against an ordinary and a stateful chaos hub at once
+for `RAYX_SIGNALR_SOAK_SECONDS`, while the test service's test-only `ChaosControl` aborts the
+transports at seeded random 0.5-5 s intervals (the seed is in the cell output). Stateful mode must
+lose, duplicate or reorder nothing and keep its logical connection; ordinary mode must complete or
+fail every call within 30 s and recover. Natively the clients run on their own runtime, whose
+alive-task count must return to its pre-connect value after `disconnect`; in Chromium every
+WebSocket must be closed.
 
 Each cell runs exactly one scenario: the Rust `e2e` binary with `--exact <scenario>::<protocol>` on
 the host, the Android emulator or the iOS simulator, or Playwright with one exact title. Cells are
-bounded to 60 seconds with process cleanup. On failure a cell writes bounded, token-redacted output
+bounded to 60 seconds (`soak-chaos`: `RAYX_SIGNALR_SOAK_SECONDS`, default 120, plus 60 seconds;
+`stateful-resume-stress`: 600 seconds) with process cleanup. On failure a cell writes bounded, token-redacted output
 plus the Aspire resource logs (and an Android logcat excerpt) to `artifacts-temp/e2e/<cell>.json`.
 
 - Android cells push the binary built by `cargo ndk` to `/data/local/tmp` (removed after the run)

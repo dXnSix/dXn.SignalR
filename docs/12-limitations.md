@@ -48,6 +48,9 @@ WebKit, on an Android x86_64 emulator and on the iOS simulator. These parts are 
   builds and unit tests.
 - **iOS background timing.** Spawned simulator processes are not foreground apps. The iOS runner
   raises the scenario thread's QoS class and warms the simulator up before timed cells.
-- **One unreproduced stall.** After a third stateful resume on the Android emulator, one invocation
-  did not complete although the transport stayed open. It happened once and has not been
-  reproduced.
+- **A once-seen stall, retired.** After a third stateful resume on the Android emulator, one
+  invocation once did not complete although the transport stayed open. The `stateful-resume-stress`
+  scenario (500 transport aborts per cell, each followed by an invocation and a stream, with the
+  stateful sequence trace on) and the `soak-chaos` scenario pass on native, Chromium and Android
+  for JSON and MessagePack without reproducing it; if it recurs, the stress cell's trace names the
+  lost sequence range.
