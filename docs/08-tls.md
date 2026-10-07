@@ -24,7 +24,8 @@ A secure endpoint never falls back to plaintext or to a verifier that accepts an
 
 A build can open secure endpoints when it has at least one verifier feature and one provider
 feature. Without them it is a plaintext-only client: `http`/`ws` endpoints work, and `https`/`wss`
-endpoints fail at `connect`, before any I/O, with an error that names the missing features.
+endpoints fail at `connect`, before any I/O, with a `Configuration` error that names the missing
+features. A server certificate the verifier does not trust fails `connect` with `ErrorKind::Tls`.
 
 ```toml
 # Bundled roots and aws-lc-rs instead of the defaults:
@@ -67,7 +68,7 @@ Trust additional roots (an internal CA, or a development CA) for one connection 
 `with_additional_root_certificates_pem`:
 
 ```rust
-let ca = std::fs::read("certs/internal-ca.pem").map_err(|error| error.to_string())?;
+let ca = std::fs::read("certs/internal-ca.pem")?;
 let client = rayx_signalr::SignalRClient::connect_with("internal.example.com", "hub", move |c| {
     c.with_additional_root_certificates_pem(ca.clone());
 })

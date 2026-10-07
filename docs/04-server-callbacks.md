@@ -57,8 +57,8 @@ let registration = client.register("PriceChanged".to_string(), |ctx| {
 });
 ```
 
-It returns `Err(String)` when the call has no arguments, when the index is out of range, or when the
-value does not deserialize into `T`. MessagePack arguments are converted to JSON values before
+It returns an `ErrorKind::Serialization` error when the call has no arguments, when the index is out
+of range, or when the value does not deserialize into `T`. MessagePack arguments are converted to JSON values before
 deserialization, so the same `T` works on both protocols (see
 [Hub protocols](05-hub-protocols.md#how-values-cross-the-wire)).
 
@@ -85,7 +85,7 @@ let registration = client.register("ConfirmPurchase".to_string(), |mut ctx| {
 
 - `complete` is `async` and needs `&mut self`, so move the context into a spawned task.
 - Call it once, and only for server calls that wait for a result. Plain `SendAsync` calls have no
-  invocation id; `complete` then returns an error.
+  invocation id; `complete` then returns an `ErrorKind::Protocol` error.
 - If the client never completes, the server's `InvokeAsync` waits until its cancellation token or
   the connection ends.
 
@@ -93,7 +93,7 @@ let registration = client.register("ConfirmPurchase".to_string(), |mut ctx| {
 
 | Member | Description |
 |---|---|
-| `argument::<T>(index)` | Deserializes one positional argument. |
+| `argument::<T>(index)` | Deserializes one positional argument; `ErrorKind::Serialization` when it is missing or does not match `T`. |
 | `complete(result).await` | Sends a client result for an `InvokeAsync` call. |
 | `client` (public field) | A clone of the `SignalRClient`, for calling the hub from inside the callback. |
 | `InvocationContext::spawn(future)` | Spawns a future: `tokio::spawn` natively (the future must be `Send`), `spawn_local` in the browser. |

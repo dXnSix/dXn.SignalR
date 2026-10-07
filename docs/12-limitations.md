@@ -15,13 +15,9 @@ prove. Each item says what to do instead where there is an alternative.
 - **Token refresh.** Bearer tokens are fixed strings for the lifetime of the client, and every
   reconnect reuses them. There is no access-token factory; reconnect with a new client when a token
   expires.
-- **Configurable connect timeout.** Native negotiate and connection setup use a fixed 15-second
-  bound. Browser negotiate has no timeout of its own.
 - **Invocation timeout.** There is no per-call timeout; wrap calls in your runtime's timeout.
 - **Status events.** There is no status-change callback; use a disconnection handler or poll
   `status()`.
-- **Typed errors.** Errors are `String`s. A few inherited parsing paths still `unwrap` malformed
-  server frames instead of returning an error.
 - **WASI and other non-browser WebAssembly targets.** There is no WebSocket implementation there;
   compilation fails on purpose.
 

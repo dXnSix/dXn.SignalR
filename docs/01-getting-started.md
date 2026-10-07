@@ -80,7 +80,7 @@ method that broadcasts `ReceiveMessage(user, text)` to every client.
 use rayx_signalr::{CallbackHandler, SignalRClient};
 
 #[tokio::main]
-async fn main() -> Result<(), String> {
+async fn main() -> Result<(), rayx_signalr::Error> {
     let mut client = SignalRClient::connect_with("localhost", "chat", |c| {
         c.unsecure(); // http/ws; the default is https/wss
         c.with_port(5000);
@@ -115,7 +115,8 @@ What happens in `connect_with`:
    server offers WebSockets with the right transfer format.
 3. It opens the WebSocket, sends the SignalR handshake, and waits for the answer (15 seconds by
    default).
-4. It returns a connected `SignalRClient`, or an `Err(String)` that says which step failed.
+4. It returns a connected `SignalRClient`, or an `Err(rayx_signalr::Error)` whose `kind()` says
+   which step failed (see [Errors and logging](11-errors-and-logging.md)).
 
 `connect("localhost", "chat")` is the same with the default configuration: `https`, port 443, JSON,
 no authentication, and no reconnection.
@@ -139,7 +140,7 @@ pub fn start() {
         {
             Ok(client) => client,
             Err(error) => {
-                web_sys::console::error_1(&error.into());
+                web_sys::console::error_1(&error.to_string().into());
                 return;
             }
         };

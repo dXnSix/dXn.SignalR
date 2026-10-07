@@ -45,7 +45,7 @@ let mut client = SignalRClient::connect_with("localhost", "hubs/chat", |c| {
 ```
 
 - Signatures: `connect(&str, &str)` and `connect_with(&str, &str, impl FnMut(&mut ConnectionConfiguration))`,
-  both `async` returning `Result<SignalRClient, String>`.
+  both `async` returning `Result<SignalRClient, rayx_signalr::Error>`.
 - Hub URL: `{https|http}://{domain}[:{port}]/{hub}`. `domain` is a host or IP only. `hub` may have
   several segments and a query (`"api/chat?tenant=7"`); the query is kept.
 - Pass a named `fn(&mut ConnectionConfiguration)` to share options between call sites;
@@ -68,6 +68,7 @@ let mut client = SignalRClient::connect_with("localhost", "hubs/chat", |c| {
 | `with_keep_alive_interval(Duration)` | all | 15 s |
 | `with_server_timeout(Duration)` | all | 30 s, must exceed keep-alive |
 | `with_handshake_timeout(Duration)` | all | 15 s |
+| `with_connect_timeout(Duration)` | all | 120 s |
 | `with_reconnection_policy(ReconnectionConfig)` | all | `NoReconnectPolicy` |
 | `with_disconnection_handler(impl DisconnectionHandler)` | all | none (handler disables automatic reconnect) |
 | `with_stateful_reconnect(StatefulReconnectConfig)` | all | off |
@@ -93,7 +94,8 @@ hub paths (JWT `OnMessageReceived`).
   redirect token replaces configured credentials for the next negotiate and the WebSocket.
 - `{"error": ...}` responses fail `connect` with the server's message.
 - The response must offer `WebSockets` with `Text` (JSON) or `Binary` (MessagePack).
-- Native negotiate and connection setup are bounded by a fixed 15 s timeout; browser negotiate has
-  no own timeout.
+- Each negotiate request and the transport opening are bounded by `with_connect_timeout` (120 s
+  default, as in the .NET client) on both targets; browsers abort the negotiate `fetch`. Exceeding it fails with
+  `Timeout` naming `Negotiate` or `Connect`.
 - `skip_negotiation()` connects straight to `ws(s)://host[:port]/hub` (Bearer as `access_token`);
   the server must allow WebSocket-only connections; incompatible with stateful reconnect.

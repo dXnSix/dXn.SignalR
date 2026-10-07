@@ -71,8 +71,8 @@ rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR", features = ["m
 
 ## A quick tour
 
-The snippets assume an `async fn` that returns `Result<(), String>`, inside a Tokio runtime natively
-or `wasm_bindgen_futures::spawn_local` in the browser.
+The snippets assume an `async fn` that returns `Result<(), Box<dyn std::error::Error>>`, inside a
+Tokio runtime natively or `wasm_bindgen_futures::spawn_local` in the browser.
 
 ### Connect and invoke
 
@@ -134,6 +134,27 @@ if let Some(error) = ticks.error() {
     eprintln!("stream failed: {error}");
 }
 ```
+
+### Handle errors
+
+Every fallible call returns `rayx_signalr::Error`; branch on its `ErrorKind` and structured fields,
+never on message text:
+
+```rust
+use rayx_signalr::ErrorKind;
+
+match client.invoke::<i32>("Total".to_string()).await {
+    Ok(total) => println!("{total}"),
+    Err(error) if error.kind() == ErrorKind::Hub => {
+        eprintln!("the hub failed: {}", error.server_message().unwrap_or(""));
+    }
+    Err(error) if error.is_transient() => eprintln!("try again later: {error}"),
+    Err(error) => return Err(error.into()),
+}
+```
+
+Version 0.2 replaced the `String` errors of 0.1; see
+[migrating from `String` errors](docs/11-errors-and-logging.md#migrating-from-string-errors).
 
 ### Reconnect and replay
 

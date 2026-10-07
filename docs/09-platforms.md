@@ -22,7 +22,8 @@ Natively, every connection belongs to exactly one Tokio runtime:
 
 1. the handle given to `with_runtime_handle(handle)`, otherwise
 2. the runtime that `connect` is called from, otherwise
-3. `connect` fails before any I/O, with an error that names both options.
+3. `connect` fails before any I/O, with an `ErrorKind::Configuration` error (`setting()` is
+   `with_runtime_handle`) that names both options.
 
 Negotiation, the WebSocket, keep-alive and timeout timers, reconnect delays, stateful backpressure,
 stream cancellation and the connection's writer and receiver tasks all run on that runtime. The
@@ -38,8 +39,7 @@ use rayx_signalr::SignalRClient;
 let runtime = tokio::runtime::Builder::new_multi_thread()
     .worker_threads(1)
     .enable_all()
-    .build()
-    .map_err(|error| error.to_string())?;
+    .build()?;
 let handle = runtime.handle().clone();
 
 // Awaited from a thread with no Tokio context.

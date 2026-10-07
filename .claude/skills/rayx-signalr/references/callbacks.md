@@ -31,8 +31,8 @@ handler.unregister();
 
 | Member | Behavior |
 |---|---|
-| `argument::<T>(index) -> Result<T, String>` | zero-based positional argument; errors for no arguments, out of range, or bad type |
-| `complete(result).await -> Result<(), String>` (`&mut self`) | sends a client result Completion in the connection's protocol; errors without an invocation id (plain `SendAsync`) |
+| `argument::<T>(index) -> Result<T, Error>` | zero-based positional argument; `Serialization` for no arguments, out of range, or bad type |
+| `complete(result).await -> Result<(), Error>` (`&mut self`) | sends a client result Completion in the connection's protocol; `Protocol` without an invocation id (plain `SendAsync`), `Serialization` when the result does not encode |
 | `client: SignalRClient` (pub field) | clone for calling the hub from the callback |
 | `InvocationContext::spawn(future)` | `tokio::spawn` natively (future `Send`; panics outside a Tokio context), `spawn_local` in the browser |
 

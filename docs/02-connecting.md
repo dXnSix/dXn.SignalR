@@ -16,7 +16,8 @@ let client = SignalRClient::connect_with("localhost", "hubs/chat", |c| {
 .await?;
 ```
 
-Both are `async` and return `Result<SignalRClient, String>`. `connect_with` takes any
+Both are `async` and return `Result<SignalRClient, rayx_signalr::Error>` (see
+[Errors](11-errors-and-logging.md#negotiation-and-transport)). `connect_with` takes any
 `FnMut(&mut ConnectionConfiguration)`, so you can also pass a named function. That is how adapter
 layers forward options (`ConnectionConfiguration` is exported from the crate root for this):
 
@@ -93,9 +94,11 @@ By default the client negotiates before opening the WebSocket:
    format (`Text` for JSON, `Binary` for MessagePack). The WebSocket URL is the final negotiate URL
    with `ws`/`wss` and the connection token as `id`.
 
-Native negotiate and connection setup (TCP, TLS and the WebSocket upgrade) are bounded by a fixed
-15-second timeout. Non-2xx negotiate responses fail with the status and a short, credential-redacted
-excerpt of the body.
+Each negotiate request and the transport setup (natively TCP, TLS and the WebSocket upgrade; in
+browsers opening the WebSocket) are bounded by `with_connect_timeout`, 120 s by default like the
+official .NET client; browsers abort a negotiate `fetch` that exceeds it. Non-2xx negotiate
+responses fail with the status (`ErrorKind::Authentication` for 401 and 403, otherwise
+`ErrorKind::Negotiate`) and a short, credential-redacted excerpt of the body.
 
 ### Skipping negotiation
 
@@ -140,8 +143,8 @@ let client = rayx_signalr::SignalRClient::connect_with("localhost", "chat", move
 ```
 
 Every native connection belongs to one Tokio runtime: the handle passed to `with_runtime_handle`,
-otherwise the runtime `connect` is called from, otherwise `connect` fails before any I/O with an
-error that names both options. The client's futures can then be awaited from any executor. See
+otherwise the runtime `connect` is called from, otherwise `connect` fails before any I/O with a
+`Configuration` error that names both options. The client's futures can then be awaited from any executor. See
 [Platforms](09-platforms.md#native-runtime-ownership).
 
 ## Configuration reference
@@ -158,6 +161,7 @@ error that names both options. The client's futures can then be awaited from any
 | `with_keep_alive_interval(Duration)` | all | 15 s | [Lifecycle](06-connection-lifecycle.md#liveness) |
 | `with_server_timeout(Duration)` | all | 30 s | [Lifecycle](06-connection-lifecycle.md#liveness) |
 | `with_handshake_timeout(Duration)` | all | 15 s | [Lifecycle](06-connection-lifecycle.md#liveness) |
+| `with_connect_timeout(Duration)` | all | 120 s | [Lifecycle](06-connection-lifecycle.md#liveness) |
 | `with_reconnection_policy(ReconnectionConfig)` | all | never reconnect | [Reconnection](07-reconnection.md) |
 | `with_disconnection_handler(handler)` | all | none | [Manual reconnection](07-reconnection.md#manual-reconnection) |
 | `with_stateful_reconnect(StatefulReconnectConfig)` | all | off | [Stateful reconnect](07-reconnection.md#stateful-reconnect) |

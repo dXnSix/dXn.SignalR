@@ -6,9 +6,9 @@ Full chapter: [Calling the hub](../../../../docs/03-calling-the-hub.md).
 
 | Method | Returns | Use for |
 |---|---|---|
-| `invoke::<T>(target: String)` | `Result<T, String>` | hub methods with a result or `void` (`T = ()`) |
-| `invoke_with_args::<T, _>(target, \|args\| ...)` | `Result<T, String>` | same, with arguments |
-| `send(target)` / `send_with_args(target, \|args\| ...)` | `Result<(), String>` | fire-and-forget |
+| `invoke::<T>(target: String)` | `Result<T, Error>` | hub methods with a result or `void` (`T = ()`) |
+| `invoke_with_args::<T, _>(target, \|args\| ...)` | `Result<T, Error>` | same, with arguments |
+| `send(target)` / `send_with_args(target, \|args\| ...)` | `Result<(), Error>` | fire-and-forget |
 | `enumerate::<T>(target)` / `enumerate_with_args::<T, _>(target, \|args\| ...)` | `ManualStream<T>` | `IAsyncEnumerable<T>` / `ChannelReader<T>` hub methods |
 
 All are `async` and take `&mut self`. `T: DeserializeOwned + Unpin + 'static` (+ `Send` natively).
@@ -26,16 +26,19 @@ let total: f64 = client
 
 `argument<T: Serialize>(value)` appends one positional argument and returns
 `&mut ArgumentConfiguration`, so calls chain. Order must match the hub method's parameters. A value
-that fails to serialize is logged and skipped (shifting later arguments). Inside an `FnMut` closure,
+that fails to serialize fails the call with `Serialization` before anything is sent. Inside an
+`FnMut` closure,
 pass borrowed or cloned captures (`args.argument(&name)`), not moved ones.
 
 ## Results
 
 - `Ok(T)` from the completion result; `Ok(())`/`Option` for `void`/`null`.
-- `Err` for hub exceptions (detailed text only with server `EnableDetailedErrors`), result
-  deserialization failures, write failures, and connection failures.
-- Pending invocations always complete; drops, ordinary reconnect, `pause`, server close and local
-  close fail them; only stateful reconnect keeps them pending.
+- `Err(Error)`: `Hub` for hub exceptions (`server_message()`; detailed text only with server
+  `EnableDetailedErrors`), `Serialization` for argument/result (de)serialization failures, and the
+  connection's error for write and connection failures.
+- Pending invocations always complete; drops and ordinary reconnect fail them with `Transport`,
+  `pause` with `Paused`, server and local close with `ConnectionClosed`; only stateful reconnect
+  keeps them pending.
 - No built-in call timeout: wrap in `tokio::time::timeout` or a `gloo-timers` race.
 
 ## send
@@ -51,7 +54,7 @@ use futures::StreamExt;
 
 let mut items = client.enumerate::<Item>("Watch".to_string()).await;
 while let Some(item) = items.next().await { /* ... */ }
-if let Some(error) = items.error() { /* server or connection error */ }
+if let Some(error) = items.error() { /* Hub (server_message) or the connection's error */ }
 ```
 
 - `ManualStream<T>: Stream<Item = T>`; items that fail to deserialize are logged and skipped.

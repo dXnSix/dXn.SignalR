@@ -4,8 +4,8 @@
 
 | Call | Hub method returns | Client gets | Wire message |
 |---|---|---|---|
-| `invoke::<T>` / `invoke_with_args::<T, _>` | a value or `void` | `Result<T, String>` after the server completes | `Invocation` with an id |
-| `send` / `send_with_args` | anything (ignored) | `Result<(), String>` once the message is written | `Invocation` without an id |
+| `invoke::<T>` / `invoke_with_args::<T, _>` | a value or `void` | `Result<T, Error>` after the server completes | `Invocation` with an id |
+| `send` / `send_with_args` | anything (ignored) | `Result<(), Error>` once the message is written | `Invocation` without an id |
 | `enumerate::<T>` / `enumerate_with_args::<T, _>` | `IAsyncEnumerable<T>` or `ChannelReader<T>` | `ManualStream<T>` | `StreamInvocation` |
 
 Method names are passed as `String` and must match the server's hub method name. ASP.NET Core
@@ -35,8 +35,7 @@ let accepted: bool = client
 ```
 
 Arguments have no names: their order must match the hub method's parameters. A value that fails to
-serialize is logged and left out, which then shifts the remaining arguments, so keep argument types
-plainly serializable.
+serialize fails the call with `ErrorKind::Serialization` before anything is sent.
 
 ## Invoking
 
@@ -65,12 +64,15 @@ resolves to:
 - `Ok(T)` when the completion carries a result that deserializes into `T`.
 - `Ok(())` (or any `T` that deserializes from `null`) when the hub method returns `void`/`Task`. A
   void completion fails an invocation whose `T` cannot be built from nothing.
-- `Err(message)` when the hub method threw (the server's error text; ASP.NET Core sends details
-  only with `EnableDetailedErrors`), when the result does not deserialize into `T`, when the
-  message cannot be written, or when the connection fails the invocation.
+- `Err(error)` with `ErrorKind::Hub` when the hub method threw (`server_message()` is the server's
+  error text; ASP.NET Core sends details only with `EnableDetailedErrors`), with
+  `ErrorKind::Serialization` when an argument does not serialize or the result does not
+  deserialize into `T`, and with the connection's error when the message cannot be written or the
+  connection fails the invocation (see [Errors](11-errors-and-logging.md#calls)).
 
-Pending invocations always complete. A lost connection, an ordinary reconnect, `pause`, a server
-close and a local disconnect fail them with an explanatory error; only
+Pending invocations always complete. A lost connection or an ordinary reconnect fails them with a
+`Transport` error, `pause` with `Paused`, and a server close or a local disconnect with
+`ConnectionClosed`; only
 [stateful reconnect](07-reconnection.md#stateful-reconnect) keeps them pending across a dropped
 transport.
 
@@ -131,12 +133,13 @@ if let Some(error) = ticks.error() {
   that arrived before the end are yielded first. An ended stream keeps returning `None` on every
   later `next()`, and `ManualStream` implements `futures::stream::FusedStream`, so it works in
   `select!` without `.fuse()`.
-- After the end, `error()` returns the server's error message or the connection error, and `None`
-  after a normal completion. While the stream is open it returns `None`.
+- After the end, `error()` returns the error that ended the stream (`ErrorKind::Hub` with the
+  server's message, or the connection's error), and `None` after a normal completion. While the
+  stream is open it returns `None`.
 - `enumerate` itself never fails; look at `error()` after the stream ends.
 - A stream whose invocation cannot be sent (the client is reconnecting, paused, disconnected or
   closed) ends with that error: `next()` returns `None` at once and `error()` returns the send
-  error, such as "Client is not connected". The server never saw the invocation, so no
+  error, such as a `Transport` or `Paused` error. The server never saw the invocation, so no
   `CancelInvocation` is sent for it.
 
 ### Cancelling a stream

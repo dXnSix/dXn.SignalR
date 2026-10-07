@@ -8,12 +8,13 @@ the receive loop, and names the invariants that the tests protect.
 | Path | Responsibility |
 |---|---|
 | `src/lib.rs` | Public re-exports, `StatefulReconnectConfig`, the Android TLS re-exports, and the compile error for non-browser `wasm32` targets. |
+| `src/error.rs` | The public `Error` and `ErrorKind`: structured fields, `is_transient`, `Arc`-backed sources, and redaction when an error is built. |
 | `src/platform.rs` | `MaybeSend`/`MaybeSendSync`: `Send`/`Sync` bounds natively, none in the browser. |
 | `src/client/client.rs` | `SignalRClient`, `DisconnectionHandler`, `ReconnectionHandler`: the public call surface. |
 | `src/client/configuration.rs` | `ConnectionConfiguration` (the public builder) and `ConnectionRecipe` (the validated, cloneable connection description every attempt is built from). |
 | `src/client/context.rs` | `InvocationContext` for server-to-client calls. |
 | `src/communication/negotiation.rs` | The negotiate state machine shared by both targets: request, redirect, error and connection outcomes, URL building, `skip_negotiation`. The HTTP request is injected. |
-| `src/communication/negotiate_http.rs` | Native negotiate: one hyper HTTP/1.1 POST over the connection's own TCP or rustls stream, with a 15-second bound and redacted error excerpts. |
+| `src/communication/negotiate_http.rs` | Native negotiate: one hyper HTTP/1.1 POST over the connection's own TCP or rustls stream, bounded by the connect timeout, with redacted error excerpts. |
 | `src/communication/common.rs` | `HttpClient` (negotiate per target, browser `fetch`), `ConnectionData`, Close-message parsing. |
 | `src/communication/tls.rs` | Native rustls: feature detection, provider and verifier selection, PEM roots, one `ClientConfig` per connection. |
 | `src/communication/client_tokio.rs` | The native connection: runtime-owned writer and receiver tasks, the reconnect coordinator, pause/resume, stateful resume. |
@@ -52,7 +53,7 @@ by target name (callbacks), and Ping/Close/Ack/Sequence by the connection itself
 
 Each pending operation is an `UpdatableAction` in a map keyed by string:
 
-- `invoke` creates a key `{target}_{n}` and a `ManualFuture<Result<T, String>>`; the Completion with
+- `invoke` creates a key `{target}_{n}` and a `ManualFuture<Result<T, Error>>`; the Completion with
   that id completes it and removes the entry.
 - `enumerate` creates a `ManualStream<T>` whose drop handler removes the entry and sends one
   `CancelInvocation`; a Completion closes the stream and disarms the handler. When the

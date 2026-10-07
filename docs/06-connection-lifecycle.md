@@ -17,7 +17,8 @@ for drops with a [disconnection handler](07-reconnection.md#manual-reconnection)
 
 ## Liveness
 
-Three timers keep a connection honest. Set them in `connect_with`:
+Three timers keep a connection honest, and a fourth bounds connection setup. Set them in
+`connect_with`:
 
 ```rust
 use std::time::Duration;
@@ -26,6 +27,7 @@ let client = rayx_signalr::SignalRClient::connect_with("localhost", "chat", |c| 
     c.with_keep_alive_interval(Duration::from_secs(10));
     c.with_server_timeout(Duration::from_secs(40));
     c.with_handshake_timeout(Duration::from_secs(5));
+    c.with_connect_timeout(Duration::from_secs(10));
 })
 .await?;
 ```
@@ -35,6 +37,7 @@ let client = rayx_signalr::SignalRClient::connect_with("localhost", "chat", |c| 
 | `with_keep_alive_interval` | 15 s | After this long without any outbound message, the client sends a SignalR `Ping`. The server's `ClientTimeoutInterval` (30 s by default) drops clients that stay silent longer. |
 | `with_server_timeout` | 30 s | After this long without any inbound message, the transport counts as dropped and the reconnect path runs. The server pings every `KeepAliveInterval` (15 s by default). |
 | `with_handshake_timeout` | 15 s | `connect` (and each reconnect attempt) fails when the server does not answer the handshake in time. |
+| `with_connect_timeout` | 120 s (the official .NET client's bound) | Bounds each negotiate request and opening the transport (natively TCP, TLS and the WebSocket upgrade; in browsers opening the WebSocket). Browsers abort a negotiate `fetch` that exceeds it. `connect` (and each reconnect attempt) then fails with `ErrorKind::Timeout` naming `Negotiate` or `Connect`. |
 
 Rules, checked before any I/O: every duration must be greater than zero, and the server timeout
 must be greater than the keep-alive interval. Keep the client's server timeout at least twice the
@@ -66,8 +69,8 @@ client.resume().await?;
 
 - ends the transport, stops keep-alive, and stops or supersedes any running reconnect;
 - makes calls fail while paused; ordinary pending invocations and streams fail with
-  "The connection is paused";
-- does nothing on a paused client, and returns an error on a closed one.
+  `ErrorKind::Paused`;
+- does nothing on a paused client, and returns `ErrorKind::ConnectionClosed` on a closed one.
 
 `resume()`:
 
@@ -78,7 +81,8 @@ client.resume().await?;
   below);
 - if every attempt fails, leaves the client `Disconnected` and returns the error; a later `resume`
   tries again with a fresh negotiation;
-- does nothing on a connected or reconnecting client, and returns an error on a closed one.
+- does nothing on a connected or reconnecting client, and returns `ErrorKind::ConnectionClosed` on a
+  closed one.
 
 ### Pause with stateful reconnect
 
@@ -107,8 +111,9 @@ The connection closes when the **last** handle closes it:
   so does every `InvocationContext` while it lives.
 
 Closing locally is terminal: it supersedes a running reconnect or pause, fails pending invocations
-and streams with "Client was locally disconnected", disposes the stateful buffer, and sets the
-status to `Closed`. A closed client cannot reconnect; connect a new one.
+and streams with `ErrorKind::ConnectionClosed` (`CloseReason::Local`), disposes the stateful
+buffer, and sets the status to `Closed`. A closed client cannot reconnect; connect a new one. A
+`ReconnectionHandler` kept from an earlier drop then fails with the same error.
 
 `disconnect` and drop are synchronous. They briefly block the calling thread to update the shared
 connection state.
@@ -120,6 +125,8 @@ message says whether the client may reconnect:
 
 - **Reconnect allowed**: treated like a dropped transport; the reconnection policy or the
   disconnection handler runs.
-- **Reconnect not allowed**: pending work fails with "Server closed the connection without allowing
-  reconnect", the status becomes `Disconnected`, and nothing reconnects automatically. A
-  disconnection handler still runs, with `server_allows_reconnect() == false`.
+- **Reconnect not allowed**: pending work fails with `ErrorKind::ConnectionClosed`
+  (`CloseReason::Server`, the Close message's error in `server_message()`, and
+  `server_allows_reconnect() == Some(false)`), the status becomes `Disconnected`, and nothing
+  reconnects automatically. A disconnection handler still runs, with
+  `server_allows_reconnect() == false` and the same error in `reason()`.

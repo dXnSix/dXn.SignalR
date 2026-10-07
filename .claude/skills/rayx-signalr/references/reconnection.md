@@ -48,17 +48,19 @@ impl DisconnectionHandler for Reconnector {
 // c.with_disconnection_handler(Reconnector); plus a policy if reconnect_with_policy is used
 ```
 
-`ReconnectionHandler`: `server_allows_reconnect()`, `reconnect().await` (one attempt),
-`reconnect_with_policy().await` (configured policy; first attempt immediate if the policy allows
-any; `NoReconnectPolicy` allows none), `is_connected().await`, `endpoint()`. The handler runs on
+`ReconnectionHandler`: `server_allows_reconnect()`, `reason()` (the `Error` that ended the
+transport: `Transport`, `Timeout` for the server timeout, `ConnectionClosed` for a server Close
+with its message, or `Protocol`), `reconnect().await` (one attempt), `reconnect_with_policy().await`
+(configured policy; first attempt immediate if the policy allows any; `NoReconnectPolicy` allows
+none; gives up with `ConnectionClosed`/`CloseReason::ReconnectExhausted`), `is_connected().await`,
+`endpoint()`. The handler runs on
 the connection's runtime natively (`tokio::spawn` works; handler `Send + Sync`) and on the event
 loop in the browser (`spawn_local`). Ordinary pending work has already failed when it runs.
 
 ## Ordinary vs stateful
 
 Ordinary (default): every reconnect is a new logical connection (fresh negotiate, new id, new
-handshake). Pending invocations/streams fail ("The connection was replaced by a fresh logical
-reconnect"); server messages sent meanwhile are lost; rejoin groups; callbacks stay.
+handshake). Pending invocations/streams fail with `ErrorKind::Transport`; server messages sent meanwhile are lost; rejoin groups; callbacks stay.
 
 Stateful (ASP.NET Core 8+, hub `AllowStatefulReconnects = true`):
 

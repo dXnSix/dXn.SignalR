@@ -115,9 +115,10 @@ let client = SignalRClient::connect_with("localhost", "chat", |c| {
 
 | Method | Description |
 |---|---|
-| `server_allows_reconnect()` | `false` after a server Close without reconnect permission; the reconnect methods then fail. |
-| `reconnect().await` | One attempt. |
-| `reconnect_with_policy().await` | Attempts until the configured policy gives up. The first attempt starts immediately when the policy allows any attempt (with `NoReconnectPolicy` there is none). |
+| `server_allows_reconnect()` | `false` after a server Close without reconnect permission; the reconnect methods then fail with that close error. |
+| `reason()` | Why the transport ended: a dropped transport (`ErrorKind::Transport`), the server timeout (`ErrorKind::Timeout`), a server Close (`ErrorKind::ConnectionClosed` with the server's message), or a protocol violation (`ErrorKind::Protocol`). |
+| `reconnect().await` | One attempt; fails with the attempt's error, `Paused` or `ConnectionClosed` when `pause` or a local close superseded it, or `Canceled` while another reconnect runs. |
+| `reconnect_with_policy().await` | Attempts until the configured policy gives up, then fails with `ConnectionClosed` (`CloseReason::ReconnectExhausted`, the last attempt's error as its `source()`). The first attempt starts immediately when the policy allows any attempt (with `NoReconnectPolicy` there is none). |
 | `is_connected().await` | Whether the client is connected. |
 | `endpoint()` | The hub endpoint, for logging. |
 
@@ -134,8 +135,8 @@ handler runs; stateful pending work waits for the resume.
 Without stateful reconnect, every reconnect creates a **new logical connection**: a fresh
 negotiation, a new connection id, and a new handshake. Consequences:
 
-- pending invocations and open streams fail when the transport drops ("The connection was replaced
-  by a fresh logical reconnect"); nothing is replayed;
+- pending invocations and open streams fail with `ErrorKind::Transport` when the transport drops;
+  nothing is replayed;
 - messages the server sent while the client was away are lost;
 - server-side state keyed by connection id (groups, `Context.Items`) is gone: rejoin groups after
   reconnecting;
@@ -161,7 +162,8 @@ let client = SignalRClient::connect_with("localhost", "chat", move |c| {
 .await?;
 ```
 
-`StatefulReconnectConfig::default()` uses a 100,000-byte buffer; `new(0)` is an error.
+`StatefulReconnectConfig::default()` uses a 100,000-byte buffer; `new(0)` is a `Configuration`
+error.
 
 How it works:
 
@@ -169,7 +171,7 @@ How it works:
   for the hub, the connection silently falls back to ordinary reconnect.
 - Every application message the client sends is kept, serialized, until the server acknowledges it
   (`Ack`). When the buffer is full, sends wait until acknowledgements free space. A single message
-  larger than the buffer fails.
+  larger than the buffer fails with `ErrorKind::Configuration`.
 - On a drop, the client reconnects to the same connection token without negotiating or
   handshaking again, exchanges `Sequence` messages, replays unacknowledged messages, and discards
   duplicates the server replays.
