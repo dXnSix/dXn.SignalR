@@ -65,6 +65,7 @@ let mut client = SignalRClient::connect_with("localhost", "hubs/chat", |c| {
 | `with_hub(String)` | all | the `hub` argument |
 | `authenticate_bearer(String)` | all | none |
 | `authenticate_basic(String, Option<String>)` | all | none |
+| `with_access_token_factory(async fn)` | all | none |
 | `skip_negotiation()` | all | negotiate |
 | `with_header(name, value)` | all (browser: negotiate only) | none |
 | `with_invocation_headers(hook)` | all | none |
@@ -87,11 +88,15 @@ let mut client = SignalRClient::connect_with("localhost", "hubs/chat", |c| {
 | | Native | Browser |
 |---|---|---|
 | Bearer | `Authorization` on negotiate and WebSocket upgrade, never on the URL (as .NET outside browsers) | `Authorization` on negotiate, `access_token` on the WebSocket URL |
-| Basic | `Authorization` on negotiate and WebSocket upgrade | negotiate only (a standard server cannot authenticate the WebSocket) |
+| Basic | `Authorization` on negotiate and WebSocket upgrade | negotiate only, with a warning (a standard server cannot authenticate the WebSocket) |
+| `with_access_token_factory(\|\| async { Ok(token) })` | fresh Bearer token on every negotiate and every WebSocket upgrade (stateful resumes included) | fresh token on negotiate (`Authorization`) and every WebSocket (`access_token`) |
 
-One mode per connection (last call wins). Tokens are fixed for the client's lifetime and reused by
-every reconnect; there is no token factory. For browsers, the server must read `access_token` for
-hub paths (JWT `OnMessageReceived`).
+Basic/Bearer: one mode per connection (last call wins), fixed for the client's lifetime. The
+factory (.NET `AccessTokenProvider`) cannot be combined with them (`Configuration`/
+`with_access_token_factory` from `new`); a negotiate redirect's token wins over it for the whole
+connection (resumes included); its `Err` fails
+the attempt with `Authentication` ("access token factory failed: ...", redacted). For browsers, the
+server must read `access_token` for hub paths (JWT `OnMessageReceived`).
 
 ## Negotiation
 

@@ -76,23 +76,48 @@ servers usually need `unsecure()` and `with_port(...)`.
 | Method | Native | Browser |
 |---|---|---|
 | `authenticate_bearer(token)` | `Authorization: Bearer` on negotiate and on the WebSocket upgrade; never on the WebSocket URL, as the .NET client outside browsers | `Authorization: Bearer` on negotiate, `access_token` on the WebSocket URL |
-| `authenticate_basic(user, Some(password))` | `Authorization: Basic` on negotiate and on the WebSocket upgrade | `Authorization: Basic` on negotiate only |
+| `authenticate_basic(user, Some(password))` | `Authorization: Basic` on negotiate and on the WebSocket upgrade | `Authorization: Basic` on negotiate only (with a warning) |
+| `with_access_token_factory(f)` | a fresh token from `f` as `Authorization: Bearer` on every negotiate and every WebSocket upgrade | a fresh token on every negotiate (`Authorization`) and every WebSocket (`access_token`) |
 
-`authenticate_basic(user, None)` sends `user:` with an empty password. The last call wins: a
-connection has one authentication mode.
+`authenticate_basic(user, None)` sends `user:` with an empty password. Between Basic and Bearer the
+last call wins: a connection has one authentication mode. An access-token factory cannot be
+combined with either: `new`/`connect` then fail before any I/O with `ErrorKind::Configuration`
+naming `with_access_token_factory`.
+
+### Access-token factory
+
+`with_access_token_factory(|| async { ... })` takes an async function returning
+`Result<String, String>`, like the .NET client's `HttpConnectionOptions.AccessTokenProvider`. It is
+called before every negotiate request (the initial connect, every reconnect that negotiates, and
+each redirect hop) and again whenever a WebSocket is opened, including every stateful resume, so a
+token can be refreshed between them. A token that a negotiate redirect issued (Azure SignalR
+Service) is used instead, for every WebSocket of that connection, resumes included. An
+`Err` fails that attempt with `ErrorKind::Authentication`, `access token factory failed: <message>`
+(with anything token-shaped in the message redacted); a reconnection policy then tries again.
+
+```rust
+let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+    c.with_access_token_factory(|| async {
+        // Fetch or refresh the token here.
+        Ok::<_, String>(std::env::var("API_TOKEN").unwrap_or_default())
+    });
+})?;
+```
 
 Browsers cannot set headers on a WebSocket. A standard ASP.NET Core server authenticates the
 WebSocket request separately from negotiate, so in the browser:
 
 - **Bearer** works when the server reads the `access_token` query parameter for hub requests (the
   usual JWT `OnMessageReceived` hook; see [Server setup](10-server-setup.md#authentication)).
-- **Basic** reaches only the negotiate request. A standard server does not authenticate the
-  WebSocket from it, so browser clients should use Bearer tokens.
+- **Basic** reaches only the negotiate request, as with the .NET client. A standard server does
+  not authenticate the WebSocket from it; building a browser client with Basic credentials logs a
+  warning that names `authenticate_bearer` and `with_access_token_factory`.
 
-Tokens are fixed for the lifetime of the client: every reconnect reuses the configured token. If a
-token expires, disconnect and connect again with a new one.
+A token from `authenticate_bearer` is fixed for the lifetime of the client and reused by every
+reconnect; use `with_access_token_factory` for tokens that expire.
 
-Negotiation errors name the endpoint without its query string, which may carry tokens.
+Negotiation errors name the endpoint without its query string, which may carry tokens; a negotiate
+timeout names only the bound (`negotiate timed out after 2s`).
 
 ## Request headers
 
@@ -206,6 +231,7 @@ otherwise the runtime `connect` is called from, otherwise `connect` fails before
 | `with_hub(String)` | all | `hub` argument | [Endpoint](#endpoint) |
 | `authenticate_basic(String, Option<String>)` | all | none | [Authentication](#authentication) |
 | `authenticate_bearer(String)` | all | none | [Authentication](#authentication) |
+| `with_access_token_factory(async fn)` | all | none | [Access-token factory](#access-token-factory) |
 | `skip_negotiation()` | all | negotiate | [Skipping negotiation](#skipping-negotiation) |
 | `with_header(name, value)` | all (browsers: negotiate only) | none | [Request headers](#request-headers) |
 | `with_invocation_headers(hook)` | all | none | [Calling the hub](03-calling-the-hub.md#invocation-headers) |

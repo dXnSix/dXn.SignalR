@@ -40,8 +40,9 @@ use it from any UI, a game loop, a service, or a test.
   and in multithreaded (atomics) builds.
 - **Negotiation and headers as the official clients do it.** Redirects with access tokens (Azure
   SignalR Service), `skip_negotiation()` for direct WebSocket connections, the official
-  `User-Agent`, application request headers (`with_header`), and invocation headers such as W3C
-  `traceparent` (`with_invocation_headers`).
+  `User-Agent`, application request headers (`with_header`), invocation headers such as W3C
+  `traceparent` (`with_invocation_headers`), and refreshable access tokens
+  (`with_access_token_factory`, asked before every negotiate and WebSocket).
 
 ## Platform support
 

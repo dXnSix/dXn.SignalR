@@ -12,9 +12,6 @@ prove. Each item says what to do instead where there is an alternative.
   are not used. Browsers use the browser's proxy configuration.
 - **Client-to-server streaming.** Hub methods with `IAsyncEnumerable<T>` or `ChannelReader<T>`
   parameters cannot be called.
-- **Token refresh.** Bearer tokens are fixed strings for the lifetime of the client, and every
-  reconnect reuses them. There is no access-token factory; reconnect with a new client when a token
-  expires.
 - **Invocation timeout.** There is no per-call timeout; wrap calls in your runtime's timeout.
 - **Status events.** There is no status-change callback; use a disconnection handler or poll
   `status()`.
@@ -23,8 +20,9 @@ prove. Each item says what to do instead where there is an alternative.
 
 ## Behavior with caveats
 
-- **Browser Basic authentication.** Browsers send Basic credentials only with negotiate; a standard
-  ASP.NET Core server does not authenticate the WebSocket from them. Use Bearer tokens in browsers.
+- **Browser Basic authentication.** Browsers send Basic credentials only with negotiate, as the
+  .NET client does, and log a warning; a standard ASP.NET Core server does not authenticate the
+  WebSocket from them. Use Bearer tokens or an access-token factory in browsers.
 - **Browser pause with stateful reconnect.** Browsers always send a WebSocket Close, which ends the
   stateful logical connection; `resume` negotiates a new one.
 - **Backgrounded apps and tabs.** Operating systems and browsers delay timers of background work.

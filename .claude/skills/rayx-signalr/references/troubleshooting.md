@@ -40,7 +40,8 @@ redacted (no tokens, `Authorization` values, URL credentials). `From<Error> for 
 | `Hub` with a generic `server_message()` | server hides exceptions; `EnableDetailedErrors` (`server_message()` is the server's text verbatim; `Display` is redacted) |
 | callback never fires | wrong (case-sensitive) target, duplicate registration ignored, or `SendAsync` name mismatch |
 | connection stays open after dropping the client | other clones, a live `InvocationContext`, or a `SignalRClient` captured in a callback or hook (a reference cycle; capture `client.downgrade()`) still hold handles; call `disconnect()`, which stops it for every handle |
-| browser connects but hub is unauthenticated | Basic auth in a browser, or the server does not read `access_token` |
+| browser connects but hub is unauthenticated | Basic auth in a browser (a warning is logged), or the server does not read `access_token` |
+| `Authentication` "access token factory failed" | the `with_access_token_factory` function returned `Err` (its message follows, redacted) |
 | MessagePack `byte[]` argument fails to decode as `Vec<u8>` | binary needs a bytes type (`serde_bytes::ByteBuf`); `DateTime` is extension type -1 |
 
 ## Logging
@@ -62,8 +63,9 @@ rejected Acks, Sequences or messages with the reason. Every record starts with `
 - WebSockets only: no Server-Sent Events or Long Polling.
 - No HTTP CONNECT or system proxy support natively.
 - No client-to-server streams.
-- Fixed Bearer tokens (no token factory); no per-call timeout; no status-change events.
-- Browser Basic auth cannot authenticate the WebSocket; browser `pause()` ends stateful connections.
+- No per-call timeout; no status-change events.
+- Browser Basic auth cannot authenticate the WebSocket (a warning is logged); browser `pause()` ends
+  stateful connections.
 - Background apps/tabs fire liveness timers late; use `pause()`/`resume()`.
 - Not proven by tests: the Android platform verifier inside a real app, physical devices, and
   `aws-lc-rs` end to end. A stall seen once after a third stateful resume on the Android emulator is

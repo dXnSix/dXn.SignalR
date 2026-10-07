@@ -19,7 +19,7 @@ that carry them:
 |---|---|---|
 | `Configuration` | A setting cannot work: rejected before any I/O. | `setting()` names the setting. |
 | `Negotiate` | The negotiate request failed, or the server rejected negotiation. | `status()` when the server answered. |
-| `Authentication` | The server refused the credentials. | `status()`: 401 or 403. |
+| `Authentication` | The server refused the credentials, or the access-token factory returned `Err` (`access token factory failed: <message>`, no status). | `status()`: 401 or 403. |
 | `Timeout` | An operation exceeded its bound. | `timeout_operation()` (`Connect`, `Negotiate`, `Handshake`, `ServerTimeout`) and `timeout()`. |
 | `Tls` | The TLS handshake or certificate verification failed (native). | |
 | `Proxy` | A proxy refused or failed the tunnel. Not produced yet: the client does not use proxies (see [Limitations](12-limitations.md)). | |
