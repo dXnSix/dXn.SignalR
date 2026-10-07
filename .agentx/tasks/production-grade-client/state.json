@@ -1,12 +1,12 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 118,
-  "planRevision": 18,
+  "revision": 129,
+  "planRevision": 21,
   "specHashes": {
     "requirements": "e7e7cdebbd521478aae42da3ff324462c93435f48285c3f01fc29003ff8e5765",
-    "design": "dfc10271d51a3cf87bfa2441ad2de12170ab5fabb9f93189d8657017e2b2c5bb",
-    "plan": "12ded52e60da24ccc0307cb95de701f8c9000f641f5d640c739111b076e5da3c"
+    "design": "c895b2208a9c620e3ef5c8460684f690a2b70c8fcf2acca06d95001e101c8274",
+    "plan": "5c10d8a7c0b279555c1942a606a50f03eb15eeccbf6bcf67fcf3d3b9866e7110"
   },
   "tasks": {
     "S1.T1": {
@@ -76,10 +76,16 @@
       ]
     },
     "S4.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S4.T2": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S5.T1": {
       "status": "pending"
@@ -385,6 +391,15 @@
         }
       },
       "recordedAt": "2026-10-07T15:57:40Z"
+    },
+    "f956033bf0456221d7aee5915d67a73a557391509b83eda7980e10896f612751": {
+      "snapshot": {
+        "specHash": "9d2e964cf9481f5369683a0baa4933762e0ca8a4d5608a520bfef8baa278e185",
+        "repositories": {
+          "rayx-signalr": "b06a9801bbdfcc4b0b39fbf5abc81d467a60f794b80bdaf3dd29a497d24cb68e"
+        }
+      },
+      "recordedAt": "2026-10-07T17:24:30Z"
     }
   },
   "checkResults": {
@@ -1696,6 +1711,91 @@
       "logPath": "artifacts-temp/agentx/production-grade-client/P4-final-4c811437f667.log",
       "logSha256": "815732217fcafbb5f9b62c65186093ea40bad1245144962b789faad0c9e3c79b",
       "inputsHash": "cf7e55b00348eb5c0b31f6604d0e72e2ca654c84609d85f5dd41c41bb9404923"
+    },
+    "S4/s4-soak-native-chromium/final": {
+      "checkId": "s4-soak-native-chromium",
+      "boundaryId": "S4",
+      "phase": "final",
+      "batchId": "f956033bf0456221d7aee5915d67a73a557391509b83eda7980e10896f612751",
+      "definitionHash": "15bbc0884bf94d0596a8052c0758217f2fa0bf6e5fe3341b701959d535de95d8",
+      "basisHash": "d0d4426b80e5e9c38ab32fdb7892c870c5ba17dea24df6ae26a4d34d0408253e",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 511.4501,
+      "recordedAt": "2026-10-07T17:02:23Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S4-final-09c601ea38f5.log",
+      "logSha256": "1c75facd9a5c43907d93d40a8e60bbe6222d060ccdf95a780b50a758b97a20b9",
+      "inputsHash": "ea0043ed59d8858b9ce01ba55d66274b0c32d7c5ac53dc06d541f1299f9050cf"
+    },
+    "S4/s4-soak-android/final": {
+      "checkId": "s4-soak-android",
+      "boundaryId": "S4",
+      "phase": "final",
+      "batchId": "f956033bf0456221d7aee5915d67a73a557391509b83eda7980e10896f612751",
+      "definitionHash": "5af4f66564f0d49a2544f28cf831f4bec86755f4f36a365e56c6bacb6d988fdd",
+      "basisHash": "bccb840ffc9975dd6728abb703473636908a34202db06204aed83f6f42d5ffac",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 254.6726,
+      "recordedAt": "2026-10-07T17:06:38Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S4-final-351b2499d4cc.log",
+      "logSha256": "846054ed3227fb0c6e43d5f899c5da63a4f9b3c6ccc265ecfcf80b945ee1a72a",
+      "inputsHash": "46dbb1c2ea5273e55d0aca6e1f37c1e7b3413f68a5dd031e2f3880f0e599ce33"
+    },
+    "S4/s4-stress-native-chromium/final": {
+      "checkId": "s4-stress-native-chromium",
+      "boundaryId": "S4",
+      "phase": "final",
+      "batchId": "f956033bf0456221d7aee5915d67a73a557391509b83eda7980e10896f612751",
+      "definitionHash": "286faa152fc6d63edfd1f50f9a53c0bc5d916baa37171dca9301d07a31deed81",
+      "basisHash": "e5b9ee8f9a3245034afd28bc9c288487ad8bf74fef0973ece796fa9cbcace88c",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 34.0987,
+      "recordedAt": "2026-10-07T17:07:12Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S4-final-d28ce3a77662.log",
+      "logSha256": "55dc0333c06813bc0a1b8dc3ec34a7eafcc009f7c7f7807ee38170069501e7d8",
+      "inputsHash": "ea0043ed59d8858b9ce01ba55d66274b0c32d7c5ac53dc06d541f1299f9050cf"
+    },
+    "S4/s4-stress-android/final": {
+      "checkId": "s4-stress-android",
+      "boundaryId": "S4",
+      "phase": "final",
+      "batchId": "f956033bf0456221d7aee5915d67a73a557391509b83eda7980e10896f612751",
+      "definitionHash": "cc5966873c3d36486df6aa3bf7792024ba2438b2d04fc78acafab27963c741b8",
+      "basisHash": "1b83a2043348e0819321885e6ffd5492ee381f63e2d2b4283d2e705ea09b2b00",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 1035.208,
+      "recordedAt": "2026-10-07T17:24:27Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S4-final-c7990fb0d2d2.log",
+      "logSha256": "ff0126e774b980900d7ec18d63415b7e1237bfc53fdf48e9c2e2714348728f02",
+      "inputsHash": "46dbb1c2ea5273e55d0aca6e1f37c1e7b3413f68a5dd031e2f3880f0e599ce33"
+    },
+    "S4/s4-long-cells/final": {
+      "checkId": "s4-long-cells",
+      "boundaryId": "S4",
+      "phase": "final",
+      "batchId": "f956033bf0456221d7aee5915d67a73a557391509b83eda7980e10896f612751",
+      "definitionHash": "0ab8d532252ead677989ea7d76e6e87e442e5b88cc7bc875c791881f8851027d",
+      "basisHash": "3456d76eef45bc01491a824cf3aa12a4ef86f1ac5c8f5db587ea0dd9974398cd",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 1,
+      "durationSeconds": 2.9632,
+      "recordedAt": "2026-10-07T17:24:30Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S4-final-9e562820725a.log",
+      "logSha256": "33924c77c22ae696c9a26b384801fec8e5f00957d72a70d4ab2d9470fbd52a13",
+      "inputsHash": "51aadf57fa58c4390027da98c6bccfd171f39f4440742027864058a372dcb6f3"
     }
   },
   "reviews": {
@@ -3987,6 +4087,261 @@
         "P4-F6"
       ],
       "recordedAt": "2026-10-07T15:58:04Z"
+    },
+    "S4": {
+      "reviewerId": "s4-reviewer-1",
+      "snapshotId": "f956033bf0456221d7aee5915d67a73a557391509b83eda7980e10896f612751",
+      "criterionIds": [
+        "R3.C3",
+        "R3.C4"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/ChaosHubs.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C3",
+            "R3.C4"
+          ],
+          "sha256": "dfd84a654ebff62715bccb4d61c557aca408a824666865b900003c615c373c57"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/Program.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C3",
+            "R3.C4"
+          ],
+          "sha256": "e2d4b2dfe72216b250c5f665966954c4ed793138262d9100ef54c385aa870b20"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/TestControls.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C3"
+          ],
+          "sha256": "24ae304bdf79f2fc46fa5f53ac664b961293b156c962979c207ad34a0f5f9bf8"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/ScenarioCatalog.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C3",
+            "R3.C4"
+          ],
+          "sha256": "eb763107406c26647be420f02242496de90559b4cc04afb3f66f0b99990758ec"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/CellRunners.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C3",
+            "R3.C4"
+          ],
+          "sha256": "6a244c51ddda30c2633c8caf14c2f8b80ecdf13d0bc58053699cc3e1b7186fff"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/MobileCellRunners.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C3",
+            "R3.C4"
+          ],
+          "sha256": "3b91e8e0dbbc511b6427727c533fbfa989bd4c569d5fa31ee70524bf1da4906d"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/stateful.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C4"
+          ],
+          "sha256": "427cd57292826d3f4d124287c73080a96fce734d5121e78361863e56703956e6"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/12-limitations.md",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C4"
+          ],
+          "sha256": "ffde282c80ae840902ead6b125b1bb76f2767467035c07dea0f4e81dae7940f3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/memory/knowledge/interop-validation/hypotheses.md",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C4"
+          ],
+          "sha256": "dfa5ef890d5824d21c7c040aff890eb0e9c87d75d9537191356e93b9079d21e2"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/14-testing.md",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C3",
+            "R3.C4"
+          ],
+          "sha256": "ecf97a5348ce42b7ac41693465c0ecdf7f388e26e771e037c552aba0f73a7f48"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/soak_chaos.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R3.C3"
+          ],
+          "sha256": "dd28b1e290fce5b07aec2c13b53c7f650aa007969f81f7d861c5cb57486152be"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/stateful_resume_stress.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R3.C4"
+          ],
+          "sha256": "c958aa0fa18813555c828aafd6a51bfaf5a5bf42f449c2e188a7f96b9468802a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/support.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R3.C3",
+            "R3.C4"
+          ],
+          "sha256": "b3758822c1b112e39b8f74a5e6f907b874573a2d1cbac901b0a2c8480ec35087"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/soak.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R3.C3"
+          ],
+          "sha256": "1181d26813044beac6cddb00fd780173f2e1c3c691843e4e5e3e250e87bb92d5"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/stress.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R3.C4"
+          ],
+          "sha256": "a95d59eddcdb25f8634f472fff5be2becc3c18481393f4afc820e1c5da9b3fd9"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/tests/signalr-soak.spec.ts",
+          "kind": "test",
+          "criterionIds": [
+            "R3.C3"
+          ],
+          "sha256": "35eddece96824cc660ec25e7f40eb885a8de63da1b8802fc63334e5ada5af615"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/tests/signalr-stress.spec.ts",
+          "kind": "test",
+          "criterionIds": [
+            "R3.C4"
+          ],
+          "sha256": "08c3dd4dc9c0abbaefe3c0d77c5604e64423af6c93c6dfe75ba16d0d4d930c8b"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/playwright.config.ts",
+          "kind": "test",
+          "criterionIds": [
+            "R3.C3",
+            "R3.C4"
+          ],
+          "sha256": "51828f511337afb16db6df1080b46fb4421d62172c4556ef68e09487750ec8b0"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/LongCellTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R3.C3",
+            "R3.C4"
+          ],
+          "sha256": "29e71cffd6bc35c308a3312b48dd6f0d41c3fd08cbab6f7800ac5aa264a1760f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/troubleshooting.md",
+          "kind": "source",
+          "criterionIds": [
+            "R3.C4"
+          ],
+          "sha256": "dd5df40c6d832f1b85db039f0ebc7105c06f80140c0fad0e178150f4a006240e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/S4-final-09c601ea38f5.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R3.C3"
+          ],
+          "sha256": "1c75facd9a5c43907d93d40a8e60bbe6222d060ccdf95a780b50a758b97a20b9"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/S4-final-351b2499d4cc.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R3.C3"
+          ],
+          "sha256": "846054ed3227fb0c6e43d5f899c5da63a4f9b3c6ccc265ecfcf80b945ee1a72a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/S4-final-d28ce3a77662.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R3.C4"
+          ],
+          "sha256": "55dc0333c06813bc0a1b8dc3ec34a7eafcc009f7c7f7807ee38170069501e7d8"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/S4-final-c7990fb0d2d2.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R3.C4"
+          ],
+          "sha256": "ff0126e774b980900d7ec18d63415b7e1237bfc53fdf48e9c2e2714348728f02"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/S4-final-9e562820725a.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R3.C3",
+            "R3.C4"
+          ],
+          "sha256": "33924c77c22ae696c9a26b384801fec8e5f00957d72a70d4ab2d9470fbd52a13"
+        }
+      ],
+      "summaryMarkdown": "Re-review at revision 127: S4-F1 to S4-F5 are resolved, and I verified each against source. I reran clippy on the e2e target with all features (clean), `cargo fmt --check` (clean) and `Category=Catalog` (19/19). The soak, stress and long-cell behavior meets R3.C3, R3.C4, D3 and D25, and the earlier S4-1 analysis still holds because the soak and stress logic did not change.\n\n**Evidence.** `check --sprint S4` passed 5/5 on snapshot f956033b (revision 127), with the soak and stress cells rerun: native+Chromium soak 8 m 28 s (4 cells), Android soak 4 m 11 s (2), native+Chromium stress 31 s (4), Android stress 17 m 12 s (2), and `s4-long-cells` (1).\n\n**Caveat.** The stress asserts the server's per-connection abort counts and that no reconnect happened, but not a client-side resume after each abort. The Android timing of about 1 s per cycle supports that the aborts are real.\n\nThe 900 s nightly job remains S15's CI work.",
+      "findingIds": [
+        "S4-F1",
+        "S4-F2",
+        "S4-F3",
+        "S4-F4",
+        "S4-F5"
+      ],
+      "recordedAt": "2026-10-07T17:26:08Z"
     }
   },
   "checkpoints": {
@@ -4045,6 +4400,14 @@
       },
       "reviewHash": "5d3734d8664041544a5617384b22e2e813f8912894991614e8208dc699d0bb62",
       "recordedAt": "2026-10-07T15:58:44Z"
+    },
+    "S4": {
+      "snapshotId": "f956033bf0456221d7aee5915d67a73a557391509b83eda7980e10896f612751",
+      "commits": {
+        "rayx-signalr": "4b0f9f7ff57ef55402cc94b9788d601c0681026b"
+      },
+      "reviewHash": "ea69b8f1670ad2aec4578673833b2676867b5eb608b7c431da8d48f068ad24b3",
+      "recordedAt": "2026-10-07T17:26:36Z"
     }
   },
   "findings": [
@@ -5494,9 +5857,102 @@
           "symbol": "stateful_transparent_a_retried_send_never_moves_to_a_new_logical_connection"
         }
       ]
+    },
+    {
+      "id": "S4-F1",
+      "boundaryId": "S4",
+      "criterionIds": [
+        "R3.C3"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**The repository lint gate fails on the new soak scenario.** Expected: `cargo clippy --all-targets --test e2e --all-features -- -D warnings` (CLAUDE.md validation list, quality CI) passes for the touched e2e code. Observed: `error: unused import: SignalRClient` at `tests/e2e/soak_chaos.rs:20` (`use rayx_signalr::{CallbackHandler, SignalRClient, StatefulReconnectConfig};` — the client comes from `support::connect`). The sprint checks are runtime-only, so they did not catch it. The same clippy run also reports a pre-existing `clippy::type_complexity` error at `tests/e2e/stateful_transparent_resume.rs:32` (committed in S3, `072bbc4`, not in this sprint's diff) that keeps the gate red. **Repair:** drop `SignalRClient` from the import in `soak_chaos.rs`; also factor the S3 return type into a `type` alias (or otherwise satisfy the lint) so the clippy command passes, then rerun it.\n\n**Resolution (S4-2):** Verified: the `SignalRClient` import is gone, and `stateful_transparent_resume.rs` uses `pub(crate) type Unregister`. I reran `cargo clippy --test e2e --all-features -- -D warnings` and it is clean; `cargo fmt --all --check` is clean.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/soak_chaos.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/stateful_transparent_resume.rs",
+          "symbol": "Unregister"
+        }
+      ]
+    },
+    {
+      "id": "S4-F2",
+      "boundaryId": "S4",
+      "criterionIds": [
+        "R3.C4"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**The skill reference still lists the stall as unproven.** Expected: R3.C4 retires the hypothesis, and CLAUDE.md keeps the skill references consistent with `docs/` in the same change. `docs/12-limitations.md:51-56` and `hypotheses.md` now say the stall is retired. Observed: `.claude/skills/rayx-signalr/references/troubleshooting.md:68-69` still says \"Not proven by tests: ... one unreproduced stall after a third stateful resume on the Android emulator\". **Repair:** replace that clause with the retired status, matching `docs/12-limitations.md`: the once-seen stall was not reproduced by `stateful-resume-stress` or `soak-chaos` on native, Chromium or Android for either protocol.\n\n**Resolution (S4-2):** Verified: `troubleshooting.md` now says the once-seen stall is retired and that `stateful-resume-stress` and `soak-chaos` do not reproduce it.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/troubleshooting.md"
+        }
+      ]
+    },
+    {
+      "id": "S4-F3",
+      "boundaryId": "S4",
+      "criterionIds": [
+        "R3.C3",
+        "R3.C4"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**The testing chapter misstates the cell bounds and where the trace goes.** Expected: the bounds as cataloged: `soak-chaos` = soak duration + 60 s (`Scenario.Bound` when `Soak`); `stateful-resume-stress` = 600 s (`Limit`); everything else 60 s. Observed: `docs/14-testing.md:111-113` attaches \"(600-second bound; five fresh stateful connections ...)\" to both `soak-chaos` and `stateful-resume-stress`. The bound sentence at `docs/14-testing.md:125-127` names only the soak exception and leaves out the stress's 600 s. Line 113 also says the `rayx_signalr::stateful=debug` trace is \"in the cell output\". That holds for native and Android (RUST_LOG). In Chromium the trace goes to a 400-record ring buffer that only a failure returns (`tests/wasm-fixture/src/stress.rs:19,71-76`). **Repair:** split the bullet so that only `stateful-resume-stress` carries the 600-second bound. Add the 600 s stress bound to the cell-bound sentence. Say that Chromium returns the tail of the trace with a failure.\n\n**Resolution (S4-2):** Verified: `docs/14-testing.md` describes the stress and the soak separately. The bound sentence names soak + 60 s and the 600 s stress bound. The text says Chromium returns the last 400 trace records with a failure.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/14-testing.md"
+        }
+      ]
+    },
+    {
+      "id": "S4-F4",
+      "boundaryId": "S4",
+      "criterionIds": [
+        "R3.C3",
+        "R3.C4"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**No test covers the runner contracts that R3.C3/D3 name.** Expected: the catalog bound is the soak duration + 60 s, and every runner forwards `RAYX_SIGNALR_SOAK_SECONDS`. Per D3, the stress cells get `RUST_LOG=rayx_signalr=info,rayx_signalr::stateful=debug`. These are new .NET runner behaviors, and CLAUDE.md wants each in its own selectable test group. Observed: no test in `dotnet/RayX.SignalR.E2E.Tests/src/Contracts/` touches `Scenario.Bound`, `Soak`, `Limit`, `LogFilter` or `CellExecution.SoakDuration`/`ScenarioVariables` forwarding (grep finds none). The runtime cells cannot tell forwarding apart from the identical 120 s defaults in Rust (`tests/e2e/support.rs` `soak_duration`) and Playwright (`signalr-soak.spec.ts:7`). A broken forward would quietly run S15's 900 s nightly job for 120 s and still pass. `Category=Catalog` passes (18/18) but asserts none of this. **Repair:** add a static `Category=Catalog` contract test that sets `RAYX_SIGNALR_SOAK_SECONDS` to a non-default value and asserts: `soak-chaos`'s `Bound` equals that value + 60 s; `stateful-resume-stress`'s `Bound` is 600 s and other scenarios keep 60 s; `ScenarioVariables` carries the value and the scenario's `LogFilter` as `RUST_LOG`; and the Android `ShellCommand` and iOS `ChildVariables` carry both.\n\n**Resolution (S4-2):** Verified: `CellExecution.CellVariables` feeds `ScenarioVariables` (native, Playwright, Android, iOS). The new `LongCellTests` (Category=Catalog, check `s4-long-cells`) sets 900 s and asserts the 960/600/60 s bounds, the forwarded value, the stress log filter, the Android `env` command and the iOS `SIMCTL_CHILD_` variables, plus the 180 s default bound when the variable is unset. I reran `Category=Catalog` and 19/19 passed.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/LongCellTests.cs",
+          "symbol": "SoakAndStressCellsHaveTheirOwnBoundsAndReachEveryTarget"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/CellRunners.cs",
+          "symbol": "CellExecution.CellVariables"
+        }
+      ]
+    },
+    {
+      "id": "S4-F5",
+      "boundaryId": "S4",
+      "criterionIds": [
+        "R3.C4"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**The retirement record is dated in the future.** Expected: memory records date the evidence they cite. The S4 checks that retire the hypothesis ran on 2026-10-07 (local check log `check-S4-1.log` 18:42 +02:00, revision 124). Observed: `.agentx/memory/knowledge/interop-validation/hypotheses.md:7` has `updated: \"2026-10-08T01:00:00+02:00\"`, and line 17 says \"retired 2026-10-08\". Both are later than the evidence and than the time of this review (2026-10-07 18:48 +02:00). **Repair:** date the update and the retirement 2026-10-07, the date of the S4 check evidence.\n\n**Resolution (S4-2):** Verified: `hypotheses.md` is dated `updated: 2026-10-07T19:00:00+02:00` and says \"retired 2026-10-07\", consistent with the S4 evidence.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/memory/knowledge/interop-validation/hypotheses.md"
+        }
+      ]
     }
   ],
-  "handoffMarkdown": "D20 implemented on both targets. Native: transport_dropped resumes a stateful connection once via resume_transparently (state DisconnectionReason::Resuming(writer), lifecycle stays Connected, no hooks, supervised under the connection generation so pause/local close supersede it); sends during the resume track as TrackResult::Held (buffer detached flag set by disconnected, cleared by begin_resend) and queue on WriterChannels the resumed connection takes over. A failed resume, a server Close, a server timeout or a protocol violation dispose the buffer and continue in connection_ended (policy/handler/closed with a fresh negotiate). common::resumes_transparently decides. Browser: socket_closed spawns resume_transparently (install with no await after the resend). Loopback server: stateful resume detection by token, resume_delay, reject_resumes (404), try_next_record. Test service: AbortPhysicalTransportAndRejectResume, ResumeRejections, 404 middleware. Group stateful_transparent_ (5). Scenarios stateful-transparent-resume and stateful-resume-fallback (native, browsers, Android); connection-id no longer waits for Reconnected after a stateful drop. Docs 06/07/13 and skill reconnection updated.",
+  "handoffMarkdown": "stateful-resume-stress: StatefulChaosHub.AbortTransport aborts the caller transport right after returning (Task.Run, counted per connection; TransportAborts). Native tests/e2e/stateful_resume_stress.rs and browser tests/wasm-fixture/src/stress.rs (run_stress_scenario, a ring-buffer log::Log of rayx_signalr::stateful records returned with a failure; fixture depends on log 0.4) and signalr-stress.spec.ts: 5 fresh stateful connections (no reconnection policy) x 100 aborts, each followed by Twice and a 5-item Sequence stream, 20 s stall bound per operation, wait for the server abort before the next, then assert 100 aborts, Connected, same id, no reconnecting. Catalog: Limit 600 s and LogFilter rayx_signalr=info,rayx_signalr::stateful=debug (Scenario.LogFilter feeds RUST_LOG); exclusions for firefox/webkit/ios; Playwright projects ignore the stress spec. First run: 4 native+Chromium cells passed (no stall). Hypothesis/limitations docs follow the Android result.",
   "protectedPaths": {
     "rayx-signalr": {
       ".agentx/tasks/resilient-reconnect-and-production-gates/**": "a4110a3f5f2c68d64ddf8fbedb70479c98f46dde78b064b5b3ac826772db49a6",

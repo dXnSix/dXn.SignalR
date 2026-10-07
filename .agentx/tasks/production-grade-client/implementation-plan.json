@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 18,
+  "revision": 21,
   "title": "Production-grade rayx-signalr: typed errors, all transports, proxies, refreshable auth, suspension-aware liveness, proven TLS paths, reference-class performance, and stretch SOCKS/PAC/OS proxies, HTTP/2 and HTTP/3",
   "validationMode": "sprint",
   "repositories": [
@@ -5075,6 +5075,41 @@
         "tools-node/**"
       ],
       "timeoutSeconds": 3600
+    },
+    {
+      "id": "s4-long-cells",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R3.C3",
+        "R3.C4"
+      ],
+      "descriptionMarkdown": "New `LongCellTests` catalog contract: the soak bound (`RAYX_SIGNALR_SOAK_SECONDS` + 60 s), the 600 s stress bound, the default 60 s bound, and the soak duration and stress log filter reaching native, Android and iOS cells.",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "FullyQualifiedName~LongCellTests"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 1
+      },
+      "inputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "build.rs",
+        "src/**",
+        "tests/**",
+        "global.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        ".github/**",
+        "tools-node/**"
+      ],
+      "timeoutSeconds": 3600
     }
   ],
   "finalCheckIds": [
@@ -6128,17 +6163,19 @@
         {
           "id": "S4.T1",
           "title": "Chaos controls and soak scenario",
-          "descriptionMarkdown": "Add the test-only `ChaosControl`, `ChaosHub` and `StatefulChaosHub` to the service, the hidden alive-task counter, the `soak-chaos` scenario in `tests/e2e` and the wasm fixture (Chromium), the per-scenario catalog bound (`soak + 60 s`) and `RAYX_SIGNALR_SOAK_SECONDS` forwarding in every runner. Fix every defect the soak finds, each with its own unit regression test in a new `soak_regression_` group (amend the plan with its check).",
+          "descriptionMarkdown": "Add the test-only `ChaosControl`, `ChaosHub` and `StatefulChaosHub` to the service, the native task-leak check on the clients' runtime (D25), the `soak-chaos` scenario in `tests/e2e` and the wasm fixture (Chromium), the per-scenario catalog bound (`soak + 60 s`) and `RAYX_SIGNALR_SOAK_SECONDS` forwarding in every runner. Fix every defect the soak finds, each with its own unit regression test in a new `soak_regression_` group (amend the plan with its check).",
           "criterionIds": [
             "R3.C3"
           ],
           "designIds": [
-            "D3"
+            "D3",
+            "D25"
           ],
           "dependsOn": [],
           "checkIds": [
             "s4-soak-native-chromium",
-            "s4-soak-android"
+            "s4-soak-android",
+            "s4-long-cells"
           ],
           "sourceRefs": [
             {

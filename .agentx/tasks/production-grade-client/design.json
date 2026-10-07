@@ -760,6 +760,29 @@
           "path": "src/communication/client_wasm.rs"
         }
       ]
+    },
+    {
+      "id": "D25",
+      "requirementIds": [
+        "R3"
+      ],
+      "descriptionMarkdown": "**Soak harness details (refines D3 for S4).**\n- Native task-leak check: the soak's clients run on a dedicated multi-thread Tokio runtime (`with_runtime_handle`), and that runtime's `RuntimeMetrics::num_alive_tasks()` is compared before connect and after `disconnect` settles. Every connection task (writer, receiver, reconnect and resume runs, lifecycle hooks) runs on the bound runtime, so this measures what R3.C3 asks for without D3's hidden `diagnostics::alive_tasks()` counter, which would put a test hook in the library (CLAUDE.md). In Chromium the Playwright spec checks that every WebSocket the page opened is closed after `disconnect`.\n- Chaos is per hub: `ChaosControl.For(hub)` tracks the hub's connections (`OnConnectedAsync`/`OnDisconnectedAsync`) and aborts the current HTTP transport of each at the seeded intervals, so ordinary reconnects stay under chaos; both chaos hubs allow 8 parallel invocations per client (client results are requested inside a hub method).\n- One cell covers both modes: the ordinary and the stateful hub run concurrently (two clients) for the soak duration within the `soak + 60 s` bound. The scenario runs on native, Chromium and Android; Firefox, WebKit and iOS are documented catalog exclusions, and the Firefox and WebKit Playwright projects ignore the soak spec.",
+      "invariantsMarkdown": "- The library carries no diagnostic counter; the task-leak check uses the runtime's own metrics.\n- Chaos controls stay in the test service.",
+      "rationaleMarkdown": "CLAUDE.md forbids test hooks in library code, and the bound runtime's metric observes the same tasks a library counter would.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/soak_chaos.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/ChaosHubs.cs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/soak.rs"
+        }
+      ]
     }
   ],
   "memoryDecisionsConsidered": [
