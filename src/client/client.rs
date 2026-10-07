@@ -399,6 +399,7 @@ impl SignalRClient {
         configure(&mut config);
         config.validate_authentication()?;
         config.validate_transports()?;
+        config.validate_proxy()?;
         // Every liveness duration is accepted, as the .NET client accepts them; values that
         // cannot work are logged.
         config.liveness().warn();
@@ -489,6 +490,8 @@ impl SignalRClient {
     ///   negotiation fails.
     /// - [`ErrorKind::Timeout`](crate::ErrorKind::Timeout) naming the negotiate, connect or
     ///   handshake step.
+    /// - [`ErrorKind::Proxy`](crate::ErrorKind::Proxy) (native) when the proxy cannot be reached
+    ///   or refuses the tunnel, with the proxy's HTTP status (for example 407) when it answered.
     /// - [`ErrorKind::Tls`](crate::ErrorKind::Tls), [`ErrorKind::Transport`](crate::ErrorKind::Transport),
     ///   [`ErrorKind::TransportUnavailable`](crate::ErrorKind::TransportUnavailable) or
     ///   [`ErrorKind::Handshake`](crate::ErrorKind::Handshake) when the transport cannot be

@@ -29,6 +29,8 @@ mod http_transport_tokio;
 #[cfg(not(target_arch = "wasm32"))]
 mod long_polling_tokio;
 #[cfg(not(target_arch = "wasm32"))]
+pub(crate) mod proxy;
+#[cfg(not(target_arch = "wasm32"))]
 mod server_sent_events_tokio;
 #[cfg(not(target_arch = "wasm32"))]
 mod transport_tokio;

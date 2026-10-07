@@ -176,8 +176,9 @@ impl Error {
         self.inner.kind
     }
 
-    /// The HTTP status of a [`Negotiate`](ErrorKind::Negotiate) or
-    /// [`Authentication`](ErrorKind::Authentication) failure, when the server answered.
+    /// The HTTP status of a [`Negotiate`](ErrorKind::Negotiate),
+    /// [`Authentication`](ErrorKind::Authentication) or [`Proxy`](ErrorKind::Proxy) failure, when
+    /// the server or the proxy answered.
     pub fn status(&self) -> Option<u16> {
         self.inner.status
     }
@@ -228,11 +229,17 @@ impl Error {
     }
 
     /// Whether retrying the same operation later can succeed: timeouts, network and transport
-    /// failures, and negotiate answers 408, 429 and 5xx.
+    /// failures, negotiate answers 408, 429 and 5xx, and proxy failures without a status or with
+    /// 408, 429 or 5xx (not refused credentials or a denied target).
     pub fn is_transient(&self) -> bool {
         match self.inner.kind {
             ErrorKind::Timeout | ErrorKind::Transport => true,
             ErrorKind::Negotiate => self.inner.status.is_some_and(|status| {
+                status == 408 || status == 429 || (500..600).contains(&status)
+            }),
+            // An unreachable proxy or a gateway failure may pass; refused credentials or a denied
+            // target do not.
+            ErrorKind::Proxy => self.inner.status.is_none_or(|status| {
                 status == 408 || status == 429 || (500..600).contains(&status)
             }),
             _ => false,
@@ -252,6 +259,13 @@ impl Error {
 
     pub(crate) fn negotiate(status: Option<u16>, message: impl Into<String>) -> Self {
         let mut inner = Inner::new(ErrorKind::Negotiate, message.into());
+        inner.status = status;
+        Self::build(inner)
+    }
+
+    /// A proxy refused or failed the tunnel: `status` when it answered.
+    pub(crate) fn proxy(status: Option<u16>, message: impl Into<String>) -> Self {
+        let mut inner = Inner::new(ErrorKind::Proxy, message.into());
         inner.status = status;
         Self::build(inner)
     }

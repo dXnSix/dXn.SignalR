@@ -84,6 +84,9 @@ pub struct ConnectionConfiguration {
     _tls: crate::communication::tls::TlsSettings,
     #[cfg(not(target_arch = "wasm32"))]
     _runtime: Option<tokio::runtime::Handle>,
+    /// The proxy of native connections, or the error of an invalid `with_proxy` URL.
+    #[cfg(not(target_arch = "wasm32"))]
+    _proxy: Result<crate::communication::proxy::ProxyConfig, crate::Error>,
 }
 
 impl Authentication {
@@ -164,6 +167,9 @@ pub(crate) struct ConnectionRecipe {
     negotiated_authentication: Option<Authentication>,
     #[cfg(not(target_arch = "wasm32"))]
     tls: crate::communication::tls::TlsContext,
+    /// The proxy of every native connection.
+    #[cfg(not(target_arch = "wasm32"))]
+    proxy: crate::communication::proxy::ProxyConfig,
     /// The Tokio runtime that owns this connection's I/O, timers and tasks.
     #[cfg(not(target_arch = "wasm32"))]
     runtime: Option<tokio::runtime::Handle>,
@@ -285,6 +291,12 @@ impl ConnectionRecipe {
         self.secure
     }
 
+    /// The proxy of every native connection.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn proxy(&self) -> &crate::communication::proxy::ProxyConfig {
+        &self.proxy
+    }
+
     /// The connection's TLS state, shared by negotiate, the WebSocket and reconnects.
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn tls(&self) -> &crate::communication::tls::TlsContext {
@@ -389,6 +401,8 @@ impl ConnectionConfiguration {
             _tls: Default::default(),
             #[cfg(not(target_arch = "wasm32"))]
             _runtime: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            _proxy: Ok(Default::default()),
         }
     }
 
@@ -869,6 +883,8 @@ impl ConnectionConfiguration {
             tls: Default::default(),
             #[cfg(not(target_arch = "wasm32"))]
             runtime: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            proxy: self._proxy.clone().unwrap_or_default(),
         }
     }
 
@@ -930,6 +946,49 @@ impl ConnectionConfiguration {
     pub fn use_webpki_roots(&mut self) -> &ConnectionConfiguration {
         self._tls.use_webpki_roots = true;
         self
+    }
+
+    /// Connects through this HTTP proxy, `http://[user:password@]host[:port]` (port 80 by
+    /// default; user and password may be percent-encoded), instead of the system's proxy
+    /// settings. Every native connection (negotiate, WebSocket, Long Polling, Server-Sent Events)
+    /// opens an HTTP `CONNECT` tunnel through it, with Basic `Proxy-Authorization` when the URL
+    /// carries credentials, and runs TLS inside the tunnel for secure endpoints, so the proxy
+    /// never sees the traffic. Credentials never appear in logs or errors. An invalid URL fails
+    /// [`SignalRClient::new`](crate::SignalRClient::new) with
+    /// [`ErrorKind::Configuration`](crate::ErrorKind::Configuration) naming `with_proxy`. Native
+    /// only: browsers use the browser's proxy settings.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_proxy(&mut self, url: impl AsRef<str>) -> &ConnectionConfiguration {
+        self._proxy = crate::communication::proxy::ProxyUrl::parse(url.as_ref())
+            .map(crate::communication::proxy::ProxyConfig::Explicit);
+        self
+    }
+
+    /// Uses the system's proxy settings, the default, as the .NET client's default proxy: the
+    /// `HTTPS_PROXY` (secure endpoints) or `HTTP_PROXY` (plain ones) environment variable, else
+    /// `ALL_PROXY`, read in lower or upper case when each connection is opened, except for the
+    /// hosts `NO_PROXY` lists (curl's rules: host names with their subdomains, IP addresses, CIDR
+    /// ranges, optional ports, `*` for every host). Native only.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_system_proxy(&mut self) -> &ConnectionConfiguration {
+        self._proxy = Ok(crate::communication::proxy::ProxyConfig::System);
+        self
+    }
+
+    /// Connects directly, ignoring the system's proxy settings. Native only.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn without_proxy(&mut self) -> &ConnectionConfiguration {
+        self._proxy = Ok(crate::communication::proxy::ProxyConfig::Disabled);
+        self
+    }
+
+    /// Fails when `with_proxy` was given an invalid URL.
+    pub(crate) fn validate_proxy(&self) -> Result<(), crate::Error> {
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Err(error) = &self._proxy {
+            return Err(error.clone());
+        }
+        Ok(())
     }
 }
 

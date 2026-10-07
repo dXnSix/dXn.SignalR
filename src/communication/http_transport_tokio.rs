@@ -131,8 +131,14 @@ impl Lane {
     }
 
     async fn connect(&self) -> Result<SendRequest<Full<Bytes>>, Error> {
-        let tcp =
-            super::negotiate_http::connect_tcp(self.target.host(), self.target.port()).await?;
+        // Through the proxy's CONNECT tunnel when one applies; TLS runs inside it.
+        let tcp = super::proxy::connect(
+            self.recipe.proxy(),
+            self.target.secure,
+            self.target.host(),
+            self.target.port(),
+        )
+        .await?;
         if self.target.secure {
             let stream =
                 super::negotiate_http::tls_stream(self.recipe.tls(), self.target.host(), tcp)

@@ -31,11 +31,15 @@ pub(crate) async fn post(
     authorization: Option<String>,
     headers: &[(String, String)],
     tls: &TlsContext,
+    proxy: &super::proxy::ProxyConfig,
     timeout: std::time::Duration,
 ) -> Result<String, Error> {
-    tokio::time::timeout(timeout, post_unbounded(url, authorization, headers, tls))
-        .await
-        .map_err(|_| Error::timed_out(TimeoutOperation::Negotiate, timeout))?
+    tokio::time::timeout(
+        timeout,
+        post_unbounded(url, authorization, headers, tls, proxy),
+    )
+    .await
+    .map_err(|_| Error::timed_out(TimeoutOperation::Negotiate, timeout))?
 }
 
 async fn post_unbounded(
@@ -43,6 +47,7 @@ async fn post_unbounded(
     authorization: Option<String>,
     headers: &[(String, String)],
     tls: &TlsContext,
+    proxy: &super::proxy::ProxyConfig,
 ) -> Result<String, Error> {
     let uri: Uri = url.parse().map_err(|error| {
         Error::negotiate(None, format!("the negotiate URL is invalid: {error}"))
@@ -96,7 +101,8 @@ async fn post_unbounded(
         )
     })?;
 
-    let tcp = connect_tcp(host, port).await?;
+    // Through the proxy's CONNECT tunnel when one applies; TLS runs inside it.
+    let tcp = super::proxy::connect(proxy, secure, host, port).await?;
     if secure {
         send(tls_stream(tls, host, tcp).await?, request).await
     } else {
@@ -399,6 +405,7 @@ mod connection_setup_bounds {
             None,
             &[],
             &tls,
+            &crate::communication::proxy::ProxyConfig::Disabled,
             Duration::from_millis(300),
         )
         .await

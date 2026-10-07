@@ -201,6 +201,7 @@ impl HttpClient {
             authorization,
             recipe.headers(),
             recipe.tls(),
+            recipe.proxy(),
             timeout,
         )
         .await

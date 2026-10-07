@@ -2140,8 +2140,9 @@ impl CommunicationClient {
             .ok_or_else(|| Error::negotiate(None, "the WebSocket endpoint has no host"))?;
         let secure = Some("wss") == endpoint.scheme_str();
         let port = endpoint.port_u16().unwrap_or(if secure { 443 } else { 80 });
-        // Every resolved address is tried and Nagle's algorithm is off (see `connect_tcp`).
-        let tcp = super::negotiate_http::connect_tcp(host, port)
+        // Every resolved address is tried and Nagle's algorithm is off (see `connect_tcp`),
+        // through the proxy's CONNECT tunnel when one applies; TLS runs inside it.
+        let tcp = super::proxy::connect(recipe.proxy(), secure, host, port)
             .await
             .map_err(|error| error.with_transport(TransportKind::WebSockets))?;
         let stream = if secure {
