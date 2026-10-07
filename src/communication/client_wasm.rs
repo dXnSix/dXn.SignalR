@@ -220,15 +220,12 @@ impl Shared {
             .cloned()
     }
 
-    /// Runs the start or reconnect run of `generation` until it ends or a local close cancels it.
+    /// Runs a start, reconnect or resume until it ends or a local close or a pause cancels it.
     async fn supervise<T>(
         &self,
-        generation: u64,
         future: impl std::future::Future<Output = Result<T, Error>>,
     ) -> Result<T, Error> {
-        self.runs
-            .supervise(generation, future, || self.superseded())
-            .await
+        self.runs.supervise(future, || self.superseded()).await
     }
 
     /// Fails ordinary pending work; stateful pending work waits for the resume.
@@ -293,7 +290,7 @@ impl WasmReconnectionContext {
         let generation = begin_reconnect(&self.shared, &replaced_by_reconnect())?;
         let result = self
             .shared
-            .supervise(generation, attempt(&self.shared, generation))
+            .supervise(attempt(&self.shared, generation))
             .await;
         if let Err(error) = &result {
             fail_generation(&self.shared, generation, error);
@@ -473,10 +470,7 @@ async fn run_policy_to_end(
     reason: &Error,
 ) -> Result<(), Error> {
     let result = shared
-        .supervise(
-            generation,
-            run_policy(shared, generation, first, initial, reason),
-        )
+        .supervise(run_policy(shared, generation, first, initial, reason))
         .await;
     if let Err(error) = &result {
         if fail_generation(shared, generation, error) {
@@ -656,6 +650,8 @@ async fn send_on(shared: &Shared, message: OutboundMessage) -> Result<(), Error>
                 .track(message.message_type, message.frame.clone())?;
             match result {
                 TrackResult::Buffered(_) | TrackResult::Bypass => break,
+                // The transport is being resumed: its resend sends the frame.
+                TrackResult::Held(_) => return Ok(()),
                 TrackResult::Backpressured => sleep(Duration::from_millis(5)).await,
             }
         }
@@ -842,29 +838,39 @@ async fn run_receiver(
     }
 }
 
-/// Reacts to the end of the current socket (`reason` says why): terminal close, manual handler
-/// or automatic policy.
+/// Reacts to the end of the current socket (`reason` says why): a stateful connection resumes
+/// once, transparently, after an ungraceful loss; otherwise, or when that resume fails, the
+/// logical connection ends: terminal close, manual handler or automatic policy (which negotiates
+/// afresh).
 fn socket_closed(shared: &Rc<Shared>, generation: u64, reason: Error) {
     let lifecycle = shared.lifecycle.get();
     if lifecycle.generation() != generation || lifecycle.state() != LifecycleState::Connected {
         return;
     }
     shared.socket.replace(None);
+    if reason.allows_reconnect() && super::common::resumes_transparently(&reason) {
+        if let Some(buffer) = shared.active_stateful() {
+            match buffer.borrow_mut().disconnected() {
+                Ok(()) => {
+                    info!("The WASM transport was lost; resuming the stateful connection");
+                    spawn_local(resume_transparently(
+                        shared.clone(),
+                        generation,
+                        buffer.clone(),
+                    ));
+                    return;
+                }
+                Err(error) => error!("Cannot enter WASM stateful resume: {}", error),
+            }
+        }
+    }
+    // Nothing resumes the stateful logical connection any more.
+    if let Some(buffer) = &shared.stateful {
+        buffer.borrow_mut().dispose();
+    }
     if !reason.allows_reconnect() {
         terminal_close(shared, reason);
         return;
-    }
-
-    if let Some(buffer) = shared.active_stateful() {
-        if let Err(error) = buffer.borrow_mut().disconnected() {
-            error!("Cannot enter WASM stateful resume: {}", error);
-            shared.lifecycle(Lifecycle::transport_lost);
-            shared.disconnect_reason.replace(Some(error.clone()));
-            let mut storage = shared.storage.clone();
-            storage.fail_pending(&error);
-            shared.hooks.closed(Some(error));
-            return;
-        }
     }
 
     // Release the handler slot borrow before running user code.
@@ -917,6 +923,45 @@ fn socket_closed(shared: &Rc<Shared>, generation: u64, reason: Error) {
             Err(error) => warn!("WASM automatic reconnect stopped: {}", error),
         }
     });
+}
+
+/// Resumes the lost stateful transport of `generation` once, at once and without the
+/// reconnection policy, as the .NET client's WebSocket transport does: the client stays connected
+/// and raises no event, sends go into the replay buffer, and the resume resends them after its
+/// Sequence. A failed resume ends the logical connection like an ordinary drop.
+async fn resume_transparently(shared: Rc<Shared>, generation: u64, buffer: SharedStatefulBuffer) {
+    let endpoint = shared.transport_endpoint.borrow().clone();
+    let liveness = shared.recipe.liveness();
+    let resumed = shared
+        .supervise(resume_socket(
+            &endpoint,
+            shared.protocol_kind,
+            &buffer,
+            &liveness,
+        ))
+        .await;
+    let lifecycle = shared.lifecycle.get();
+    let current = lifecycle.generation() == generation
+        && lifecycle.state() == LifecycleState::Connected
+        && shared.socket.borrow().is_none();
+    match resumed {
+        // No await separates the resend from the install, so no send falls between them.
+        Ok(opened) if current => {
+            install(&shared, opened, generation, false);
+            info!("WASM stateful connection resumed");
+        }
+        // A pause or a local close took over.
+        Ok(opened) => opened.socket.close(),
+        Err(error) if current => {
+            info!(
+                "The WASM stateful connection could not be resumed: {}",
+                error
+            );
+            buffer.borrow_mut().dispose();
+            socket_closed(&shared, generation, error);
+        }
+        Err(_) => {}
+    }
 }
 
 /// Handles a transport end that forbids reconnecting (a server Close without permission, or a
@@ -1157,9 +1202,7 @@ impl Communication for CommunicationClient {
         shared.storage.callbacks().open();
         let mut storage = shared.storage.clone();
         storage.fail_pending(&replaced_by_reconnect());
-        let result = shared
-            .supervise(generation, attempt(shared, generation))
-            .await;
+        let result = shared.supervise(attempt(shared, generation)).await;
         if let Err(error) = &result {
             info!("The connection could not be started: {error}");
             if shared.lifecycle(|lifecycle| lifecycle.fail(generation)) {
@@ -1272,6 +1315,8 @@ impl CommunicationClient {
         if shared.lifecycle(Lifecycle::pause)? == PauseOutcome::AlreadyPaused {
             return Ok(());
         }
+        // The pause supersedes the start, reconnect or resume in flight.
+        shared.runs.cancel_all();
         if let Some(previous) = shared.socket.replace(None) {
             previous.socket.close();
         }

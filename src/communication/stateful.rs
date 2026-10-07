@@ -32,6 +32,9 @@ pub(crate) struct BufferedFrame {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum TrackResult {
     Buffered(u64),
+    /// Buffered while the transport is lost and its resume has not resent yet: the resume sends
+    /// it, so it must not be queued for a transport as well.
+    Held(u64),
     Bypass,
     Backpressured,
 }
@@ -50,6 +53,9 @@ pub(crate) struct StatefulMessageBuffer {
     /// When the last Ack went out, on the transport's millisecond clock.
     last_acknowledgement_at: Option<u64>,
     awaiting_sequence: bool,
+    /// The transport is lost and the resume has not begun its resend: tracked frames are held
+    /// for that resend.
+    detached: bool,
     resending: bool,
     disposed: bool,
     /// Incremented when the physical transport is lost or the buffer is disposed; a writer of an
@@ -96,6 +102,7 @@ impl StatefulMessageBuffer {
             last_acknowledgement_sent: 0,
             last_acknowledgement_at: None,
             awaiting_sequence: false,
+            detached: false,
             resending: false,
             disposed: false,
             transport_generation: 0,
@@ -165,6 +172,9 @@ impl StatefulMessageBuffer {
             "generation={} track sequence={sequence_id} type={message_type:?} bytes={bytes}",
             self.transport_generation
         );
+        if self.detached {
+            return Ok(TrackResult::Held(sequence_id));
+        }
         Ok(TrackResult::Buffered(sequence_id))
     }
 
@@ -254,6 +264,7 @@ impl StatefulMessageBuffer {
         );
         self.transport_generation = self.transport_generation.wrapping_add(1);
         self.awaiting_sequence = true;
+        self.detached = true;
         // The final Ack may have been lost with the transport. Allow the
         // resumed connection to acknowledge the cumulative high-water mark at once (its clock
         // starts again).
@@ -372,6 +383,8 @@ impl StatefulMessageBuffer {
     pub(crate) fn begin_resend(&mut self) -> Result<(u64, Vec<BufferedFrame>), Error> {
         self.ensure_active()?;
         self.resending = true;
+        // From here frames go to the resumed transport (after the resend) again.
+        self.detached = false;
         let sequence_id = self
             .frames
             .front()
@@ -458,6 +471,7 @@ impl StatefulMessageBuffer {
         self.transport_generation = self.transport_generation.wrapping_add(1);
         self.disposed = true;
         self.resending = false;
+        self.detached = false;
         self.awaiting_sequence = false;
         self.last_acknowledgement_sent = 0;
         self.frames.clear();
@@ -475,6 +489,44 @@ impl StatefulMessageBuffer {
         } else {
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod stateful_transparent {
+    use super::{SerializedFrame, StatefulMessageBuffer, TrackResult};
+    use crate::protocol::negotiate::MessageType;
+
+    #[test]
+    fn stateful_transparent_frames_sent_while_resuming_are_held_for_the_resend() {
+        let mut buffer = StatefulMessageBuffer::new(1_000).unwrap();
+        let frame = || SerializedFrame::text("{\"type\":1,\"target\":\"a\"}\u{1e}");
+        assert_eq!(
+            buffer.track(MessageType::Invocation, frame()).unwrap(),
+            TrackResult::Buffered(1)
+        );
+        buffer.disconnected().unwrap();
+        // The transport is lost: the frame is buffered for the resume's resend, not queued.
+        assert_eq!(
+            buffer.track(MessageType::Invocation, frame()).unwrap(),
+            TrackResult::Held(2)
+        );
+        let (sequence_id, frames) = buffer.begin_resend().unwrap();
+        assert_eq!(sequence_id, 1);
+        assert_eq!(
+            frames
+                .iter()
+                .map(|frame| frame.sequence_id)
+                .collect::<Vec<_>>(),
+            [1, 2],
+            "the resend sends every frame, the held one once"
+        );
+        buffer.finish_resend(true).unwrap();
+        assert_eq!(
+            buffer.track(MessageType::Invocation, frame()).unwrap(),
+            TrackResult::Buffered(3),
+            "after the resend frames go to the resumed transport again"
+        );
     }
 }
 

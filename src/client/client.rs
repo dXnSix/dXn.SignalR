@@ -2264,6 +2264,335 @@ mod client_lifecycle_api {
         client.disconnect();
     }
 
+    /// A stateful client of a stateful loopback server (`options` refined), started.
+    async fn stateful_transparent(
+        options: LoopbackOptions,
+        reconnection: Option<crate::ReconnectionConfig>,
+    ) -> (LoopbackServer, SignalRClient, Events) {
+        let (server, client) = loopback(
+            LoopbackOptions {
+                stateful: true,
+                ..options
+            },
+            |configuration| {
+                configuration.with_stateful_reconnect(StatefulReconnectConfig::default());
+                if let Some(reconnection) = reconnection {
+                    configuration.with_reconnection_policy(reconnection);
+                }
+            },
+        )
+        .await;
+        let events = record_events(&client);
+        client.start().await.unwrap();
+        server.wait_for_connections(1).await;
+        (server, client, events)
+    }
+
+    async fn until(condition: impl Fn() -> bool) {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while !condition() {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("the condition never held");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn stateful_transparent_a_lost_transport_resumes_once_without_the_policy_or_events() {
+        // No reconnection policy: the resume does not depend on one.
+        let (server, mut client, events) = stateful_transparent(
+            LoopbackOptions {
+                resume_delay: Duration::from_millis(300),
+                ..LoopbackOptions::default()
+            },
+            None,
+        )
+        .await;
+        let connection_id = client.connection_id();
+        server.drop_connection();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert_eq!(
+            client.status(),
+            ConnectionStatus::Connected,
+            "while resuming"
+        );
+        // A send while the resume runs goes into the replay buffer and out with the resend.
+        client.send("Resumed".to_string()).await.unwrap();
+        until(|| server.resumes().0 == 1).await;
+        let mut sent = Vec::new();
+        while let Some(record) = server.try_next_record(Duration::from_millis(500)).await {
+            sent.push(record);
+        }
+        assert_eq!(sent[0], "{\"type\":9,\"sequenceId\":1}", "{sent:?}");
+        assert_eq!(
+            sent.iter()
+                .filter(|record| record.contains("Resumed"))
+                .count(),
+            1,
+            "sent once: {sent:?}"
+        );
+        assert_eq!(server.negotiations(), 1, "no fresh negotiate");
+        assert_eq!(client.connection_id(), connection_id);
+        assert_eq!(client.status(), ConnectionStatus::Connected);
+        assert!(events.lock().unwrap().is_empty(), "no lifecycle event");
+        client.stop().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn stateful_transparent_a_failed_resume_negotiates_afresh_through_the_policy() {
+        let (server, client, events) = stateful_transparent(
+            LoopbackOptions {
+                reject_resumes: true,
+                ..LoopbackOptions::default()
+            },
+            Some(policy(Duration::from_millis(10), None)),
+        )
+        .await;
+        server.drop_connection();
+        assert_eq!(
+            events_reach(&events, 2).await,
+            ["reconnecting Transport", "reconnected Some(\"conn-2\")"],
+            "the resume failed (404): the policy reconnects with a new connection id"
+        );
+        assert_eq!(server.resumes(), (0, 1), "exactly one resume");
+        assert_eq!(server.negotiations(), 2);
+        assert_eq!(client.connection_id().as_deref(), Some("conn-2"));
+        client.stop().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn stateful_transparent_a_failed_resume_without_a_policy_closes() {
+        let (server, mut client, events) = stateful_transparent(
+            LoopbackOptions {
+                reject_resumes: true,
+                resume_delay: Duration::from_millis(200),
+                ..LoopbackOptions::default()
+            },
+            None,
+        )
+        .await;
+        server.drop_connection();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        // Accepted into the replay buffer while resuming, then lost with the logical connection,
+        // as with the .NET client.
+        client.send("Lost".to_string()).await.unwrap();
+        assert_eq!(events_reach(&events, 1).await, ["closed Some(Transport)"]);
+        assert_eq!(client.status(), ConnectionStatus::Disconnected);
+        assert_eq!(server.resumes(), (0, 1));
+        assert_eq!(server.negotiations(), 1);
+        client.stop().await;
+    }
+
+    /// Every record the server receives until it stays quiet for half a second.
+    async fn records(server: &LoopbackServer) -> Vec<String> {
+        let mut seen = Vec::new();
+        while let Some(record) = server.try_next_record(Duration::from_millis(500)).await {
+            seen.push(record);
+        }
+        seen
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn stateful_transparent_a_client_result_completed_while_resuming_goes_out_with_the_resend(
+    ) {
+        let (server, mut client) = loopback(
+            LoopbackOptions {
+                stateful: true,
+                resume_delay: Duration::from_millis(600),
+                ..LoopbackOptions::default()
+            },
+            |configuration| {
+                configuration.with_stateful_reconnect(StatefulReconnectConfig::default());
+            },
+        )
+        .await;
+        let registration = client.register_async("Result", |mut context| async move {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            let _ = context.complete(42).await;
+        });
+        client.start().await.unwrap();
+        server.wait_for_connections(1).await;
+        server.send(crate::communication::loopback_server::Frame::Text(
+            "{\"type\":1,\"invocationId\":\"7\",\"target\":\"Result\",\"arguments\":[]}\u{1e}"
+                .into(),
+        ));
+        // The handler completes while the transport is lost and resuming.
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        server.drop_connection();
+        until(|| server.resumes().0 == 1).await;
+        let sent = records(&server).await;
+        let replies: Vec<_> = sent
+            .iter()
+            .filter(|record| record.contains("\"invocationId\":\"7\""))
+            .collect();
+        assert_eq!(replies.len(), 1, "one reply: {sent:?}");
+        assert!(replies[0].contains("\"result\":42"), "{sent:?}");
+        let sequence = sent.iter().position(|record| record.contains("\"type\":9"));
+        let reply = sent
+            .iter()
+            .position(|record| record.contains("\"invocationId\":\"7\""));
+        assert!(sequence < reply, "the reply follows the Sequence: {sent:?}");
+        registration.unregister();
+        client.stop().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn stateful_transparent_a_send_waiting_for_buffer_room_survives_the_loss() {
+        let (server, client) = loopback(
+            LoopbackOptions {
+                stateful: true,
+                resume_delay: Duration::from_millis(300),
+                ..LoopbackOptions::default()
+            },
+            |configuration| {
+                // Room for about two messages; the loopback server never acknowledges by itself.
+                configuration.with_stateful_reconnect(StatefulReconnectConfig::new(64).unwrap());
+            },
+        )
+        .await;
+        client.start().await.unwrap();
+        server.wait_for_connections(1).await;
+        let mut sender = client.clone();
+        sender.send("First".to_string()).await.unwrap();
+        sender.send("Second".to_string()).await.unwrap();
+        let waiting = tokio::spawn(async move { sender.send("Third".to_string()).await });
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(
+            !waiting.is_finished(),
+            "the third send waits for buffer room"
+        );
+        server.drop_connection();
+        until(|| server.resumes().0 == 1).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        // The server acknowledges the replayed messages: the waiting send goes out.
+        server.send(crate::communication::loopback_server::Frame::Text(
+            "{\"type\":8,\"sequenceId\":2}\u{1e}".into(),
+        ));
+        tokio::time::timeout(Duration::from_secs(5), waiting)
+            .await
+            .expect("the waiting send completed")
+            .unwrap()
+            .unwrap();
+        let sent = records(&server).await;
+        for target in ["First", "Second", "Third"] {
+            assert_eq!(
+                sent.iter().filter(|record| record.contains(target)).count(),
+                // Sent before the loss, then replayed by the resume.
+                if target == "Third" { 1 } else { 2 },
+                "{target}: {sent:?}"
+            );
+        }
+        assert_eq!(client.status(), ConnectionStatus::Connected);
+        client.stop().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn stateful_transparent_a_waiting_send_fails_when_the_resume_fails() {
+        let (server, client) = loopback(
+            LoopbackOptions {
+                stateful: true,
+                reject_resumes: true,
+                ..LoopbackOptions::default()
+            },
+            |configuration| {
+                configuration.with_stateful_reconnect(StatefulReconnectConfig::new(64).unwrap());
+                configuration.with_reconnection_policy(policy(Duration::ZERO, None));
+            },
+        )
+        .await;
+        let events = record_events(&client);
+        client.start().await.unwrap();
+        server.wait_for_connections(1).await;
+        let mut sender = client.clone();
+        sender.send("First".to_string()).await.unwrap();
+        sender.send("Second".to_string()).await.unwrap();
+        let waiting = tokio::spawn(async move { sender.send("Third".to_string()).await });
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        server.drop_connection();
+        let result = tokio::time::timeout(Duration::from_secs(5), waiting)
+            .await
+            .expect("the waiting send ended")
+            .unwrap();
+        assert!(result.is_err(), "its logical connection ended: {result:?}");
+        events_reach(&events, 2).await;
+        let sent = records(&server).await;
+        assert!(
+            !sent.iter().any(|record| record.contains("Third")),
+            "the send never reached the new logical connection: {sent:?}"
+        );
+        client.stop().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn stateful_transparent_a_pause_cancels_the_resume_in_flight() {
+        let (server, client, events) = stateful_transparent(
+            LoopbackOptions {
+                resume_delay: Duration::from_millis(500),
+                ..LoopbackOptions::default()
+            },
+            None,
+        )
+        .await;
+        let connection_id = client.connection_id();
+        server.drop_connection();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        client.pause().await.unwrap();
+        // A resume that kept running would send its Sequence once the server accepts it.
+        tokio::time::sleep(Duration::from_millis(700)).await;
+        let superseded = records(&server).await;
+        assert!(
+            !superseded
+                .iter()
+                .any(|record| record.contains("\"type\":9")),
+            "the superseded resume resent nothing: {superseded:?}"
+        );
+        client.resume().await.unwrap();
+        assert_eq!(client.status(), ConnectionStatus::Connected);
+        let resumed = records(&server).await;
+        assert_eq!(
+            resumed
+                .iter()
+                .filter(|record| record.contains("\"type\":9"))
+                .count(),
+            1,
+            "one resume, by resume(): {resumed:?}"
+        );
+        assert_eq!(
+            client.connection_id(),
+            connection_id,
+            "the same logical connection"
+        );
+        assert_eq!(server.negotiations(), 1);
+        assert!(
+            events.lock().unwrap().is_empty(),
+            "{:?}",
+            events.lock().unwrap()
+        );
+        client.stop().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn stateful_transparent_a_server_close_ends_the_logical_connection() {
+        let (server, client, events) = stateful_transparent(
+            LoopbackOptions::default(),
+            Some(policy(Duration::from_millis(10), None)),
+        )
+        .await;
+        server.send(crate::communication::loopback_server::Frame::Text(
+            "{\"type\":7,\"allowReconnect\":true}\u{1e}".into(),
+        ));
+        assert_eq!(
+            events_reach(&events, 2).await,
+            [
+                "reconnecting ConnectionClosed",
+                "reconnected Some(\"conn-2\")"
+            ]
+        );
+        assert_eq!(server.resumes(), (0, 0), "a server Close is never resumed");
+        client.stop().await;
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn lifecycle_events_reconnected_precedes_the_events_of_the_next_drop() {
         let (server, client) = loopback(LoopbackOptions::default(), |configuration| {

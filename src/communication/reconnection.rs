@@ -253,24 +253,25 @@ impl Lifecycle {
 /// them run to their next check.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Runs {
+    /// Each run in flight under its own key, so one ending never forgets another's handle.
     handles: std::sync::Arc<std::sync::Mutex<Vec<(u64, futures::future::AbortHandle)>>>,
+    next: std::sync::Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl Runs {
-    /// Runs `future` as the run of `generation`; a local close ends it with `superseded()`.
+    /// Runs `future` until it ends or `cancel_all` (a local close or a pause) ends it with
+    /// `superseded()`.
     pub(crate) async fn supervise<T>(
         &self,
-        generation: u64,
         future: impl std::future::Future<Output = Result<T, Error>>,
         superseded: impl FnOnce() -> Error,
     ) -> Result<T, Error> {
         use crate::platform::LockExt;
+        let key = self.next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let (handle, registration) = futures::future::AbortHandle::new_pair();
-        self.handles.locked().push((generation, handle));
+        self.handles.locked().push((key, handle));
         let result = futures::future::Abortable::new(future, registration).await;
-        self.handles
-            .locked()
-            .retain(|(running, _)| *running != generation);
+        self.handles.locked().retain(|(running, _)| *running != key);
         result.unwrap_or_else(|_| Err(superseded()))
     }
 
@@ -465,15 +466,12 @@ impl ReconnectCoordinator {
         self.with(Lifecycle::begin)
     }
 
-    /// Runs the start or reconnect run of `generation` until it ends or a local close cancels it.
+    /// Runs a start, reconnect or resume until it ends or a local close or a pause cancels it.
     pub(crate) async fn supervise<T>(
         &self,
-        generation: u64,
         future: impl std::future::Future<Output = Result<T, Error>>,
     ) -> Result<T, Error> {
-        self.runs
-            .supervise(generation, future, || self.superseded())
-            .await
+        self.runs.supervise(future, || self.superseded()).await
     }
 
     #[cfg(test)]
@@ -508,8 +506,11 @@ impl ReconnectCoordinator {
         self.runs.cancel_all();
     }
 
+    /// Pauses and cancels the start, reconnect or resume in flight, which the pause supersedes.
     pub(crate) fn pause(&self) -> Result<PauseOutcome, Error> {
-        self.with(Lifecycle::pause)
+        let outcome = self.with(Lifecycle::pause)?;
+        self.runs.cancel_all();
+        Ok(outcome)
     }
 
     pub(crate) fn resume(&self) -> Result<ResumeOutcome, Error> {

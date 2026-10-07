@@ -41,6 +41,16 @@ pub(crate) fn ends_stateful_connection(reason: &Error) -> bool {
     reason.kind() == crate::ErrorKind::Protocol
 }
 
+/// Whether a stateful connection whose transport ended for `reason` resumes transparently: as
+/// the .NET client's WebSocket transport, once and at once after an ungraceful loss, without the
+/// reconnection policy. A server Close, a server timeout (the .NET `HubConnection` ends its
+/// connection) and a protocol violation end the logical connection instead.
+pub(crate) fn resumes_transparently(reason: &Error) -> bool {
+    !ends_stateful_connection(reason)
+        && reason.kind() != crate::ErrorKind::ConnectionClosed
+        && reason.timeout_operation() != Some(crate::TimeoutOperation::ServerTimeout)
+}
+
 /// Hands one decoded message to the action storage; returns the error that ends the transport: a
 /// server Close (its optional error text and its reconnect permission), or a message type a
 /// server never sends to a client (StreamInvocation, CancelInvocation), which the .NET client

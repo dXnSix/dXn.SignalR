@@ -33,6 +33,12 @@ pub(crate) struct LoopbackOptions {
     /// Negotiate offers stateful reconnect (`useStatefulReconnect`), so a lost transport is
     /// resumed with a WebSocket upgrade and no negotiate.
     pub(crate) stateful: bool,
+    /// How long the server waits before it accepts a stateful resume (an upgrade for a token
+    /// that was connected before).
+    pub(crate) resume_delay: Duration,
+    /// A stateful resume is answered with 404, as ASP.NET Core answers one for a connection it
+    /// disposed.
+    pub(crate) reject_resumes: bool,
 }
 
 /// One WebSocket frame a client sent.
@@ -76,6 +82,10 @@ impl RequestHead {
 
 #[derive(Default)]
 struct State {
+    /// The connection tokens that were connected, to recognize a resume.
+    tokens: std::collections::HashSet<String>,
+    resumes: u32,
+    rejected_resumes: u32,
     negotiations: u32,
     negotiate_requests: Vec<RequestHead>,
     upgrade_requests: Vec<RequestHead>,
@@ -143,6 +153,20 @@ impl LoopbackServer {
         });
     }
 
+    /// The stateful resumes accepted, and the ones answered with 404.
+    pub(crate) fn resumes(&self) -> (u32, u32) {
+        let state = self.state.lock().unwrap();
+        (state.resumes, state.rejected_resumes)
+    }
+
+    /// The next hub message record a client sent within `wait`, if any.
+    pub(crate) async fn try_next_record(&self, wait: Duration) -> Option<String> {
+        tokio::time::timeout(wait, self.received.lock().await.recv())
+            .await
+            .ok()
+            .flatten()
+    }
+
     /// Drops the newest connection's socket without a close handshake.
     pub(crate) fn drop_connection(&self) {
         let mut state = self.state.lock().unwrap();
@@ -193,7 +217,29 @@ async fn serve(
     }
     if &start == b"POST" {
         negotiate(stream, &state, options).await;
-    } else if let Ok((request, socket)) = ServerBuilder::new().accept(stream).await {
+        return;
+    }
+    // An upgrade for a token that was connected before is a stateful resume.
+    let token = request_token(&stream).await;
+    let resumed = token
+        .as_ref()
+        .is_some_and(|token| !state.lock().unwrap().tokens.insert(token.clone()));
+    let mut stream = stream;
+    if resumed {
+        tokio::time::sleep(options.resume_delay).await;
+        if options.reject_resumes {
+            state.lock().unwrap().rejected_resumes += 1;
+            let _ = stream
+                .write_all(
+                    b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                )
+                .await;
+            let _ = stream.shutdown().await;
+            return;
+        }
+        state.lock().unwrap().resumes += 1;
+    }
+    if let Ok((request, socket)) = ServerBuilder::new().accept(stream).await {
         let head = RequestHead {
             target: request.uri().to_string(),
             headers: request
@@ -208,8 +254,27 @@ async fn serve(
                 .collect(),
         };
         state.lock().unwrap().upgrade_requests.push(head);
-        hub(socket, state, sinks, options).await;
+        hub(socket, state, sinks, options, resumed).await;
     }
+}
+
+/// The `id` query value of the HTTP request waiting on `stream` (peeked, not consumed).
+async fn request_token(stream: &TcpStream) -> Option<String> {
+    let mut head = [0u8; 2048];
+    for _ in 0..100 {
+        let read = stream.peek(&mut head).await.ok()?;
+        let text = String::from_utf8_lossy(&head[..read]);
+        if let Some(line) = text.split("\r\n").next().filter(|_| text.contains("\r\n")) {
+            let target = line.split(' ').nth(1)?;
+            let query = target.split_once('?')?.1;
+            return query
+                .split('&')
+                .find_map(|pair| pair.strip_prefix("id="))
+                .map(str::to_string);
+        }
+        tokio::time::sleep(Duration::from_millis(1)).await;
+    }
+    None
 }
 
 /// Answers one negotiate request with a new connection id and token.
@@ -271,23 +336,27 @@ async fn negotiate(mut stream: TcpStream, state: &Arc<Mutex<State>>, options: Lo
     let _ = stream.shutdown().await;
 }
 
-/// Completes the JSON handshake, then records inbound records and sends queued messages.
+/// Completes the JSON handshake (a stateful resume has none), then records inbound records and
+/// sends queued messages.
 async fn hub(
     mut socket: WebSocketStream<TcpStream>,
     state: Arc<Mutex<State>>,
     sinks: Sinks,
     options: LoopbackOptions,
+    resumed: bool,
 ) {
-    // The handshake request.
-    match socket.next().await {
-        Some(Ok(message)) if message.is_text() => {}
-        _ => return,
+    if !resumed {
+        // The handshake request.
+        match socket.next().await {
+            Some(Ok(message)) if message.is_text() => {}
+            _ => return,
+        }
+        tokio::time::sleep(options.handshake_delay).await;
+        if socket.send(Message::text("{}\u{1e}")).await.is_err() {
+            return;
+        }
     }
-    tokio::time::sleep(options.handshake_delay).await;
-    if socket.send(Message::text("{}\u{1e}")).await.is_err() {
-        return;
-    }
-    if let Some(greeting) = options.greeting {
+    if let Some(greeting) = options.greeting.filter(|_| !resumed) {
         if socket
             .send(Message::text(format!("{greeting}\u{1e}")))
             .await
