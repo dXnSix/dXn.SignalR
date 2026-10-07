@@ -62,7 +62,23 @@ async fn scenario(protocol: Protocol) {
     });
     stateful.start().await.unwrap();
     let resumable = stateful.connection_id().expect("a negotiated id");
-    drop_transport(&mut stateful).await;
+    // The resume is transparent (no `Reconnected`); a call made meanwhile waits for it.
+    stateful
+        .send("AbortPhysicalTransport".to_string())
+        .await
+        .unwrap();
+    support::eventually("the stateful resume", Duration::from_secs(20), || {
+        let mut probe = stateful.clone();
+        async move {
+            (probe
+                .invoke::<i32>("TransportAbortCount".to_string())
+                .await
+                .ok()?
+                == 1)
+                .then_some(())
+        }
+    })
+    .await;
     assert_eq!(
         stateful.connection_id().as_deref(),
         Some(resumable.as_str())

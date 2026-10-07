@@ -19,7 +19,9 @@ namespace RayX.SignalR.TestService
         static readonly ConcurrentDictionary<string, string> _disconnectErrors = new();
         static readonly ConcurrentDictionary<string, TimeSpan> _negotiationDelays = new(StringComparer.OrdinalIgnoreCase);
         static readonly ConcurrentDictionary<string, string[]> _negotiateHeaders = new(StringComparer.OrdinalIgnoreCase);
+        static readonly ConcurrentDictionary<string, byte> _rejectedResumes = new();
         static int _clientCloses;
+        static int _resumeRejections;
 
         /// <summary>The request headers the request-headers scenario inspects.</summary>
         static readonly string[] _describedHeaders =
@@ -39,7 +41,9 @@ namespace RayX.SignalR.TestService
             _disconnectErrors.Clear();
             _negotiationDelays.Clear();
             _negotiateHeaders.Clear();
+            _rejectedResumes.Clear();
             Interlocked.Exchange(ref _clientCloses, 0);
+            Interlocked.Exchange(ref _resumeRejections, 0);
             _clientResults.Clear();
             _authenticatedTokens.Clear();
         }
@@ -92,6 +96,24 @@ namespace RayX.SignalR.TestService
         /// <summary>The last negotiate request of a hub path, described as <see cref="DescribeRequest"/> does.</summary>
         public static string[] NegotiateRequest(string hubPath) =>
             _negotiateHeaders.TryGetValue(hubPath, out var lines) ? lines : [];
+
+        /// <summary>Answers the next stateful resume of <paramref name="connectionToken"/> with 404, as ASP.NET Core answers a resume of a connection it disposed.</summary>
+        public static void RejectNextResume(string connectionToken) => _rejectedResumes[connectionToken] = 0;
+
+        /// <summary>Whether a WebSocket request for <paramref name="connectionToken"/> is a resume to reject; counts it.</summary>
+        public static bool TakeResumeRejection(string connectionToken)
+        {
+            if (!_rejectedResumes.TryRemove(connectionToken, out _))
+            {
+                return false;
+            }
+
+            Interlocked.Increment(ref _resumeRejections);
+            return true;
+        }
+
+        /// <summary>How many resumes were rejected since the last reset.</summary>
+        public static int ResumeRejections() => Volatile.Read(ref _resumeRejections);
 
         /// <summary>Counts a SignalR Close message a client sent.</summary>
         public static void CountClientClose() => Interlocked.Increment(ref _clientCloses);

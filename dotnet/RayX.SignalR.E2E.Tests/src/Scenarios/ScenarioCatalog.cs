@@ -118,7 +118,9 @@ public static class ScenarioCatalog
     Everywhere("connection-id"),
     Everywhere("graceful-stop"),
     Everywhere("reconnect-call-wait"),
-    Everywhere("request-headers")
+    Everywhere("request-headers"),
+    Everywhere("stateful-transparent-resume"),
+    Everywhere("stateful-resume-fallback")
   ];
 
   /// <summary>Looks up a target by name.</summary>

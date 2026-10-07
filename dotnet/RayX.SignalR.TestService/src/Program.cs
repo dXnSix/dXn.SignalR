@@ -72,6 +72,20 @@ app.Use(async (context, next) =>
     await next();
 });
 
+// Answer a stateful resume the test asked to reject (see TestHub.AbortPhysicalTransportAndRejectResume).
+app.Use(async (context, next) =>
+{
+    if (context.WebSockets.IsWebSocketRequest
+        && context.Request.Query["id"].ToString() is { Length: > 0 } token
+        && TestControls.TakeResumeRejection(token))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+
+    await next();
+});
+
 app.UseAuthentication();
 
 // Remember which user negotiated each /test-auth connection token (see TestAuthenticationHandler).

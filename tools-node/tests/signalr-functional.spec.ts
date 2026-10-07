@@ -27,6 +27,8 @@ const scenarios = [
   "graceful-stop",
   "reconnect-call-wait",
   "request-headers",
+  "stateful-transparent-resume",
+  "stateful-resume-fallback",
 ];
 
 // Scenarios whose values exist only in one protocol.

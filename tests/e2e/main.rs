@@ -42,6 +42,8 @@ mod server_stream;
 mod server_timeout;
 mod skip_negotiation;
 mod stateful_reconnect;
+mod stateful_resume_fallback;
+mod stateful_transparent_resume;
 mod stream_cancellation;
 mod tls;
 mod unsent_stream;

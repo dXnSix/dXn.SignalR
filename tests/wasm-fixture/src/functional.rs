@@ -79,6 +79,8 @@ pub async fn run_functional_scenario(
         "graceful-stop" => graceful_stop(messagepack).await,
         "reconnect-call-wait" => reconnect_call_wait(messagepack).await,
         "request-headers" => request_headers(messagepack).await,
+        "stateful-transparent-resume" => stateful_transparent_resume(messagepack).await,
+        "stateful-resume-fallback" => stateful_resume_fallback(messagepack).await,
         other => Err(format!("unknown functional scenario {other}")),
     };
     outcome
@@ -2783,7 +2785,23 @@ async fn connection_id(messagepack: bool) -> Outcome {
     let resumable = stateful
         .connection_id()
         .ok_or("no id after a stateful start")?;
-    drop_transport(&mut stateful).await?;
+    // The resume is transparent (no `Reconnected`); a call made meanwhile waits for it.
+    stateful
+        .send("AbortPhysicalTransport".to_string())
+        .await
+        .map_err(|error| format!("AbortPhysicalTransport failed: {error}"))?;
+    eventually("the stateful resume", 20_000.0, || {
+        let mut probe = stateful.clone();
+        async move {
+            (probe
+                .invoke::<i32>("TransportAbortCount".to_string())
+                .await
+                .ok()?
+                == 1)
+                .then_some(())
+        }
+    })
+    .await?;
     let resumed = stateful.connection_id();
     ensure!(
         resumed.as_deref() == Some(resumable.as_str()),
@@ -3029,4 +3047,181 @@ async fn request_headers(messagepack: bool) -> Outcome {
     );
     client.disconnect();
     Ok(())
+}
+
+/// How many negotiate requests the stateful hub received in this cell.
+async fn stateful_negotiate_count(client: &mut SignalRClient) -> Result<i32, String> {
+    client
+        .invoke_with_args::<i32, _>("NegotiateCount".to_string(), |arguments| {
+            arguments.argument("/test-stateful".to_string());
+        })
+        .await
+        .map_err(|error| format!("NegotiateCount failed: {error}"))
+}
+
+/// Unregisters a lifecycle hook when called.
+type Unregister = Box<dyn FnOnce()>;
+
+/// Records every lifecycle event of `client`.
+fn lifecycle_log(client: &SignalRClient) -> (Rc<RefCell<Vec<String>>>, Vec<Unregister>) {
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let (reconnecting, reconnected, closed) = (events.clone(), events.clone(), events.clone());
+    let hooks: Vec<Unregister> = vec![
+        unregistering(client.on_reconnecting(move |_| {
+            reconnecting.borrow_mut().push("reconnecting".to_string());
+        })),
+        unregistering(client.on_reconnected(move |_| {
+            reconnected.borrow_mut().push("reconnected".to_string());
+        })),
+        unregistering(client.on_closed(move |_| closed.borrow_mut().push("closed".to_string()))),
+    ];
+    (events, hooks)
+}
+
+/// Transparent stateful resume, as the .NET client's WebSocket transport: after a server-side
+/// transport abort a stateful client without a reconnection policy resumes the same logical
+/// connection once and at once, stays `Connected`, raises no lifecycle event and negotiates
+/// nothing; a call pending across the loss completes on the resumed transport.
+async fn stateful_transparent_resume(messagepack: bool) -> Outcome {
+    let mut client = connect("test-stateful", messagepack, |configuration| {
+        configuration.with_stateful_reconnect(rayx_signalr::StatefulReconnectConfig::default());
+    })
+    .await?;
+    let (events, hooks) = lifecycle_log(&client);
+    let connection_id = identity(&mut client)
+        .await
+        .map_err(|error| format!("ConnectionIdentity failed: {error}"))?;
+    let negotiates = stateful_negotiate_count(&mut client).await?;
+
+    let done = Rc::new(Cell::new(false));
+    let unexpected = Rc::new(RefCell::new(Vec::new()));
+    let sampled = {
+        let (client, done, unexpected) = (client.clone(), done.clone(), unexpected.clone());
+        spawn(async move {
+            while !done.get() {
+                let status = client.status();
+                if status != ConnectionStatus::Connected {
+                    unexpected.borrow_mut().push(status);
+                }
+                sleep(5).await;
+            }
+        })
+    };
+
+    client
+        .send("AbortPhysicalTransport".to_string())
+        .await
+        .map_err(|error| format!("AbortPhysicalTransport failed: {error}"))?;
+    let pending = client
+        .invoke_with_args::<String, _>("DelayedConnectionIdentity".to_string(), |arguments| {
+            arguments.argument(2_500);
+        })
+        .await
+        .map_err(|error| format!("the call pending across the loss failed: {error}"))?;
+    ensure!(
+        pending == connection_id,
+        "the pending call ran on {pending}"
+    );
+    let aborts = client
+        .invoke::<i32>("TransportAbortCount".to_string())
+        .await
+        .map_err(|error| format!("TransportAbortCount failed: {error}"))?;
+    ensure!(aborts == 1, "{aborts} transport aborts");
+
+    done.set(true);
+    let _ = sampled.await;
+    ensure!(
+        unexpected.borrow().is_empty(),
+        "the client left Connected: {:?}",
+        unexpected.borrow()
+    );
+    ensure!(
+        client.connection_id().as_deref() == Some(connection_id.as_str()),
+        "the connection id changed to {:?}",
+        client.connection_id()
+    );
+    let after = stateful_negotiate_count(&mut client).await?;
+    ensure!(
+        after == negotiates,
+        "the resume negotiated ({negotiates} -> {after})"
+    );
+    ensure!(
+        events.borrow().is_empty(),
+        "lifecycle events were raised: {:?}",
+        events.borrow()
+    );
+    for unregister in hooks {
+        unregister();
+    }
+    client.disconnect();
+    Ok(())
+}
+
+/// Stateful resume fallback, as the .NET client: when the one transparent resume fails (the
+/// server answers it with 404), the logical connection ends, a pending call fails, and the policy
+/// reconnects with a fresh negotiate and a new connection id.
+async fn stateful_resume_fallback(messagepack: bool) -> Outcome {
+    let mut client = connect("test-stateful", messagepack, |configuration| {
+        configuration.with_stateful_reconnect(rayx_signalr::StatefulReconnectConfig::default());
+        configuration.with_reconnection_policy(fast_reconnect());
+    })
+    .await?;
+    let (events, hooks) = lifecycle_log(&client);
+    let connection_id = identity(&mut client)
+        .await
+        .map_err(|error| format!("ConnectionIdentity failed: {error}"))?;
+    let negotiates = stateful_negotiate_count(&mut client).await?;
+
+    client
+        .send("AbortPhysicalTransportAndRejectResume".to_string())
+        .await
+        .map_err(|error| format!("AbortPhysicalTransportAndRejectResume failed: {error}"))?;
+    let pending = client
+        .invoke_with_args::<String, _>("DelayedConnectionIdentity".to_string(), |arguments| {
+            arguments.argument(2_500);
+        })
+        .await;
+    ensure!(
+        pending.is_err(),
+        "a call pending when the logical connection ended succeeded: {pending:?}"
+    );
+    eventually("the policy reconnect", 20_000.0, || {
+        let done = events.borrow().len() >= 2;
+        async move { done.then_some(()) }
+    })
+    .await?;
+    ensure!(
+        *events.borrow() == ["reconnecting", "reconnected"],
+        "lifecycle events: {:?}",
+        events.borrow()
+    );
+    let fresh = identity(&mut client)
+        .await
+        .map_err(|error| format!("ConnectionIdentity failed: {error}"))?;
+    ensure!(fresh != connection_id, "the logical connection was kept");
+    ensure!(
+        client.connection_id().as_deref() == Some(fresh.as_str()),
+        "the client reports {:?}, the hub {fresh}",
+        client.connection_id()
+    );
+    let after = stateful_negotiate_count(&mut client).await?;
+    ensure!(
+        after == negotiates + 1,
+        "negotiations went from {negotiates} to {after}"
+    );
+    let rejections = client
+        .invoke::<i32>("ResumeRejections".to_string())
+        .await
+        .map_err(|error| format!("ResumeRejections failed: {error}"))?;
+    ensure!(rejections == 1, "{rejections} resumes were attempted");
+    for unregister in hooks {
+        unregister();
+    }
+    client.disconnect();
+    Ok(())
+}
+
+/// Unregisters `handler` when called.
+fn unregistering(handler: impl CallbackHandler + 'static) -> Unregister {
+    Box::new(move || handler.unregister())
 }

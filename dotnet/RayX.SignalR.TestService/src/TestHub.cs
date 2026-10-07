@@ -211,6 +211,24 @@ namespace RayX.SignalR.TestService
             httpContext.Abort();
         }
 
+        /// <summary>
+        /// Severs the transport as <see cref="AbortPhysicalTransport"/> does, and answers the
+        /// client's resume with 404, so the client must end the logical connection and negotiate
+        /// a new one.
+        /// </summary>
+        public async Task AbortPhysicalTransportAndRejectResume()
+        {
+            var httpContext = Context.GetHttpContext()
+                ?? throw new InvalidOperationException("SignalR transport has no HTTP context");
+            string token = httpContext.Request.Query["id"].ToString();
+            await Task.Delay(1200, Context.ConnectionAborted);
+            TestControls.RejectNextResume(token);
+            _transportAborts.AddOrUpdate(Context.ConnectionId, 1, static (_, count) => count + 1);
+            httpContext.Abort();
+        }
+
+        public int ResumeRejections() => TestControls.ResumeRejections();
+
         public int TransportAbortCount() =>
             _transportAborts.TryGetValue(Context.ConnectionId, out var count) ? count : 0;
 
