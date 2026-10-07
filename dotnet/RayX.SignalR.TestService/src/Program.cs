@@ -162,6 +162,12 @@ app.MapHub<TestHub>("/test-direct");
 app.MapHub<TestHub>("/test-stateful", options => options.AllowStatefulReconnects = true);
 app.MapHub<AuthHub>("/test-auth");
 app.MapHub<TokenHub>("/test-token");
+// Hubs restricted to some transports (transport selection and fallback scenarios).
+app.MapHub<TestHub>("/test-longpolling", options => options.Transports = Microsoft.AspNetCore.Http.Connections.HttpTransportType.LongPolling);
+app.MapHub<TestHub>(
+    "/test-no-websockets",
+    options => options.Transports = Microsoft.AspNetCore.Http.Connections.HttpTransportType.ServerSentEvents
+                                    | Microsoft.AspNetCore.Http.Connections.HttpTransportType.LongPolling);
 app.MapHub<ConnectedHub>("/test-connected");
 app.MapHub<PerfHub>("/perf");
 app.MapHub<ChaosHub>("/test-chaos");

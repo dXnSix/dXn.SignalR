@@ -105,6 +105,17 @@ pub fn apply_protocol(configuration: &mut ConnectionConfiguration, protocol: Pro
     }
 }
 
+/// Restricts a connection to the cell's transport (`RAYX_SIGNALR_TRANSPORT`, which the runner
+/// passes); WebSockets cells keep the default transports.
+pub fn apply_transport(configuration: &mut ConnectionConfiguration) {
+    let transports = match std::env::var("RAYX_SIGNALR_TRANSPORT").as_deref() {
+        Ok("long-polling") => rayx_signalr::Transports::LONG_POLLING,
+        Ok("server-sent-events") => rayx_signalr::Transports::SERVER_SENT_EVENTS,
+        _ => return,
+    };
+    configuration.with_transports(transports);
+}
+
 /// A fast bounded reconnect policy for scenarios that drop the transport.
 pub fn fast_reconnect() -> ReconnectionConfig {
     ReconnectionConfig {
@@ -128,6 +139,7 @@ where
     SignalRClient::connect_with(&endpoint.host, hub, |configuration| {
         endpoint.apply(configuration);
         apply_protocol(configuration, protocol);
+        apply_transport(configuration);
         configure(configuration);
     })
     .await
@@ -144,6 +156,7 @@ where
     SignalRClient::connect_with(&endpoint.host, hub, |configuration| {
         endpoint.apply(configuration);
         apply_protocol(configuration, protocol);
+        apply_transport(configuration);
         configure(configuration);
     })
     .await
@@ -160,6 +173,7 @@ where
     SignalRClient::new(&endpoint.host, hub, |configuration| {
         endpoint.apply(configuration);
         apply_protocol(configuration, protocol);
+        apply_transport(configuration);
         configure(configuration);
     })
     .unwrap_or_else(|error| panic!("the client for {hub} was rejected: {error}"))

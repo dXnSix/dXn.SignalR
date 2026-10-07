@@ -26,9 +26,47 @@ export function tlsServiceUrl(): string {
   return url;
 }
 
-/** Opens a fixture host page configured for the test service and waits for the WASM module. */
-export async function openFixture(page: Page, path = "/", service = serviceUrl()): Promise<void> {
-  await page.goto(`${path}?service=${encodeURIComponent(service)}`);
+/** Every transport with the title the Aspire scenario catalog uses in transport-suffixed cells. */
+export const transports = [
+  { transport: "long-polling", title: "Long Polling" },
+  { transport: "server-sent-events", title: "Server-Sent Events" },
+] as const;
+
+/**
+ * The transport-baseline scenarios (`ScenarioCatalog.Baseline`): they run on every transport,
+ * every other scenario on WebSockets only.
+ */
+export const transportBaseline = [
+  "connect-negotiate",
+  "authentication",
+  "invoke",
+  "send",
+  "server-stream",
+  "callbacks",
+  "concurrency-and-clones",
+  "large-payload",
+  "server-close",
+  "reconnect-exhaustion",
+  "ordinary-reconnect",
+  "keepalive-idle",
+  "server-timeout",
+  "pause-resume",
+  "token-factory",
+] as const;
+
+/**
+ * Opens a fixture host page configured for the test service (and a transport other than
+ * WebSockets) and waits for the WASM module.
+ */
+export async function openFixture(
+  page: Page,
+  path = "/",
+  service = serviceUrl(),
+  transport = "websockets",
+): Promise<void> {
+  await page.goto(
+    `${path}?service=${encodeURIComponent(service)}&transport=${encodeURIComponent(transport)}`,
+  );
   await expect(page.locator("body")).toHaveAttribute("data-rayx-signalr-wasm", "ready");
 }
 

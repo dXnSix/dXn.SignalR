@@ -11,6 +11,7 @@
         cancel_long_streams,
         callback_count,
         configure_service,
+        configure_transport,
         connect_and_probe,
         connect_stateful,
         consume_short_streams,
@@ -37,6 +38,7 @@
       const service = new URL(location.href).searchParams.get("service");
       if (!service) throw new Error("the fixture page requires ?service=<SignalR test service URL>");
       configure_service(service);
+      configure_transport(new URL(location.href).searchParams.get("transport") ?? "websockets");
       globalThis.rayxSignalRFixture = {
         abortPhysicalTransport: abort_physical_transport,
         cancelLongStreams: cancel_long_streams,

@@ -29,6 +29,21 @@ public sealed record Scenario(string Name, IReadOnlySet<string> Targets)
   /// <summary>Gets whether the scenario runs for the soak duration (<c>RAYX_SIGNALR_SOAK_SECONDS</c>).</summary>
   public bool Soak { get; init; }
 
+  /// <summary>
+  /// Gets whether the scenario belongs to the transport baseline: it runs on every selected
+  /// transport, while every other scenario runs on WebSockets only.
+  /// </summary>
+  public bool TransportBaseline { get; init; }
+
+  /// <summary>Whether the scenario has a cell for <paramref name="transport"/> and <paramref name="protocol"/>.</summary>
+  /// <param name="transport">The transport.</param>
+  /// <param name="protocol">The protocol.</param>
+  /// <returns>Whether the cell exists.</returns>
+  public bool Supports(string transport, string protocol) =>
+    transport == ScenarioCatalog.WebSockets
+    || (TransportBaseline
+        && !(transport == ScenarioCatalog.ServerSentEvents && protocol == "messagepack"));
+
   /// <summary>Gets a scenario-specific cell bound that replaces the default one.</summary>
   public TimeSpan? Limit { get; init; }
 
@@ -51,11 +66,17 @@ public sealed record Scenario(string Name, IReadOnlySet<string> Targets)
   /// <returns>The <c>module::protocol</c> test name.</returns>
   public string RustTest(string protocol) => $"{RustModule}::{protocol}";
 
-  /// <summary>Gets the exact Playwright title for a protocol.</summary>
+  /// <summary>
+  /// Gets the exact Playwright title for a protocol and transport: <c>invoke JSON</c> on WebSockets
+  /// (the names CI history knows), <c>invoke (JSON, Long Polling)</c> on the other transports.
+  /// </summary>
   /// <param name="protocol">The protocol.</param>
+  /// <param name="transport">The transport.</param>
   /// <returns>The title.</returns>
-  public string PlaywrightTitle(string protocol) =>
-    $"{PlaywrightWords} {ScenarioCatalog.ProtocolTitle(protocol)}";
+  public string PlaywrightTitle(string protocol, string transport = ScenarioCatalog.WebSockets) =>
+    transport == ScenarioCatalog.WebSockets
+      ? $"{PlaywrightWords} {ScenarioCatalog.ProtocolTitle(protocol)}"
+      : $"{PlaywrightWords} ({ScenarioCatalog.ProtocolTitle(protocol)}, {ScenarioCatalog.TransportTitle(transport)})";
 }
 
 /// <summary>The single source of truth for which targets run which scenarios.</summary>
@@ -85,6 +106,29 @@ public static class ScenarioCatalog
   /// <summary>Every protocol, in run order.</summary>
   public static readonly IReadOnlyList<string> Protocols = ["json", "messagepack"];
 
+  /// <summary>The WebSockets transport (the default selection).</summary>
+  public const string WebSockets = "websockets";
+
+  /// <summary>The Long Polling transport.</summary>
+  public const string LongPolling = "long-polling";
+
+  /// <summary>The Server-Sent Events transport (JSON only).</summary>
+  public const string ServerSentEvents = "server-sent-events";
+
+  /// <summary>Every transport, in run order.</summary>
+  public static readonly IReadOnlyList<string> Transports = [WebSockets, LongPolling, ServerSentEvents];
+
+  /// <summary>Gets the title of a transport in cell names.</summary>
+  /// <param name="transport">The transport.</param>
+  /// <returns>The title.</returns>
+  public static string TransportTitle(string transport) => transport switch
+  {
+    WebSockets => "WebSockets",
+    LongPolling => "Long Polling",
+    ServerSentEvents => "Server-Sent Events",
+    _ => throw new ArgumentException($"Unknown transport '{transport}'.", nameof(transport))
+  };
+
   /// <summary>Targets that run the Rust <c>e2e</c> binary: the desktop host, the Android emulator and the iOS simulator.</summary>
   static readonly string[] _nativeTargets = [_native, _android, _ios];
 
@@ -94,16 +138,16 @@ public static class ScenarioCatalog
   /// <summary>Every scenario, in run order.</summary>
   public static readonly IReadOnlyList<Scenario> Scenarios =
   [
-    Everywhere("connect-negotiate"),
-    Everywhere("authentication"),
-    Everywhere("invoke"),
-    Everywhere("send"),
-    Everywhere("server-stream"),
-    Everywhere("callbacks"),
-    Everywhere("concurrency-and-clones"),
-    Everywhere("large-payload"),
-    Everywhere("server-close"),
-    Everywhere("reconnect-exhaustion"),
+    Baseline("connect-negotiate"),
+    Baseline("authentication"),
+    Baseline("invoke"),
+    Baseline("send"),
+    Baseline("server-stream"),
+    Baseline("callbacks"),
+    Baseline("concurrency-and-clones"),
+    Baseline("large-payload"),
+    Baseline("server-close"),
+    Baseline("reconnect-exhaustion"),
     Everywhere("tls"),
     Everywhere("negotiate-redirect"),
     Everywhere("skip-negotiation"),
@@ -111,14 +155,14 @@ public static class ScenarioCatalog
     new("message-burst", Set(_browsers)),
     new("worker-transport", Set(_browsers)),
     new(ThreadedScenario, Set(_browsers)),
-    Everywhere("ordinary-reconnect"),
+    Baseline("ordinary-reconnect"),
     Everywhere("stateful-reconnect"),
     Everywhere("stream-cancellation"),
     new("short-stream-chaining", Set(_browsers)),
-    Everywhere("keepalive-idle"),
-    Everywhere("server-timeout"),
+    Baseline("keepalive-idle"),
+    Baseline("server-timeout"),
     Everywhere("handshake-timeout"),
-    Everywhere("pause-resume"),
+    Baseline("pause-resume"),
     Everywhere("pause-resume-stateful"),
     Everywhere("unsent-stream"),
     Everywhere("error-kinds"),
@@ -135,7 +179,7 @@ public static class ScenarioCatalog
     Everywhere("request-headers"),
     Everywhere("stateful-transparent-resume"),
     Everywhere("stateful-resume-fallback"),
-    Everywhere("token-factory"),
+    Baseline("token-factory"),
     Everywhere("negotiate-timeout"),
     new("soak-chaos", Set([_native, _chromium, _android]))
     {
@@ -198,6 +242,9 @@ public static class ScenarioCatalog
     scenario.Targets.Where(target => Target(target).Kind == TargetKind.Browser);
 
   static Scenario Everywhere(string name) => new(name, Set([.. _nativeTargets, .. _browsers]));
+
+  /// <summary>A transport-baseline scenario (R6.C2): every target, every selected transport.</summary>
+  static Scenario Baseline(string name) => Everywhere(name) with { TransportBaseline = true };
 
   static HashSet<string> Set(params string[] targets) => new(targets, StringComparer.Ordinal);
 }

@@ -103,10 +103,10 @@ public sealed partial class CatalogTests(AspireEnvironment environment)
                                .Select(match => match.Groups["title"].Value.Trim())
                                .ToHashSet(StringComparer.Ordinal);
 
-      HashSet<string> expected = ScenarioCatalog.Scenarios
-                                                .Where(scenario => scenario.Targets.Contains(engine))
-                                                .SelectMany(scenario => scenario.Protocols.Select(scenario.PlaywrightTitle))
-                                                .ToHashSet(StringComparer.Ordinal);
+      HashSet<string> expected = E2ESelection.Parse(engine, "all", "all", "all")
+                                             .Cells()
+                                             .Select(cell => cell.Scenario.PlaywrightTitle(cell.Protocol, cell.Transport))
+                                             .ToHashSet(StringComparer.Ordinal);
       Assert.Empty(expected.Except(titles));
       Assert.Empty(titles.Except(expected));
     }

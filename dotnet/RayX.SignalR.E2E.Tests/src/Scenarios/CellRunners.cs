@@ -36,6 +36,9 @@ public static partial class CellExecution
   /// <summary>The hard bound for one cell's process (soak scenarios: see <see cref="Scenario.Bound"/>).</summary>
   public static readonly TimeSpan CellTimeout = TimeSpan.FromSeconds(60);
 
+  /// <summary>The transport a cell's scenario must use (<c>websockets</c>, <c>long-polling</c>, <c>server-sent-events</c>).</summary>
+  public const string TransportVariable = "RAYX_SIGNALR_TRANSPORT";
+
   /// <summary>The variable that sets how long soak scenarios run, in seconds.</summary>
   public const string SoakSecondsVariable = "RAYX_SIGNALR_SOAK_SECONDS";
 
@@ -86,6 +89,7 @@ public static partial class CellExecution
   public static Dictionary<string, string> CellVariables(E2ECell cell) => new(StringComparer.Ordinal)
   {
     ["RAYX_SIGNALR_E2E_PROTOCOL"] = cell.Protocol,
+    [TransportVariable] = cell.Transport,
     [SoakSecondsVariable] = $"{SoakDuration.TotalSeconds:0}",
     // Rust cells log the client's lifecycle (diagnostics keep a bounded, redacted tail).
     ["RUST_LOG"] = cell.Scenario.LogFilter
@@ -338,7 +342,7 @@ public sealed class BrowserCellRunner : ICellRunner
     ProcessCommand template = Command(
       environment.RepositoryRoot,
       cell.Target.Name,
-      cell.Scenario.PlaywrightTitle(cell.Protocol));
+      cell.Scenario.PlaywrightTitle(cell.Protocol, cell.Transport));
     Dictionary<string, string> variables = CellExecution.ScenarioVariables(environment, cell);
     foreach((string key, string value) in template.Environment)
     {

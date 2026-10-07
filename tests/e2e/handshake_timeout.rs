@@ -13,6 +13,7 @@ async fn scenario(protocol: Protocol) {
     let started = Instant::now();
     let result = support::try_connect("silent-handshake", protocol, |configuration| {
         configuration.skip_negotiation();
+        configuration.with_transports(rayx_signalr::Transports::WEB_SOCKETS);
         configuration.with_handshake_timeout(HANDSHAKE_TIMEOUT);
     })
     .await;

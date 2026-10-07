@@ -82,6 +82,7 @@ pub async fn run_functional_scenario(
         "stateful-transparent-resume" => stateful_transparent_resume(messagepack).await,
         "stateful-resume-fallback" => stateful_resume_fallback(messagepack).await,
         "token-factory" => token_factory(messagepack).await,
+        "ordinary-reconnect" => ordinary_reconnect(messagepack).await,
         "negotiate-timeout" => negotiate_timeout_scenario(messagepack).await,
         other => Err(format!("unknown functional scenario {other}")),
     };
@@ -989,6 +990,7 @@ async fn negotiate_redirect(messagepack: bool) -> Outcome {
 async fn skip_negotiation(messagepack: bool) -> Outcome {
     let mut client = connect("test-direct", messagepack, |configuration| {
         configuration.skip_negotiation();
+        configuration.with_transports(rayx_signalr::Transports::WEB_SOCKETS);
         configuration.with_reconnection_policy(fast_reconnect());
     })
     .await?;
@@ -1304,6 +1306,7 @@ async fn handshake_timeout(messagepack: bool) -> Outcome {
     let started = js_sys::Date::now();
     let result = try_connect("silent-handshake", messagepack, |configuration| {
         configuration.skip_negotiation();
+        configuration.with_transports(rayx_signalr::Transports::WEB_SOCKETS);
         configuration.with_handshake_timeout(Duration::from_secs(1));
     })
     .await?;
@@ -2814,6 +2817,7 @@ async fn connection_id(messagepack: bool) -> Outcome {
     // Without negotiation there is no connection id.
     let direct = unstarted_with("test-direct", messagepack, |configuration| {
         configuration.skip_negotiation();
+        configuration.with_transports(rayx_signalr::Transports::WEB_SOCKETS);
     })?;
     direct
         .start()
@@ -3373,6 +3377,75 @@ async fn negotiate_timeout_scenario(messagepack: bool) -> Outcome {
         "the error names the hub: {text}"
     );
     ensure!(!text.contains(TOKEN), "the error carries the token: {text}");
+    client.disconnect();
+    Ok(())
+}
+
+/// Ordinary reconnect on any transport (see `tests/e2e/ordinary_reconnect.rs`): a server-side
+/// transport abort leads to `Reconnecting`, a fresh negotiation with a new hub connection id and
+/// `Reconnected`; callback registrations survive and nothing is replayed. The WebSocket cells use
+/// the Playwright-driven `signalr-reconnect.spec.ts`; this one serves the other transports.
+async fn ordinary_reconnect(messagepack: bool) -> Outcome {
+    let mut client = connect("test", messagepack, |configuration| {
+        configuration.with_reconnection_policy(fast_reconnect());
+    })
+    .await?;
+    let initial = identity(&mut client)
+        .await
+        .map_err(|error| format!("ConnectionIdentity failed: {error}"))?;
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let (reconnecting, reconnected) = (events.clone(), events.clone());
+    let reconnecting = client.on_reconnecting(move |_| {
+        reconnecting.borrow_mut().push("reconnecting".to_string());
+    });
+    let reconnected = client.on_reconnected(move |id| {
+        reconnected
+            .borrow_mut()
+            .push(format!("reconnected {}", id.unwrap_or_default()));
+    });
+    let callbacks = Rc::new(Cell::new(0u32));
+    let observed = callbacks.clone();
+    let registration = client.register("e2eOrdinaryCallback".to_string(), move |_| {
+        observed.set(observed.get() + 1);
+    });
+
+    client
+        .send("AbortPhysicalTransport".to_string())
+        .await
+        .map_err(|error| format!("AbortPhysicalTransport failed: {error}"))?;
+    eventually("Reconnected", 20_000.0, || {
+        let done = events.borrow().len() >= 2;
+        async move { done.then_some(()) }
+    })
+    .await?;
+    let fresh = identity(&mut client)
+        .await
+        .map_err(|error| format!("ConnectionIdentity failed: {error}"))?;
+    ensure!(fresh != initial, "the reconnect kept connection {initial}");
+    ensure!(
+        *events.borrow() == ["reconnecting".to_string(), format!("reconnected {fresh}")],
+        "lifecycle events: {:?}",
+        events.borrow()
+    );
+
+    client
+        .send_with_args("TriggerCallback".to_string(), |arguments| {
+            arguments.argument("e2eOrdinaryCallback".to_string());
+        })
+        .await
+        .map_err(|error| format!("TriggerCallback failed: {error}"))?;
+    eventually("the callback after reconnect", 5_000.0, || {
+        let done = callbacks.get() == 1;
+        async move { done.then_some(()) }
+    })
+    .await?;
+    // Nothing from the old logical connection was replayed: exactly one callback.
+    sleep(200).await;
+    ensure!(callbacks.get() == 1, "{} callbacks", callbacks.get());
+
+    registration.unregister();
+    reconnecting.unregister();
+    reconnected.unregister();
     client.disconnect();
     Ok(())
 }

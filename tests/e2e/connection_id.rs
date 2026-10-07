@@ -92,6 +92,7 @@ async fn scenario(protocol: Protocol) {
     // Without negotiation there is no connection id.
     let direct = support::unstarted("test-direct", protocol, |configuration| {
         configuration.skip_negotiation();
+        configuration.with_transports(rayx_signalr::Transports::WEB_SOCKETS);
     });
     direct.start().await.unwrap();
     assert_eq!(direct.status(), ConnectionStatus::Connected);
