@@ -17,7 +17,7 @@
 use futures::{channel::mpsc, StreamExt};
 
 use super::{
-    browser_long_polling::LongPolling,
+    browser_http::HttpTransport,
     browser_socket::{BrowserSocket, SocketEvent},
     transport::TransportKind,
 };
@@ -29,7 +29,8 @@ pub(crate) type TransportEvents = mpsc::UnboundedReceiver<SocketEvent>;
 /// A started browser transport.
 pub(crate) enum BrowserTransport {
     WebSockets(BrowserSocket),
-    LongPolling(LongPolling),
+    /// Long Polling or Server-Sent Events.
+    Http(HttpTransport),
 }
 
 impl BrowserTransport {
@@ -58,34 +59,36 @@ impl BrowserTransport {
             }
             TransportKind::LongPolling => {
                 let url = super::negotiation::http_transport_url(endpoint);
-                let (transport, events) = LongPolling::start(url, recipe).await?;
-                Ok((BrowserTransport::LongPolling(transport), events))
+                let (transport, events) = HttpTransport::start_long_polling(url, recipe).await?;
+                Ok((BrowserTransport::Http(transport), events))
             }
-            other => Err(Error::transport_failure(
-                Some(other),
-                format!("this client cannot start the {other} transport yet"),
-            )),
+            TransportKind::ServerSentEvents => {
+                let url = super::negotiation::http_transport_url(endpoint);
+                let (transport, events) =
+                    HttpTransport::start_server_sent_events(url, recipe).await?;
+                Ok((BrowserTransport::Http(transport), events))
+            }
         }
     }
 
     pub(crate) fn send_text(&self, text: &str) -> Result<(), Error> {
         match self {
             BrowserTransport::WebSockets(socket) => socket.send_text(text),
-            BrowserTransport::LongPolling(transport) => transport.send(text.as_bytes().to_vec()),
+            BrowserTransport::Http(transport) => transport.send(text.as_bytes().to_vec()),
         }
     }
 
     pub(crate) fn send_binary(&self, bytes: &[u8]) -> Result<(), Error> {
         match self {
             BrowserTransport::WebSockets(socket) => socket.send_binary(bytes),
-            BrowserTransport::LongPolling(transport) => transport.send(bytes.to_vec()),
+            BrowserTransport::Http(transport) => transport.send(bytes.to_vec()),
         }
     }
 
     pub(crate) fn close(&self) {
         match self {
             BrowserTransport::WebSockets(socket) => socket.close(),
-            BrowserTransport::LongPolling(transport) => transport.close(),
+            BrowserTransport::Http(transport) => transport.close(),
         }
     }
 
@@ -93,7 +96,7 @@ impl BrowserTransport {
     pub(crate) fn buffered_amount(&self) -> u32 {
         match self {
             BrowserTransport::WebSockets(socket) => socket.buffered_amount(),
-            BrowserTransport::LongPolling(transport) => transport.buffered_amount(),
+            BrowserTransport::Http(transport) => transport.buffered_amount(),
         }
     }
 
@@ -101,14 +104,14 @@ impl BrowserTransport {
     pub(crate) fn kind(&self) -> TransportKind {
         match self {
             BrowserTransport::WebSockets(_) => TransportKind::WebSockets,
-            BrowserTransport::LongPolling(_) => TransportKind::LongPolling,
+            BrowserTransport::Http(transport) => transport.kind(),
         }
     }
 
     pub(crate) fn is_closed(&self) -> bool {
         match self {
             BrowserTransport::WebSockets(socket) => socket.is_closed(),
-            BrowserTransport::LongPolling(transport) => transport.is_closed(),
+            BrowserTransport::Http(transport) => transport.is_closed(),
         }
     }
 }

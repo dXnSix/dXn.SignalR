@@ -1,11 +1,15 @@
-//! Browser Long Polling, as the official clients' Long Polling transport over `fetch`: `GET`
-//! polls one at a time (200 delivers zero or more framed records, 204 ends the connection, any
-//! other status or a network error drops the transport), ordered `POST` sends with one request
-//! in flight (frames queued meanwhile go together in the next body), and, when the send side ends
-//! first (the client closed the transport or a send failed), a best-effort `DELETE`, as the .NET
-//! `LongPollingTransport.ProcessAsync`. Credentials travel in the `Authorization` header (never in
-//! the URL): the token negotiate used, refreshed only after a 401, as the .NET client's
-//! `AccessTokenHttpMessageHandler`. Every request is bounded in time and aborted through its
+//! The browser HTTP transports, Long Polling and Server-Sent Events, as the official clients'
+//! transports over `fetch`: Long Polling `GET` polls one at a time (200 delivers zero or more
+//! framed records, 204 ends the connection, any other status or a network error drops the
+//! transport); Server-Sent Events read an `EventSource` (whose automatic reconnection is disabled:
+//! the first error ends the transport, and SignalR's reconnect logic owns retries). Both send with
+//! ordered `POST` requests, one in flight (frames queued meanwhile go together in the next body).
+//! When the send side ends first (the client closed the transport or a send failed) the receive
+//! side is cancelled and, for Long Polling, a best-effort `DELETE` tells the server, as the .NET
+//! `LongPollingTransport.ProcessAsync`. Requests carry the credentials in the `Authorization`
+//! header (never in the URL): the token negotiate used, refreshed only after a 401, as the .NET
+//! client's `AccessTokenHttpMessageHandler`; `EventSource` cannot set headers, so the stream URL
+//! carries that token as `access_token`. Every request is bounded in time and aborted through its
 //! `AbortController`; a poll that exceeds its bound is reissued. Binary bodies are copied into a
 //! fresh, non-shared JavaScript buffer before sending, because wasm memory is shared in threaded
 //! (atomics) builds.
@@ -34,24 +38,25 @@ use futures::{
     StreamExt,
 };
 use gloo_net::http::{Method, RequestBuilder, Response};
-use wasm_bindgen::JsValue;
+use wasm_bindgen::{prelude::Closure, JsCast, JsValue};
 use wasm_bindgen_futures::spawn_local;
+use web_sys::{Event, EventSource, MessageEvent};
 
 use super::{browser_socket::SocketEvent, transport::TransportKind};
 use crate::{client::ConnectionRecipe, error::Error};
 
-fn long_polling_error(message: impl Into<String>) -> Error {
-    Error::transport_failure(Some(TransportKind::LongPolling), message)
+fn transport_error(kind: TransportKind, message: impl Into<String>) -> Error {
+    Error::transport_failure(Some(kind), message)
 }
 
 /// The error of a request the server answered with `status`: 401 and 403 are authentication
 /// errors, anything else a transport failure.
-fn status_error(request: &str, status: u16) -> Error {
-    let message = format!("the Long Polling {request} failed with {status}");
+fn status_error(kind: TransportKind, request: &str, status: u16) -> Error {
+    let message = format!("the {kind} {request} failed with {status}");
     if matches!(status, 401 | 403) {
         Error::authentication(Some(status), message)
     } else {
-        long_polling_error(message)
+        transport_error(kind, message)
     }
 }
 
@@ -74,9 +79,27 @@ async fn within<T>(timeout: Duration, future: impl Future<Output = T>) -> Option
     }
 }
 
-/// The transport's shared state: the poll and send tasks hold it; the [`LongPolling`] handle
-/// closes it when dropped.
+/// An open `EventSource` and its listeners; dropping it detaches them and closes the source.
+struct EventSourceHandle {
+    source: EventSource,
+    _on_open: Closure<dyn FnMut(Event)>,
+    _on_message: Closure<dyn FnMut(MessageEvent)>,
+    _on_error: Closure<dyn FnMut(Event)>,
+}
+
+impl Drop for EventSourceHandle {
+    fn drop(&mut self) {
+        self.source.set_onopen(None);
+        self.source.set_onmessage(None);
+        self.source.set_onerror(None);
+        self.source.close();
+    }
+}
+
+/// The transport's shared state: the receive and send tasks hold it; the [`HttpTransport`]
+/// handle closes it when dropped.
 struct Inner {
+    kind: TransportKind,
     /// The `http(s)` transport URL with the connection token (`?id=<token>`).
     url: String,
     recipe: ConnectionRecipe,
@@ -88,14 +111,48 @@ struct Inner {
     outgoing: RefCell<Option<mpsc::UnboundedSender<Vec<u8>>>>,
     /// Bytes queued or in flight.
     pending: Cell<u32>,
-    /// Aborts the current poll.
+    /// Aborts the current poll (Long Polling).
     poll: RefCell<Option<web_sys::AbortController>>,
-    /// The send side ended first: the poll is being cancelled for the `DELETE`.
+    /// The event stream (Server-Sent Events).
+    source: RefCell<Option<EventSourceHandle>>,
+    /// The send side ended first: the receive side is being cancelled.
     sends_ended: Cell<bool>,
     ended: Cell<bool>,
 }
 
 impl Inner {
+    fn new(
+        kind: TransportKind,
+        url: String,
+        recipe: &ConnectionRecipe,
+    ) -> (
+        Rc<Self>,
+        mpsc::UnboundedReceiver<SocketEvent>,
+        mpsc::UnboundedReceiver<Vec<u8>>,
+    ) {
+        let (events, received) = mpsc::unbounded();
+        let (outgoing, queue) = mpsc::unbounded();
+        let inner = Rc::new(Inner {
+            kind,
+            url,
+            recipe: recipe.clone(),
+            authorization: RefCell::new(recipe.http_transport_authorization()),
+            binary: recipe.protocol().transfer_format() == "Binary",
+            events,
+            outgoing: RefCell::new(Some(outgoing)),
+            pending: Cell::new(0),
+            poll: RefCell::new(None),
+            source: RefCell::new(None),
+            sends_ended: Cell::new(false),
+            ended: Cell::new(false),
+        });
+        (inner, received, queue)
+    }
+
+    fn error(&self, message: impl Into<String>) -> Error {
+        transport_error(self.kind, message)
+    }
+
     /// Ends the transport once: no more sends, the current poll is aborted, and the connection
     /// sees the error that ended it (if any), then `Closed`.
     fn end(&self, failure: Option<Error>) {
@@ -103,7 +160,7 @@ impl Inner {
             return;
         }
         self.outgoing.replace(None);
-        self.cancel_poll();
+        self.cancel_receive();
         if let Some(error) = failure {
             log::info!("{error}");
             let _ = self.events.unbounded_send(SocketEvent::Failed(error));
@@ -112,10 +169,12 @@ impl Inner {
         self.events.close_channel();
     }
 
-    fn cancel_poll(&self) {
+    /// Cancels the receive side: aborts the current poll or closes the event stream.
+    fn cancel_receive(&self) {
         if let Some(poll) = self.poll.replace(None) {
             poll.abort();
         }
+        self.source.replace(None);
     }
 
     /// Sends a request with the connection's credentials, retrying once with a fresh token after
@@ -151,7 +210,7 @@ impl Inner {
     ) -> Result<Reply, Error> {
         use super::headers::{compose, user_agent, BROWSER_USER_AGENT_HEADER};
         let controller = web_sys::AbortController::new()
-            .map_err(|_| long_polling_error("the browser cannot create an AbortController"))?;
+            .map_err(|_| self.error("the browser cannot create an AbortController"))?;
         let poll = method == Method::GET;
         let mut request = RequestBuilder::new(&self.url)
             .method(method.clone())
@@ -181,16 +240,17 @@ impl Inner {
             }
             None => request.build(),
         }
-        .map_err(|error| {
-            long_polling_error(format!("cannot build the {method} request: {error}"))
-        })?;
+        .map_err(|error| self.error(format!("cannot build the {method} request: {error}")))?;
         if poll {
-            // `cancel_poll` aborts the current poll.
+            // `cancel_receive` aborts the current poll.
             self.poll.replace(Some(controller.clone()));
         }
         let _abort = AbortOnDrop(controller);
         let response = request.send().await.map_err(|error| {
-            long_polling_error(format!("the Long Polling {method} request failed: {error}"))
+            self.error(format!(
+                "the {} {method} request failed: {error}",
+                self.kind
+            ))
         })?;
         let status = response.status();
         let frame = if poll && status == 200 {
@@ -205,12 +265,12 @@ impl Inner {
     async fn frame(&self, response: &Response) -> Result<Option<SocketEvent>, Error> {
         let event = if self.binary {
             let bytes = response.binary().await.map_err(|error| {
-                long_polling_error(format!("cannot read the Long Polling response: {error}"))
+                self.error(format!("cannot read the {} response: {error}", self.kind))
             })?;
             (!bytes.is_empty()).then_some(SocketEvent::Binary(bytes))
         } else {
             let text = response.text().await.map_err(|error| {
-                long_polling_error(format!("cannot read the Long Polling response: {error}"))
+                self.error(format!("cannot read the {} response: {error}", self.kind))
             })?;
             (!text.is_empty()).then_some(SocketEvent::Text(text))
         };
@@ -224,37 +284,28 @@ struct Reply {
     frame: Option<SocketEvent>,
 }
 
-/// A started browser Long Polling transport; dropping it closes the transport.
-pub(crate) struct LongPolling {
+/// A started browser HTTP transport; dropping it closes the transport.
+pub(crate) struct HttpTransport {
     inner: Rc<Inner>,
 }
 
-impl LongPolling {
+impl HttpTransport {
     /// Starts Long Polling at `url` (`http(s)`, without credentials): the first poll, which
     /// ASP.NET Core answers at once, must succeed; then the poll and send tasks run. Unbounded:
     /// the caller bounds the start by the connect timeout.
-    pub(crate) async fn start(
+    pub(crate) async fn start_long_polling(
         url: String,
         recipe: &ConnectionRecipe,
     ) -> Result<(Self, mpsc::UnboundedReceiver<SocketEvent>), Error> {
         let liveness = recipe.liveness();
-        let (events, received) = mpsc::unbounded();
-        let (outgoing, queue) = mpsc::unbounded();
-        let inner = Rc::new(Inner {
-            url,
-            recipe: recipe.clone(),
-            authorization: RefCell::new(recipe.long_polling_authorization()),
-            binary: recipe.protocol().transfer_format() == "Binary",
-            events,
-            outgoing: RefCell::new(Some(outgoing)),
-            pending: Cell::new(0),
-            poll: RefCell::new(None),
-            sends_ended: Cell::new(false),
-            ended: Cell::new(false),
-        });
+        let (inner, received, queue) = Inner::new(TransportKind::LongPolling, url, recipe);
         let first = inner.request(Method::GET, None).await?;
         if first.status != 200 {
-            return Err(status_error("first poll", first.status));
+            return Err(status_error(
+                TransportKind::LongPolling,
+                "first poll",
+                first.status,
+            ));
         }
         if let Some(frame) = first.frame {
             let _ = inner.events.unbounded_send(frame);
@@ -268,6 +319,108 @@ impl LongPolling {
         Ok((Self { inner }, received))
     }
 
+    /// Starts Server-Sent Events at `url` (`http(s)`, without credentials): the `EventSource`
+    /// must open; then its messages arrive as text frames and the send task runs. Unbounded: the
+    /// caller bounds the start by the connect timeout.
+    pub(crate) async fn start_server_sent_events(
+        url: String,
+        recipe: &ConnectionRecipe,
+    ) -> Result<(Self, mpsc::UnboundedReceiver<SocketEvent>), Error> {
+        const KIND: TransportKind = TransportKind::ServerSentEvents;
+        let (inner, received, queue) = Inner::new(KIND, url, recipe);
+        // `EventSource` cannot set headers: a Bearer token travels as `access_token`.
+        let stream_url = match inner
+            .authorization
+            .borrow()
+            .as_deref()
+            .and_then(|authorization| authorization.strip_prefix("Bearer "))
+        {
+            Some(token) => super::negotiation::with_access_token(&inner.url, token),
+            None => inner.url.clone(),
+        };
+        let source = EventSource::new(&stream_url).map_err(|error| {
+            transport_error(
+                KIND,
+                format!(
+                    "cannot open the event stream: {}",
+                    error.as_string().unwrap_or_default()
+                ),
+            )
+        })?;
+        let (opened, open_result) = futures::channel::oneshot::channel::<Result<(), Error>>();
+        let opened = Rc::new(RefCell::new(Some(opened)));
+
+        let on_open = {
+            let opened = opened.clone();
+            Closure::<dyn FnMut(Event)>::new(move |_| {
+                if let Some(opened) = opened.borrow_mut().take() {
+                    let _ = opened.send(Ok(()));
+                }
+            })
+        };
+        let on_message = {
+            let weak = Rc::downgrade(&inner);
+            Closure::<dyn FnMut(MessageEvent)>::new(move |event: MessageEvent| {
+                let Some(inner) = weak.upgrade() else {
+                    return;
+                };
+                if let Some(data) = event.data().as_string().filter(|data| !data.is_empty()) {
+                    let _ = inner.events.unbounded_send(SocketEvent::Text(data));
+                }
+            })
+        };
+        let on_error = {
+            let weak = Rc::downgrade(&inner);
+            let source = source.clone();
+            Closure::<dyn FnMut(Event)>::new(move |_| {
+                // No automatic reconnection: SignalR's reconnect logic owns retries.
+                source.close();
+                if let Some(opened) = opened.borrow_mut().take() {
+                    let _ = opened.send(Err(transport_error(
+                        KIND,
+                        "the event stream could not be opened",
+                    )));
+                    return;
+                }
+                // Ended outside this listener, which `end` drops.
+                if let Some(inner) = weak.upgrade() {
+                    spawn_local(async move {
+                        inner.end(Some(transport_error(
+                            KIND,
+                            "the Server-Sent Events stream failed",
+                        )));
+                    });
+                }
+            })
+        };
+        source.set_onopen(Some(on_open.as_ref().unchecked_ref()));
+        source.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
+        source.set_onerror(Some(on_error.as_ref().unchecked_ref()));
+        inner.source.replace(Some(EventSourceHandle {
+            source,
+            _on_open: on_open,
+            _on_message: on_message,
+            _on_error: on_error,
+        }));
+        match open_result.await {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => return Err(error),
+            Err(_) => return Err(transport_error(KIND, "the event stream closed")),
+        }
+        spawn_local(send(
+            inner.clone(),
+            queue,
+            recipe.liveness().connect_timeout,
+        ));
+        log::info!("Server-Sent Events transport started");
+        Ok((Self { inner }, received))
+    }
+
+    /// The transport this is.
+    pub(crate) fn kind(&self) -> TransportKind {
+        self.inner.kind
+    }
+
     /// Queues a frame; frames are POSTed in order.
     pub(crate) fn send(&self, frame: Vec<u8>) -> Result<(), Error> {
         let length = u32::try_from(frame.len()).unwrap_or(u32::MAX);
@@ -276,9 +429,10 @@ impl LongPolling {
             None => false,
         };
         if !queued {
-            return Err(long_polling_error(
-                "the Long Polling transport stopped before the message was sent",
-            ));
+            return Err(self.inner.error(format!(
+                "the {} transport stopped before the message was sent",
+                self.inner.kind
+            )));
         }
         self.inner
             .pending
@@ -286,7 +440,8 @@ impl LongPolling {
         Ok(())
     }
 
-    /// Ends the send queue: the queued frames still go out, then the `DELETE`.
+    /// Ends the send queue: the queued frames still go out (then, for Long Polling, the
+    /// `DELETE`).
     pub(crate) fn close(&self) {
         self.inner.outgoing.replace(None);
     }
@@ -301,7 +456,7 @@ impl LongPolling {
     }
 }
 
-impl Drop for LongPolling {
+impl Drop for HttpTransport {
     fn drop(&mut self) {
         self.close();
     }
@@ -335,7 +490,7 @@ async fn poll(inner: Rc<Inner>, timeout: Duration) {
                 log::debug!("The server ended the Long Polling connection");
                 break None;
             }
-            status => break Some(status_error("poll", status)),
+            status => break Some(status_error(TransportKind::LongPolling, "poll", status)),
         }
     };
     // A poll the send side cancelled for its `DELETE` ends nothing.
@@ -360,10 +515,11 @@ async fn send(inner: Rc<Inner>, mut queue: mpsc::UnboundedReceiver<Vec<u8>>, tim
             .set(inner.pending.get().saturating_sub(length));
         failure = match result {
             Some(Ok(reply)) if (200..300).contains(&reply.status) => continue,
-            Some(Ok(reply)) => Some(status_error("send", reply.status)),
+            Some(Ok(reply)) => Some(status_error(inner.kind, "send", reply.status)),
             Some(Err(error)) => Some(error),
-            None => Some(long_polling_error(format!(
-                "a Long Polling send did not complete within {timeout:?}"
+            None => Some(inner.error(format!(
+                "a {} send did not complete within {timeout:?}",
+                inner.kind
             ))),
         };
         break;
@@ -373,11 +529,16 @@ async fn send(inner: Rc<Inner>, mut queue: mpsc::UnboundedReceiver<Vec<u8>>, tim
     }
     inner.sends_ended.set(true);
     inner.outgoing.replace(None);
-    inner.cancel_poll();
+    inner.cancel_receive();
     // A failed send ends the transport at once (Long Polling runs no server timeout, so nothing
     // else would notice); the DELETE stays best-effort behind it.
     if failure.is_some() {
         inner.end(failure);
+    }
+    if inner.kind != TransportKind::LongPolling {
+        // Closing the event stream ended the connection on the server.
+        inner.end(None);
+        return;
     }
     // Tell the server, as the .NET client does whenever its send side ends first.
     match within(timeout, inner.request(Method::DELETE, None)).await {

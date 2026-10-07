@@ -2,8 +2,9 @@
 //! polls one at a time (the server holds each until it has messages or its poll timeout ends;
 //! 200 delivers zero or more framed records, 204 ends the connection), ordered `POST` sends with
 //! one request in flight (frames queued meanwhile go together in the next body), and a
-//! best-effort `DELETE` when the client ends the transport. Polls and sends each keep one
-//! HTTP/1.1 connection over the crate's TCP/TLS stream; every request is bounded in time.
+//! best-effort `DELETE` when the send side ends first. Polls and sends each keep one HTTP/1.1
+//! connection over the crate's TCP/TLS stream (see [`super::http_transport_tokio`]); every request
+//! is bounded in time.
 
 // Transport code must not panic on peer input; tests may.
 #![cfg_attr(
@@ -16,318 +17,25 @@
     )
 )]
 
-use std::{
-    sync::{Arc, Mutex as StdMutex},
-    time::Duration,
-};
+use std::time::Duration;
 
-use futures::{channel::mpsc as futures_mpsc, StreamExt};
-use http::{header, Method, Request, StatusCode, Uri};
-use http_body_util::{BodyExt, Full};
-use hyper::{body::Bytes, client::conn::http1::SendRequest};
-use hyper_util::rt::TokioIo;
+use futures::channel::mpsc as futures_mpsc;
+use http::{Method, StatusCode, Uri};
+use hyper::body::Bytes;
 use log::{debug, info};
 use tokio::sync::mpsc;
 use tokio_websockets::Message;
 
-use super::transport::TransportKind;
-use crate::{client::ConnectionRecipe, error::Error, platform::LockExt};
+use super::{
+    http_transport_tokio::{
+        authorized, send, status_error, Credentials, FrameReceiver, FrameSender, Lane, Polled,
+        Target, SEND_QUEUE,
+    },
+    transport::TransportKind,
+};
+use crate::{client::ConnectionRecipe, error::Error};
 
-/// Frames a send `POST` may wait for while one is in flight.
-const SEND_QUEUE: usize = 64;
-
-fn long_polling_error(message: impl Into<String>) -> Error {
-    Error::transport_failure(Some(TransportKind::LongPolling), message)
-}
-
-/// Where a Long Polling transport sends its requests.
-#[derive(Clone)]
-pub(crate) struct Target {
-    /// `http(s)://host[:port]`
-    authority: http::uri::Authority,
-    secure: bool,
-    /// The hub path with the connection token query (`/hub?id=<token>`).
-    path_and_query: String,
-}
-
-impl Target {
-    /// The Long Polling target of a negotiated transport URL (`ws(s)://` or `http(s)://`).
-    pub(crate) fn from_url(url: &Uri) -> Result<Self, Error> {
-        let secure = match url.scheme_str() {
-            Some("https" | "wss") => true,
-            Some("http" | "ws") => false,
-            other => {
-                return Err(long_polling_error(format!(
-                    "the transport URL has the unsupported scheme {other:?}"
-                )))
-            }
-        };
-        let authority = url
-            .authority()
-            .cloned()
-            .ok_or_else(|| long_polling_error("the transport URL has no host"))?;
-        let path_and_query = url
-            .path_and_query()
-            .map_or_else(|| "/".to_string(), |path| path.as_str().to_string());
-        Ok(Self {
-            authority,
-            secure,
-            path_and_query,
-        })
-    }
-
-    fn host(&self) -> &str {
-        self.authority
-            .host()
-            .trim_start_matches('[')
-            .trim_end_matches(']')
-    }
-
-    fn port(&self) -> u16 {
-        self.authority
-            .port_u16()
-            .unwrap_or(if self.secure { 443 } else { 80 })
-    }
-}
-
-/// One HTTP/1.1 connection that sends requests one at a time, reconnecting when the server
-/// closed it.
-struct Lane {
-    target: Target,
-    recipe: ConnectionRecipe,
-    sender: Option<SendRequest<Full<Bytes>>>,
-}
-
-/// A response: its status and body.
-pub(crate) struct Response {
-    pub(crate) status: StatusCode,
-    pub(crate) body: Bytes,
-}
-
-impl Lane {
-    fn new(target: Target, recipe: ConnectionRecipe) -> Self {
-        Self {
-            target,
-            recipe,
-            sender: None,
-        }
-    }
-
-    async fn connect(&self) -> Result<SendRequest<Full<Bytes>>, Error> {
-        let tcp =
-            super::negotiate_http::connect_tcp(self.target.host(), self.target.port()).await?;
-        if self.target.secure {
-            let stream =
-                super::negotiate_http::tls_stream(self.recipe.tls(), self.target.host(), tcp)
-                    .await?;
-            handshake(stream).await
-        } else {
-            handshake(tcp).await
-        }
-    }
-
-    /// Sends one request; a request that fails on a reused connection before any response
-    /// arrived is sent once more on a fresh connection, as .NET's `SocketsHttpHandler` retries a
-    /// request on a pooled connection the server closed. A failed request, or one whose future is
-    /// dropped (its bound elapsed), leaves the lane without a connection, so the next one connects.
-    async fn request(
-        &mut self,
-        method: Method,
-        body: Bytes,
-        content_type: Option<&str>,
-        authorization: Option<String>,
-    ) -> Result<Response, Error> {
-        let reused = match self.sender.take() {
-            Some(sender) if !sender.is_closed() => Some(sender),
-            _ => None,
-        };
-        let retry = reused.is_some();
-        match self
-            .exchange(
-                reused,
-                method.clone(),
-                body.clone(),
-                content_type,
-                authorization.clone(),
-            )
-            .await
-        {
-            Err(ExchangeError::Unanswered(error)) if retry => {
-                debug!("Retrying the Long Polling {method} request on a fresh connection: {error}");
-                self.exchange(None, method, body, content_type, authorization)
-                    .await
-                    .map_err(ExchangeError::into_error)
-            }
-            result => result.map_err(ExchangeError::into_error),
-        }
-    }
-
-    /// One request on `sender` (a fresh connection when `None`).
-    async fn exchange(
-        &mut self,
-        sender: Option<SendRequest<Full<Bytes>>>,
-        method: Method,
-        body: Bytes,
-        content_type: Option<&str>,
-        authorization: Option<String>,
-    ) -> Result<Response, ExchangeError> {
-        let mut sender = match sender {
-            Some(sender) => sender,
-            None => self.connect().await.map_err(ExchangeError::Failed)?,
-        };
-        sender.ready().await.map_err(|error| {
-            ExchangeError::Unanswered(
-                long_polling_error(format!("the Long Polling connection failed: {error}"))
-                    .with_source(error),
-            )
-        })?;
-        let mut request = Request::builder()
-            .method(method.clone())
-            .uri(self.target.path_and_query.as_str())
-            .header(header::HOST, self.target.authority.as_str());
-        if let Some(content_type) = content_type {
-            request = request.header(header::CONTENT_TYPE, content_type);
-        }
-        for (name, value) in super::headers::compose(
-            &[("User-Agent", super::headers::user_agent())],
-            self.recipe.headers(),
-            authorization,
-        ) {
-            request = request.header(name.as_str(), value.as_str());
-        }
-        let request = request.body(Full::new(body)).map_err(|_| {
-            ExchangeError::Failed(Error::configuration(
-                "authentication",
-                "the credentials are not a valid Authorization header value",
-            ))
-        })?;
-        let response = sender.send_request(request).await.map_err(|error| {
-            ExchangeError::Unanswered(
-                long_polling_error(format!("the Long Polling {method} request failed: {error}"))
-                    .with_source(error),
-            )
-        })?;
-        let status = response.status();
-        let body = response
-            .into_body()
-            .collect()
-            .await
-            .map_err(|error| {
-                ExchangeError::Failed(
-                    long_polling_error(format!("cannot read the Long Polling response: {error}"))
-                        .with_source(error),
-                )
-            })?
-            .to_bytes();
-        self.sender = Some(sender);
-        Ok(Response { status, body })
-    }
-}
-
-/// Why a request failed: before any response arrived (retried once when the connection was
-/// reused), or otherwise.
-enum ExchangeError {
-    Unanswered(Error),
-    Failed(Error),
-}
-
-impl ExchangeError {
-    fn into_error(self) -> Error {
-        match self {
-            ExchangeError::Unanswered(error) | ExchangeError::Failed(error) => error,
-        }
-    }
-}
-
-async fn handshake<S>(stream: S) -> Result<SendRequest<Full<Bytes>>, Error>
-where
-    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
-{
-    let (sender, connection) = hyper::client::conn::http1::handshake(TokioIo::new(stream))
-        .await
-        .map_err(|error| {
-            long_polling_error(format!("the Long Polling HTTP handshake failed: {error}"))
-                .with_source(error)
-        })?;
-    tokio::spawn(async move {
-        let _ = connection.await;
-    });
-    Ok(sender)
-}
-
-/// The connection's credentials: one `Authorization` value shared by polls, sends and the
-/// `DELETE`, as the .NET client's `AccessTokenHttpMessageHandler` keeps one token per connection.
-/// It starts with the token negotiate used and asks an access-token factory again only after a
-/// 401 sent with the current value. The lock is never held across an `.await`.
-#[derive(Clone)]
-struct Credentials {
-    recipe: ConnectionRecipe,
-    authorization: Arc<StdMutex<Option<String>>>,
-}
-
-impl Credentials {
-    fn new(recipe: &ConnectionRecipe) -> Self {
-        Self {
-            authorization: Arc::new(StdMutex::new(recipe.long_polling_authorization())),
-            recipe: recipe.clone(),
-        }
-    }
-
-    fn current(&self) -> Option<String> {
-        self.authorization.locked().clone()
-    }
-
-    /// The value to retry with after a 401 sent with `used`: the factory's fresh token, or the
-    /// value another request already refreshed.
-    async fn refreshed(&self, used: &Option<String>) -> Result<Option<String>, Error> {
-        {
-            let current = self.authorization.locked();
-            if current.as_ref() != used.as_ref() {
-                return Ok(current.clone());
-            }
-        }
-        let fresh = self.recipe.current_transport_authorization().await?;
-        *self.authorization.locked() = fresh.clone();
-        Ok(fresh)
-    }
-}
-
-/// Sends a request with the connection's credentials, retrying once with a fresh token after a
-/// 401 when an access-token factory provides them, as the .NET client's
-/// `AccessTokenHttpMessageHandler` does. Unbounded: callers bound it, refresh included.
-async fn authorized(
-    lane: &mut Lane,
-    credentials: &Credentials,
-    method: Method,
-    body: Bytes,
-    content_type: Option<&str>,
-) -> Result<Response, Error> {
-    let used = credentials.current();
-    let response = lane
-        .request(method.clone(), body.clone(), content_type, used.clone())
-        .await?;
-    if response.status != StatusCode::UNAUTHORIZED || !credentials.recipe.has_access_token_factory()
-    {
-        return Ok(response);
-    }
-    let fresh = credentials.refreshed(&used).await?;
-    lane.request(method, body, content_type, fresh).await
-}
-
-/// The error of a request the server answered with `status`: 401 and 403 are authentication
-/// errors (as for a refused WebSocket upgrade), anything else a transport failure.
-fn status_error(request: &str, status: StatusCode) -> Error {
-    let message = format!(
-        "the Long Polling {request} failed with {} {}",
-        status.as_u16(),
-        status.canonical_reason().unwrap_or_default()
-    );
-    if matches!(status.as_u16(), 401 | 403) {
-        Error::authentication(Some(status.as_u16()), message)
-    } else {
-        long_polling_error(message)
-    }
-}
+const KIND: TransportKind = TransportKind::LongPolling;
 
 /// What a poll's status means for the transport.
 #[derive(Debug, Eq, PartialEq)]
@@ -360,24 +68,6 @@ pub(crate) fn poll_frame(body: Bytes, binary: bool) -> Result<Message, Error> {
     }
 }
 
-/// Collects frames that are queued behind `first` into one send body, in order.
-pub(crate) fn batch(first: Message, queued: &mut Vec<Message>) -> Bytes {
-    let mut body = Vec::with_capacity(first.as_payload().len());
-    body.extend_from_slice(&first.as_payload()[..]);
-    for frame in queued.drain(..) {
-        body.extend_from_slice(&frame.as_payload()[..]);
-    }
-    Bytes::from(body)
-}
-
-/// The sender half: frames go to the send loop, which POSTs them in order.
-pub(crate) type FrameSender = futures_mpsc::Sender<Message>;
-/// One item from the transport: a frame, the server's end of the connection (`Ok(None)`), or the
-/// error that ended the transport.
-pub(crate) type Polled = Result<Option<Message>, Error>;
-/// The receiver half: the transport's items.
-pub(crate) type FrameReceiver = mpsc::Receiver<Polled>;
-
 /// The bounds of a running transport.
 #[derive(Clone, Copy)]
 struct Bounds {
@@ -395,22 +85,22 @@ pub(crate) async fn start(
     recipe: &ConnectionRecipe,
     binary: bool,
 ) -> Result<(FrameSender, FrameReceiver), Error> {
-    let target = Target::from_url(url)?;
+    let target = Target::from_url(url, KIND)?;
     let liveness = recipe.liveness();
     let bounds = Bounds {
         poll: liveness.long_polling_timeout + liveness.connect_timeout,
         request: liveness.connect_timeout,
     };
     let credentials = Credentials::new(recipe);
-    let mut polls = Lane::new(target.clone(), recipe.clone());
+    let mut polls = Lane::new(KIND, target.clone(), recipe.clone());
     let first = authorized(&mut polls, &credentials, Method::GET, Bytes::new(), None).await?;
     if first.status != StatusCode::OK {
-        return Err(status_error("first poll", first.status));
+        return Err(status_error(KIND, "first poll", first.status));
     }
 
     let (frames, received) = mpsc::channel(16);
     let (sender, outgoing) = futures_mpsc::channel(SEND_QUEUE);
-    let sends = Lane::new(target, recipe.clone());
+    let sends = Lane::new(KIND, target, recipe.clone());
     tokio::spawn(process(
         polls,
         sends,
@@ -515,7 +205,7 @@ async fn poll(
                 debug!("The server ended the Long Polling connection");
                 Ok(None)
             }
-            PollOutcome::Failed(status) => Err(status_error("poll", status)),
+            PollOutcome::Failed(status) => Err(status_error(KIND, "poll", status)),
         };
         let more = matches!(item, Ok(Some(_)));
         if frames.send(item).await.is_err() {
@@ -527,58 +217,17 @@ async fn poll(
     }
 }
 
-/// POSTs queued frames in order, one request at a time, until the sender side ends; returns the
-/// lane for the `DELETE` and the error of a failed send.
-async fn send(
-    mut lane: Lane,
-    credentials: &Credentials,
-    mut outgoing: futures_mpsc::Receiver<Message>,
-    binary: bool,
-    timeout: Duration,
-) -> (Lane, Option<Error>) {
-    let content_type = if binary {
-        "application/octet-stream"
-    } else {
-        "text/plain;charset=UTF-8"
-    };
-    let mut queued = Vec::new();
-    while let Some(first) = outgoing.next().await {
-        while let Ok(frame) = outgoing.try_recv() {
-            queued.push(frame);
-        }
-        let body = batch(first, &mut queued);
-        let failure = match tokio::time::timeout(
-            timeout,
-            authorized(
-                &mut lane,
-                credentials,
-                Method::POST,
-                body,
-                Some(content_type),
-            ),
-        )
-        .await
-        {
-            Ok(Ok(response)) if response.status.is_success() => continue,
-            Ok(Ok(response)) => status_error("send", response.status),
-            Ok(Err(error)) => error,
-            Err(_) => long_polling_error(format!(
-                "a Long Polling send did not complete within {timeout:?}"
-            )),
-        };
-        return (lane, Some(failure));
-    }
-    (lane, None)
-}
-
 #[cfg(test)]
 mod long_polling {
     use http::StatusCode;
     use hyper::body::Bytes;
     use tokio_websockets::Message;
 
-    use super::{batch, poll_frame, poll_outcome, PollOutcome, Target};
-    use crate::ErrorKind;
+    use super::{poll_frame, poll_outcome, PollOutcome, KIND};
+    use crate::{
+        communication::http_transport_tokio::{batch, status_error, Target},
+        ErrorKind,
+    };
 
     #[test]
     fn long_polling_poll_statuses_are_classified_as_in_dotnet() {
@@ -596,11 +245,11 @@ mod long_polling {
     #[test]
     fn long_polling_refused_requests_are_authentication_errors() {
         for status in [StatusCode::UNAUTHORIZED, StatusCode::FORBIDDEN] {
-            let error = super::status_error("poll", status);
+            let error = status_error(KIND, "poll", status);
             assert_eq!(error.kind(), ErrorKind::Authentication);
             assert_eq!(error.status(), Some(status.as_u16()));
         }
-        let error = super::status_error("send", StatusCode::INTERNAL_SERVER_ERROR);
+        let error = status_error(KIND, "send", StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(error.kind(), ErrorKind::Transport);
         assert!(error.to_string().contains("500"), "{error}");
     }
@@ -625,14 +274,15 @@ mod long_polling {
 
     #[test]
     fn long_polling_targets_follow_the_negotiated_url() {
-        let target = Target::from_url(&"wss://example.test/chat?id=abc".parse().unwrap()).unwrap();
+        let target =
+            Target::from_url(&"wss://example.test/chat?id=abc".parse().unwrap(), KIND).unwrap();
         assert!(target.secure);
         assert_eq!(target.port(), 443);
         assert_eq!(target.path_and_query, "/chat?id=abc");
-        let plain = Target::from_url(&"http://[::1]:5000/hub?id=x".parse().unwrap()).unwrap();
+        let plain = Target::from_url(&"http://[::1]:5000/hub?id=x".parse().unwrap(), KIND).unwrap();
         assert!(!plain.secure);
         assert_eq!((plain.host(), plain.port()), ("::1", 5000));
-        assert!(Target::from_url(&"ftp://host/hub".parse().unwrap()).is_err());
+        assert!(Target::from_url(&"ftp://host/hub".parse().unwrap(), KIND).is_err());
     }
 }
 
@@ -658,7 +308,8 @@ mod long_polling_exchanges {
     };
     use tokio_websockets::Message;
 
-    use super::{start, FrameReceiver};
+    use super::start;
+    use crate::communication::http_transport_tokio::FrameReceiver;
     use crate::{
         client::{Authentication, ConnectionRecipe},
         ConnectionConfiguration, ErrorKind,
@@ -1359,7 +1010,8 @@ mod robustness_long_polling {
     use proptest::prelude::*;
     use tokio_websockets::Message;
 
-    use super::{batch, poll_frame, poll_outcome, PollOutcome, Target};
+    use super::{poll_frame, poll_outcome, PollOutcome, KIND};
+    use crate::communication::http_transport_tokio::{batch, Target};
 
     proptest! {
         #[test]
@@ -1402,7 +1054,7 @@ mod robustness_long_polling {
         #[test]
         fn robustness_long_polling_targets_never_panic(url in "\\PC{0,64}") {
             if let Ok(url) = url.parse::<http::Uri>() {
-                let _ = Target::from_url(&url);
+                let _ = Target::from_url(&url, KIND);
             }
         }
     }

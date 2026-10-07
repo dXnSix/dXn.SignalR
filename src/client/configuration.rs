@@ -33,11 +33,13 @@ pub(crate) enum Authentication {
 }
 
 /// Logged when a browser client is configured with Basic credentials: as with the .NET client,
-/// they go with negotiate, but a browser WebSocket cannot carry an `Authorization` header.
-pub(crate) const BROWSER_BASIC_WARNING: &str = "Basic credentials are sent with negotiate only: \
-browsers cannot set the WebSocket's Authorization header, so the server must authenticate the \
-WebSocket otherwise; use authenticate_bearer or with_access_token_factory, which browsers send as \
-the WebSocket's access_token";
+/// they go with every `fetch` request (negotiate, Long Polling, Server-Sent Events sends), but a
+/// browser WebSocket or `EventSource` cannot carry an `Authorization` header.
+pub(crate) const BROWSER_BASIC_WARNING: &str = "Basic credentials are sent only with fetch \
+requests (negotiate, Long Polling, Server-Sent Events sends): browsers cannot set the \
+Authorization header of a WebSocket or an EventSource, so the server must authenticate those \
+otherwise; use authenticate_bearer or with_access_token_factory, which browsers send there as \
+access_token";
 
 /// Logs [`BROWSER_BASIC_WARNING`] when a browser (`browser`) is configured with Basic credentials;
 /// shared by both targets so the decision is tested natively. Returns whether it warned.
@@ -232,11 +234,11 @@ impl ConnectionRecipe {
         self
     }
 
-    /// The `Authorization` value a Long Polling transport starts with: a negotiate redirect's
+    /// The `Authorization` value an HTTP transport (Long Polling, Server-Sent Events) starts with: a negotiate redirect's
     /// token or the configured credentials, else the token negotiate fetched from an access-token
     /// factory (the factory is asked again only after a 401, as the .NET client's
     /// `AccessTokenHttpMessageHandler`).
-    pub(crate) fn long_polling_authorization(&self) -> Option<String> {
+    pub(crate) fn http_transport_authorization(&self) -> Option<String> {
         self.transport_authentication
             .as_ref()
             .or(self.negotiated_authentication.as_ref())
@@ -588,11 +590,11 @@ impl ConnectionConfiguration {
     /// the server offers, in the server's order, keeping those in this set that carry the hub
     /// protocol's transfer format (Server-Sent Events carry text only, so never MessagePack); a
     /// transport that fails to start is followed by the next one with a fresh negotiation.
-    /// [`skip_negotiation`](Self::skip_negotiation) needs `Transports::WEB_SOCKETS` alone and
-    /// stateful reconnect needs WebSockets in the set; otherwise
-    /// [`SignalRClient::new`](crate::SignalRClient::new) fails with
-    /// [`ErrorKind::Configuration`](crate::ErrorKind::Configuration). In this release only
-    /// WebSockets can be started; the others are skipped.
+    /// [`skip_negotiation`](Self::skip_negotiation) needs `Transports::WEB_SOCKETS` alone,
+    /// stateful reconnect needs WebSockets in the set, and the MessagePack protocol cannot use
+    /// Server-Sent Events alone; otherwise [`SignalRClient::new`](crate::SignalRClient::new) fails
+    /// with [`ErrorKind::Configuration`](crate::ErrorKind::Configuration) naming the setting
+    /// (`with_transports` for Server-Sent Events with MessagePack).
     pub fn with_transports(&mut self, transports: crate::Transports) -> &ConnectionConfiguration {
         self._transports = transports;
         self
@@ -615,6 +617,17 @@ impl ConnectionConfiguration {
             return Err(crate::Error::configuration(
                 "with_stateful_reconnect",
                 "stateful reconnect needs the WebSockets transport",
+            ));
+        }
+        // Server-Sent Events carry text only; with other transports in the set selection skips
+        // them instead.
+        if self._transports.is_only(TransportKind::ServerSentEvents)
+            && self._protocol.transfer_format() == "Binary"
+        {
+            return Err(crate::Error::configuration(
+                "with_transports",
+                "Server-Sent Events carry text only, so they cannot carry the MessagePack hub \
+                 protocol: allow another transport or use JSON",
             ));
         }
         Ok(())

@@ -1938,12 +1938,12 @@ impl CommunicationClient {
             TransportKind::WebSockets => Ok(super::transport_tokio::websockets(
                 Self::connect_socket(endpoint, recipe).await?,
             )),
+            // The first poll or the event stream (and any token refresh it needs) is bounded like
+            // a WebSocket open; boxed for the same stack-size reason.
             TransportKind::LongPolling => {
-                // The first poll (and any token refresh it needs) is bounded like a WebSocket
-                // open; boxed for the same stack-size reason.
-                let timeout = recipe.liveness().connect_timeout;
-                let started = tokio::time::timeout(
-                    timeout,
+                Self::start_http(
+                    kind,
+                    recipe,
                     Box::pin(super::long_polling_tokio::start(
                         &endpoint,
                         recipe,
@@ -1951,14 +1951,37 @@ impl CommunicationClient {
                     )),
                 )
                 .await
-                .map_err(|_| Error::timed_out(TimeoutOperation::Connect, timeout))??;
-                Ok(super::transport_tokio::long_polling(started))
             }
-            other => Err(Error::transport_failure(
-                Some(other),
-                format!("this client cannot start the {other} transport yet"),
-            )),
+            TransportKind::ServerSentEvents => {
+                Self::start_http(
+                    kind,
+                    recipe,
+                    Box::pin(super::server_sent_events_tokio::start(&endpoint, recipe)),
+                )
+                .await
+            }
         }
+    }
+
+    /// Starts an HTTP transport within the connect timeout.
+    async fn start_http(
+        kind: TransportKind,
+        recipe: &ConnectionRecipe,
+        start: impl std::future::Future<
+            Output = Result<
+                (
+                    super::http_transport_tokio::FrameSender,
+                    super::http_transport_tokio::FrameReceiver,
+                ),
+                Error,
+            >,
+        >,
+    ) -> Result<(TransportSender, TransportReceiver), Error> {
+        let timeout = recipe.liveness().connect_timeout;
+        let started = tokio::time::timeout(timeout, start)
+            .await
+            .map_err(|_| Error::timed_out(TimeoutOperation::Connect, timeout))??;
+        Ok(super::transport_tokio::http(kind, started))
     }
 
     /// Performs the SignalR handshake over a started transport.
@@ -3547,6 +3570,54 @@ mod long_polling_liveness {
             server_timeout: Duration::from_millis(20),
             ..LivenessConfig::default()
         }
+    }
+
+    /// Starts `kind` against a server that refuses every request with 401, with a factory whose
+    /// refresh never resolves and a 300 ms connect timeout.
+    async fn start_against_a_hanging_refresh(kind: crate::TransportKind) -> crate::Error {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            while let Ok((mut stream, _)) = listener.accept().await {
+                tokio::spawn(async move {
+                    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+                    let mut buffer = [0_u8; 4096];
+                    while let Ok(read) = stream.read(&mut buffer).await {
+                        if read == 0 {
+                            return;
+                        }
+                        let _ = stream
+                            .write_all(b"HTTP/1.1 401 Unauthorized\r\ncontent-length: 0\r\n\r\n")
+                            .await;
+                    }
+                });
+            }
+        });
+        let mut configuration =
+            crate::ConnectionConfiguration::new("127.0.0.1".into(), "hub".into());
+        configuration.unsecure();
+        configuration.with_port(i32::from(port));
+        configuration.with_connect_timeout(Duration::from_millis(300));
+        configuration.with_access_token_factory(std::future::pending::<Result<String, String>>);
+        let recipe = configuration.connection_recipe();
+        super::CommunicationClient::start_transport(
+            kind,
+            format!("ws://127.0.0.1:{port}/hub?id=token")
+                .parse()
+                .unwrap(),
+            &recipe,
+        )
+        .await
+        .err()
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn server_sent_events_start_is_bounded_by_the_connect_timeout() {
+        let started = std::time::Instant::now();
+        let error = start_against_a_hanging_refresh(crate::TransportKind::ServerSentEvents).await;
+        assert_eq!(error.kind(), crate::ErrorKind::Timeout);
+        assert!(started.elapsed() < Duration::from_secs(5));
     }
 
     #[tokio::test]

@@ -53,11 +53,6 @@ impl TransportKind {
             TransportKind::LongPolling => 4,
         }
     }
-
-    /// Whether this build of the client can start the transport.
-    pub(crate) fn implemented(self) -> bool {
-        matches!(self, TransportKind::WebSockets | TransportKind::LongPolling)
-    }
 }
 
 /// The transports a connection may use (`ConnectionConfiguration::with_transports`), as the .NET

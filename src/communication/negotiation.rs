@@ -317,8 +317,6 @@ pub(crate) fn select_transports(
             Some(format!(
                 "the transport does not support the {format} transfer format"
             ))
-        } else if !kind.implemented() {
-            Some("this client cannot start the transport yet".to_string())
         } else {
             None
         };
@@ -345,13 +343,24 @@ pub(crate) fn transports_failed(
             return attempt.error().clone();
         }
     }
-    let message = if failed.is_empty() {
+    let summary = if failed.is_empty() {
         "the server offers no transport this client can use"
     } else {
         "no transport could be started"
     };
     let mut attempts = skipped;
     attempts.extend(failed);
+    // Every attempt is named with its (already redacted) reason, as the .NET client's
+    // `AggregateException` lists each `TransportFailedException`.
+    let reasons: Vec<String> = attempts
+        .iter()
+        .map(|attempt| format!("{}: {}", attempt.transport(), attempt.error()))
+        .collect();
+    let message = if reasons.is_empty() {
+        summary.to_string()
+    } else {
+        format!("{summary} ({})", reasons.join("; "))
+    };
     Error::transport_unavailable(message, attempts)
 }
 
@@ -1172,7 +1181,6 @@ mod transport_selection {
                     let selection = select_transports(offered, set, format);
                     for kind in &selection.candidates {
                         assert!(set.contains(*kind));
-                        assert!(kind.implemented());
                         assert!(!(*kind == TransportKind::ServerSentEvents && format == "Binary"));
                     }
                     // Every offered, known transport is either a candidate or skipped, once.
@@ -1246,8 +1254,6 @@ mod transport_selection {
                             Some("disabled by the client")
                         } else if !formats(*kind).contains(&format) {
                             Some("transfer format")
-                        } else if *kind == TransportKind::ServerSentEvents {
-                            Some("cannot start")
                         } else {
                             None
                         };
@@ -1279,13 +1285,24 @@ mod transport_selection {
     }
 
     #[test]
-    fn transport_selection_skips_transports_this_client_cannot_start() {
+    fn transport_selection_every_offered_transport_can_start() {
         let selection = select_transports(&all_offered(), Transports::all(), "Text");
         assert_eq!(
             selection.candidates,
+            [
+                TransportKind::WebSockets,
+                TransportKind::ServerSentEvents,
+                TransportKind::LongPolling
+            ]
+        );
+        assert!(selection.skipped.is_empty());
+        // Server-Sent Events carry text only.
+        let binary = select_transports(&all_offered(), Transports::all(), "Binary");
+        assert_eq!(
+            binary.candidates,
             [TransportKind::WebSockets, TransportKind::LongPolling]
         );
-        assert_eq!(skipped(&selection), [TransportKind::ServerSentEvents]);
+        assert_eq!(skipped(&binary), [TransportKind::ServerSentEvents]);
     }
 
     #[test]
@@ -1521,6 +1538,29 @@ mod long_polling_urls {
         assert_eq!(
             http_transport_url("ws://host/hub?access_token=secret"),
             "http://host/hub"
+        );
+    }
+}
+
+#[cfg(test)]
+mod transport_unavailable_messages {
+    use super::{select_transports, transports_failed};
+    use crate::{protocol::negotiate::TransportSpec, ErrorKind, TransportKind, Transports};
+
+    #[test]
+    fn transport_selection_unavailable_errors_name_every_transport() {
+        let offered = vec![TransportSpec {
+            transport: "LongPolling".to_string(),
+            transfer_formats: vec!["Text".to_string(), "Binary".to_string()],
+        }];
+        let selection = select_transports(&offered, Transports::WEB_SOCKETS, "Text");
+        let error = transports_failed(selection.skipped, Vec::new());
+        assert_eq!(error.kind(), ErrorKind::TransportUnavailable);
+        assert_eq!(error.attempts()[0].transport(), TransportKind::LongPolling);
+        let message = error.to_string();
+        assert!(
+            message.contains("LongPolling") && message.contains("disabled by the client"),
+            "{message}"
         );
     }
 }
