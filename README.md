@@ -18,7 +18,8 @@ use it from any UI, a game loop, a service, or a test.
 
 - **Every SignalR call style.** `invoke` waits for a typed result, `send` fires and forgets,
   `enumerate` returns a `Stream` of server items (dropping it cancels the server side), and
-  `register` handles server calls, including client results for `InvokeAsync`.
+  `register` (several callbacks per target, `register_async`, typed `register_typed`) handles
+  server calls on a dispatch task, including client results for `InvokeAsync`.
 - **JSON and MessagePack.** Your Serde types travel unchanged on both protocols; the MessagePack
   encoder keeps your field names.
 - **Reconnection that matches the official clients.** Automatic retry policies (including the

@@ -111,7 +111,8 @@ status. Use them to make concurrent calls or to hand the client to other parts o
 
 Closing locally is terminal: it supersedes a running reconnect or pause, fails pending invocations
 and streams with `ErrorKind::ConnectionClosed` (`CloseReason::Local`), disposes the stateful
-buffer, and sets the status to `Closed`. A closed client cannot reconnect; connect a new one. A
+buffer, drops the registered callbacks (and the client handles they hold) and stops their dispatch
+task, and sets the status to `Closed`. A closed client cannot reconnect; connect a new one. A
 `ReconnectionHandler` kept from an earlier drop then fails with the same error.
 
 `disconnect` and drop are synchronous. They briefly block the calling thread to update the shared

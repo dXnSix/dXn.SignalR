@@ -32,7 +32,8 @@ pass borrowed or cloned captures (`args.argument(&name)`), not moved ones.
 
 ## Results
 
-- `Ok(T)` from the completion result; `Ok(())`/`Option` for `void`/`null`.
+- `Ok(T)` from the completion result; `Ok(())`/`Option` for `void`/`null`; `invoke::<()>` discards
+  any result.
 - `Err(Error)`: `Hub` for hub exceptions (`server_message()`; detailed text only with server
   `EnableDetailedErrors`), `Serialization` for argument/result (de)serialization failures, and the
   connection's error when the message cannot be accepted (not `Connected`, paused, closed) or the

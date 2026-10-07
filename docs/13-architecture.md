@@ -39,7 +39,8 @@ connect_with(domain, hub, options)
        └─ HttpClient::negotiate        negotiate → redirect* → connection data (ws URL, token)
        └─ CommunicationClient::connect WebSocket open → handshake (bounded, validated)
             ├─ writer task   (native) owns the sink: Acks first, coalesced frames, Pings
-            └─ receiver task          decodes records once → action storage → futures, streams, callbacks
+            └─ receiver task          decodes records once → action storage → futures, streams
+                                      └─ dispatch task  server calls → callbacks (result calls continue on their own task)
 ```
 
 Natively, `open` runs negotiate and connect on the connection's runtime (`runtime.spawn(...)`), so

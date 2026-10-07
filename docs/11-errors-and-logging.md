@@ -147,6 +147,12 @@ Version 0.2 replaced the `String` errors of 0.1 with `rayx_signalr::Error`.
   client's `HubConnection.StopAsync` does; in 0.1 it only released the calling handle while other
   clones or registered callbacks existed. Dropping a handle still closes the connection only when
   it is the last one.
+- Callbacks run on a dispatch task instead of the receive path, as in the official .NET client.
+  Natively a registered closure must now be `Send + Sync` (a `RefCell` or `Cell` it captures
+  becomes a `Mutex` or an atomic); a target can have several callbacks (a second `register` no
+  longer replaces or is ignored), and `remove(target)` removes them all. A result-expecting call
+  that no callback answers now gets the .NET error `Client didn't provide a result.` instead of
+  waiting for the server's timeout.
 - Replace checks of message text with kinds and fields:
 
 | 0.1 check | 0.2 check |

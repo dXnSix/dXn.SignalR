@@ -26,7 +26,8 @@ Natively, every connection belongs to exactly one Tokio runtime:
    `with_runtime_handle`) that names both options.
 
 Negotiation, the WebSocket, keep-alive and timeout timers, reconnect delays, stateful backpressure,
-stream cancellation and the connection's writer and receiver tasks all run on that runtime. The
+stream cancellation, the connection's writer and receiver tasks and the callback dispatch task
+all run on that runtime. The
 futures the client returns only wait on runtime-agnostic primitives, so they can be awaited from any
 executor: a UI framework's executor, `futures::executor::block_on` on a plain thread, or another
 Tokio runtime.

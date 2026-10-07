@@ -63,7 +63,8 @@ resolves to:
 
 - `Ok(T)` when the completion carries a result that deserializes into `T`.
 - `Ok(())` (or any `T` that deserializes from `null`) when the hub method returns `void`/`Task`. A
-  void completion fails an invocation whose `T` cannot be built from nothing.
+  void completion fails an invocation whose `T` cannot be built from nothing. `invoke::<()>`
+  accepts and discards any result, as the .NET client's non-generic `InvokeAsync` does.
 - `Err(error)` with `ErrorKind::Hub` when the hub method threw (`server_message()` is the server's
   error text; ASP.NET Core sends details only with `EnableDetailedErrors`), with
   `ErrorKind::Serialization` when an argument does not serialize or the result does not
