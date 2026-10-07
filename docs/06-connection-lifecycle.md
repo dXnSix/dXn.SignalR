@@ -49,8 +49,8 @@ A call on a client that was never started (or whose start failed) fails with
 | Status | Meaning | What works |
 |---|---|---|
 | `Connecting` | `start` is negotiating and connecting. | Calls wait for the start's outcome. |
-| `Connected` | A transport is open and the handshake completed. | Everything. |
-| `Reconnecting` | An automatic, manual or `resume` reconnect is running. | Calls made while an attempt is in flight wait for it; during the policy delay they fail at once (stateful pending calls wait). |
+| `Connected` | A transport is open and the handshake completed, or a stateful connection is resuming a lost transport transparently ([Stateful reconnect](07-reconnection.md#stateful-reconnect)). | Everything; during a transparent resume sends go into the replay buffer. |
+| `Reconnecting` | An automatic, manual or `resume` reconnect is running. | Calls made while an attempt is in flight wait for it; during the policy delay they fail at once. |
 | `Paused` | The application called `pause()`. No transport, keep-alive or automatic reconnect. | `resume()`. Calls fail. |
 | `Disconnected` | Not started yet, or the transport is gone and nothing is reconnecting: a failed start, a drop in manual mode, exhausted reconnect attempts, or a server close. | `start()`, `resume()` (after a connection) or a manual reconnect. Calls fail. |
 | `Closed` | Stopped locally by `disconnect`/`stop` (on any handle) or by dropping the last handle. | `start()` connects again. |
@@ -80,7 +80,7 @@ let _closed = client.on_closed(|error| match error {
 | Hook | Raised |
 |---|---|
 | `on_reconnecting(&Error)` | An automatic reconnect run begins after the transport dropped, before its first delay; ordinary pending work has already failed. Not raised when the reconnection policy allows no attempt, in manual mode, or for `resume`. |
-| `on_reconnected(Option<&str>)` | An automatic reconnect run succeeded; the argument is the connection id (new after an ordinary reconnect, unchanged after a stateful resume). |
+| `on_reconnected(Option<&str>)` | An automatic reconnect run succeeded; the argument is the new connection id. A transparent stateful resume raises no hook. |
 | `on_closed(Option<&Error>)` | The connection ended and nothing reconnects automatically: `None` after `disconnect`/`stop`, or an `ErrorKind::Canceled` error when the stop interrupted a reconnect (as .NET's `OperationCanceledException`); otherwise a server close without reconnect permission, a drop the policy allows no attempt for, a drop in manual mode (before the disconnection handler runs), or exhausted attempts. Once per established connection; a failed `start` raises none. |
 
 Several hooks per event run in registration order. Events run one at a time in the order the

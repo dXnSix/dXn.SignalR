@@ -113,7 +113,8 @@ target. Senders track frames for stateful replay and wait for queue room themsel
   outlive reconnects; a Completion never removes one.
 
 `fail_pending(reason)` completes every pending invocation and stream with an error. It runs on ordinary drops,
-pause, server close, exhausted reconnects and local close; stateful resumes do not run it.
+pause, server close, exhausted reconnects and local close; a transparent stateful resume does not
+run it (a failed one ends the logical connection and does).
 
 On both targets, lookups clone the entry and release the map lock (natively) or borrow (in the
 browser) before calling into the action, so a callback can register, unregister or disconnect
@@ -177,6 +178,13 @@ socket's `CLOSED` state (browser), bounded by the close timeout.
   transport that should stay resumable is dropped without a WebSocket Close, because ASP.NET Core
   disposes a stateful connection on any client Close. A disposed buffer is renewed by the next
   fresh negotiation.
+- **Transparent resume**: after an ungraceful loss a stateful connection resumes once, at once,
+  outside the reconnection policy (`transport_dropped` → `resume_transparently` natively,
+  `socket_closed` → `resume_transparently` in the browser): the lifecycle stays `Connected`, sends
+  are held in the replay buffer (`TrackResult::Held`) until the resume's resend, and natively queue
+  on the writer channels the resumed transport takes over. A failed resume, a server Close, a
+  server timeout or a protocol violation disposes the buffer and continues as an ordinary drop
+  (`connection_ended`).
 
 ## Invariants
 

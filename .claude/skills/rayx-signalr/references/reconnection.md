@@ -89,12 +89,15 @@ let client = SignalRClient::connect_with("host", "hub", move |c| {
 - Any protocol violation (malformed, unexpected or oversized message, wrong frame kind, stateful
   sequencing) ends the transport with `Protocol` and is never resumed: the reconnect negotiates
   fresh. A failed send (an Ack too) is an ordinary, resumable loss.
-- Resume reuses the connection token without negotiate or handshake, exchanges Sequence, replays,
-  suppresses duplicates; pending work survives.
-- Server timeout of the disconnected connection, or an exhausted policy, ends the logical connection:
-  pending work fails, next attempt negotiates fresh.
-- Disabled by `skip_negotiation()` (with a warning). Still needs a policy, a handler or `resume()` to
-  reconnect at all.
+- An ungraceful transport loss is resumed once, at once and transparently (as .NET), with any
+  policy or handler, `NoReconnectPolicy` included: same token, no negotiate or handshake, Sequence,
+  replay, duplicates suppressed; `status()` stays `Connected`, no hook runs, the connection id is
+  kept, sends go into the replay buffer; pending work survives.
+- A failed resume (the server no longer holds the connection: 404), a server Close, a server
+  timeout or a protocol violation ends the logical connection: pending work fails, then the policy
+  (`on_reconnecting`) or handler reconnects with a fresh negotiate and new id, or `on_closed`.
+- Disabled by `skip_negotiation()` (with a warning). A paused stateful connection resumes on
+  `resume()`.
 - Trace a resume with `RUST_LOG=rayx_signalr::stateful=debug` (payload-free sequencing records;
   see the Logging section of [troubleshooting](troubleshooting.md)).
 
@@ -104,6 +107,6 @@ let client = SignalRClient::connect_with("host", "hub", move |c| {
 |---|---|
 | fail fast | default + `status()` |
 | survive restarts | `DefaultRetryPolicy` or backoff |
-| keep in-flight calls across short drops | stateful + policy |
+| keep in-flight calls across short drops | stateful (+ policy for longer outages) |
 | mobile background | policy + `pause()`/`resume()` |
 | custom reconnect UI | `DisconnectionHandler`, or `status()` + `resume()` |

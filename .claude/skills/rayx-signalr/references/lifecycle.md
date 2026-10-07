@@ -35,8 +35,8 @@ client.start().await?;   // restart: fresh negotiation, callbacks and hooks kept
 | Status | Meaning |
 |---|---|
 | `Connecting` | `start` in progress; calls wait for it |
-| `Connected` | transport open, handshake done |
-| `Reconnecting` | automatic, manual or `resume` run in progress; calls wait for an attempt in flight, fail during delays; stateful pending calls wait |
+| `Connected` | transport open, handshake done; also while a stateful connection resumes a lost transport transparently (sends go into the replay buffer) |
+| `Reconnecting` | automatic, manual or `resume` run in progress; calls wait for an attempt in flight, fail during delays |
 | `Paused` | `pause()` called; no transport, keep-alive or automatic reconnect |
 | `Disconnected` | not started, or transport gone and nothing reconnecting (failed start, manual-mode drop, exhausted attempts, server close); `start()`, `resume()` or manual reconnect can recover |
 | `Closed` | stopped locally; `start()` connects again |
@@ -49,7 +49,9 @@ connected.
 
 `on_closed(Fn(Option<&Error>))`, `on_reconnecting(Fn(&Error))`, `on_reconnected(Fn(Option<&str>))`,
 each returning an `impl CallbackHandler` (`unregister()`); several per event, registrable before
-`start`, kept across restarts. Order after a drop with a policy: ordinary pending work fails →
+`start`, kept across restarts. A stateful connection's transparent resume after a lost transport
+raises none (only a failed resume continues as below). Order after a drop with a policy: pending
+work fails →
 `Reconnecting(reason)` → `Reconnected(connection id)` or `Closed(Some(error))`. No `Reconnecting`
 when the policy allows no attempt (default `NoReconnectPolicy`): `Closed(Some(reason))` directly.
 `Closed(None)` after `disconnect`/`stop` (`Closed(Some(Canceled))` when the stop interrupted a

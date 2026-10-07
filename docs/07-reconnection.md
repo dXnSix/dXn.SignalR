@@ -138,9 +138,10 @@ let client = SignalRClient::connect_with("localhost", "chat", |c| {
 
 The handler runs on the connection's runtime natively (so `tokio::spawn` works inside it; the
 handler must be `Send + Sync`) and on the event loop in the browser (use
-`wasm_bindgen_futures::spawn_local`). Pending ordinary invocations have already failed when the
-handler runs; stateful pending work waits for the resume. `on_closed` has been raised for the drop
-(manual mode has no automatic reconnect), and a manual reconnect raises no lifecycle event.
+`wasm_bindgen_futures::spawn_local`). Pending invocations have already failed when the handler
+runs (a stateful connection calls the handler only after its transparent resume failed, which ends
+the logical connection). `on_closed` has been raised for the drop (manual mode has no automatic
+reconnect), and a manual reconnect raises no lifecycle event.
 
 `resume()` is the simpler alternative when you only need "reconnect now":
 [Pausing and resuming](06-connection-lifecycle.md#pausing-and-resuming).
@@ -197,17 +198,24 @@ How it works:
   message before the `Sequence` after a resume). The reconnect then negotiates a fresh stateful
   connection. A failed send, including an Ack, is an ordinary loss and is resumed; a message is
   always dispatched before its Ack is sent.
-- On a drop, the client reconnects to the same connection token without negotiating or
-  handshaking again, exchanges `Sequence` messages, replays unacknowledged messages, and discards
-  duplicates the server replays.
+- When the transport is lost ungracefully, the client resumes it **once, at once and
+  transparently**, as the .NET client's WebSocket transport does, whatever the reconnection policy
+  (also with `NoReconnectPolicy`) or a disconnection handler: it reconnects to the same connection
+  token without negotiating or handshaking again, exchanges `Sequence` messages, replays
+  unacknowledged messages, and discards duplicates the server replays. Meanwhile `status()` stays
+  `Connected`, no lifecycle hook runs, the connection id is kept, and sends go into the replay
+  buffer and out with the resend.
 - Pending invocations and streams stay pending across the drop and complete after the resume.
-- The server keeps a disconnected stateful connection only for a limited time. When a resume fails
-  because the server gave up, or the policy is exhausted, the logical connection ends: pending work
-  fails and the next attempt negotiates a fresh stateful connection.
+- When that resume fails (for example the server no longer holds the disconnected connection and
+  answers 404), or after a server Close, a server timeout or a protocol violation, the logical
+  connection ends: pending work fails (what was sent during the failed resume is lost with it, as
+  with the .NET client), and the connection continues as after an ordinary drop: the
+  reconnection policy (raising `on_reconnecting`) or the disconnection handler reconnects with a
+  fresh negotiation and a new connection id, or, with no attempt allowed, `on_closed` is raised.
 
-Stateful reconnect needs negotiation, so `skip_negotiation()` disables it (with a warning). It
-needs a reconnection policy, a disconnection handler or `resume()` to actually reconnect. The
-server side must opt in with `AllowStatefulReconnects = true` on the hub (see
+Stateful reconnect needs negotiation, so `skip_negotiation()` disables it (with a warning). A
+paused stateful connection resumes on `resume()`. The server side must opt in with
+`AllowStatefulReconnects = true` on the hub (see
 [Server setup](10-server-setup.md#stateful-reconnect)).
 
 ## Which combination to use
@@ -216,6 +224,6 @@ server side must opt in with `AllowStatefulReconnects = true` on the hub (see
 |---|---|
 | Fail fast, let the app decide | default (`NoReconnectPolicy`), check `status()` |
 | Survive restarts and network changes | `DefaultRetryPolicy` or a backoff policy |
-| Never lose an in-flight call across short drops | stateful reconnect plus a policy |
+| Never lose an in-flight call across short drops | stateful reconnect (plus a policy for longer outages) |
 | Mobile background/foreground | a policy, plus `pause()`/`resume()` on lifecycle events |
 | Custom UI ("Reconnecting…", retry button) | a `DisconnectionHandler`, or poll `status()` and call `resume()` |
