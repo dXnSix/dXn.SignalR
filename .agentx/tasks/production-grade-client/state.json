@@ -1,12 +1,12 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 90,
-  "planRevision": 17,
+  "revision": 107,
+  "planRevision": 18,
   "specHashes": {
     "requirements": "e7e7cdebbd521478aae42da3ff324462c93435f48285c3f01fc29003ff8e5765",
     "design": "dfc10271d51a3cf87bfa2441ad2de12170ab5fabb9f93189d8657017e2b2c5bb",
-    "plan": "6e04b0f731be12c23283d02785f79c6cf9d20a4241ea437744a047a84f620659"
+    "plan": "12ded52e60da24ccc0307cb95de701f8c9000f641f5d640c739111b076e5da3c"
   },
   "tasks": {
     "S1.T1": {
@@ -229,22 +229,40 @@
       ]
     },
     "P3.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "P3.T2": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "P3.T3": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "P3.T4": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "P3.T5": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "P3.T6": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "P4.T1": {
       "status": "pending"
@@ -337,6 +355,24 @@
         }
       },
       "recordedAt": "2026-10-07T14:11:55Z"
+    },
+    "73a32c980259ddce2256a41f47eae191c2b92d97e5f2a465d6addae80a715fb2": {
+      "snapshot": {
+        "specHash": "232cf3b56589d8145543c5e57b4c493f497cc807db8ea6e988d9d8c23b71eec6",
+        "repositories": {
+          "rayx-signalr": "ec68c9164c738138e7572ea300c9431b44f2fd2aebba96c799ca49f76f778c70"
+        }
+      },
+      "recordedAt": "2026-10-07T14:39:41Z"
+    },
+    "f5ad0dcabfa1057527e39ed32f1b7507a1896b9301cc8f158ef6efa3b102e061": {
+      "snapshot": {
+        "specHash": "232cf3b56589d8145543c5e57b4c493f497cc807db8ea6e988d9d8c23b71eec6",
+        "repositories": {
+          "rayx-signalr": "bf033c7d461be0dabc2a879dd251e4956b19540a74f0767f054aa81006445312"
+        }
+      },
+      "recordedAt": "2026-10-07T15:08:44Z"
     }
   },
   "checkResults": {
@@ -1359,6 +1395,244 @@
       "logPath": "artifacts-temp/agentx/production-grade-client/P2-final-4ebad82da519.log",
       "logSha256": "2c288376fc3271e7b3528bf3619cef36bd1409fc7736bd335b0206def0344f6a",
       "inputsHash": "de3c414857df9f99904db4d52965774cc27974ac1ad869234e273ff92c81504b"
+    },
+    "P3/p3-initial-ping/final": {
+      "checkId": "p3-initial-ping",
+      "boundaryId": "P3",
+      "phase": "final",
+      "batchId": "f5ad0dcabfa1057527e39ed32f1b7507a1896b9301cc8f158ef6efa3b102e061",
+      "definitionHash": "9e0c33696c3e57b40c176504315de81f3cd2018ca16eb7e6d8fe396e5edefa12",
+      "basisHash": "1c64aef48e0216690e41b459affb773320502592b4f0c4686b98d24db3edb00f",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 3,
+      "durationSeconds": 10.6209,
+      "recordedAt": "2026-10-07T15:06:47Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P3-final-feb62c1c2411.log",
+      "logSha256": "a954ed6920c47e9ad169a00a03139c4adad6953ce4382b1a2294ac6dbfed5671",
+      "inputsHash": "b223aad741780cae9daa50441b7f40c87ceb779f401f287b4ae335bcc37011cb"
+    },
+    "P3/p3-ack-cadence/final": {
+      "checkId": "p3-ack-cadence",
+      "boundaryId": "P3",
+      "phase": "final",
+      "batchId": "f5ad0dcabfa1057527e39ed32f1b7507a1896b9301cc8f158ef6efa3b102e061",
+      "definitionHash": "20f94c716a9ee27c3b4fad066da99efbcb162ceeb66458cd1126a0f572416a36",
+      "basisHash": "c80cba3f7f3147da28a471b5736871a58216c2af195c4e7ce85f58e1ecc317dc",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 5,
+      "durationSeconds": 5.583,
+      "recordedAt": "2026-10-07T15:06:53Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P3-final-7379873196d1.log",
+      "logSha256": "fd1827ed6259eef67dbfa9963f6a3e0ada31b877378068613b7c6ffcb195ff37",
+      "inputsHash": "b223aad741780cae9daa50441b7f40c87ceb779f401f287b4ae335bcc37011cb"
+    },
+    "P3/p3-protocol-violation/final": {
+      "checkId": "p3-protocol-violation",
+      "boundaryId": "P3",
+      "phase": "final",
+      "batchId": "f5ad0dcabfa1057527e39ed32f1b7507a1896b9301cc8f158ef6efa3b102e061",
+      "definitionHash": "82ec3d31d49daed2cd1ee3abc9b73d8a97fb2c75b1f3a22015dda947300e228a",
+      "basisHash": "707a969117b86e68ecb75742d843d5d558472905f7a4134a365feb28a1204128",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 10,
+      "durationSeconds": 4.5135,
+      "recordedAt": "2026-10-07T15:06:58Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P3-final-d7d9e935de05.log",
+      "logSha256": "8c0e1b8ca1fe872163db7f5b17790efea7f59e3d05e0ba2e048adb319e243829",
+      "inputsHash": "b223aad741780cae9daa50441b7f40c87ceb779f401f287b4ae335bcc37011cb"
+    },
+    "P3/p3-token-placement/final": {
+      "checkId": "p3-token-placement",
+      "boundaryId": "P3",
+      "phase": "final",
+      "batchId": "f5ad0dcabfa1057527e39ed32f1b7507a1896b9301cc8f158ef6efa3b102e061",
+      "definitionHash": "1acff07887a9cd2e0b38df7a43d9ff588740d0266682daa225247ac044b66626",
+      "basisHash": "46430c726c992437e074062ef6b99711d1618afe295739c4a35fa37c67caa221",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 3,
+      "durationSeconds": 6.0447,
+      "recordedAt": "2026-10-07T15:07:04Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P3-final-461a8b2b1061.log",
+      "logSha256": "5a107e94e98479fba5a2966ec7d005e7fc8319bbd3edd02669cd4e4095c1bf1d",
+      "inputsHash": "b223aad741780cae9daa50441b7f40c87ceb779f401f287b4ae335bcc37011cb"
+    },
+    "P3/p3-request-headers/final": {
+      "checkId": "p3-request-headers",
+      "boundaryId": "P3",
+      "phase": "final",
+      "batchId": "f5ad0dcabfa1057527e39ed32f1b7507a1896b9301cc8f158ef6efa3b102e061",
+      "definitionHash": "1b19bfa3f7c560d1eec36b9882ab6792d72934bcba31a899d65a7de3fdb2b44d",
+      "basisHash": "970c3ce32fd83be8af3e97c6a4eac3f79da1a65c8ca479336e472415b79cc66d",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 8,
+      "durationSeconds": 3.9347,
+      "recordedAt": "2026-10-07T15:07:08Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P3-final-674bd0cf5e50.log",
+      "logSha256": "ed5122239d390822c50ec59089815538d7176a1b23e3d8fea5c15afac6fb673c",
+      "inputsHash": "b223aad741780cae9daa50441b7f40c87ceb779f401f287b4ae335bcc37011cb"
+    },
+    "P3/p3-request-headers-e2e/final": {
+      "checkId": "p3-request-headers-e2e",
+      "boundaryId": "P3",
+      "phase": "final",
+      "batchId": "f5ad0dcabfa1057527e39ed32f1b7507a1896b9301cc8f158ef6efa3b102e061",
+      "definitionHash": "7f6fb38a92842b13dc350bb74f861e348d5dc064b15b8d753087cde6727dd4a0",
+      "basisHash": "1b5488b8148922b551f4c7369cfd1b32d09beff0469e9b19f9d06d3398157ba3",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 8,
+      "durationSeconds": 48.549,
+      "recordedAt": "2026-10-07T15:07:56Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P3-final-fbe26ae15e8a.log",
+      "logSha256": "83594f2e563f53ca90b16c6826261cefca20cb904a8b522ed325b8c8deb7b1ef",
+      "inputsHash": "c61c678b87de01e43841334d1cdc89fb793dab3b1e434dd19d6dce4afefd2cf2"
+    },
+    "P3/p3-request-headers-android/final": {
+      "checkId": "p3-request-headers-android",
+      "boundaryId": "P3",
+      "phase": "final",
+      "batchId": "f5ad0dcabfa1057527e39ed32f1b7507a1896b9301cc8f158ef6efa3b102e061",
+      "definitionHash": "efae737c337aebb1d8c23e3b37b0490d38950bcbd989867cf2f6e82633a4fa3d",
+      "basisHash": "9216ba2786faf41aa7544f5803b91b995e31c58a98b0da27afdbf5a3dc719cf7",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 21.7655,
+      "recordedAt": "2026-10-07T15:08:18Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P3-final-f7bfaeeb32a4.log",
+      "logSha256": "09345b0ca04d940b797885b405ba1703e15a1b57aa05a91eca94cac9cb083c73",
+      "inputsHash": "c61c678b87de01e43841334d1cdc89fb793dab3b1e434dd19d6dce4afefd2cf2"
+    },
+    "P3/p3-negotiate-parity/final": {
+      "checkId": "p3-negotiate-parity",
+      "boundaryId": "P3",
+      "phase": "final",
+      "batchId": "f5ad0dcabfa1057527e39ed32f1b7507a1896b9301cc8f158ef6efa3b102e061",
+      "definitionHash": "cc3cbaf30321cf0652afd830017a2d2a88e6071e093570cba2ea92197e044357",
+      "basisHash": "592bfef20ca75ad4a3aac0bbaae01c154ccc5ee0eab3b8b3c3cc2142468c5079",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 3,
+      "durationSeconds": 0.4391,
+      "recordedAt": "2026-10-07T15:08:18Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P3-final-244ad6939810.log",
+      "logSha256": "cfcc96faea4c3287403fb5d74598ce0594de4b8b228cb0bc0093dde0d2624e8d",
+      "inputsHash": "b223aad741780cae9daa50441b7f40c87ceb779f401f287b4ae335bcc37011cb"
+    },
+    "P3/p3-invocation-headers/final": {
+      "checkId": "p3-invocation-headers",
+      "boundaryId": "P3",
+      "phase": "final",
+      "batchId": "f5ad0dcabfa1057527e39ed32f1b7507a1896b9301cc8f158ef6efa3b102e061",
+      "definitionHash": "dfa0bf7a7d2633aec37147f6b230e80f1750c4b94aa1204ce3cb00257d5cde26",
+      "basisHash": "e7ab8e0c82be205c01baf564510da84d0a2b7fdd0082d04b5002373d058855c9",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 5,
+      "durationSeconds": 1.6877,
+      "recordedAt": "2026-10-07T15:08:20Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P3-final-8df5413ff6dd.log",
+      "logSha256": "36db71bc1e87f4c5f70ebf2e18dfbca6be742b2bc6b6c0615108e4f1bf372dbe",
+      "inputsHash": "b223aad741780cae9daa50441b7f40c87ceb779f401f287b4ae335bcc37011cb"
+    },
+    "P3/p3-framing-carryover/final": {
+      "checkId": "p3-framing-carryover",
+      "boundaryId": "P3",
+      "phase": "final",
+      "batchId": "f5ad0dcabfa1057527e39ed32f1b7507a1896b9301cc8f158ef6efa3b102e061",
+      "definitionHash": "4f3105555c6f198d0701ad4930b377c68f1dd86b4c0ae0d082570dcf7498580c",
+      "basisHash": "6f0ed06e7f1d86e02ee99f25247b40295ec66135b83e803ca1eab08a89832a56",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 12,
+      "durationSeconds": 0.3441,
+      "recordedAt": "2026-10-07T15:08:20Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P3-final-7987f547a30e.log",
+      "logSha256": "8c0a0b4845155b2b2cc2292bde90558fe5454fc52a684cda76f4ee01a8f9a62a",
+      "inputsHash": "b223aad741780cae9daa50441b7f40c87ceb779f401f287b4ae335bcc37011cb"
+    },
+    "P3/p3-case-insensitive/final": {
+      "checkId": "p3-case-insensitive",
+      "boundaryId": "P3",
+      "phase": "final",
+      "batchId": "f5ad0dcabfa1057527e39ed32f1b7507a1896b9301cc8f158ef6efa3b102e061",
+      "definitionHash": "4675cf524ccb0bc006890c5d1eb809d12e96199aa6676152d50cc25650ad8f5f",
+      "basisHash": "48511c20d7fb620efcb28f20128ad9ed34a1fc683f257e784afd1989b3374286",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 0.2895,
+      "recordedAt": "2026-10-07T15:08:21Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P3-final-8db7f8f710a6.log",
+      "logSha256": "b2115f7b1cab5f25902a86f9b2dd84cda3bae5530a7dda8239f5375f6dbb5ade",
+      "inputsHash": "b223aad741780cae9daa50441b7f40c87ceb779f401f287b4ae335bcc37011cb"
+    },
+    "P3/p3-server-text/final": {
+      "checkId": "p3-server-text",
+      "boundaryId": "P3",
+      "phase": "final",
+      "batchId": "f5ad0dcabfa1057527e39ed32f1b7507a1896b9301cc8f158ef6efa3b102e061",
+      "definitionHash": "0632303dda799a6aaf476ac0b177f9836aeb97dffec44f47d5baa5c56d073965",
+      "basisHash": "2d38c6a0538a36a712f4cb2361d0c79878b8e69419b55591bfa7f50393068b1b",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 0.2997,
+      "recordedAt": "2026-10-07T15:08:21Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P3-final-c72858023c95.log",
+      "logSha256": "0e247e70e12a829dcb8cf4ce435ff9067a07f3b394cf8a98c3c73e21e78f36cb",
+      "inputsHash": "b223aad741780cae9daa50441b7f40c87ceb779f401f287b4ae335bcc37011cb"
+    },
+    "P3/p3-dotnet-build/final": {
+      "checkId": "p3-dotnet-build",
+      "boundaryId": "P3",
+      "phase": "final",
+      "batchId": "73a32c980259ddce2256a41f47eae191c2b92d97e5f2a465d6addae80a715fb2",
+      "definitionHash": "5a482555df955ccf874d844bfbc1b8a6bef35b82eb2499b26291aecf6f9a6ec2",
+      "basisHash": "e90eef4a00657688fc01584fa3e4edd6000b10b9acb6d5e7f36fd90340dc89ad",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 0,
+      "durationSeconds": 3.727,
+      "recordedAt": "2026-10-07T14:39:25Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P3-final-2e787d480c03.log",
+      "logSha256": "c724139e503d26f657b4bb14e7c8bc010391fe2f14cc50844220eb4534c20e0e",
+      "inputsHash": "975f0823a91ec291dd26b3d88a5c035adc1e0c3f46e11cbc3598f6694ec135b7"
+    },
+    "P3/p3-static-categories/final": {
+      "checkId": "p3-static-categories",
+      "boundaryId": "P3",
+      "phase": "final",
+      "batchId": "f5ad0dcabfa1057527e39ed32f1b7507a1896b9301cc8f158ef6efa3b102e061",
+      "definitionHash": "863a3a550ce5821231a97028b166b13c4fa165b01f78b9183c520eed997ac113",
+      "basisHash": "cc90fbfcec37be1b993fc386c2f65188d7e575c90f5b3c75ec24f32c6dc9790f",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 30,
+      "durationSeconds": 22.6383,
+      "recordedAt": "2026-10-07T15:08:44Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P3-final-11376f5859ac.log",
+      "logSha256": "dfd74739349c4afa5bd93d64b6481809eadbffa52485e7c742fc203f0c725843",
+      "inputsHash": "8cb10d836b22af5045caa0c254bb216ee10b1be286dcfbaf5f8c9ab56a07a953"
     }
   },
   "reviews": {
@@ -3136,6 +3410,356 @@
         "P2-F9"
       ],
       "recordedAt": "2026-10-07T14:12:02Z"
+    },
+    "P3": {
+      "reviewerId": "p3-reviewer-2",
+      "snapshotId": "0caadccafa81b3602bcdde7fc54ddb135b0e36ac12a2ad2a781c6732ae6698f3",
+      "criterionIds": [
+        "R16.C13",
+        "R16.C16",
+        "R16.C17",
+        "R16.C18",
+        "R16.C19",
+        "R16.C20",
+        "R16.C22",
+        "R16.C23",
+        "R16.C31",
+        "R16.C32",
+        "R16.C33",
+        "R16.C34"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C13",
+            "R16.C16",
+            "R16.C17",
+            "R16.C18",
+            "R16.C19",
+            "R16.C20",
+            "R16.C32"
+          ],
+          "sha256": "8896fbb7939459777a81656fdbc67067265f820f1373471bc0fb391e479904ee"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C13",
+            "R16.C16",
+            "R16.C17",
+            "R16.C32"
+          ],
+          "sha256": "a05d4a557d5dc13cdb4d7bebceb4608034d2d79ab69b6d2eb0e832d9ffae7b3e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/stateful.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C16"
+          ],
+          "sha256": "50d9bc99e4f440f17eb925e6b0a3655382cfc196a1961c53605a641ec7ee3dc3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/common.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C16",
+            "R16.C17",
+            "R16.C18",
+            "R16.C19",
+            "R16.C20"
+          ],
+          "sha256": "ce743b3b996be582c51a6e5406beea5143d59acb0601d2d790e64bb6589211f4"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/headers.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C19",
+            "R16.C20"
+          ],
+          "sha256": "2f51d62a70458ebe37655f843cb81a967ecbbff5159f6de7d150d6e572eb57f3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C19",
+            "R16.C20"
+          ],
+          "sha256": "cd9284bbe30b142987c6c0ce948b8d00ae9305eeec20b8a1179233345a9f252d"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C18",
+            "R16.C22",
+            "R16.C23"
+          ],
+          "sha256": "d3f6dd1f3fad96ead6cde7cdb087818bcff157899e4d2626e19caeef3b35fd03"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/negotiate.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C22"
+          ],
+          "sha256": "0da3a29aecdcfabc5eb3e0190eeba30979be209c945ae369ba0bd80f56541b8c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C20",
+            "R16.C23",
+            "R16.C31",
+            "R16.C32"
+          ],
+          "sha256": "62a455b43ee899e38e24d91de53988fc850c056e7446c379e05976439c1ead97"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C20",
+            "R16.C23",
+            "R16.C31"
+          ],
+          "sha256": "2b2744089a274ec5ffb77d89244ffc68decf2d3349a699c4b7008f90153dc3e2"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/invoke.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C31"
+          ],
+          "sha256": "f616109bc6cd0933daac2d1a5bc30fae218f5e142c4f888a009ea75897039b78"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/msgpack.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C31"
+          ],
+          "sha256": "6186567f3f65b7bc1d3b4b46984bbe98f312ace30d1eada340b3e68823e5fd38"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/framing.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C32"
+          ],
+          "sha256": "311810c5d57bb63c0f467cf2eb0c2da3bf5ef3f14365391cbe4b199e28bfca71"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/codec.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C17",
+            "R16.C33"
+          ],
+          "sha256": "b16579b4b61dde25453facfca40b9e93192d3f675cef8dad985f48a010da211f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/case_insensitive.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C33"
+          ],
+          "sha256": "0197de57527e066ed4318ee3756d802eea598539a26aed0ea2668fb40367fbb3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/error.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C34"
+          ],
+          "sha256": "bd6e70147815d9b8778f3d081c407382a10b844a6e307f14553d6ea67d4e31e6"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C13",
+            "R16.C16",
+            "R16.C17",
+            "R16.C18",
+            "R16.C19",
+            "R16.C20",
+            "R16.C31",
+            "R16.C32"
+          ],
+          "sha256": "2b2744089a274ec5ffb77d89244ffc68decf2d3349a699c4b7008f90153dc3e2"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C13",
+            "R16.C16",
+            "R16.C17"
+          ],
+          "sha256": "8896fbb7939459777a81656fdbc67067265f820f1373471bc0fb391e479904ee"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/stateful.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C16"
+          ],
+          "sha256": "50d9bc99e4f440f17eb925e6b0a3655382cfc196a1961c53605a641ec7ee3dc3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C18",
+            "R16.C22",
+            "R16.C23"
+          ],
+          "sha256": "d3f6dd1f3fad96ead6cde7cdb087818bcff157899e4d2626e19caeef3b35fd03"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/headers.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C19",
+            "R16.C20"
+          ],
+          "sha256": "2f51d62a70458ebe37655f843cb81a967ecbbff5159f6de7d150d6e572eb57f3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/codec.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C31",
+            "R16.C33"
+          ],
+          "sha256": "b16579b4b61dde25453facfca40b9e93192d3f675cef8dad985f48a010da211f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/framing.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C32"
+          ],
+          "sha256": "311810c5d57bb63c0f467cf2eb0c2da3bf5ef3f14365391cbe4b199e28bfca71"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/case_insensitive.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C33"
+          ],
+          "sha256": "0197de57527e066ed4318ee3756d802eea598539a26aed0ea2668fb40367fbb3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/error.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C34"
+          ],
+          "sha256": "bd6e70147815d9b8778f3d081c407382a10b844a6e307f14553d6ea67d4e31e6"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/request_headers.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C18",
+            "R16.C19",
+            "R16.C20"
+          ],
+          "sha256": "5f10b81c3b9fc681fe4798bbe96e42a8fe325fb89dc3164073f7ff31efd3449a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C18",
+            "R16.C19",
+            "R16.C20"
+          ],
+          "sha256": "6a36d6f2a1a6484be31e6e26eeb1dfc36e4d2c2d35bbcb5564c1b9ab4b3aa79a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "README.md",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C17",
+            "R16.C19",
+            "R16.C20",
+            "R16.C31",
+            "R16.C32",
+            "R16.C33"
+          ],
+          "sha256": "4d021fa9df69a0b2fc9007f11bb5c11ccde2c66a93f8125903ccf1aa72af7d73"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "artifacts-temp/agentx/production-grade-client/check-P3-3.log",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C13",
+            "R16.C16",
+            "R16.C17",
+            "R16.C18",
+            "R16.C19",
+            "R16.C20",
+            "R16.C22",
+            "R16.C23",
+            "R16.C31",
+            "R16.C32",
+            "R16.C33",
+            "R16.C34"
+          ],
+          "sha256": "443356cdb85bc04ca7e02c15e21920d6f3e028358a9e559808b240886426562e"
+        }
+      ],
+      "summaryMarkdown": "All eight P3 findings are resolved on snapshot f5ad0dca (revision 103):\n- **F6:** the counted message is dispatched before its Ack, and a failed Ack keeps the connection resumable without losing the message.\n- **F7:** every `Protocol` end disposes the stateful buffer on both targets, so the reconnect negotiates afresh as in .NET, while plain transport losses resume.\n- **F8:** split MessagePack messages within the limit frame correctly.\n- **F1 to F5:** remain repaired.\n\nThe sprint check passed 14/14. The 22 focused `protocol_violation_` and `framing_carryover_` tests pass when re-run. No lock or `RefCell` borrow is held across a dispatch or an await, and no header value or secret reaches errors or logs.\n\n**Verdict: passed.**\n\n**Snapshot 0caadcca (revision 105):** the only change is the README feature bullets from commit 3956202, which are accurate. They describe the case-insensitive JSON reads, framing across WebSocket messages capped by `with_maximum_message_size`, protocol violations ending the transport, the official `User-Agent`, `with_header`, and `with_invocation_headers`.",
+      "findingIds": [
+        "P3-F1",
+        "P3-F2",
+        "P3-F3",
+        "P3-F4",
+        "P3-F5",
+        "P3-F6",
+        "P3-F7",
+        "P3-F8"
+      ],
+      "recordedAt": "2026-10-07T15:11:29Z"
     }
   },
   "checkpoints": {
@@ -3178,6 +3802,14 @@
       },
       "reviewHash": "e14715db8d77788a68809340b241b829460355ecf2f0383559655629355651c8",
       "recordedAt": "2026-10-07T14:12:16Z"
+    },
+    "P3": {
+      "snapshotId": "0caadccafa81b3602bcdde7fc54ddb135b0e36ac12a2ad2a781c6732ae6698f3",
+      "commits": {
+        "rayx-signalr": "3956202dd509d97ab400554bc90ccadb616c2b21"
+      },
+      "reviewHash": "4cb040b82fb5ff878e62b048a086df7ff8874b7a3d29b1e54c5eec9ee32e4211",
+      "recordedAt": "2026-10-07T15:11:59Z"
     }
   },
   "findings": [
@@ -4321,9 +4953,184 @@
           "path": "docs/06-connection-lifecycle.md"
         }
       ]
+    },
+    {
+      "id": "P3-F1",
+      "boundaryId": "P3",
+      "criterionIds": [
+        "R16.C17",
+        "R16.C16"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**Severity: major.** A stateful transport loss is classified as a stateful protocol violation, which disposes the replay buffer.\n\n- **Expected (D19, R16.C17, the ordinary/stateful split):** only a violation of the stateful protocol disposes the buffer and forces a fresh negotiate. A dying transport (the writer is gone, or the socket is closing) must stay resumable, as the .NET `MessageBuffer` keeps it.\n- **Observed:** `RecordContext::sequence` sends the due Ack through `writer.send_control(ack)?`. That send fails with `closed_before_sent()` once the writer task has exited on a sink error (`src/communication/client_tokio.rs:2119`). `handle` maps every `sequence` error to a violation: `buffer.locked().dispose()` at `client_tokio.rs:2078`. The browser does the same: `socket.send(&ack)?` at `src/communication/client_wasm.rs:1073`, then `dispose()` at `client_wasm.rs:1029`.\n- **Consequence:** frames still buffered from a broken connection can trigger a due Ack, and the client then gives up the resumable logical connection. Pending stateful calls fail with `replaced_by_reconnect` (`fail_ordinary_pending` now sees an inactive buffer), and the reconnect negotiates afresh. The new deferred-Ack path does not do this: `flush_ack` (`client_tokio.rs:1123`, `client_wasm.rs:996`) ends the transport *without* disposing, so the two paths disagree.\n- **Repair:** in both `sequence` functions, separate sequencing errors (`should_process`, `receive_control` and overflow, all `ErrorKind::Protocol`) from Ack send failures. Dispose only for the former. Return the send failure as a transport loss, as `flush_ack` does (for example a small enum, or send the Ack after `sequence` returns).\n- **Test:** add a group test (`protocol_violation_` or `stateful_ack_cadence_`) in which the control channel is closed and an Ack is due. The record must end the transport while `is_disposed()` stays false.\n\n**Re-review (p3-reviewer-2):** Repaired: `SequenceFailure` (`src/communication/common.rs`) separates sequencing violations (dispose the buffer) from Ack send failures (`Transport`, the buffer stays active) in native `RecordContext::sequence` and wasm `sequence`. Verified by `protocol_violation_a_failed_ack_ends_the_transport_but_stays_resumable`. The repair drops the counted message, which is filed as P3-F6.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "protocol_violation_a_failed_ack_ends_the_transport_but_stays_resumable"
+        }
+      ]
+    },
+    {
+      "id": "P3-F2",
+      "boundaryId": "P3",
+      "criterionIds": [
+        "R16.C20",
+        "R16.C19"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**Severity: major.** On native negotiate, application headers are appended next to the defaults instead of replacing them, and reserved headers pass validation.\n\n- **Expected (R16.C20, \"as `HttpConnectionOptions.Headers` does\"):** the .NET `HttpConnection.CreateHttpClient` applies an application `User-Agent` *instead of* the default (an empty value removes it), resets `X-Requested-With` to `XMLHttpRequest`, and lets the access-token handler set `Authorization` per request, replacing it. `WebSocketsTransport` uses `SetRequestHeader`, which also replaces.\n- **Observed:** `src/communication/negotiate_http.rs:76-90` uses `http::request::Builder::header`, which *appends*. `with_header(\"User-Agent\", ..)`, `X-Requested-With`, `Accept` or `Authorization` (together with `authenticate_bearer`) therefore sends duplicate headers on negotiate. The comment at line 76 says application headers \"may replace them\", which is false.\n- **Native/browser mismatch:** the native upgrade (`HeaderMap::insert`, `client_tokio.rs:1761`) and the browser fetch (gloo `Headers.set`, `common.rs`) both replace, so native negotiate is the outlier.\n- **Validation gap:** `headers::validate` (`src/communication/headers.rs:48`) accepts `Host`, `Content-Length`, `Connection`, `Upgrade` and `Sec-WebSocket-*`. `with_header(\"Host\", ..)` passes `new`, sends two `Host` headers on negotiate, and then fails the upgrade with `Configuration` (tokio-websockets `DisallowedHeader`) after I/O. The criterion requires a failure before I/O.\n- **Repair:**\n  - Build one merged header set for native requests: official defaults, then application headers with replace semantics (an empty `User-Agent` removes it), then `X-Requested-With: XMLHttpRequest` forced on HTTP requests, then the credentials' `Authorization`.\n  - Apply it with `HeaderMap::insert` in `negotiate_http.rs`, in the same order as on the upgrade.\n  - Reject request-framing and hop headers in `validate`, so `new` fails before any I/O.\n  - Add `request_headers_` loopback tests: an overriding `User-Agent` arrives exactly once on negotiate and on the upgrade, and `with_header(\"Host\", ..)` fails `new`. Update `docs/02-connecting.md#request-headers`.\n\n**Re-review (p3-reviewer-2):** Repaired: `headers::compose` builds one header set for native negotiate (`negotiate_http.rs`), the native upgrade (`client_tokio.rs` `open_websocket`) and the browser fetch (`common.rs` `fetch_text`). The defaults come first, then application headers with replace semantics (an empty User-Agent removes it), then a forced `X-Requested-With`, then the credentials' `Authorization`. `validate` rejects transport-owned headers before I/O, and values never appear in errors. Authorization errors still name `authentication`. Docs: docs/02 (request headers), docs/11, the `with_header` rustdoc and the skill references.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/headers.rs",
+          "symbol": "request_headers_application_headers_replace_defaults_as_in_dotnet"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/headers.rs",
+          "symbol": "request_headers_transport_headers_cannot_be_set"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "request_headers_application_headers_replace_defaults_without_duplicates"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "request_headers_an_empty_user_agent_removes_it"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "request_headers_an_invalid_header_fails_new_before_io"
+        }
+      ]
+    },
+    {
+      "id": "P3-F3",
+      "boundaryId": "P3",
+      "criterionIds": [
+        "R16.C17"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Severity: minor.** Server-to-client StreamInvocation (4) and CancelInvocation (5) messages are silently ignored.\n\n- **Expected (R16.C17, \"a malformed or unexpected message ends the transport\"):** the .NET `HubConnection.DispatchMessageAsync` throws `InvalidOperationException(\"Unexpected message type ...\")` for a parsed message that is not a client-bound type. This includes StreamInvocation and CancelInvocation, so the transport ends and the reconnect path runs. Only unknown *new* type numbers are dropped by the protocol parser.\n- **Observed:** `decode_json` and `decode_messagepack` map these known, client-to-server-only types to `InboundMessage::Ignored` (`src/protocol/codec.rs:423`, `codec.rs:743`), and `wire_codec_json_close_ping_control_and_unknown_types` asserts `Ignored(MessageType::StreamInvocation)`. They are dropped like unknown types.\n- **Repair:**\n  - Keep `Ignored` for `MessageType::Other` (unknown numbers).\n  - Make `RecordContext::handle` and the wasm `handle_record` end the transport with `ErrorKind::Protocol` for `Ignored(StreamInvocation | CancelInvocation)`, or have the codec return a protocol error for them.\n  - Add `protocol_violation_` tests for both protocols.\n\n**Re-review (p3-reviewer-2):** Repaired: `dispatch_decoded` (`src/communication/common.rs`) ends the transport with `Protocol` for an `Ignored(StreamInvocation | CancelInvocation)`; unknown type numbers are still ignored. Both targets route through it.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "protocol_violation_server_stream_invocations_and_cancels_end_the_transport"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "protocol_violation_unknown_message_types_are_still_ignored"
+        }
+      ]
+    },
+    {
+      "id": "P3-F4",
+      "boundaryId": "P3",
+      "criterionIds": [
+        "R16.C32"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Severity: minor.** The production framer has no robustness coverage.\n\n- **Expected:** the repository's robustness guarantee (`docs/13-architecture.md:89`: property tests feed the record splitters and varint framing arbitrary and corrupted input) should cover the framer that production now uses.\n- **Observed:** production now frames through `TextRecords` and `BinaryRecords` (`src/protocol/framing.rs`). The `robustness` proptests in `src/protocol/codec.rs` (for example `robustness_messagepack_records_never_panic` and `robustness_bad_*_records_do_not_desynchronize_the_frame`) still exercise `json_records` and `messagepack_records`, which this sprint gated to `cfg(test)`/bench only. The new varint carry-over parser (`framing.rs` `prefix`/`frame`) has just three example tests: no arbitrary or corrupted input, no arbitrary split points, and no oversized or 5-byte prefixes.\n- **Repair:** port the robustness proptests to `TextRecords::feed` and `BinaryRecords::feed`:\n  - arbitrary byte input never panics;\n  - any split of a valid frame sequence into chunks yields the same records as the unsplit frame;\n  - an over-long prefix and the `with_maximum_message_size` bound give `Protocol`.\n- **Docs:** reword docs/13 so it names the production framer.\n\n**Re-review (p3-reviewer-2):** Repaired: the `framing_carryover_properties` proptests in `src/protocol/framing.rs` cover `TextRecords::feed` and `BinaryRecords::feed`: any split, arbitrary input never panics, and messages above the maximum fail. The 2 GiB prefix cap matches the .NET `BinaryMessageParser`. docs/13 names the production framer.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/framing.rs",
+          "symbol": "framing_carryover_properties"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/framing.rs",
+          "symbol": "framing_carryover_oversized_prefixes_and_messages_are_protocol_violations"
+        }
+      ]
+    },
+    {
+      "id": "P3-F5",
+      "boundaryId": "P3",
+      "criterionIds": [
+        "R16.C31"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Severity: minor.** The docs claim hubs can read invocation headers in a hub filter, and one doc comment was moved to the wrong function.\n\n- **Expected:** documentation states only what ASP.NET Core does.\n- **Observed:** the rustdoc of `with_invocation_headers` (`src/client/configuration.rs:539`), `docs/03-calling-the-hub.md:112` and `.claude/skills/rayx-signalr/references/calls-and-streams.md:93` say the hub reads the headers \"in a hub filter\". `HubInvocationContext` exposes no message headers. ASP.NET Core (9+) consumes `traceparent`/`tracestate` from Invocation headers only to parent its server-side hub-invocation `Activity`, so hub code sees them only through `Activity.Current`.\n- **Also:** inserting `unexpected_frame` at `src/communication/client_tokio.rs:187` left the doc line of `transport_lost` (\"The error ordinary pending work fails with when the transport that carried it ended.\") above `unexpected_frame`, and `transport_lost` now has no doc.\n- **Repair:**\n  - Reword the three passages: the server uses the W3C trace headers to parent its hub-invocation activity; other headers are not exposed to hub methods by ASP.NET Core.\n  - Move the stray doc line back above `transport_lost`.\n\n**Re-review (p3-reviewer-2):** Repaired: the `with_invocation_headers` rustdoc, docs/03-calling-the-hub.md and the calls-and-streams skill reference now say that ASP.NET Core parents the hub invocation's activity on `traceparent`/`tracestate`, and that other headers are not exposed to hub methods. The doc line is back on `transport_lost`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/codec.rs",
+          "symbol": "invocation_headers_json_invocation_golden_frame"
+        }
+      ]
+    },
+    {
+      "id": "P3-F6",
+      "boundaryId": "P3",
+      "criterionIds": [
+        "R16.C16",
+        "R16.C17"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**Severity: major.** The P3-F1 repair loses the message whose Ack failed to send. The message is counted as received but never dispatched, and the stateful resume then drops the server's replay of it as a duplicate.\n\n- **Expected (.NET `MessageBuffer`; the whole point of stateful reconnect):** every received message is either dispatched or replayed after the resume. In .NET, Acks are sent by the buffer's own timer loop, so an Ack send failure never affects processing of the received message.\n- **Observed:** in native `RecordContext::sequence` (`src/communication/client_tokio.rs:2113-2124`), `should_process` advances `highest_incoming` for the message, and then the due Ack's `send_control` fails. `.map_err(SequenceFailure::Transport)?` returns early, `handle` returns `Some(error)` at `client_tokio.rs:2077`, and `dispatch_decoded` is never called. On resume, the server replays the unacknowledged message, and `should_process` sees `sequence_id <= highest_incoming`, so it is a duplicate and is dropped (`stateful.rs:315`). The browser has the same flow: `sequence` at `src/communication/client_wasm.rs:1069-1083`, then `handle_record` at `client_wasm.rs:1033`.\n- **Consequence:** the lost message can be a Completion, a StreamItem or a callback invocation, so a stateful invoke can stay pending forever or a callback is silently missed. The Ack is usually due on the first message after a quiet period, which is exactly when a dying transport still yields buffered frames.\n- **Test gap:** `protocol_violation_a_failed_ack_ends_the_transport_but_stays_resumable` checks only that the buffer is not disposed. It does not check that the message reached storage.\n- **Repair:** in both `sequence` functions, return the dispatch decision together with the Ack send failure, for example `Ok((should_process, Option<Error>))`, or send the Ack after dispatch. Then make `handle` / `handle_record` call `dispatch_decoded` for a message that should be processed *before* returning the transport error. Alternatively, defer the failed Ack to the receive loop, as `flush_ack` does.\n- **Test:** extend the failed-Ack test with a registered callback or a pending invocation. Assert that the message is dispatched once, that the buffer stays active, and that a replay of the same sequence id after `disconnected()` plus `Sequence` is dropped as a duplicate.\n\n**Re-review 3 (p3-reviewer-2):** Repaired: `common::Sequenced { process, acknowledgement }` replaces `SequenceFailure`. Native `RecordContext::handle` and wasm `handle_record` dispatch the counted message first and send the due Ack afterwards. An Ack send failure is a non-Protocol error that leaves the buffer active, and no lock or RefCell borrow is held across the dispatch. The test asserts four things: one delivery, a buffer that stays active, the replay after `disconnected()` and `Sequence` dropped as a duplicate, and the cumulative Ack re-sent on the resumed writer.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "protocol_violation_a_failed_ack_ends_the_transport_but_stays_resumable"
+        }
+      ]
+    },
+    {
+      "id": "P3-F7",
+      "boundaryId": "P3",
+      "criterionIds": [
+        "R16.C17",
+        "R16.C32"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**Severity: major.** On a stateful connection, protocol violations outside stateful sequencing keep the logical connection resumable. Affected are malformed records, a wrong WebSocket frame kind, framing errors including a message above `with_maximum_message_size`, and the new unexpected StreamInvocation/CancelInvocation. The client then resumes instead of negotiating afresh, and records that were never counted are replayed into the same error again and again.\n\n- **Expected (R16.C17 \"a stateful protocol violation reconnects with a fresh negotiate\"; the .NET client; this repository's docs/05-hub-protocols.md:105-107 \"a stateful connection then negotiates afresh\"):**\n  - In .NET, every hub-level error ends the `HubConnection`'s connection: an `InvalidDataException` from the protocol parser, `Unexpected message type`, or a `MessageBuffer` sequence error. The `HttpConnection` is disposed, and `ReconnectAsync` starts a new connection with a fresh negotiate.\n  - Only a WebSocket transport failure inside `WebSocketsTransport` resumes statefully.\n- **Observed:** the stateful buffer is disposed only for `SequenceFailure::Violation`. All of the following return a `Protocol` error with the buffer still active:\n  - a decode error (`client_tokio.rs:2064`, `client_wasm.rs:1020`);\n  - a framing error (`TextRecords`/`BinaryRecords` `feed` errors via `.unwrap_or_else(Some)` at `client_tokio.rs:1090`/`1100`, and `process_frame` in `client_wasm.rs`);\n  - a wrong frame kind (`client_tokio.rs:1091`/`1104`);\n  - `dispatch_decoded`'s unexpected-type error (`common.rs:42-47`).\n\n  `transport_dropped` / `socket_closed` then find an active buffer and resume (`client_tokio.rs:697`, `client_wasm.rs:853`).\n- **Consequence:**\n  - A malformed or oversized record is rejected before `should_process` counts it, so the client never acknowledges it. After the resume, the server replays it, and the same error ends the transport again.\n  - Each resume succeeds, so every loss starts a new policy run at attempt 0. With `with_maximum_message_size` set and a server message above it, this becomes an unbounded tight resume loop.\n  - The docs/05 statement is false for these cases.\n- **Repair:**\n  - Treat every `Protocol` end of a stateful transport as ending the logical connection. Dispose the stateful buffer wherever the receive loop ends with a protocol violation (decode, framing, frame kind, unexpected type), on both targets, as the `Violation` branch already does. One place to do this is where `ended`/`reason` is produced, when `reason.kind() == ErrorKind::Protocol`.\n  - Keep `Transport`, `Timeout` and Ack-send failures resumable.\n- **Test:** add `protocol_violation_` tests with a stateful buffer. A malformed record, an oversized record (with a maximum message size) and a StreamInvocation each end the transport with `Protocol` and leave `is_disposed()` true. Optionally add a loopback test in which the reconnect after a malformed message on a stateful connection negotiates again (`negotiations() == 2`).\n\n**Re-review 3 (p3-reviewer-2):** Repaired: `common::ends_stateful_connection` is true for `ErrorKind::Protocol`. The native receive loop disposes the stateful buffer before `on_connection_dropped`, and wasm `run_receiver` disposes it before `socket_closed`. This covers decode, framing, oversized, frame-kind and unexpected-type ends; the step is synchronous after the generation-checked frame processing. Transport, Timeout and Ack-send ends stay resumable. docs/05, docs/07 and the reconnection skill reference agree. The loopback `stateful` option is test-only.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "protocol_violation_on_a_stateful_connection_negotiates_afresh"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "protocol_violation_a_lost_stateful_transport_is_resumed_without_negotiate"
+        }
+      ]
+    },
+    {
+      "id": "P3-F8",
+      "boundaryId": "P3",
+      "criterionIds": [
+        "R16.C32"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Severity: minor.** `BinaryRecords` checks the carried-over rest *including its length prefix* against `with_maximum_message_size`. A legal MessagePack message whose payload is at or just below the limit therefore fails with `Protocol` when it arrives split, but succeeds unsplit. This breaks the framer's own property that the records are the same however the stream is split.\n\n- **Expected:** the limit bounds the hub message payload. `frame` already checks `length` against it as soon as the prefix is complete, so a partial body of a message within the limit must be carried over.\n- **Observed:** `src/protocol/framing.rs:173` runs `check(self.limit, rest.len())` after `break`. When the prefix is complete but the body is incomplete, `rest.len()` is `size + partial`, which can exceed the limit by up to 4 bytes.\n- **Reproduction** (a scratch copy of the module): `BinaryRecords::new(Some(200))` frames the 202-byte message `[0xc8, 0x01] + 200 bytes` unsplit. Fed the first 201 bytes of it, it fails with \"larger than the 200-byte maximum message size\".\n- **Test gap:** the `framing_carryover_properties` split property runs only with `limit: None`. The above-maximum property covers only payloads above the limit.\n- **Repair:** check the rest only when the prefix itself is incomplete, or check `rest.len() - size` when the prefix is complete (its `length` was already checked).\n- **Test:** add a proptest that splits a stream of payloads of length `<= limit` with `Some(limit)` (limits of 128 or more, so 2-byte prefixes occur) and expects the same records as unsplit.\n\n**Re-review 3 (p3-reviewer-2):** Repaired: `BinaryRecords::frame` no longer checks the carried-over rest. A complete prefix is bounded by `check(limit, length)` before its body arrives, and an incomplete prefix is at most 4 bytes. A new property splits payloads of up to 200 bytes with a 200-byte limit (2-byte prefixes) and expects the unsplit records.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/protocol/framing.rs",
+          "symbol": "framing_carryover_messagepack_messages_within_the_maximum_size_survive_any_split"
+        }
+      ]
     }
   ],
-  "handoffMarkdown": "LivenessConfig::validate replaced by warnings()/warn(): new() logs warnings for zero keep-alive/server timeout (both act as 1 s, the .NET timer tick, applied in LivenessTracker::new via timer()), zero handshake/connect timeout, and server timeout <= keep-alive; nothing rejected. Removed liveness_invalid_options_fail_connect_before_io (behavior owned by R16.C30). Group liveness_parity_ (3). Sprint docs done for all P2 tasks: docs/02, 04 (section renamed registrations-keep-a-started-client-alive), 06 (rewritten: building/starting, status incl. Connecting, connection id, lifecycle events, stopping, calls during attempts, liveness incl. close timeout, pause), 07 (no-attempt drop, hooks, DelayListPolicy, RetryContext example), 11 (InvalidState, call table), 13 (state machine, Runs, AttemptOutcome, hooks, graceful stop; stale P1 callback-mutex sentence fixed), README (highlight + Start, observe and stop), skill SKILL.md, references lifecycle (rewritten), reconnection, setup-and-connection. Changed examples compile (scratch p2_doccheck.py).",
+  "handoffMarkdown": "Error::hub and Error::closed_by_server keep server_message() verbatim (HubException.Message); Display stays redacted; custom Debug omits server_message. server_message rustdoc warns that it is unredacted. error_model_display_and_debug_are_redacted no longer asserts a redacted server_message. Group server_text_ (2). Docs for all P3 tasks follow before the checks.",
   "protectedPaths": {
     "rayx-signalr": {
       ".agentx/tasks/resilient-reconnect-and-production-gates/**": "a4110a3f5f2c68d64ddf8fbedb70479c98f46dde78b064b5b3ac826772db49a6",

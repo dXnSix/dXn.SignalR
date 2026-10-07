@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 17,
+  "revision": 18,
   "title": "Production-grade rayx-signalr: typed errors, all transports, proxies, refreshable auth, suspension-aware liveness, proven TLS paths, reference-class performance, and stretch SOCKS/PAC/OS proxies, HTTP/2 and HTTP/3",
   "validationMode": "sprint",
   "repositories": [
@@ -5016,6 +5016,65 @@
         "RAYX_SIGNALR_E2E_TRANSPORTS": "websockets",
         "RAYX_SIGNALR_SOAK_SECONDS": "120"
       }
+    },
+    {
+      "id": "p3-dotnet-build",
+      "repositoryId": "rayx-signalr",
+      "kind": "build",
+      "criterionIds": [
+        "R16.C19"
+      ],
+      "descriptionMarkdown": "P3 changed the test service (negotiate and transport request description for `request-headers`) and the scenario catalog: every .NET project builds (CLAUDE.md rule for .NET changes).",
+      "argv": [
+        "dotnet",
+        "build",
+        "RayX.SignalR.slnx"
+      ],
+      "expected": {
+        "exitCode": 0
+      },
+      "inputs": [
+        "global.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**"
+      ],
+      "timeoutSeconds": 1800
+    },
+    {
+      "id": "p3-static-categories",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R16.C18",
+        "R16.C19"
+      ],
+      "descriptionMarkdown": "The static .NET categories CLAUDE.md requires for P3's catalog and test-service changes: WorkflowContract, Repository, Catalog and Toolchain (the catalog lists `request-headers`).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=WorkflowContract|Category=Repository|Category=Catalog|Category=Toolchain"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 12
+      },
+      "inputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "build.rs",
+        "src/**",
+        "tests/**",
+        "global.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        ".github/**",
+        "tools-node/**"
+      ],
+      "timeoutSeconds": 3600
     }
   ],
   "finalCheckIds": [
@@ -5881,7 +5940,9 @@
             "p3-token-placement",
             "p3-request-headers",
             "p3-request-headers-e2e",
-            "p3-request-headers-android"
+            "p3-request-headers-android",
+            "p3-dotnet-build",
+            "p3-static-categories"
           ],
           "sourceRefs": [
             {
