@@ -1,12 +1,12 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 167,
-  "planRevision": 24,
+  "revision": 176,
+  "planRevision": 25,
   "specHashes": {
-    "requirements": "cfaf45e2157367e6772613c40313c112747d3a01a82bc2c5d6f8c781c391c44d",
+    "requirements": "301baad898b088983cc76f3e695d1d9345b0ec67d9adb38b5ecbad3f95570709",
     "design": "a8077634ad8b3ae2469d020c33aeb07eb8bf1dd455f402ef35535a1c3e62a4f1",
-    "plan": "5c8367fd99aec822e36f57f1f938916d29ddc07a6a9eb0fa753505845318c14d"
+    "plan": "2186f5752b9ffb7eb868277914bf1ca942d74e835e444c3c3c766c1e2999a22c"
   },
   "tasks": {
     "S1.T1": {
@@ -142,10 +142,16 @@
       ]
     },
     "S9.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S9.T2": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S10.T1": {
       "status": "pending"
@@ -320,6 +326,9 @@
     },
     "P8.T1": {
       "status": "pending"
+    },
+    "S12.T4": {
+      "status": "pending"
     }
   },
   "validationBatches": {
@@ -475,6 +484,15 @@
         }
       },
       "recordedAt": "2026-10-07T22:44:00Z"
+    },
+    "090795b4fd0aa9e4a93d4deeb5e927eb236bfe9c3d418d01c988bb42167cf6ce": {
+      "snapshot": {
+        "specHash": "26394cdb6a2b38fb43dabd98c93f197b922c7b3883cc871294797a7b8a2bc4ce",
+        "repositories": {
+          "rayx-signalr": "cdf49f1cc812ba6c1344ce942963247334857fd9bb4a491a925f7d5bb14fb2f2"
+        }
+      },
+      "recordedAt": "2026-10-07T23:28:38Z"
     }
   },
   "checkResults": {
@@ -2279,6 +2297,57 @@
       "logPath": "artifacts-temp/agentx/production-grade-client/P5-final-87c4a93821fd.log",
       "logSha256": "e2040ba4a3419ddc8622fa7c7743d869c6d5e9a03672e6aab051439a104a1962",
       "inputsHash": "7c865fdaabc61b60d8528a26d5021a2301f701b0dac2bbadc996c2213402ec7b"
+    },
+    "S9/s9-proxy-unit/final": {
+      "checkId": "s9-proxy-unit",
+      "boundaryId": "S9",
+      "phase": "final",
+      "batchId": "090795b4fd0aa9e4a93d4deeb5e927eb236bfe9c3d418d01c988bb42167cf6ce",
+      "definitionHash": "611eab6ce9820ad28eccc4707e9567ae051286b643931530dbad3ed470333b45",
+      "basisHash": "ce31b163e1e503c4e6a0b51fe62968a46c97d6691bfdfd5fb202fef3845e82fd",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 20,
+      "durationSeconds": 13.6907,
+      "recordedAt": "2026-10-07T23:26:42Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S9-final-b88ab7c30d85.log",
+      "logSha256": "e1855e9b9f02c21ec26299e96970a81e8f1310c9f7d0c574222e2988ac20f784",
+      "inputsHash": "b3e682c4cd7a4bfc81427aa19f3f7977298ce9e8cebb173f93ebdc9191681379"
+    },
+    "S9/s9-proxy-native/final": {
+      "checkId": "s9-proxy-native",
+      "boundaryId": "S9",
+      "phase": "final",
+      "batchId": "090795b4fd0aa9e4a93d4deeb5e927eb236bfe9c3d418d01c988bb42167cf6ce",
+      "definitionHash": "6400f05f6b9a06e25d2b6fd02804ccc6f3fbf357890defba1c733adb788e64e5",
+      "basisHash": "1c861bee27cc8293fe096952c0634f9f297c8892ebcbc268420c67234d81c77e",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 7.6269,
+      "recordedAt": "2026-10-07T23:26:49Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S9-final-98a968d09fa2.log",
+      "logSha256": "cdc6c49355d868574fbbdac123e20e5309eb802bf3f77e307502213fb1c12a5e",
+      "inputsHash": "f0837894185b1382dae23a3ed0ca15d4acda8737ed41910060c40087e4776835"
+    },
+    "S9/s9-proxy-android/final": {
+      "checkId": "s9-proxy-android",
+      "boundaryId": "S9",
+      "phase": "final",
+      "batchId": "090795b4fd0aa9e4a93d4deeb5e927eb236bfe9c3d418d01c988bb42167cf6ce",
+      "definitionHash": "2bf0a33e52ee1193d25aa11c31d3237d4a16d4dc85ffade699a746ed1d6a5fdf",
+      "basisHash": "d7443f745dd6fbe1fcb4939be2574455b53fee8fbeea2d62dfb676557f01a84c",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 108.446,
+      "recordedAt": "2026-10-07T23:28:38Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S9-final-23a36c009995.log",
+      "logSha256": "f626240b6c51cc554bd0299f6faecf1c2493dbdae40c8a64b1a026898eb7146b",
+      "inputsHash": "f0837894185b1382dae23a3ed0ca15d4acda8737ed41910060c40087e4776835"
     }
   },
   "reviews": {
@@ -5869,6 +5938,238 @@
         "P5-F4-enumerate-cancellation-untested"
       ],
       "recordedAt": "2026-10-07T22:45:19Z"
+    },
+    "S9": {
+      "reviewerId": "claude-review-S9-independent",
+      "snapshotId": "090795b4fd0aa9e4a93d4deeb5e927eb236bfe9c3d418d01c988bb42167cf6ce",
+      "criterionIds": [
+        "R8.C1",
+        "R8.C2"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/proxy.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C1"
+          ],
+          "sha256": "9cfbe9c31227c80d02ac1d62846abbe2f829fce5ab408ba44db69e25c5805803"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C1"
+          ],
+          "sha256": "11994da25d20b2075cf0947a4556b40cecaf8cf51ecc6e071ba9a9cacb2bba10"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C1"
+          ],
+          "sha256": "9b61eb95a9ca3cadd1d04631fa0006343d8ddd1b537cda4b46f3ea798f20a7ba"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C1"
+          ],
+          "sha256": "427a422ebbedc41bbe8c88e154419b94ef1665c71f51b926712d328625f30735"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C1"
+          ],
+          "sha256": "b2c125b0d69f3fbb0485a946c3e12213ba4f30129cfd9e3dcc01ac3460c8a0bb"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/http_transport_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C1"
+          ],
+          "sha256": "d0f69cb477957a63c946bfddf2f6d83bb586b44210d1c9a90eb66d19f4437629"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/error.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C1"
+          ],
+          "sha256": "5bc7f60d643f4143db7c343a411df7be553ef45384ab2f6250d99e6786b48867"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/02-connecting.md",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C1"
+          ],
+          "sha256": "aeab315fc2ad17d77c931f213ad5dfc5775f2f2eae5f3be7e4dd09151305d310"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/11-errors-and-logging.md",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C1"
+          ],
+          "sha256": "23615abd24d130ce2515c2e5e7cba696776b4be2c006142cdaac1383dc75e5b9"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/12-limitations.md",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C1"
+          ],
+          "sha256": "9240ce6c8389c11938d92a14f339157d980a2773e6c5cacedafd0c6dd56b3156"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestProxy/src/ProxyConnection.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C2"
+          ],
+          "sha256": "46c55fead0bd61b1028459cb27b82ed2dced8fed6a363951a656d16fb54d095c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestProxy/src/Program.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C2"
+          ],
+          "sha256": "ba99febb8f3441ebb96522ea425fddff7c57f17552314e82ec46aca32c29bcec"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.AppHost/src/AppHost.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C2"
+          ],
+          "sha256": "8786b09f51b859b0ebacdd4828914ff34f732c10e9f64cafb241a1f26441e3a2"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/TestHub.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C2"
+          ],
+          "sha256": "a3b97867325917cea1e8a9b254cb151810d3de031c1ec7c2e410d5965597c9d0"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/Program.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C2"
+          ],
+          "sha256": "8290efe9bcb58bee71fafcaa84db51e464d97a75ddd05549a90d60f78baf9ad1"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/CellRunners.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C2"
+          ],
+          "sha256": "2011f23d64ecff982511360928a3900ff0aa0f04f1ae2ba0c3aa33915075fcd9"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/ScenarioCatalog.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C2"
+          ],
+          "sha256": "877a1989f7f770535b24db9f909cc70560655a28f9c6c37219b21a6a823cc3e6"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Infrastructure/ProcessRunner.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C2"
+          ],
+          "sha256": "4ddac5c69344f4a47ef3d6d0d2041de642a85334b28893183ff4d5e80772f5e1"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Infrastructure/Redaction.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C2"
+          ],
+          "sha256": "51369f4c6a6c2360e7c042c2da6b6b872876769788d6f4f8ea2c789a1180ec2e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/proxy.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R8.C1"
+          ],
+          "sha256": "9cfbe9c31227c80d02ac1d62846abbe2f829fce5ab408ba44db69e25c5805803"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/proxy.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R8.C2"
+          ],
+          "sha256": "0d73efc48531f700d7679bb56fee3e3efc4812d5dcd33b94ee3fc87a20f3197a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/ProxyIsolationTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R8.C2"
+          ],
+          "sha256": "f300b45137eafdf321e1a1ff0c506127a842f19e7aa919ddc7edc59fd788eab2"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Performance/PerformanceRunner.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R8.C2"
+          ],
+          "sha256": "cda67024ccfddf51dcf86b82a9a9ab4797880173ee9382c027a61a07750b5656"
+        }
+      ],
+      "summaryMarkdown": "All ten S9 findings are resolved. Every native connection (negotiate, the WebSocket including stateful resumes and reconnects, Long Polling and Server-Sent Events) tunnels through `proxy::connect` under the connect timeout with TLS inside the tunnel using the connection's own rustls context; refused or failed tunnels are `ErrorKind::Proxy` with `status()` and correct transience; environment resolution follows .NET `HttpEnvironmentProxy` (per-name fall-through, CGI guard) with curl `NO_PROXY` rules; Basic credentials go out only after a Basic 407 challenge; credentials are redacted in Display/Debug/errors/logs and test diagnostics. The `proxy_` unit group and the `proxy` scenario (plaintext and TLS over all three transports with the proxy as the service's peer, proxied TLS without the CA failing with `Tls`, 407, 403, NO_PROXY bypass) cover R8.C1 and R8.C2; native cells and perf binaries are isolated from machine proxy variables while tools keep them. HTTPS proxies are owned by R13.C4/S12.T4.",
+      "findingIds": [
+        "S9-F1",
+        "S9-F2",
+        "S9-F3",
+        "S9-F4",
+        "S9-F5",
+        "S9-F6",
+        "S9-F7",
+        "S9-F8",
+        "S9-F9",
+        "S9-F10"
+      ],
+      "recordedAt": "2026-10-07T23:29:42Z"
     }
   },
   "checkpoints": {
@@ -5975,6 +6276,14 @@
       },
       "reviewHash": "19bccc00634427b4e8742a9b7f0006e962bd028d8ed6cfc50ab0631821a4f0a9",
       "recordedAt": "2026-10-07T22:45:32Z"
+    },
+    "S9": {
+      "snapshotId": "090795b4fd0aa9e4a93d4deeb5e927eb236bfe9c3d418d01c988bb42167cf6ce",
+      "commits": {
+        "rayx-signalr": "65ebec69b0dc3eebc5d778edf3581881163f573e"
+      },
+      "reviewHash": "732ca55427d377440931f86baaac55830a87ea05d4a72c44056fe3e5aa6fcea7",
+      "recordedAt": "2026-10-07T23:29:48Z"
     }
   },
   "findings": [
@@ -8126,9 +8435,247 @@
           "symbol": "TestHub.ObserveUpload"
         }
       ]
+    },
+    {
+      "id": "S9-F1",
+      "boundaryId": "S9",
+      "criterionIds": [
+        "R8.C1",
+        "R8.C2"
+      ],
+      "descriptionMarkdown": "Refused/failed tunnels were `ErrorKind::Transport`. Resolved: `Error::proxy(status, ..)` (`src/error.rs`) is used for every tunnel failure (unreachable proxy, early close, oversize, invalid answer, 407, other non-2xx); `status()` documents `Proxy`; `is_transient()` is false for 407/403 and true without a status or for 408/429/5xx; docs/02, docs/11 and the skill references updated; unit tests and `tests/e2e/proxy.rs` assert `ErrorKind::Proxy` with status 407/403 and non-transience.",
+      "severity": "major",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/error.rs",
+          "symbol": "Error::proxy"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/proxy.rs",
+          "symbol": "proxy_refused_credentials_fail_with_407_and_never_show_them"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/proxy.rs",
+          "symbol": "proxy_an_unreachable_proxy_is_a_transient_proxy_error"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/proxy.rs",
+          "symbol": "scenario"
+        }
+      ]
+    },
+    {
+      "id": "S9-F2",
+      "boundaryId": "S9",
+      "criterionIds": [
+        "R8.C1"
+      ],
+      "descriptionMarkdown": "Upper-case `HTTP_PROXY` was honored under CGI. Resolved: `resolve` ignores `HTTP_PROXY` when `GATEWAY_INTERFACE` is set, as .NET `HttpEnvironmentProxy`; covered by `proxy_cgi_processes_ignore_upper_case_http_proxy`.",
+      "severity": "major",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/proxy.rs",
+          "symbol": "resolve"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/proxy.rs",
+          "symbol": "proxy_cgi_processes_ignore_upper_case_http_proxy"
+        }
+      ]
+    },
+    {
+      "id": "S9-F3",
+      "boundaryId": "S9",
+      "criterionIds": [
+        "R8.C1"
+      ],
+      "descriptionMarkdown": "Environment fallback and unsupported schemes. Resolved: each name is parsed in turn (lower, upper, then `all_proxy`, `ALL_PROXY`), empty or unusable values are skipped with a warning that does not repeat the value; `https://` proxies are owned by the new R13.C4/S12.T4, and docs/02, docs/12 and the skill references state the limitation.",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/proxy.rs",
+          "symbol": "proxy_environment_skips_empty_and_unusable_names_as_dotnet_does"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/12-limitations.md"
+        }
+      ]
+    },
+    {
+      "id": "S9-F4",
+      "boundaryId": "S9",
+      "criterionIds": [
+        "R8.C2"
+      ],
+      "descriptionMarkdown": "Cells inherited the machine's proxy variables. Resolved for cells: `ProcessRunner.StartInfo` removes the proxy variables and `GATEWAY_INTERFACE`, the scenario clears both cases (`clear_proxy_variables`), and the test proxy's lookup uses `UseProxy = false`. (The removal's breadth is a new defect, S9-F9.)",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Infrastructure/ProcessRunner.cs",
+          "symbol": "ProcessRunner.StartInfo"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/proxy.rs",
+          "symbol": "clear_proxy_variables"
+        }
+      ]
+    },
+    {
+      "id": "S9-F5",
+      "boundaryId": "S9",
+      "criterionIds": [
+        "R8.C2"
+      ],
+      "descriptionMarkdown": "Proxy credentials in Android diagnostics. Resolved: `Redaction` covers `*_CREDENTIALS=` values and URL `user:password@`, with contract cases in `ProxyIsolationTests`; the AppHost takes the password as a secret parameter and the test proxy refuses to start without one.",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Infrastructure/Redaction.cs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/ProxyIsolationTests.cs",
+          "symbol": "DiagnosticsNeverShowProxyCredentials"
+        }
+      ]
+    },
+    {
+      "id": "S9-F6",
+      "boundaryId": "S9",
+      "criterionIds": [
+        "R8.C2"
+      ],
+      "descriptionMarkdown": "Test proxy teardown race and swallowed routing failures. Resolved: a linked CTS cancels both copies, both are awaited before the pipes complete, and route lookup failures answer 502.",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestProxy/src/ProxyConnection.cs",
+          "symbol": "ProxyConnection.TunnelAsync"
+        }
+      ]
+    },
+    {
+      "id": "S9-F7",
+      "boundaryId": "S9",
+      "criterionIds": [
+        "R8.C1",
+        "R8.C2"
+      ],
+      "descriptionMarkdown": "Missing bounded-read and proxied-TLS tests. Resolved: `proxy_response_heads_are_bounded_and_never_overread` covers the 16 KiB bound, bytes past the head and an early close; the scenario connects `test-tls` through the proxy without the test CA and asserts `ErrorKind::Tls`.",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/proxy.rs",
+          "symbol": "proxy_response_heads_are_bounded_and_never_overread"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/proxy.rs",
+          "symbol": "scenario"
+        }
+      ]
+    },
+    {
+      "id": "S9-F8",
+      "boundaryId": "S9",
+      "criterionIds": [
+        "R8.C1"
+      ],
+      "descriptionMarkdown": "Preemptive Basic. Resolved: the first CONNECT carries no credentials; Basic `Proxy-Authorization` is sent on a new connection only after a 407 that offers Basic, as .NET; Digest/NTLM/Negotiate are documented as unsupported in docs/12.",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/proxy.rs",
+          "symbol": "tunnel"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/proxy.rs",
+          "symbol": "proxy_tunnels_send_credentials_only_after_a_basic_challenge"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/proxy.rs",
+          "symbol": "proxy_tunnels_without_a_challenge_never_send_credentials"
+        }
+      ]
+    },
+    {
+      "id": "S9-F9",
+      "boundaryId": "S9",
+      "criterionIds": [
+        "R8.C2"
+      ],
+      "descriptionMarkdown": "The proxy-variable removal reached every child process and its contract test mutated the test process environment. Resolved: `ProcessCommand.IsolateFromProxy` (default false) gates the removal inside the pure `ProcessRunner.ApplyEnvironment`; only the native cell (`NativeCellRunner`) and the Rust and .NET performance binaries opt in (Android `adb shell` and iOS `simctl spawn` children never inherit host variables); build and tool commands keep the machine proxy. `ProxyIsolationTests` exercises the helper on a dictionary for both cases and never touches `Environment`; docs/14 states the rule.",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Infrastructure/ProcessRunner.cs",
+          "symbol": "ProcessRunner.ApplyEnvironment"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/ProxyIsolationTests.cs",
+          "symbol": "ProxyIsolationTests.ClientProcessesNeverInheritProxyVariables"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/ProxyIsolationTests.cs",
+          "symbol": "ProxyIsolationTests.BuildAndToolCommandsKeepTheMachineProxy"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/CellRunners.cs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Performance/PerformanceRunner.cs"
+        }
+      ]
+    },
+    {
+      "id": "S9-F10",
+      "boundaryId": "S9",
+      "criterionIds": [
+        "R8.C1"
+      ],
+      "descriptionMarkdown": "`SignalRClient::start`'s rustdoc error list omitted `ErrorKind::Proxy`. Resolved: it now lists `ErrorKind::Proxy` (native) for an unreachable or refusing proxy, with the proxy's HTTP status when it answered; `connect`/`connect_with` refer to `new`/`start`.",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "SignalRClient::start"
+        }
+      ]
     }
   ],
-  "handoffMarkdown": "Upload streams (R16.C24, D21). ArgumentConfiguration::stream(impl Stream<Item=T>) (T: Serialize, MaybeSend) stores an execution::Upload; build_invocation returns (Invocation, Vec<Upload>). Argument closures of invoke_with_args/send_with_args/enumerate_with_args are now FnOnce (a compatible relaxation, so streams move in). Uploads::assign gives stream ids from the connection counter before the invocation id (.NET PackageStreamingParams), Invocation::with_streams lists them in streamIds. After the invocation is sent, Uploads::start spawns one pump per stream (connection runtime natively, spawn_local in browsers) that sends StreamItems through CallbackRegistry::replies() (the ReplySink, so only on the logical connection read before the send) and ends with Completion: void (JSON {\"type\":3,\"invocationId\":id}, MessagePack [3,{},id,2] via msgpack::encode_completion_void), \"Stream errored by client: '<error>'\" for an unencodable item, \"Stream canceled by client.\" on cancellation; a failed send stops silently. Cancellation: invoke wraps it in CancelOnDrop (disarmed once the result arrived); enumerate stores the UploadCancellation for its drop handler; send never cancels. CallbackRegistry tracks pump AbortHandles and aborts them in close() and new_logical_connection(). New OutboundMessage::stream_item/stream_completion, protocol::invoke::StreamItem and Completion::create_void, msgpack::encode_stream_item. Test service: SumStream, SumChannel (ChannelReader), SumWithOffset, DoubleStream, ObserveStream + StreamOutcome. Scenario client-to-server-stream (catalog Everywhere; native, fixture, functional spec). Browser cell runner now greps /\\.spec\\.ts <title>$/ so \"server stream\" no longer also selects \"client to server stream\". Unit group client_streams_ (8). Diagnostics: client-to-server-stream 10/10 on native, Chromium, Firefox, WebKit, Android; full lib unit suite 427 pass; call-path regression cells pass; contracts 36/36. Docs 03/12/13 and skill calls-and-streams/troubleshooting.",
+  "handoffMarkdown": "Aspire test-proxy (R8.C2). dotnet/RayX.SignalR.TestProxy (in the slnx, referenced by the AppHost): Kestrel ConfigureEndpointDefaults connection middleware handles every connection raw; CONNECT requires Basic rayx:<per-run password> (TestProxy__Password from the runner arg --TestProxy:Password, AspireEnvironment.ProxyPassword) else 407 with Proxy-Authenticate, refuses TestProxy__Deny targets (denied.invalid:80) with 403, maps 10.0.2.2 to loopback, routes tunnels to the service allocated ports to the ports it listens on (service /e2e/listening, looked up once; DCP in between otherwise hides the peer), records tunnel count, refused count and upstream local ports; GET /health, GET /stats. AppHost resource test-proxy with health check; harness waits for it; cells get RAYX_SIGNALR_E2E_PROXY_URL (rewritten for Android) and RAYX_SIGNALR_E2E_PROXY_CREDENTIALS. TestHub.PeerPort. Scenario proxy (catalog native targets; tests/e2e/proxy.rs): plaintext and TLS (test CA) over WebSockets, Long Polling and (JSON) Server-Sent Events each open a tunnel whose port is the service peer; wrong credentials -> Transport error with 407 and no secret; denied target -> 403; system proxy via http_proxy with no_proxy=<service host> bypasses, without it tunnels. Diagnostics: proxy 4/4 on native and Android; contracts incl. Platform 62/62. docs/14 and skill maintaining.",
   "protectedPaths": {
     "rayx-signalr": {
       ".agentx/tasks/resilient-reconnect-and-production-gates/**": "a4110a3f5f2c68d64ddf8fbedb70479c98f46dde78b064b5b3ac826772db49a6",

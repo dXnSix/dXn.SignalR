@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 24,
+  "revision": 25,
   "title": "Production-grade rayx-signalr: typed errors, all transports, proxies, refreshable auth, suspension-aware liveness, proven TLS paths, reference-class performance, and stretch SOCKS/PAC/OS proxies, HTTP/2 and HTTP/3",
   "validationMode": "sprint",
   "repositories": [
@@ -5110,6 +5110,109 @@
         "tools-node/**"
       ],
       "timeoutSeconds": 3600
+    },
+    {
+      "id": "s12-https-proxy-unit",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R13.C4"
+      ],
+      "descriptionMarkdown": "New `https_proxy_` unit group: `https://` proxy URL parsing and default port, environment variables accepting `https://`, the CONNECT exchange over a TLS stream, an unverified proxy certificate mapping to `ErrorKind::Proxy`, redaction.",
+      "argv": [
+        "cargo",
+        "test",
+        "--lib",
+        "--all-features",
+        "--",
+        "https_proxy_"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 5
+      },
+      "inputs": [
+        "Cargo.toml",
+        "build.rs",
+        "src/**"
+      ],
+      "timeoutSeconds": 1200
+    },
+    {
+      "id": "s12-https-proxy-native",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R13.C4"
+      ],
+      "descriptionMarkdown": "New `proxy-https` scenario on native. Selection: targets `native`, scenarios `proxy-https`, transports `websockets`, protocols `json,messagepack` (2 cells).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 2
+      },
+      "inputs": [
+        "Cargo.toml",
+        "build.rs",
+        "src/**",
+        "tests/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**"
+      ],
+      "timeoutSeconds": 2400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "native",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "proxy-https",
+        "RAYX_SIGNALR_E2E_TRANSPORTS": "websockets"
+      }
+    },
+    {
+      "id": "s12-https-proxy-android",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R13.C4"
+      ],
+      "descriptionMarkdown": "New `proxy-https` scenario on Android. Prerequisite: a running x86_64 emulator (AVD `Pixel_9_Pro_XL` or `RAYX_SIGNALR_E2E_ANDROID_SERIAL`). Selection: targets `android`, scenarios `proxy-https`, transports `websockets`, protocols `json,messagepack` (2 cells).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 2
+      },
+      "inputs": [
+        "Cargo.toml",
+        "build.rs",
+        "src/**",
+        "tests/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**"
+      ],
+      "timeoutSeconds": 2400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "android",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "proxy-https",
+        "RAYX_SIGNALR_E2E_TRANSPORTS": "websockets"
+      }
     }
   ],
   "finalCheckIds": [
@@ -7182,6 +7285,35 @@
             {
               "repositoryId": "rayx-signalr",
               "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/MobileCellRunners.cs"
+            }
+          ]
+        },
+        {
+          "id": "S12.T4",
+          "title": "HTTPS proxies",
+          "descriptionMarkdown": "Accept `https://` proxy URLs in `with_proxy` and the proxy environment variables per R13.C4: TLS to the proxy with the connection's TLS configuration, the CONNECT exchange and 407/Basic flow inside it, the endpoint's TLS inside the tunnel; the TLS listener in the test proxy, the `https_proxy_` group and the `proxy-https` scenario. Remove the `https://` skip from the environment resolution and the docs' limitation. Added by the S9 review (finding S9-F3).",
+          "criterionIds": [
+            "R13.C4"
+          ],
+          "designIds": [
+            "D13"
+          ],
+          "dependsOn": [
+            "S12.T1"
+          ],
+          "checkIds": [
+            "s12-https-proxy-unit",
+            "s12-https-proxy-native",
+            "s12-https-proxy-android"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/communication/proxy.rs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "dotnet/RayX.SignalR.TestProxy/src/ProxyConnection.cs"
             }
           ]
         }

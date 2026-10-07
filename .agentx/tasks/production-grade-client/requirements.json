@@ -292,6 +292,11 @@
           "id": "R13.C3",
           "descriptionMarkdown": "The default proxy resolution (also selectable with `with_os_proxy()`) resolves the proxy per URL from the operating system, as the .NET client's default proxy does: Windows through WinHTTP (current-user settings including auto-detect and PAC), macOS and iOS through CFNetwork (system settings including PAC), Android through `java.net.ProxySelector` via JNI (initialized with the same Android initialization as the platform verifier), and Linux through the proxy environment variables. Unit group `os_proxy_` with injected platform readers; scenario `os-proxy` on `android-app` (emulator global proxy set and restored by the runner) and, in CI only, on ephemeral Windows and macOS runners that opt in to system changes.",
           "verification": "automated"
+        },
+        {
+          "id": "R13.C4",
+          "descriptionMarkdown": "`with_proxy` and the proxy environment variables accept `https://` proxy URLs, as the .NET client (since .NET 8) does: the client runs TLS to the proxy with the connection's own TLS configuration (trust roots, the explicit rustls provider, never an accept-all verifier), sends the `CONNECT` request with the same 407/Basic challenge flow as `http://` proxies inside that TLS session, and runs the endpoint's own TLS inside the tunnel for secure endpoints. A proxy certificate that does not verify fails with `ErrorKind::Proxy` naming the proxy (never the credentials). Unit group `https_proxy_`; scenario `proxy-https` (the Aspire test proxy gains a TLS listener with the run's test certificate, a counter and required credentials) on native and Android.",
+          "verification": "automated"
         }
       ]
     },
