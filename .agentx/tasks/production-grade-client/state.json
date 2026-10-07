@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 149,
+  "revision": 154,
   "planRevision": 23,
   "specHashes": {
     "requirements": "cfaf45e2157367e6772613c40313c112747d3a01a82bc2c5d6f8c781c391c44d",
@@ -124,7 +124,10 @@
       ]
     },
     "S7.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S8.T1": {
       "status": "pending"
@@ -436,6 +439,15 @@
         }
       },
       "recordedAt": "2026-10-07T19:05:41Z"
+    },
+    "edbcd639c1da03ba0758482fdb47ffbc275a17a4ba47a0383b79a918b2a40ae3": {
+      "snapshot": {
+        "specHash": "c765e6a76eab040196190fd4d1ee8217565b7c0f790402227d2aa648c87c1e99",
+        "repositories": {
+          "rayx-signalr": "a25d4099dc28f65de5ee9f4bdfedaac1fef4084f7616b30e38362965be1b8c99"
+        }
+      },
+      "recordedAt": "2026-10-07T21:13:28Z"
     }
   },
   "checkResults": {
@@ -2019,6 +2031,74 @@
       "logPath": "artifacts-temp/agentx/production-grade-client/S6-final-ff1a31809529.log",
       "logSha256": "4b09b086811cfc053c7b399aa0ff758b6a25f344c9944d06a3072262622a2f90",
       "inputsHash": "b87473a5e272e7025b0dfe11e2cea0c4da6b69cb3be91e0f877626949904cd9e"
+    },
+    "S7/s7-long-polling-unit/final": {
+      "checkId": "s7-long-polling-unit",
+      "boundaryId": "S7",
+      "phase": "final",
+      "batchId": "edbcd639c1da03ba0758482fdb47ffbc275a17a4ba47a0383b79a918b2a40ae3",
+      "definitionHash": "c31e28b242e15de3cb8caeaff90f6e5247082cfbbea73f6d923819eb4ff0af15",
+      "basisHash": "925235b719707d8b14ef1b5467555bd80da83ee52031fbf54205de3c58b87792",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 27,
+      "durationSeconds": 1.322,
+      "recordedAt": "2026-10-07T20:47:39Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S7-final-270a7c26b395.log",
+      "logSha256": "c5076d2651e5c2889a43c05c0a9a8bcd1728b567a820b9962eb8690ac767ea1f",
+      "inputsHash": "79c13f385712601c2e9e5ad1371d24fdc2317a1f3e3f2074eaeb6215eea13041"
+    },
+    "S7/s7-long-polling-native/final": {
+      "checkId": "s7-long-polling-native",
+      "boundaryId": "S7",
+      "phase": "final",
+      "batchId": "edbcd639c1da03ba0758482fdb47ffbc275a17a4ba47a0383b79a918b2a40ae3",
+      "definitionHash": "e9a000b3a5eb1ca6c9261e77b443ca5accb96ceb941526e08be8efa825991868",
+      "basisHash": "7d15dd5625d5525569c4be82007cd7b3f2682802eb8e13183b33f916b0388202",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 30,
+      "durationSeconds": 234.6779,
+      "recordedAt": "2026-10-07T20:51:33Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S7-final-5615322a4b1c.log",
+      "logSha256": "a56be45c52c9c714e0ea661b9e57da7a2d8a14405ef702d45f091c4debe95649",
+      "inputsHash": "c2ba572ae74aa92fc18675fa206b1162b60e9bd4ce23daa754dc6e91ed6e1b52"
+    },
+    "S7/s7-long-polling-browsers/final": {
+      "checkId": "s7-long-polling-browsers",
+      "boundaryId": "S7",
+      "phase": "final",
+      "batchId": "edbcd639c1da03ba0758482fdb47ffbc275a17a4ba47a0383b79a918b2a40ae3",
+      "definitionHash": "8170f6c295f95191184169fc4f1b9c7feb146df67908271fca73648f4c528615",
+      "basisHash": "b60955a5fa32f0b6ff38e1fafda0f4102993aa225320c8c3be373d1c73a15841",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 90,
+      "durationSeconds": 951.1386,
+      "recordedAt": "2026-10-07T21:07:24Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S7-final-f0c2365f4abc.log",
+      "logSha256": "1e398c6552987c6a1b3bb25c4ba43580141c81cc28c05cdc4a7ae41fdb91ef5a",
+      "inputsHash": "5b56d2c0146f9c8ef37ad1b4c3327bc451497fe8c4499c9e95b188de44844765"
+    },
+    "S7/s7-long-polling-android/final": {
+      "checkId": "s7-long-polling-android",
+      "boundaryId": "S7",
+      "phase": "final",
+      "batchId": "edbcd639c1da03ba0758482fdb47ffbc275a17a4ba47a0383b79a918b2a40ae3",
+      "definitionHash": "4399327ae97334a5f4e50ac97c24f586632216a3e89729d259ea1f1591a93b7b",
+      "basisHash": "ff2439f3c142fa6cbce789aabc95cafe37bcdbd07e4d395d73e3679e097f41e0",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 30,
+      "durationSeconds": 363.0705,
+      "recordedAt": "2026-10-07T21:13:28Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S7-final-a0d855bf82fc.log",
+      "logSha256": "62a16d0bf60692b2bcb233f299b3c216be56b96c13e305c10e295ad7a352d19e",
+      "inputsHash": "c2ba572ae74aa92fc18675fa206b1162b60e9bd4ce23daa754dc6e91ed6e1b52"
     }
   },
   "reviews": {
@@ -4990,6 +5070,221 @@
         "S6-F5"
       ],
       "recordedAt": "2026-10-07T19:07:52Z"
+    },
+    "S7": {
+      "reviewerId": "agentx-auditor-s7-efe9c365",
+      "snapshotId": "edbcd639c1da03ba0758482fdb47ffbc275a17a4ba47a0383b79a918b2a40ae3",
+      "criterionIds": [
+        "R6.C1",
+        "R6.C2"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/long_polling_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R6.C1",
+            "R6.C2"
+          ],
+          "sha256": "116114e49c7bfa8c3924b038dc8036798eb11da6c728f5a65a61181893afb592"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/browser_long_polling.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R6.C1",
+            "R6.C2"
+          ],
+          "sha256": "69ceb79af49e02d5b160d3648cb35139eae3dbe6d431423f6a45234e59324429"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/transport_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R6.C1"
+          ],
+          "sha256": "010b8ecf634ea35a8ae511cae963dfa5cc9ea432e49bd818e0dffdba4cba9bfa"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/browser_transport.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R6.C1"
+          ],
+          "sha256": "66ad4ffe076ee81b27ed93a2ab879aa9bb3577dda6e4b8e606c43af3db4ccc00"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/browser_socket.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R6.C1"
+          ],
+          "sha256": "e956f49ad09f1de66631eb36cf1864f01620561996aa326cf94fe816c88f69e7"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R6.C1",
+            "R6.C2"
+          ],
+          "sha256": "ddfc249567c76c11f1e54b8db453bf976f43e3ddcbb92ee62b27c397ee4fc833"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R6.C1",
+            "R6.C2"
+          ],
+          "sha256": "5d865002575ca13ae7c38c88ce074cb180eec9410a0aec4c5eaa99c0b46c5dd3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R6.C1"
+          ],
+          "sha256": "8cb19b8fd537a06cef6b0c7ed98f57c4324cb2032c388b1a8a45d5ce2c34aeeb"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R6.C1"
+          ],
+          "sha256": "3e14da169fc9df6d834f8b95fc2fb8b38df508bc2032cc53834e3773ee6674ed"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/liveness.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R6.C1"
+          ],
+          "sha256": "7354077d32384bcc0c1c2cd98108bb94c8c3a1c7879fb8c3dedf75df9d31f2dd"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/TransportFaults.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R6.C2"
+          ],
+          "sha256": "0d586fb4570574aea2549a37b96ff6a49152a6a1b99aa494ddac0cae1f6ac46d"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/LivenessHubs.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R6.C2"
+          ],
+          "sha256": "58f255aa21186594f2675c158581580d0d5c68b5f1e83c94bcb0f85911905e72"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/ScenarioCatalog.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R6.C2"
+          ],
+          "sha256": "681f160802db1a9f17a66b0250b782e8b6ffcb58cc43dc221a762a0e30e3f1d9"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/long_polling_tokio.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R6.C1"
+          ],
+          "sha256": "116114e49c7bfa8c3924b038dc8036798eb11da6c728f5a65a61181893afb592"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R6.C1"
+          ],
+          "sha256": "ddfc249567c76c11f1e54b8db453bf976f43e3ddcbb92ee62b27c397ee4fc833"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R6.C1"
+          ],
+          "sha256": "8cb19b8fd537a06cef6b0c7ed98f57c4324cb2032c388b1a8a45d5ce2c34aeeb"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/keepalive_idle.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R6.C2"
+          ],
+          "sha256": "2b54d1f48906ce75546e74491d8157095cf57bae13475d2f4c2cbdc06b9beca3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/server_timeout.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R6.C2"
+          ],
+          "sha256": "26ea2ac40e23fc6ce2f02835308c4452806427634050fa6c7bfd1c8089734792"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/token_factory.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R6.C2"
+          ],
+          "sha256": "ed78462327dab3dabc6b71fcf7b9f4ca191342508ed3f381b385c8e62bda7d67"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R6.C2"
+          ],
+          "sha256": "2df060f181423332e2e5e6b97eec457bf5d2880c4b38893ed09bf0b9ee804592"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/tests/signalr-transports.spec.ts",
+          "kind": "runtime",
+          "criterionIds": [
+            "R6.C2"
+          ],
+          "sha256": "b452500470641e3a88092fd6374399a0fba3d26490ab72f0248dcaa8cb183b0c"
+        }
+      ],
+      "summaryMarkdown": "Re-audit after repairs: S7-F1..F7 are resolved in source, tests and docs. Long Polling on both targets matches the .NET client for token caching and 401 refresh (1 factory call per LP connect, shared across polls/sends/DELETE), DELETE policy (only when the send side ends first), failure reporting before the best-effort DELETE, bounded start (`Timeout(Connect)`), bounded requests with poll reissue, typed 401/403 errors and browser error propagation via `SocketEvent::Failed`. Ordering, one poll/one POST in flight, cancellation, generation isolation, no lock/RefCell borrow across an await, no secrets or payloads logged, and inherent keep-alive hold; e2e idle cells cross real 5 s poll rollovers. The state handoff still quotes the pre-repair token-factory count (5) and is to be corrected to 1/3 at checkpoint.",
+      "findingIds": [
+        "S7-F1",
+        "S7-F2",
+        "S7-F3",
+        "S7-F4",
+        "S7-F5",
+        "S7-F6",
+        "S7-F7"
+      ],
+      "recordedAt": "2026-10-07T21:13:36Z"
     }
   },
   "checkpoints": {
@@ -5072,6 +5367,14 @@
       },
       "reviewHash": "4cb35968406587590ccaa7fd47b145fdeedfc70688d56aa4cdc90d5d39300f7c",
       "recordedAt": "2026-10-07T19:08:31Z"
+    },
+    "S7": {
+      "snapshotId": "edbcd639c1da03ba0758482fdb47ffbc275a17a4ba47a0383b79a918b2a40ae3",
+      "commits": {
+        "rayx-signalr": "671e77dfac35bd1db0c72f2f3344f32c4a78a0a8"
+      },
+      "reviewHash": "a5885beb6a9d83e840d4a4782bbb3ee1bfbbddb18d89afbecc618ddc46920201",
+      "recordedAt": "2026-10-07T21:13:53Z"
     }
   },
   "findings": [
@@ -6793,9 +7096,183 @@
           "symbol": "transport_selection_every_set_offer_order_and_format"
         }
       ]
+    },
+    {
+      "id": "S7-F1",
+      "boundaryId": "S7",
+      "criterionIds": [
+        "R6.C1",
+        "R6.C2"
+      ],
+      "descriptionMarkdown": "LP access tokens now follow the .NET `AccessTokenHttpMessageHandler`: `negotiation.rs` `connection_data` records the negotiate token (`with_negotiated_authentication`) for factory connections without a redirect token; `ConnectionRecipe::long_polling_authorization` seeds one shared credential (native `Credentials`, `Arc<StdMutex<..>>` never locked across an await; browser `Inner::authorization` `RefCell`, borrows statement-scoped) used by polls, sends and the DELETE; `refreshed(&used)` asks the factory only when the 401'd value is still current. token-factory asserts 1 per connect and 3 after rotation over LP on native and in the fixture; docs/02 and the skill table match.",
+      "severity": "major",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/long_polling_tokio.rs",
+          "symbol": "long_polling_exchanges::long_polling_requests_carry_the_negotiated_token_and_refresh_it_after_a_401"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/token_factory.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "symbol": "token_factory"
+        }
+      ]
+    },
+    {
+      "id": "S7-F2",
+      "boundaryId": "S7",
+      "criterionIds": [
+        "R6.C1",
+        "R6.C2"
+      ],
+      "descriptionMarkdown": "Native LP start is bounded by `tokio::time::timeout(connect_timeout, ..)` mapped to `Timeout(Connect)` in `CommunicationClient::start_transport`; every poll, send and DELETE (refresh included) is wrapped by its caller's bound on both targets (`within` in the browser); a poll exceeding its bound is reissued, matching the .NET `Poll` loop that continues after an `HttpClient` timeout; a send exceeding its bound ends the transport.",
+      "severity": "major",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "long_polling_liveness::long_polling_start_is_bounded_by_the_connect_timeout"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/long_polling_tokio.rs",
+          "symbol": "long_polling_exchanges::long_polling_a_hanging_token_refresh_is_bounded"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/long_polling_tokio.rs",
+          "symbol": "long_polling_exchanges::long_polling_a_poll_that_exceeds_its_bound_is_reissued"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/long_polling_tokio.rs",
+          "symbol": "long_polling_exchanges::long_polling_a_send_that_exceeds_its_bound_fails"
+        }
+      ]
+    },
+    {
+      "id": "S7-F3",
+      "boundaryId": "S7",
+      "criterionIds": [
+        "R6.C1"
+      ],
+      "descriptionMarkdown": "`status_error` maps 401/403 to `Error::authentication(Some(status))` on both targets; the native terminal error is delivered with an awaited `frames.send` (no `try_send` loss); browsers carry the cause in `SocketEvent::Failed(Error)`, surfaced by the handshake and `run_receiver` in `client_wasm.rs`, so native and browser report the same typed errors.",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/long_polling_tokio.rs",
+          "symbol": "long_polling::long_polling_refused_requests_are_authentication_errors"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/long_polling_tokio.rs",
+          "symbol": "long_polling_exchanges::long_polling_a_failed_send_cancels_the_poll_sends_delete_and_ends_with_its_error"
+        }
+      ]
+    },
+    {
+      "id": "S7-F4",
+      "boundaryId": "S7",
+      "criterionIds": [
+        "R6.C1"
+      ],
+      "descriptionMarkdown": "Native `process` selects the poll and send loops like .NET `ProcessAsync` (poll ends first: no DELETE; send side ends first: poll dropped, DELETE through `authorized` with the shared token); the browser `send` task sets `sends_ended`, cancels the poll and sends the DELETE only when the send side ended first, and skips it after the poll ended.",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/long_polling_tokio.rs",
+          "symbol": "long_polling_exchanges::long_polling_no_delete_after_the_server_ended_the_connection"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/long_polling_tokio.rs",
+          "symbol": "long_polling_exchanges::long_polling_close_stops_polling_and_sends_delete"
+        }
+      ]
+    },
+    {
+      "id": "S7-F5",
+      "boundaryId": "S7",
+      "criterionIds": [
+        "R6.C1",
+        "R6.C2"
+      ],
+      "descriptionMarkdown": "New native tests cover send failures, request bounds, poll reissue, hanging refresh, the shared negotiated token and authentication typing (27 `long_polling_` tests reported passing); `LivenessHubs.cs` maps `/test-keepalive` and `/test-silent` with `LongPolling.PollTimeout = 5 s`, so the 45 s idle LP cells cross several real poll rollovers.",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/LivenessHubs.cs",
+          "symbol": "MapLivenessEndpoints"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/long_polling_tokio.rs",
+          "symbol": "long_polling_exchanges"
+        }
+      ]
+    },
+    {
+      "id": "S7-F6",
+      "boundaryId": "S7",
+      "criterionIds": [
+        "R6.C1",
+        "R6.C2"
+      ],
+      "descriptionMarkdown": "SKILL.md, docs/01, 02, 09 and 10 and the skill platform/server-setup references now describe WebSockets and Long Polling, browser Basic over LP, LP-specific liveness, CORS `GET`/`POST`/`DELETE`, and attribute the 100 s default to the JavaScript client.",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/02-connecting.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/10-server-setup.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/SKILL.md"
+        }
+      ]
+    },
+    {
+      "id": "S7-F7",
+      "boundaryId": "S7",
+      "criterionIds": [
+        "R6.C1"
+      ],
+      "descriptionMarkdown": "A failed send now ends the transport before the best-effort DELETE: native `process` sends the error to the receiver and drops `frames` before the bounded DELETE; the browser `send` task calls `inner.end(failure)` (Failed, then Closed) right after cancelling the poll and before the DELETE, while a clean close still ends after it. This matches .NET `ProcessAsync`, which records the error and cancels the poll before awaiting the DELETE. The regression test holds the DELETE for 30 s on the server and requires the error within 5 s.",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/long_polling_tokio.rs",
+          "symbol": "long_polling_exchanges::long_polling_a_failed_send_cancels_the_poll_sends_delete_and_ends_with_its_error"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/browser_long_polling.rs",
+          "symbol": "send"
+        }
+      ]
     }
   ],
-  "handoffMarkdown": "ScenarioCatalog: Transports (websockets, long-polling, server-sent-events), TransportTitle, Scenario.TransportBaseline (Baseline() for the R6.C2 list) and Supports(transport, protocol), PlaywrightTitle(protocol, transport) (\"invoke (JSON, Long Polling)\"); E2ECell has Transport (Id/FileName suffix only for non-WebSockets, Parse of 3 or 4 parts); E2ESelection parses RAYX_SIGNALR_E2E_TRANSPORTS (default websockets); CellVariables passes RAYX_SIGNALR_TRANSPORT; browser runner uses the transport title; CatalogTests Playwright consistency covers all transports. Test service maps /test-longpolling and /test-no-websockets. tests/e2e/support.rs apply_transport; fixture configure_transport + ServiceEndpoint::apply; index.html/fixture.ts transport page parameter; signalr-transports.spec.ts generates the non-WebSocket baseline cells (they run in S7/S8 once the transports exist; the fixture has no ordinary-reconnect functional scenario yet). TransportCatalogTests (5). docs/14.",
+  "handoffMarkdown": "Long Polling on both targets. Native src/communication/long_polling_tokio.rs: poll and send tasks each own a hyper HTTP/1.1 Lane over negotiate_http::connect_tcp/tls_stream; one poll at a time (200 frames, 204 Ok(None) end, other status/network error Err), ordered POST batches (text/plain;charset=UTF-8 or application/octet-stream), DELETE after the queue closes, 401 retried once with a fresh factory token (ConnectionRecipe::has_access_token_factory), unanswered request on a reused connection retried once on a fresh one (SocketsHttpHandler parity); polls bounded by with_long_polling_timeout (LivenessConfig::long_polling_timeout, 100 s) + connect timeout. TransportSender/TransportReceiver::LongPolling variants. Browser src/communication/browser_long_polling.rs: fetch + AbortController per request, body read inside the bound, Authorization header (negotiation::http_transport_url drops access_token, ws->http), binary copied to a fresh Uint8Array, buffered_amount = queued+in-flight bytes, Drop closes. Inherent keep-alive on both targets: no Pings, no server timeout and NO post-handshake Ping over Long Polling (that Ping makes ASP.NET Core start its client timeout; a .NET-client probe confirmed). current_transport_authorization is cross-target. Test service: TransportFaults (AbortPhysicalTransport and TokenHub.Abort sever the current poll and answer later polls of the token 404 so .NET and this client both reconnect; WebSockets unchanged); keepalive-idle/server-timeout over LP assert a 45 s idle connection (catalog Limit 120 s, native LIVENESS_SCENARIO_TIMEOUT 110 s, Playwright setTimeout 110 s); token-factory expects 5 factory calls over LP (401 after rotation); browser authentication over LP expects source header. Unit groups long_polling_ (20 incl. robustness_long_polling_). Docs 02/06/12/13/14, README, skill references.",
   "protectedPaths": {
     "rayx-signalr": {
       ".agentx/tasks/resilient-reconnect-and-production-gates/**": "a4110a3f5f2c68d64ddf8fbedb70479c98f46dde78b064b5b3ac826772db49a6",
