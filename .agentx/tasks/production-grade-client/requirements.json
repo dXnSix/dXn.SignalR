@@ -346,12 +346,12 @@
         },
         {
           "id": "R16.C3",
-          "descriptionMarkdown": "Restart after stop, as `StartAsync` after `StopAsync`: `start().await` on a client stopped by `disconnect` or ended remotely runs a fresh negotiate (new connection id) and keeps registered callbacks and hooks; `start` on a client that is connecting, connected, reconnecting or paused fails without changing it; `disconnect` during `start` or a reconnect cancels it. Unit group `client_restart_`; scenario `restart-after-stop` on every target.",
+          "descriptionMarkdown": "Restart after stop, as `StartAsync` after `StopAsync`: `start().await` on a client stopped by `disconnect` or ended remotely runs a fresh negotiate (new connection id) and keeps registered callbacks and hooks; `start` on a client that is connecting, connected, reconnecting or paused fails without changing it; `disconnect` during `start` or a reconnect cancels it. Registered callbacks and hooks never keep a client alive (the registry holds it weakly; `SignalRClient::downgrade` gives applications the same `WeakSignalRClient`), so dropping the last handle stops a started client and a failed start never leaks it. Unit group `client_restart_`; scenario `restart-after-stop` on every target.",
           "verification": "automated"
         },
         {
           "id": "R16.C4",
-          "descriptionMarkdown": "Lifecycle hooks matching the .NET `Closed`, `Reconnecting` and `Reconnected` events: `on_closed(Fn(Option<&Error>))`, `on_reconnecting(Fn(&Error))` and `on_reconnected(Fn(Option<&str>))`, several per event, registrable before `start`, alongside automatic reconnect. After a drop: pending ordinary work fails, then `Reconnecting(reason)` (not raised when the policy allows no attempt), then `Reconnected(new connection id)` or `Closed(error)`; `Closed(None)` after `disconnect`. Hooks never block the connection; native hook panics are caught and logged. Unit group `lifecycle_events_`; scenario `lifecycle-events` on every target.",
+          "descriptionMarkdown": "Lifecycle hooks matching the .NET `Closed`, `Reconnecting` and `Reconnected` events: `on_closed(Fn(Option<&Error>))`, `on_reconnecting(Fn(&Error))` and `on_reconnected(Fn(Option<&str>))`, several per event, registrable before `start`, alongside automatic reconnect. After a drop: pending ordinary work fails, then `Reconnecting(reason)` (not raised when the policy allows no attempt), then `Reconnected(new connection id)` or `Closed(error)`; `Closed(None)` after `disconnect`, or `Closed` with an `ErrorKind::Canceled` error when the stop interrupted a reconnect (as .NET's `OperationCanceledException`). Events keep that order whatever runs concurrently (natively they are raised under the connection's state lock, and a run's `Reconnected` while its connection installs). Hooks never block the connection (natively they run on the Tokio blocking pool); native hook panics are caught and logged. Unit group `lifecycle_events_`; scenario `lifecycle-events` on every target.",
           "verification": "automated"
         },
         {
@@ -401,7 +401,7 @@
         },
         {
           "id": "R16.C14",
-          "descriptionMarkdown": "Stopping is graceful as in `StopAsync`: a SignalR Close message (`{\"type\":7}` or `[7,nil,false]`) is sent before the transport closes, and the asynchronous `stop().await` completes when the transport has closed or after `with_close_timeout` (default 5 s); `disconnect()` stays the synchronous form. The hub's `OnDisconnectedAsync` sees no exception. Unit group `graceful_stop_`; scenario `graceful-stop` on every target.",
+          "descriptionMarkdown": "Stopping is graceful as in `StopAsync`: a SignalR Close message (`{\"type\":7}` or `[7,nil,false]`) is sent before the transport closes, and the asynchronous `stop().await` completes when the transport has closed or after `with_close_timeout` (default 5 s); `disconnect()` stays the synchronous form, and its background close (also on the last handle's drop) is bounded by the same timeout. The hub counts the client's Close message (a protocol wrapper in the test service) and its `OnDisconnectedAsync` sees no exception. Unit group `graceful_stop_`; scenario `graceful-stop` on every target.",
           "verification": "automated"
         },
         {
@@ -461,7 +461,7 @@
         },
         {
           "id": "R16.C26",
-          "descriptionMarkdown": "A call made while a reconnect attempt is in flight waits for that attempt and then runs on the new connection or fails with the attempt's error, as the .NET client's connection lock does; during the policy delay calls fail at once. Unit group `reconnect_call_wait_`.",
+          "descriptionMarkdown": "A call made while a reconnect attempt is in flight waits for that attempt and then runs on the new connection or fails with the attempt's error, as the .NET client's connection lock does; during the policy delay calls fail at once. Calls during a start wait the same way. Unit group `reconnect_call_wait_` (start and reconnect attempts, success and failure, on a loopback test server); scenario `reconnect-call-wait` on every target (the test service holds the attempt's negotiate request).",
           "verification": "automated"
         },
         {

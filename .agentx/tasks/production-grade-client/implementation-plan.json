@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 15,
+  "revision": 17,
   "title": "Production-grade rayx-signalr: typed errors, all transports, proxies, refreshable auth, suspension-aware liveness, proven TLS paths, reference-class performance, and stretch SOCKS/PAC/OS proxies, HTTP/2 and HTTP/3",
   "validationMode": "sprint",
   "repositories": [
@@ -4867,6 +4867,155 @@
         "tools-node/**"
       ],
       "timeoutSeconds": 3600
+    },
+    {
+      "id": "p2-dotnet-build",
+      "repositoryId": "rayx-signalr",
+      "kind": "build",
+      "criterionIds": [
+        "R16.C2",
+        "R16.C14"
+      ],
+      "descriptionMarkdown": "P2 changed the test service (`ConnectedHub` at `/test-connected`, `OnDisconnectedAsync` exception recording) and the scenario catalog: every .NET project builds (CLAUDE.md rule for .NET changes).",
+      "argv": [
+        "dotnet",
+        "build",
+        "RayX.SignalR.slnx"
+      ],
+      "expected": {
+        "exitCode": 0
+      },
+      "inputs": [
+        "global.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**"
+      ],
+      "timeoutSeconds": 1800
+    },
+    {
+      "id": "p2-static-categories",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R16.C2",
+        "R16.C3",
+        "R16.C4",
+        "R16.C5",
+        "R16.C14"
+      ],
+      "descriptionMarkdown": "The static .NET categories CLAUDE.md requires for P2's catalog, test-service and dependency changes: WorkflowContract, Repository, Catalog and Toolchain (the catalog lists `connected-callback`, `restart-after-stop`, `lifecycle-events`, `connection-id`, `graceful-stop` and `reconnect-call-wait`), plus Platform and DependencySecurity because the unit tests' loopback SignalR server enables the `server` feature of the `tokio-websockets` dev-dependency.",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=WorkflowContract|Category=Repository|Category=Catalog|Category=Toolchain|Category=Platform|Category=DependencySecurity"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 12
+      },
+      "inputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "build.rs",
+        "src/**",
+        "tests/**",
+        "global.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        ".github/**",
+        "tools-node/**"
+      ],
+      "timeoutSeconds": 3600
+    },
+    {
+      "id": "p2-call-wait-e2e",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R16.C26"
+      ],
+      "descriptionMarkdown": "New `reconnect-call-wait` scenario (P2-F1 repair). Selection: targets `native,chromium,firefox,webkit`, scenarios `reconnect-call-wait`, transports `websockets`, protocols `json,messagepack` (8 cells).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 8
+      },
+      "inputs": [
+        "Cargo.toml",
+        "build.rs",
+        "src/**",
+        "tests/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        "tools-node/tests/**",
+        "tools-node/wasm-host/**",
+        "tools-node/playwright.config.ts",
+        "tools-node/package.json"
+      ],
+      "timeoutSeconds": 2400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "native,chromium,firefox,webkit",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "reconnect-call-wait",
+        "RAYX_SIGNALR_E2E_TRANSPORTS": "websockets",
+        "RAYX_SIGNALR_SOAK_SECONDS": "120"
+      }
+    },
+    {
+      "id": "p2-call-wait-android",
+      "repositoryId": "rayx-signalr",
+      "kind": "runtime",
+      "criterionIds": [
+        "R16.C26"
+      ],
+      "descriptionMarkdown": "The `reconnect-call-wait` scenario on Android. Prerequisite: a running x86_64 emulator (AVD `Pixel_9_Pro_XL` or `RAYX_SIGNALR_E2E_ANDROID_SERIAL`). Selection: targets `android`, scenarios `reconnect-call-wait`, transports `websockets`, protocols `json,messagepack` (2 cells).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=E2E"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 2
+      },
+      "inputs": [
+        "Cargo.toml",
+        "build.rs",
+        "src/**",
+        "tests/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        "tools-node/tests/**",
+        "tools-node/wasm-host/**",
+        "tools-node/playwright.config.ts",
+        "tools-node/package.json"
+      ],
+      "timeoutSeconds": 2400,
+      "environment": {
+        "RAYX_SIGNALR_E2E_TARGETS": "android",
+        "RAYX_SIGNALR_E2E_PROTOCOLS": "json,messagepack",
+        "RAYX_SIGNALR_E2E_SCENARIOS": "reconnect-call-wait",
+        "RAYX_SIGNALR_E2E_TRANSPORTS": "websockets",
+        "RAYX_SIGNALR_SOAK_SECONDS": "120"
+      }
     }
   ],
   "finalCheckIds": [
@@ -5512,7 +5661,7 @@
         {
           "id": "P2.T1",
           "title": "Unstarted client, start and restart",
-          "descriptionMarkdown": "Per D18: `SignalRClient::new` and `start()`, `connect`/`connect_with` as `new` plus `start`, restart after stop or a remote end, `disconnect` cancelling a start; a test hub whose `OnConnectedAsync` sends to the caller; the `client_start_` and `client_restart_` groups and the `connected-callback` and `restart-after-stop` scenarios (native, fixture, Android).",
+          "descriptionMarkdown": "Per D18: `SignalRClient::new` and `start()`, `connect`/`connect_with` as `new` plus `start`, restart after stop or a remote end, `disconnect` cancelling a start; a test hub whose `OnConnectedAsync` sends to the caller; the `client_start_` and `client_restart_` groups and the `connected-callback` and `restart-after-stop` scenarios (native, fixture, Android). Review repairs: P2-F5 a start fails old pending work before it publishes its attempt; P2-F6 `WeakSignalRClient`/`downgrade`, the registry holds its client weakly (no cycles, no leak after a failed start).",
           "criterionIds": [
             "R16.C2",
             "R16.C3"
@@ -5525,7 +5674,8 @@
             "p2-client-start",
             "p2-client-restart",
             "p2-start-e2e",
-            "p2-start-android"
+            "p2-start-android",
+            "p2-static-categories"
           ],
           "sourceRefs": [
             {
@@ -5545,7 +5695,7 @@
         {
           "id": "P2.T2",
           "title": "Lifecycle hooks and connection id",
-          "descriptionMarkdown": "`on_closed`, `on_reconnecting` and `on_reconnected` in the .NET order alongside automatic reconnect, and `connection_id()`; the `lifecycle_events_` and `connection_id_` groups and the `lifecycle-events` and `connection-id` scenarios (native, fixture, Android).",
+          "descriptionMarkdown": "`on_closed`, `on_reconnecting` and `on_reconnected` in the .NET order alongside automatic reconnect, and `connection_id()`; the `lifecycle_events_` and `connection_id_` groups and the `lifecycle-events` and `connection-id` scenarios (native, fixture, Android). Review repairs: P2-F2 events raised under the state lock and `Reconnected` while the run's connection installs; P2-F3 `Closed(Canceled)` when a stop interrupts a reconnect; P2-F6 hooks on the blocking pool.",
           "criterionIds": [
             "R16.C4",
             "R16.C5"
@@ -5580,7 +5730,7 @@
         {
           "id": "P2.T3",
           "title": "Graceful stop",
-          "descriptionMarkdown": "The Close message before the transport closes, `stop().await` with `with_close_timeout` (default 5 s), the test service recording the `OnDisconnectedAsync` exception; the `graceful_stop_` group and the `graceful-stop` scenario (native, fixture, Android).",
+          "descriptionMarkdown": "The Close message before the transport closes, `stop().await` with `with_close_timeout` (default 5 s), the test service recording the `OnDisconnectedAsync` exception; the `graceful_stop_` group and the `graceful-stop` scenario (native, fixture, Android). Review repairs: P2-F4 `disconnect` bounds its background close by the close timeout; P2-F7 loopback tests for the Close message and the timeout, and the test service counts client Close messages (`CloseCountingHubProtocol`) for the `graceful-stop` cells.",
           "criterionIds": [
             "R16.C14"
           ],
@@ -5593,7 +5743,8 @@
           "checkIds": [
             "p2-graceful-stop",
             "p2-graceful-stop-e2e",
-            "p2-graceful-stop-android"
+            "p2-graceful-stop-android",
+            "p2-dotnet-build"
           ],
           "sourceRefs": [
             {
@@ -5613,7 +5764,7 @@
         {
           "id": "P2.T4",
           "title": "Retry context and calls during a reconnect attempt",
-          "descriptionMarkdown": "`RetryContext` with the reason, the default method for the old signature, panicking policies ending the run, a delay-list policy, and calls waiting for an in-flight attempt; the `retry_context_` and `reconnect_call_wait_` groups.",
+          "descriptionMarkdown": "`RetryContext` with the reason, the default method for the old signature, panicking policies ending the run, a delay-list policy, and calls waiting for an in-flight attempt; the `retry_context_` and `reconnect_call_wait_` groups. Review repairs: P2-F1 loopback tests for calls during reconnect attempts and the `reconnect-call-wait` scenario on every target (`DelayNextNegotiation` test control); P2-F8 public `RetryContext::new`.",
           "criterionIds": [
             "R16.C25",
             "R16.C26"
@@ -5624,7 +5775,9 @@
           "dependsOn": [],
           "checkIds": [
             "p2-retry-context",
-            "p2-reconnect-call-wait"
+            "p2-reconnect-call-wait",
+            "p2-call-wait-e2e",
+            "p2-call-wait-android"
           ],
           "sourceRefs": [
             {

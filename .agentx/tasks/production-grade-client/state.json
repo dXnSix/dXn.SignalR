@@ -1,12 +1,12 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 74,
-  "planRevision": 15,
+  "revision": 90,
+  "planRevision": 17,
   "specHashes": {
-    "requirements": "05505ab02821198c2bfeea579535a9653425965aa8c45471d842ac9fbe8b27e5",
-    "design": "a186bb62a1f01be204afe542a1449e2b59a0d7f5a213d05e57859353c110f50b",
-    "plan": "6f5ab574dbac610caa65c72d524b6b7dcb8344de6073a0ac4567f75a66dcf2cd"
+    "requirements": "e7e7cdebbd521478aae42da3ff324462c93435f48285c3f01fc29003ff8e5765",
+    "design": "dfc10271d51a3cf87bfa2441ad2de12170ab5fabb9f93189d8657017e2b2c5bb",
+    "plan": "6e04b0f731be12c23283d02785f79c6cf9d20a4241ea437744a047a84f620659"
   },
   "tasks": {
     "S1.T1": {
@@ -199,19 +199,34 @@
       ]
     },
     "P2.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "P2.T2": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "P2.T3": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "P2.T4": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "P2.T5": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "P3.T1": {
       "status": "pending"
@@ -313,6 +328,15 @@
         }
       },
       "recordedAt": "2026-10-07T12:25:32Z"
+    },
+    "a34944673165f80a87b2f24bdff5d94bd093f3ba1eb04db3dd4255a2753d3ff8": {
+      "snapshot": {
+        "specHash": "a3bb65dd1dd631dff47506bf5395736ef71bd53e500d672b79eada3cd9fa31bc",
+        "repositories": {
+          "rayx-signalr": "ed815b2a4759ec080fcaac2f6b2c605ec0a5358cdc5af96ee3ef2feb0af8f512"
+        }
+      },
+      "recordedAt": "2026-10-07T14:11:55Z"
     }
   },
   "checkResults": {
@@ -1029,6 +1053,312 @@
       "logPath": "artifacts-temp/agentx/production-grade-client/P1-final-0b1ad6f80b40.log",
       "logSha256": "e7478dfa912c452ff8a27802690813f5c3bd243e66069127d2edff33f333b3a8",
       "inputsHash": "0daf60ae762046bc60ed295612729ae91091dcf14853ec048760d29791e09b45"
+    },
+    "P2/p2-client-start/final": {
+      "checkId": "p2-client-start",
+      "boundaryId": "P2",
+      "phase": "final",
+      "batchId": "a34944673165f80a87b2f24bdff5d94bd093f3ba1eb04db3dd4255a2753d3ff8",
+      "definitionHash": "fafe3cb94b9cde66f3b5f831af7ce10ffdc463df0504bccb39a96ea144029372",
+      "basisHash": "da7f680b6bf618a86157aa3ce5621cbc43d585c5d7b431995394d512d2b3f7bb",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 8,
+      "durationSeconds": 7.9512,
+      "recordedAt": "2026-10-07T14:05:00Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P2-final-5218d648eab4.log",
+      "logSha256": "3d5d6b9d3378eb64406373d9203dc7814c9ae9c282dd522aed4aeafc0d51bd5d",
+      "inputsHash": "0a7a4a3874c0623e5331f526cb040148d64b1667ffe2c4fb8d62223d8431f159"
+    },
+    "P2/p2-client-restart/final": {
+      "checkId": "p2-client-restart",
+      "boundaryId": "P2",
+      "phase": "final",
+      "batchId": "a34944673165f80a87b2f24bdff5d94bd093f3ba1eb04db3dd4255a2753d3ff8",
+      "definitionHash": "17b111a5fda96f9f0bdc91c548afff3d1a06db2df441de1680935343bdeb7dae",
+      "basisHash": "d81840e2b611fc7b0456c65636fad7a870f0f2c2c153e8a4750187bb4d70156f",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 7,
+      "durationSeconds": 4.5152,
+      "recordedAt": "2026-10-07T14:05:04Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P2-final-88e2b54d5daa.log",
+      "logSha256": "b7b071efde8ac43084a1798c1d380b5fdcda5a237f74bc95066c4a8356226290",
+      "inputsHash": "0a7a4a3874c0623e5331f526cb040148d64b1667ffe2c4fb8d62223d8431f159"
+    },
+    "P2/p2-start-e2e/final": {
+      "checkId": "p2-start-e2e",
+      "boundaryId": "P2",
+      "phase": "final",
+      "batchId": "a34944673165f80a87b2f24bdff5d94bd093f3ba1eb04db3dd4255a2753d3ff8",
+      "definitionHash": "0b461e889819875a1c58f7a6b48f67dd7f8c2adec209ebbe5ce4676edd50175c",
+      "basisHash": "3e3979d379a4b763cf18d93f9363987aa45f9672f12d0a7a966a41365df9757e",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 16,
+      "durationSeconds": 50.2366,
+      "recordedAt": "2026-10-07T14:05:55Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P2-final-b983e158aca3.log",
+      "logSha256": "1e84284f3be0145165efe23e5d5e270e28165d76f19e4a5ad483fac0b73756f4",
+      "inputsHash": "de3c414857df9f99904db4d52965774cc27974ac1ad869234e273ff92c81504b"
+    },
+    "P2/p2-start-android/final": {
+      "checkId": "p2-start-android",
+      "boundaryId": "P2",
+      "phase": "final",
+      "batchId": "a34944673165f80a87b2f24bdff5d94bd093f3ba1eb04db3dd4255a2753d3ff8",
+      "definitionHash": "ff75d55e96e1999456bf3a79eb0a872b914a422817f6a351dc213868815af769",
+      "basisHash": "5762e1573f1e555318f83973adc524837403b9317f85903e11bb3f7bf0bfeba2",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 22.226,
+      "recordedAt": "2026-10-07T14:06:17Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P2-final-6ce0d50a45c0.log",
+      "logSha256": "01c69d6e9663b9d2ae6222cb4a0a8326567e190dcd44667ea7e969b1e444a999",
+      "inputsHash": "de3c414857df9f99904db4d52965774cc27974ac1ad869234e273ff92c81504b"
+    },
+    "P2/p2-lifecycle-events/final": {
+      "checkId": "p2-lifecycle-events",
+      "boundaryId": "P2",
+      "phase": "final",
+      "batchId": "a34944673165f80a87b2f24bdff5d94bd093f3ba1eb04db3dd4255a2753d3ff8",
+      "definitionHash": "2137b07641f71bba8701dfab9d4523d46c56d3267fa4a1ede8fe23785eea6455",
+      "basisHash": "771b5ce8dffe53c69d1c7a4c7aed8d918cec1739591eb007446eaf081514e2a4",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 10,
+      "durationSeconds": 4.4236,
+      "recordedAt": "2026-10-07T14:06:21Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P2-final-141675d2190b.log",
+      "logSha256": "26dfb15ead8d344d0bb7b1473fc9a192412d8cb6298fc06bff733c92809244bf",
+      "inputsHash": "0a7a4a3874c0623e5331f526cb040148d64b1667ffe2c4fb8d62223d8431f159"
+    },
+    "P2/p2-connection-id/final": {
+      "checkId": "p2-connection-id",
+      "boundaryId": "P2",
+      "phase": "final",
+      "batchId": "a34944673165f80a87b2f24bdff5d94bd093f3ba1eb04db3dd4255a2753d3ff8",
+      "definitionHash": "4d889dff9de5fc28da47156f2140ccd40388022ac7cf889fd92633b943e1fa86",
+      "basisHash": "e1727f0fdb812358a005a89cb8ce65181f9f635a605a14c0033de3beeb696c48",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 5,
+      "durationSeconds": 2.343,
+      "recordedAt": "2026-10-07T14:06:24Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P2-final-07a9548791a6.log",
+      "logSha256": "b7cd411091e21c2e42d24354203cc255234612e755f3672fd882bb5055e73125",
+      "inputsHash": "0a7a4a3874c0623e5331f526cb040148d64b1667ffe2c4fb8d62223d8431f159"
+    },
+    "P2/p2-events-e2e/final": {
+      "checkId": "p2-events-e2e",
+      "boundaryId": "P2",
+      "phase": "final",
+      "batchId": "a34944673165f80a87b2f24bdff5d94bd093f3ba1eb04db3dd4255a2753d3ff8",
+      "definitionHash": "d9ceb5debf2ea4ea59fbe2f9e9ae2014c7af783d8f9f8af64d7f532432e5c754",
+      "basisHash": "a62eb502939500d0847c703015500e705c80e2771b786a4bc619c1fe43e1decf",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 16,
+      "durationSeconds": 77.698,
+      "recordedAt": "2026-10-07T14:07:41Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P2-final-55c17cd8b72d.log",
+      "logSha256": "84b42833020c802dfadd9c3761580f1dbf19590373b35590b6b6829580151c3b",
+      "inputsHash": "de3c414857df9f99904db4d52965774cc27974ac1ad869234e273ff92c81504b"
+    },
+    "P2/p2-events-android/final": {
+      "checkId": "p2-events-android",
+      "boundaryId": "P2",
+      "phase": "final",
+      "batchId": "a34944673165f80a87b2f24bdff5d94bd093f3ba1eb04db3dd4255a2753d3ff8",
+      "definitionHash": "5a494ebc73b0fd7be6d69fe8b7ddd64bb12037a5f1da1210e7c7fcf6a14f7c22",
+      "basisHash": "27af4a57ce3c9e36f0257772754d4dffe833730453aaf42a4e53b844562f1932",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 36.1069,
+      "recordedAt": "2026-10-07T14:08:18Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P2-final-f649c9f23c1b.log",
+      "logSha256": "3290415a476e541675a7db9d25ef578b22e8a19239afd31d6735d1a76603124f",
+      "inputsHash": "de3c414857df9f99904db4d52965774cc27974ac1ad869234e273ff92c81504b"
+    },
+    "P2/p2-graceful-stop/final": {
+      "checkId": "p2-graceful-stop",
+      "boundaryId": "P2",
+      "phase": "final",
+      "batchId": "a34944673165f80a87b2f24bdff5d94bd093f3ba1eb04db3dd4255a2753d3ff8",
+      "definitionHash": "5b77fcb61f7f49d1891c510277adefca50c866d4025f7fd55adf5700ce60f1c8",
+      "basisHash": "dd9f45a76f4887c9c0f7c5c3d8b9a11b481b55bf274b1f53ba849b3970bcc781",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 5,
+      "durationSeconds": 2.3356,
+      "recordedAt": "2026-10-07T14:08:20Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P2-final-1b2e7b4d28e4.log",
+      "logSha256": "3c469af801a9b086dfe5d02f7bba5e35da282d00d5bc12bf986b26d74eaf793a",
+      "inputsHash": "0a7a4a3874c0623e5331f526cb040148d64b1667ffe2c4fb8d62223d8431f159"
+    },
+    "P2/p2-graceful-stop-e2e/final": {
+      "checkId": "p2-graceful-stop-e2e",
+      "boundaryId": "P2",
+      "phase": "final",
+      "batchId": "a34944673165f80a87b2f24bdff5d94bd093f3ba1eb04db3dd4255a2753d3ff8",
+      "definitionHash": "c68b24b49785fe695af2b3487e39d03303cfc7e9d135e42246dc3d5da9d33984",
+      "basisHash": "a36cd5f9c90156813777c8cf3f1d585e844aa20cdd257a53ede6b8f486079716",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 8,
+      "durationSeconds": 26.1031,
+      "recordedAt": "2026-10-07T14:08:46Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P2-final-f1a09611b8f4.log",
+      "logSha256": "9738369f0f0c48943a9edf8d467cde9ff4d438875feac8d9c02f3b6872fc02da",
+      "inputsHash": "de3c414857df9f99904db4d52965774cc27974ac1ad869234e273ff92c81504b"
+    },
+    "P2/p2-graceful-stop-android/final": {
+      "checkId": "p2-graceful-stop-android",
+      "boundaryId": "P2",
+      "phase": "final",
+      "batchId": "a34944673165f80a87b2f24bdff5d94bd093f3ba1eb04db3dd4255a2753d3ff8",
+      "definitionHash": "02413d3ddec7b5e49b7926a61b65a97e8e70eafdcc5411d86bb12988560be626",
+      "basisHash": "d8c8aafc0d0b65fdf7929bca2d324a2eb2fddee8760661df0139455a502e1ac0",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 16.1346,
+      "recordedAt": "2026-10-07T14:09:02Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P2-final-ce6e5b9f0747.log",
+      "logSha256": "59f05a91587b5e478d03df0c4f00ccecdfeda33356d6ffc152e8abbecf2e2ccc",
+      "inputsHash": "de3c414857df9f99904db4d52965774cc27974ac1ad869234e273ff92c81504b"
+    },
+    "P2/p2-retry-context/final": {
+      "checkId": "p2-retry-context",
+      "boundaryId": "P2",
+      "phase": "final",
+      "batchId": "a34944673165f80a87b2f24bdff5d94bd093f3ba1eb04db3dd4255a2753d3ff8",
+      "definitionHash": "16bb965fe41fadf0f829abc7b3b74b923f2d54042e8da237985bfeb6c19d47a3",
+      "basisHash": "862e8044e7caf3dd407eeea96dfc0fe4ddb61818b71961ffaa1c125dd28409e0",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 5,
+      "durationSeconds": 4.4198,
+      "recordedAt": "2026-10-07T14:09:07Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P2-final-bb2421b4cc96.log",
+      "logSha256": "0c90918cbbd3ee103454a1fa6e2941171570623e50c11ddde3d7569a27718264",
+      "inputsHash": "0a7a4a3874c0623e5331f526cb040148d64b1667ffe2c4fb8d62223d8431f159"
+    },
+    "P2/p2-reconnect-call-wait/final": {
+      "checkId": "p2-reconnect-call-wait",
+      "boundaryId": "P2",
+      "phase": "final",
+      "batchId": "a34944673165f80a87b2f24bdff5d94bd093f3ba1eb04db3dd4255a2753d3ff8",
+      "definitionHash": "aceb45e9d264b1a18242f864f7adf46e10080bb5158b73cb181a2d8dde488a0d",
+      "basisHash": "fd0beed8d7c63c3a8d5856de5607351554a82f002913832d8bf74a8a58e68ba7",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 5,
+      "durationSeconds": 0.9355,
+      "recordedAt": "2026-10-07T14:09:08Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P2-final-04ded7db698a.log",
+      "logSha256": "bfb0e561e2c73d362099601533037b42cb3857edf51e3e47e305719b6c489f80",
+      "inputsHash": "0a7a4a3874c0623e5331f526cb040148d64b1667ffe2c4fb8d62223d8431f159"
+    },
+    "P2/p2-liveness-parity/final": {
+      "checkId": "p2-liveness-parity",
+      "boundaryId": "P2",
+      "phase": "final",
+      "batchId": "a34944673165f80a87b2f24bdff5d94bd093f3ba1eb04db3dd4255a2753d3ff8",
+      "definitionHash": "477ccba6eaa5439cad8d201e1f97d1b7fead3915979c9f0ace5f9efb54c93af6",
+      "basisHash": "f68ff4d0b61ad943162783afe4a1c8fc14290372ee5bcb1745ecad33cdf00998",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 3,
+      "durationSeconds": 0.294,
+      "recordedAt": "2026-10-07T14:09:08Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P2-final-07d2a306a929.log",
+      "logSha256": "b1952c377fc3503fde65afde4495ea80b9544814d5f2d15ef02cd0793db5bf78",
+      "inputsHash": "0a7a4a3874c0623e5331f526cb040148d64b1667ffe2c4fb8d62223d8431f159"
+    },
+    "P2/p2-dotnet-build/final": {
+      "checkId": "p2-dotnet-build",
+      "boundaryId": "P2",
+      "phase": "final",
+      "batchId": "a34944673165f80a87b2f24bdff5d94bd093f3ba1eb04db3dd4255a2753d3ff8",
+      "definitionHash": "d12e6e07646a3bbe08f062c524cb7bc4014c46ad0ef363737af3286b833bd997",
+      "basisHash": "c88f32095eb94f22bd9bb59638f768077e68a72d9abd96c94932f67a7d819821",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 0,
+      "durationSeconds": 2.051,
+      "recordedAt": "2026-10-07T14:09:10Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P2-final-baf74ecbaf03.log",
+      "logSha256": "ca5255488c888651fb5c134a678da71bbaeac5c85e2970018391abf618d5cee2",
+      "inputsHash": "2f15d05f6d0acc678e9c507d40abc720f42cdae91bbac8df2f5510a9320e56e7"
+    },
+    "P2/p2-static-categories/final": {
+      "checkId": "p2-static-categories",
+      "boundaryId": "P2",
+      "phase": "final",
+      "batchId": "a34944673165f80a87b2f24bdff5d94bd093f3ba1eb04db3dd4255a2753d3ff8",
+      "definitionHash": "c92c7d083e45accd4b1559ad78c5683e5c8472bd98c008c6cfbc11ed67eaebcf",
+      "basisHash": "6c4818073ff92d8fb3fa945abcc1221d0326943f6a28359befedfd7bc90e01dd",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 58,
+      "durationSeconds": 32.1489,
+      "recordedAt": "2026-10-07T14:09:42Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P2-final-6714262db728.log",
+      "logSha256": "54ae0cc73626a457ebb14d6d2b56e5aeb033cf1b95261a282130d3f617541b1f",
+      "inputsHash": "05d0d751d3af4ae9a15e90118ce267daf7e300641341fc4d73683844f414dee3"
+    },
+    "P2/p2-call-wait-e2e/final": {
+      "checkId": "p2-call-wait-e2e",
+      "boundaryId": "P2",
+      "phase": "final",
+      "batchId": "a34944673165f80a87b2f24bdff5d94bd093f3ba1eb04db3dd4255a2753d3ff8",
+      "definitionHash": "f0fa977545de8f1f8045a88ce4a42a1ace0fd97ea573620cfd3b70068d55d390",
+      "basisHash": "211043d0dd3195a63457cd07edc3c208d98e044c4a1292df92b9ca9753a09611",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 8,
+      "durationSeconds": 99.0133,
+      "recordedAt": "2026-10-07T14:11:21Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P2-final-568c3dbcda3e.log",
+      "logSha256": "414ae1c7a783d8200a0db353e711bb2b662e6fa39372a7617b1d9b6577be1e8c",
+      "inputsHash": "de3c414857df9f99904db4d52965774cc27974ac1ad869234e273ff92c81504b"
+    },
+    "P2/p2-call-wait-android/final": {
+      "checkId": "p2-call-wait-android",
+      "boundaryId": "P2",
+      "phase": "final",
+      "batchId": "a34944673165f80a87b2f24bdff5d94bd093f3ba1eb04db3dd4255a2753d3ff8",
+      "definitionHash": "7509576a05eb99789edd430176feb448a20c5226608028d2ccbc7b1988ad232a",
+      "basisHash": "f12305b22a90dfa9a117a8fc756a4a20c8b632a86acc6e175c9a0a09acb181e0",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 33.687,
+      "recordedAt": "2026-10-07T14:11:55Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P2-final-4ebad82da519.log",
+      "logSha256": "2c288376fc3271e7b3528bf3619cef36bd1409fc7736bd335b0206def0344f6a",
+      "inputsHash": "de3c414857df9f99904db4d52965774cc27974ac1ad869234e273ff92c81504b"
     }
   },
   "reviews": {
@@ -2475,6 +2805,337 @@
         "P1-F13"
       ],
       "recordedAt": "2026-10-07T12:29:55Z"
+    },
+    "P2": {
+      "reviewerId": "p2-reviewer-1",
+      "snapshotId": "a34944673165f80a87b2f24bdff5d94bd093f3ba1eb04db3dd4255a2753d3ff8",
+      "criterionIds": [
+        "R16.C2",
+        "R16.C3",
+        "R16.C4",
+        "R16.C5",
+        "R16.C14",
+        "R16.C25",
+        "R16.C26",
+        "R16.C30"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/reconnection.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C2",
+            "R16.C3",
+            "R16.C5",
+            "R16.C25",
+            "R16.C26"
+          ],
+          "sha256": "b203399cf01d6b0105ef6847fbb2735be657487df157ced3ff0f8696f8802df7"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C2",
+            "R16.C3",
+            "R16.C4",
+            "R16.C5",
+            "R16.C14",
+            "R16.C30"
+          ],
+          "sha256": "15d60a623289d9a1526572daa46dae37c79c827c4039685669b25d2c96386a9c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C2",
+            "R16.C3",
+            "R16.C4",
+            "R16.C5",
+            "R16.C14",
+            "R16.C25",
+            "R16.C26"
+          ],
+          "sha256": "94cb09158b76100e0f007ac95046c1d06853bb3e6c70ae27488234204b4ec7e5"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C2",
+            "R16.C3",
+            "R16.C4",
+            "R16.C5",
+            "R16.C14",
+            "R16.C25",
+            "R16.C26"
+          ],
+          "sha256": "1b9eea548bd0ba7ceeeec2ae4ff5c18dd46878d4265376ee3755473b3077369a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/hooks.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C4"
+          ],
+          "sha256": "6f3e2eeeae204942abc99ff1f38657376d3d2f7f935d7debce25531dd5530c37"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C2",
+            "R16.C3"
+          ],
+          "sha256": "a5802dde77be621518f280600d2ae5e086a9972b04e4fb6c8e69ab03db299b88"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/liveness.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C14",
+            "R16.C30"
+          ],
+          "sha256": "988a3e960b1d31e52ea3b94394c8c1ab49c4bc90bfb85d4f2a2ae129de58b652"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C14",
+            "R16.C30"
+          ],
+          "sha256": "e2bc9669c9ea26bb282ee921189071f0841167e810f46c3edc237de028922a4d"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/error.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C2",
+            "R16.C3"
+          ],
+          "sha256": "3fdfd19c165c86990a67e315e6dac7cfd9283cca9ce124c0bf739edc3c9a0ec2"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/lib.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C3",
+            "R16.C25"
+          ],
+          "sha256": "6c6eb009c54cbc362329b92efd88fbed0fff0d17413080abc07ae9aff2782787"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/reconnection.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C2",
+            "R16.C3",
+            "R16.C5",
+            "R16.C25"
+          ],
+          "sha256": "b203399cf01d6b0105ef6847fbb2735be657487df157ced3ff0f8696f8802df7"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C2",
+            "R16.C3",
+            "R16.C4",
+            "R16.C5",
+            "R16.C14",
+            "R16.C26",
+            "R16.C30"
+          ],
+          "sha256": "15d60a623289d9a1526572daa46dae37c79c827c4039685669b25d2c96386a9c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C3",
+            "R16.C4",
+            "R16.C14",
+            "R16.C25"
+          ],
+          "sha256": "94cb09158b76100e0f007ac95046c1d06853bb3e6c70ae27488234204b4ec7e5"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/hooks.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C4"
+          ],
+          "sha256": "6f3e2eeeae204942abc99ff1f38657376d3d2f7f935d7debce25531dd5530c37"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/liveness.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C30"
+          ],
+          "sha256": "988a3e960b1d31e52ea3b94394c8c1ab49c4bc90bfb85d4f2a2ae129de58b652"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/loopback_server.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C2",
+            "R16.C5",
+            "R16.C14",
+            "R16.C26"
+          ],
+          "sha256": "5461f47d2ba2c0ccd5193e7ae960caa731820beb593a61584e97012ab9e7fc29"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/connected_callback.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C2"
+          ],
+          "sha256": "dd27a8716ad7d4ece80ee654a9cae4cb3f98b92bf6863c9fc2ddf41d40e1a9af"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/restart_after_stop.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C3"
+          ],
+          "sha256": "c2f307b6c964ad4f7f83aba7756dc46018af26dcb70ebe1a39929b28b7cf291c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/lifecycle_events.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C4"
+          ],
+          "sha256": "126e44411332e9f045782e0bfe93cd0ac2264f090141c86a563a24d4c5916a8c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/connection_id.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C5"
+          ],
+          "sha256": "05f6f4499c361c7addeb0328f36a2b72558ece37cbae90bebc010bab28c12849"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/graceful_stop.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C14"
+          ],
+          "sha256": "c69f69cf3170091cca730bcc3edb31e0046d66742e4497812ef58a9646a70f86"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/reconnect_call_wait.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C26"
+          ],
+          "sha256": "2ea0ab853efb8ae15244d66a466484a96b0cabdc2ceff21d863915e66ca53971"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C2",
+            "R16.C3",
+            "R16.C4",
+            "R16.C5",
+            "R16.C14",
+            "R16.C26"
+          ],
+          "sha256": "dbd4e01ce51e0fc99527083550febc7519690d372c96b1129c9fc36b22bee409"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/ConnectedHub.cs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C2",
+            "R16.C3"
+          ],
+          "sha256": "8d27035bd97be4abf245ccb9c0c09275ad08be481839a22d03b7c7a21f5ba1b8"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/CloseCountingHubProtocol.cs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C14"
+          ],
+          "sha256": "622263f9693d7746fb2a9bcec64a9c795d45f4237eba6f9ebc59699de75b1816"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/Program.cs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C14",
+            "R16.C26"
+          ],
+          "sha256": "c59b7cdf579290c692560a73ed91f1bbf577b3344cb068dffac0522ab649e52f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/06-connection-lifecycle.md",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C3",
+            "R16.C4"
+          ],
+          "sha256": "a1208f7f6a82f208a4f7662f36327a2b9aad33a1df550a0cc984ddcf002c8bae"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/browser_socket.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C14"
+          ],
+          "sha256": "e19d00a90fe4cc56aa273140dae8dc84ae0a91a96ef776c97f33fd86590c0ed5"
+        }
+      ],
+      "summaryMarkdown": "P2 passes; all nine findings stay resolved.\n\nTwo fixes since the last round, both verified in source:\n- **`invoke_internal`:** when the send fails, it now records the failure and returns the send error itself. A call that waited on a failed reconnect attempt therefore gets that attempt's error, as R16.C26 requires, instead of the error the ended run fails pending work with. The loopback test now also checks a concurrent invoke.\n- **Browser `disconnect_internal`:** it sends the Close message, then a spawned task closes the WebSocket once `buffered_amount()` is 0, waiting at most the close timeout. `stop()`'s wait is still bounded by the same timeout. During that short window, inbound frames are harmless: the callback registry is closed, pending work has already failed, and `socket_closed` ignores a socket whose generation has ended.",
+      "findingIds": [
+        "P2-F1",
+        "P2-F2",
+        "P2-F3",
+        "P2-F4",
+        "P2-F5",
+        "P2-F6",
+        "P2-F7",
+        "P2-F8",
+        "P2-F9"
+      ],
+      "recordedAt": "2026-10-07T14:12:02Z"
     }
   },
   "checkpoints": {
@@ -2509,6 +3170,14 @@
       },
       "reviewHash": "41050e2a67737fcc802fbc35c6063d990c70bf7e92b94c8116f5a246cc8e82ba",
       "recordedAt": "2026-10-07T12:30:10Z"
+    },
+    "P2": {
+      "snapshotId": "a34944673165f80a87b2f24bdff5d94bd093f3ba1eb04db3dd4255a2753d3ff8",
+      "commits": {
+        "rayx-signalr": "1722e99760efcf441310c3678b20d0bfe542e2df"
+      },
+      "reviewHash": "e14715db8d77788a68809340b241b829460355ecf2f0383559655629355651c8",
+      "recordedAt": "2026-10-07T14:12:16Z"
     }
   },
   "findings": [
@@ -3389,9 +4058,272 @@
         }
       ],
       "boundaryId": "P1"
+    },
+    {
+      "id": "P2-F1",
+      "boundaryId": "P2",
+      "criterionIds": [
+        "R16.C26"
+      ],
+      "descriptionMarkdown": "**Severity: major (the criterion's core behavior has no proof).** R16.C26 is about a call made while a *reconnect* attempt is in flight. The reconnect path (`ReconnectionContext::attempt`, `src/communication/client_tokio.rs:389-411`) swaps in `Attempting(outcome)` and, on failure, restores the resting `Reconnecting` state in `attempt_with` (`:414-437`). The start path is different: `CommunicationClient::start` calls `attempt_with` with `DisconnectionReason::Starting` (`:1202-1237`).\n\n**Expected:** the `reconnect_call_wait_` group proves two things:\n- a call made while an automatic, manual or `resume` reconnect attempt is in flight waits, then runs on the new connection;\n- a call made during a failed reconnect attempt fails with that attempt's error, and later calls during the next policy delay fail at once again.\n\n**Observed:** the group's three tests (`src/client/client.rs:1997-2072`) cover only the *start* attempt (`a_call_during_the_start_runs_on_the_new_connection` and `a_call_during_a_failed_attempt_fails_with_its_error`, both while the status is `Connecting`) and the policy delay. No unit, e2e or fixture test makes a call during a reconnect attempt. The browser path (`send_on`, `src/communication/client_wasm.rs:636-650`) is untested too.\n\n**Repair:** add `reconnect_call_wait_` tests on the loopback server (`src/communication/loopback_server.rs`):\n- start the client, call `drop_connection()`, and use a zero-delay policy with a `handshake_delay` so the reconnect attempt is in flight (status `Reconnecting`). Then make a `send_with_args` call and assert that the server records it on the *second* connection (`negotiations() == 2`).\n- add a variant whose reconnect attempt fails, for example a server that refuses the second upgrade, or a short connect timeout. Assert that the call fails with that attempt's error kind, and that a later call during the delay fails at once.",
+      "severity": "major",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "reconnect_call_wait_a_call_during_a_reconnect_attempt_runs_on_the_new_connection"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "reconnect_call_wait_a_call_during_a_failed_reconnect_attempt_gets_its_error"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/loopback_server.rs",
+          "symbol": "LoopbackOptions::reject_after"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/reconnect_call_wait.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "symbol": "reconnect_call_wait"
+        }
+      ]
+    },
+    {
+      "id": "P2-F2",
+      "boundaryId": "P2",
+      "criterionIds": [
+        "R16.C4"
+      ],
+      "descriptionMarkdown": "**Severity: minor (a rare race that breaks the D18 event order on native).** Native lifecycle events are queued *after* the connection-state lock is released, so concurrent state changes can queue them out of order.\n\n**Observed:**\n- `transport_dropped` drops the guard (`src/communication/client_tokio.rs:711-712`) before it calls `hooks.reconnecting` (`:714`). A concurrent `close_locally` (`:1290-1321`) can queue `Closed(None)` (`:1319`) first, which gives `Closed` and then `Reconnecting`.\n- After a successful automatic run, `hooks.reconnected(self.coordinator.connection_id())` (`:727`) runs after the new connection was installed and the lock released (`:490`). The new receiver task runs on another worker. If the new transport drops at once, its `transport_dropped` can queue `Reconnecting` before this `Reconnected`, which then reads `connection_id() == None` because the state is `Reconnecting`.\n- `fail_generation` (`:565-566`) has the same unlocked window against a racing `start`.\n\nThe .NET client raises these events while it holds its connection lock: `RunReconnectedEvent` and `CompleteClose` run under the lock, and `HandleConnectionClose` takes the lock first. The browser target is single-threaded and not affected.\n\n**Expected:** events are queued in the order of the state changes, and `Reconnected` carries the id of the connection the run installed.\n\n**Repair:** queue each event while the state guard is held. Only the cheap `unbounded_send` moves under the lock; hooks still run on their own task:\n- `reconnecting` before `drop(guard)` in `transport_dropped`;\n- `closed` before `drop(guard)` in `fail_generation`, `close_locally` and the other close paths;\n- `reconnected(id)` from inside `attempt_once` (under the guard, with the id passed to `complete_connection`) when the attempt belongs to an automatic run.\n\nAdd a `lifecycle_events_` test on the loopback server that drops the reconnected transport immediately and asserts `Reconnecting, Reconnected(Some(id)), Reconnecting, ...`.",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "ReconnectionContext::transport_dropped"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "ReconnectionContext::attempt_once"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "ReconnectionContext::fail_generation"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "lifecycle_events_reconnected_precedes_the_events_of_the_next_drop"
+        }
+      ]
+    },
+    {
+      "id": "P2-F3",
+      "boundaryId": "P2",
+      "criterionIds": [
+        "R16.C4"
+      ],
+      "descriptionMarkdown": "**Severity: minor (an observable .NET parity gap that this criterion owns).** Stopping during an automatic reconnect raises `Closed(None)`.\n\n**Observed:** `local_close` aborts the reconnect run (`src/communication/reconnection.rs:506-509`). The run's `end_after_exhaustion` then no longer owns the generation, and `close_locally` raises `hooks.closed(None)` (`src/communication/client_tokio.rs:1319`). The browser's `disconnect_internal` does the same (`src/communication/client_wasm.rs:1216`ff).\n\n**Expected (.NET `HubConnection.ReconnectAsync`):** when `StopAsync` runs while the client is `Reconnecting`, the reconnect loop calls `CompleteClose(new OperationCanceledException(\"Connection stopped during reconnect delay/attempt. Done reconnecting.\"))`, so the `Closed` event receives a non-null exception. `Closed(null)` is raised only when a *connected* client is stopped. R16.C4's text (\"`Closed(None)` after `disconnect`\") does not separate the two cases.\n\n**Repair:**\n- When `close_locally` or `disconnect_internal` supersedes a running automatic reconnect (lifecycle `Reconnecting` with an automatic run), raise `Closed(Some(Error::canceled(\"the connection was stopped during a reconnect\")))`. Keep `Closed(None)` for a connected client.\n- Amend R16.C4 to state both cases, and document them in `docs/06-connection-lifecycle.md` and in the skill's lifecycle reference.\n- Add a `lifecycle_events_` test: the native `stateful_client` with a long delay, then `disconnect`.",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "CommunicationClient::close_locally"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "symbol": "CommunicationClient::disconnect_internal"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "lifecycle_events_a_stop_during_a_reconnect_closes_with_a_cancellation"
+        }
+      ]
+    },
+    {
+      "id": "P2-F4",
+      "boundaryId": "P2",
+      "criterionIds": [
+        "R16.C14"
+      ],
+      "descriptionMarkdown": "**Severity: minor.** `disconnect()` starts the same graceful close as `stop()` but without the close-timeout bound. Dropping the last handle calls `disconnect()`, so it has the same gap.\n\n**Observed:**\n- `disconnect` drops the writer `JoinHandle` (`src/communication/client_tokio.rs:1261-1264`). Only `stop` applies `close_timeout` and aborts the writer (`:1266-1283`).\n- The graceful writer ends with `sink.close()` (`:904`). In tokio-websockets 0.13.3, `poll_close` keeps reading until the server's Close arrives, and only then shuts the socket down.\n- If the peer never answers (dead network, half-open TCP), the detached writer task and its socket stay alive indefinitely. This happens once per `disconnect`.\n\n**Expected (D18 / `StopAsync`):** `disconnect()` starts the same bounded stop. The transport closes, or is dropped after `with_close_timeout`, as .NET's `CloseTimeout` bounds every stop.\n\n**Repair:** in `disconnect` and `release`, spawn on the connection's runtime the same `timeout(close_timeout, writer)` plus `abort()` that `stop` uses, instead of dropping the handle. Add a `graceful_stop_` test with a sink or server that never answers the Close, and assert that the writer task ends within the close timeout after `disconnect`.",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "bounded_close"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "Communication::disconnect"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "graceful_stop_waits_at_most_the_close_timeout"
+        }
+      ]
+    },
+    {
+      "id": "P2-F5",
+      "boundaryId": "P2",
+      "criterionIds": [
+        "R16.C26",
+        "R16.C2"
+      ],
+      "descriptionMarkdown": "**Severity: minor (narrow race).** A call made at the very beginning of a native `start` can be failed and still be sent on the new connection.\n\n**Observed:** `CommunicationClient::start` publishes `Attempting(outcome)` and releases the state lock (`src/communication/client_tokio.rs:1206-1218`). Only then does it call `actions.fail_pending(&replaced_by_reconnect())` (`:1219-1220`). A concurrent `invoke` can register its invocation in this window and wait in `writer()` (`:1331-1349`). Its result is then failed with `Transport` (\"replaced by a new logical connection\"). Yet when the attempt succeeds, its frame is still written, so the hub method runs while the caller sees an error.\n\n**Expected (R16.C26):** a call made while the start attempt is in flight waits for it, runs on the new connection, and returns its real result.\n\n**Repair:** fail the old pending work before publishing `Attempting`, inside the state lock before the `*state = ...` assignment (or before taking the lock, with a re-check). Then only work that predates the start is failed. The browser target is not affected because its start is synchronous at this point.",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "Communication::start"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "reconnect_call_wait_a_call_during_the_start_runs_on_the_new_connection"
+        }
+      ]
+    },
+    {
+      "id": "P2-F6",
+      "boundaryId": "P2",
+      "criterionIds": [
+        "R16.C2",
+        "R16.C3",
+        "R16.C4"
+      ],
+      "descriptionMarkdown": "**Severity: minor (resource leaks and hook isolation).** Three separate problems:\n\n1. **Hooks that capture a client form a reference cycle.**\n   - A hook is stored in `LifecycleHooks` (`src/communication/hooks.rs:142-176`), which the client owns.\n   - The common .NET pattern `Closed += ... StartAsync()` becomes `client.on_closed({ let c = client.clone(); move |_| ... c.start() ... })` in Rust.\n   - The captured handle counts in `release`'s `Arc::strong_count(&self._state)` (`src/communication/client_tokio.rs:1251-1259`). So dropping every user handle never stops the connection. Even after `disconnect`, the client, its runtime-bound state and the hook are never freed.\n   - The docs promise \"A stopped client is freed with its last handle\" (`docs/06-connection-lifecycle.md:215-219`) and do not mention this case.\n   - Callbacks avoid the cycle because they receive the client through `InvocationContext`; hooks get no such handle.\n2. **A failed start keeps the callback registry's owner handle.**\n   - `start` opens the registry with a client handle (`:1216`, `src/execution/callback.rs:416-438`), but `fail_start` (`:572-580`) never releases it.\n   - The test `client_restart_registrations_never_keep_a_stopped_client_alive` (`src/client/client.rs:2074-2097`) even asserts that the dropped client stays open after a refused start.\n   - With `new`, `register`, a failed `start` and then dropping all handles, the client leaks. .NET keeps nothing alive after a failed `StartAsync`.\n3. **Hooks can block the connection on a current-thread runtime.**\n   - Hooks are synchronous `Fn`s run through `runtime.spawn` (`hooks.rs:240-257`).\n   - On a `current_thread` Tokio runtime, a slow hook stalls the reader, the writer and keep-alive on the same thread. That contradicts \"hooks never block the connection\".\n   - The behavior is only tested on a 2-worker runtime (`hooks.rs:390-417`). .NET runs these events on the thread pool.\n\n**Repair:**\n1. Offer a non-owning handle (for example `SignalRClient::downgrade() -> WeakSignalRClient` with `upgrade()`), or pass a client handle to hooks as callbacks get one. Document the cycle in `docs/06` and in the skill reference.\n2. Release the registry owner when a start fails, without ending the registrations. Change the test to assert that the client is freed.\n3. Natively, run each hook event through `spawn_blocking` while keeping events one at a time, or document the current-thread caveat. Add a `lifecycle_events_` test on a current-thread runtime.",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "WeakSignalRClient"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/execution/callback.rs",
+          "symbol": "CallbackRegistry::owner"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/hooks.rs",
+          "symbol": "run"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "client_restart_callbacks_and_hooks_never_keep_a_client_alive"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "client_restart_a_failed_start_never_keeps_the_client_alive"
+        }
+      ]
+    },
+    {
+      "id": "P2-F7",
+      "boundaryId": "P2",
+      "criterionIds": [
+        "R16.C14"
+      ],
+      "descriptionMarkdown": "**Severity: minor (weak proof).** The `graceful_stop_` group proves the Close message only at the writer level, and never proves the close-timeout bound.\n\n**Observed:**\n- `graceful_stop_writes_queued_frames_then_the_close_message_then_closes` (`src/communication/client_tokio.rs:2637-2679`) drives `run_writer` with `WRITER_GRACEFUL` set by hand.\n- `graceful_stop_returns_at_once_without_a_transport` (`src/client/client.rs:1910-1926`) has no transport.\n- No test checks that `SignalRClient::stop()` and `disconnect()` actually reach `close_gracefully`, or that a server receives `{\"type\":7}` / `[7,nil,false]` before the WebSocket Close.\n- No test checks that `stop()` returns after `with_close_timeout` when the transport does not close.\n- The e2e and fixture `graceful-stop` cells assert only that `OnDisconnectedAsync` saw no exception. ASP.NET Core reports the same for a plain WebSocket Close without the SignalR Close message, so the browser's Close message (`disconnect_internal` in `client_wasm.rs`) is unproven everywhere.\n\n**Repair:**\n- Add `graceful_stop_` tests on the loopback server, which already records every record except Pings:\n  - `stop().await` and `disconnect()` each make the server record `{\"type\":7}` after the sends queued before it;\n  - `stop()` against a server that never answers the Close returns within `with_close_timeout` plus a margin.\n- For the browser, have the test service record a received Close message (for example counted in a hub filter or middleware), so the fixture can assert it.",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "graceful_stop_sends_queued_messages_then_the_close_message"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "graceful_stop_waits_at_most_the_close_timeout"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/CloseCountingHubProtocol.cs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/graceful_stop.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "symbol": "graceful_stop"
+        }
+      ]
+    },
+    {
+      "id": "P2-F8",
+      "boundaryId": "P2",
+      "criterionIds": [
+        "R16.C25"
+      ],
+      "descriptionMarkdown": "**Severity: minor (API parity).** `RetryContext` is `#[non_exhaustive]` and its constructor is `pub(crate)` (`src/communication/reconnection.rs:534-558`). Applications therefore cannot build one to unit-test their own `next_retry_delay_with` implementations. In .NET, `RetryContext` is a public type with settable properties, which allows exactly that.\n\n**Repair:** add a public constructor, for example `RetryContext::new(previous_retry_count, elapsed, retry_reason)`, and keep `#[non_exhaustive]`. Document it in `docs/07-reconnection.md` and in the skill's reconnection reference, and use it in a `retry_context_` doc test.",
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/reconnection.rs",
+          "symbol": "RetryContext::new"
+        }
+      ]
+    },
+    {
+      "id": "P2-F9",
+      "boundaryId": "P2",
+      "criterionIds": [
+        "R16.C3",
+        "R16.C4"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Severity: minor (the public documentation contradicts the repaired behavior and its restart example misleads users).** The P2-F3 and P2-F6 repairs changed what `Closed` reports and where hooks run, but the main public examples and the rustdoc were not updated to match.\n\n**Observed:**\n- The restart example the P2-F6 repair added treats every `Some(error)` as a remote end: `if error.is_none() { return; // stopped by the application }`, then `weak.upgrade()` and `client.start()`. The example appears in two places: the `WeakSignalRClient` rustdoc (`src/client/client.rs:289-303`) and `docs/06-connection-lifecycle.md:97-109`.\n- Since the P2-F3 repair, a `disconnect()` or `stop()` that interrupts a reconnect raises `Closed(Some(Canceled))` (`client_tokio.rs` `close_locally`; browser `disconnect_internal`). An application that follows the example therefore restarts a client it has just stopped, if its stop came during a reconnect. The handle is still alive then, so `upgrade()` succeeds.\n- The `on_closed` rustdoc (`src/client/client.rs:1180-1193`) is stale. It still says the argument is `None` after `disconnect` and does not mention the `Canceled` case. It also says hooks run \"natively on the connection's runtime\", but they now run on the Tokio blocking pool (`hooks.rs` `run`). `docs/06` and the skill's lifecycle reference already describe both points correctly.\n\n**Expected:** the rustdoc and docs examples describe the R16.C4 behavior. A restart-in-`Closed` example restarts only after a remote end. For example, it returns when `error` is `None` or `error.kind() == ErrorKind::Canceled`, mirroring how .NET applications check for `OperationCanceledException`, or when `client.status() == ConnectionStatus::Closed`.\n\n**Repair:**\n- Fix the restart example in the `WeakSignalRClient` rustdoc and in `docs/06-connection-lifecycle.md` so that it also returns on a `Canceled` close. Mirror the fix in the skill reference if it shows the pattern.\n- Update the `on_closed` rustdoc: add the `Canceled` case, and say that hooks run on the Tokio blocking pool natively.\n- Keep the examples compiling.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "WeakSignalRClient"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/client.rs",
+          "symbol": "SignalRClient::on_closed"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/06-connection-lifecycle.md"
+        }
+      ]
     }
   ],
-  "handoffMarkdown": "InvocationAction: for R = () (TypeId check) a Result completion is discarded (server error in the compact shape still fails it). Group void_invoke_ (JSON incl. reordered/null results, MessagePack). Docs for all P1 tasks: docs/03, 04, 13, README, skill callbacks.md and calls-and-streams.md; docs/04 examples compile (scratch doc-examples crate).",
+  "handoffMarkdown": "LivenessConfig::validate replaced by warnings()/warn(): new() logs warnings for zero keep-alive/server timeout (both act as 1 s, the .NET timer tick, applied in LivenessTracker::new via timer()), zero handshake/connect timeout, and server timeout <= keep-alive; nothing rejected. Removed liveness_invalid_options_fail_connect_before_io (behavior owned by R16.C30). Group liveness_parity_ (3). Sprint docs done for all P2 tasks: docs/02, 04 (section renamed registrations-keep-a-started-client-alive), 06 (rewritten: building/starting, status incl. Connecting, connection id, lifecycle events, stopping, calls during attempts, liveness incl. close timeout, pause), 07 (no-attempt drop, hooks, DelayListPolicy, RetryContext example), 11 (InvalidState, call table), 13 (state machine, Runs, AttemptOutcome, hooks, graceful stop; stale P1 callback-mutex sentence fixed), README (highlight + Start, observe and stop), skill SKILL.md, references lifecycle (rewritten), reconnection, setup-and-connection. Changed examples compile (scratch p2_doccheck.py).",
   "protectedPaths": {
     "rayx-signalr": {
       ".agentx/tasks/resilient-reconnect-and-production-gates/**": "a4110a3f5f2c68d64ddf8fbedb70479c98f46dde78b064b5b3ac826772db49a6",
