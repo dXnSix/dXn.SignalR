@@ -1,23 +1,28 @@
-use log::error;
 use serde::Serialize;
 
-use crate::protocol::invoke::Invocation;
+use crate::{error::Error, protocol::invoke::Invocation};
 
 /// Lets the arguments to be configured for a method on the Hub
 pub struct ArgumentConfiguration {
-    invocation: Option<Invocation>,
+    invocation: Invocation,
+    /// The first argument that could not be encoded; the call then fails with it.
+    error: Option<Error>,
 }
 
 impl ArgumentConfiguration {
     pub(crate) fn new(invocation: Invocation) -> Self {
         Self {
-            invocation: Some(invocation),
+            invocation,
+            error: None,
         }
     }
 
     /// Adds an argument to the method call configuration.
     ///
     /// The arguments do not have names; the order of the arguments must match the order expected by the hub method.
+    ///
+    /// An argument that cannot be serialized makes the call fail with an
+    /// [`ErrorKind::Serialization`](crate::ErrorKind::Serialization) error instead of sending it.
     ///
     /// # Arguments
     ///
@@ -31,7 +36,7 @@ impl ArgumentConfiguration {
     ///
     /// ```ignore
     /// let client = SignalRClient::connect("localhost", "test").await.unwrap();
-    /// let response: Result<bool, String> = client.invoke_with_args("PushEntity".to_string(), |c| {
+    /// let response: Result<bool, rayx_signalr::Error> = client.invoke_with_args("PushEntity".to_string(), |c| {
     ///     c.argument(TestEntity {
     ///         text: "push1".to_string(),
     ///         number: 100,
@@ -51,22 +56,20 @@ impl ArgumentConfiguration {
     /// }
     /// ```
     pub fn argument<T: Serialize>(&mut self, value: T) -> &mut ArgumentConfiguration {
-        if self.invocation.is_some() {
-            let succ = self.invocation.as_mut().unwrap().with_argument(value);
-
-            if succ.is_err() {
-                error!("Argument could not be put into invocation data.");
+        if self.error.is_none() {
+            if let Err(error) = self.invocation.with_argument(value) {
+                self.error = Some(error);
             }
         }
 
         self
     }
 
-    pub(crate) fn build_invocation(mut self) -> Invocation {
-        if self.invocation.is_some() {
-            self.invocation.take().unwrap()
-        } else {
-            panic!("Invocation cannot be built before it is provided");
+    /// The configured invocation, or the error of the first argument that could not be encoded.
+    pub(crate) fn build_invocation(self) -> Result<Invocation, Error> {
+        match self.error {
+            Some(error) => Err(error),
+            None => Ok(self.invocation),
         }
     }
 }

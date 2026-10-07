@@ -1,4 +1,5 @@
 use super::{messages::MessageParser, negotiate::MessageType};
+use crate::error::Error;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Debug};
 
@@ -49,12 +50,13 @@ impl Invocation {
         }
     }
 
-    pub fn with_argument<T: Serialize>(&mut self, data: T) -> Result<(), String> {
+    pub fn with_argument<T: Serialize>(&mut self, data: T) -> Result<(), Error> {
         // Serialize to msgpack bytes (named map format) for MessagePack protocol.
         #[cfg(feature = "messagepack")]
         {
-            let msgpack_bytes = rmp_serde::to_vec_named(&data)
-                .map_err(|e| format!("MessagePack serialization error: {}", e))?;
+            let msgpack_bytes = rmp_serde::to_vec_named(&data).map_err(|error| {
+                Error::serialization(format!("cannot encode an argument as MessagePack: {error}"))
+            })?;
             if let Some(ref mut vec) = self.msgpack_args {
                 vec.push(msgpack_bytes);
             } else {
@@ -62,8 +64,9 @@ impl Invocation {
             }
         }
 
-        let json = MessageParser::to_json_value(&data)
-            .map_err(|error| format!("Serialization error: {error}"))?;
+        let json = MessageParser::to_json_value(&data).map_err(|error| {
+            Error::serialization(format!("cannot encode an argument as JSON: {error}"))
+        })?;
         self.arguments.get_or_insert_with(Vec::new).push(json);
         Ok(())
     }

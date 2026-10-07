@@ -12,6 +12,12 @@ pub(crate) const NO_RUNTIME: &str = "rayx-signalr needs a Tokio runtime for nati
 call connect from within a Tokio runtime, or pass one with \
 ConnectionConfiguration::with_runtime_handle(tokio::runtime::Handle)";
 
+/// The configuration error of a native connection without a Tokio runtime.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn no_runtime() -> crate::Error {
+    crate::Error::configuration("with_runtime_handle", NO_RUNTIME)
+}
+
 #[derive(Clone)]
 pub(crate) enum Authentication {
     None,
@@ -444,6 +450,20 @@ impl ConnectionConfiguration {
         self
     }
 
+    /// Bounds connection setup: each negotiate request, and opening the transport (natively the
+    /// TCP connection, TLS and the WebSocket upgrade; in browsers opening the WebSocket). Browsers
+    /// abort a negotiate `fetch` that exceeds it. Applies to `connect` and to every reconnect
+    /// attempt. Defaults to 120 s, the official .NET client's bound. Must be greater than zero,
+    /// or `connect` fails before I/O.
+    ///
+    /// A setup that exceeds the bound fails with [`ErrorKind::Timeout`](crate::ErrorKind::Timeout)
+    /// naming [`TimeoutOperation::Negotiate`](crate::TimeoutOperation::Negotiate) or
+    /// [`TimeoutOperation::Connect`](crate::TimeoutOperation::Connect).
+    pub fn with_connect_timeout(&mut self, timeout: Duration) -> &ConnectionConfiguration {
+        self._liveness.connect_timeout = timeout;
+        self
+    }
+
     /// Enables ASP.NET Core stateful reconnect for this connection.
     pub fn with_stateful_reconnect(
         &mut self,
@@ -492,11 +512,11 @@ impl ConnectionConfiguration {
     /// The runtime for this connection: the configured handle, else the ambient runtime at
     /// `connect`, else an error that explains both options. Native only.
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn resolve_runtime(&self) -> Result<tokio::runtime::Handle, String> {
+    pub(crate) fn resolve_runtime(&self) -> Result<tokio::runtime::Handle, crate::Error> {
         self._runtime
             .clone()
             .or_else(|| tokio::runtime::Handle::try_current().ok())
-            .ok_or_else(|| NO_RUNTIME.to_string())
+            .ok_or_else(no_runtime)
     }
 
     /// Binds this connection to a Tokio runtime. Native only.

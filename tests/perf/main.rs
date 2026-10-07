@@ -224,6 +224,7 @@ impl Workloads {
             let _ = protocol;
         })
         .await
+        .map_err(|error| error.to_string())
     }
 
     async fn echo(client: &mut SignalRClient, payload: &str) -> Result<(), String> {
@@ -231,7 +232,8 @@ impl Workloads {
             .invoke_with_args::<String, _>("Echo".to_string(), |arguments| {
                 arguments.argument(payload);
             })
-            .await?;
+            .await
+            .map_err(|error| error.to_string())?;
         if echoed.len() == payload.len() {
             Ok(())
         } else {
@@ -324,10 +326,14 @@ impl Workloads {
                 arguments.argument(&self.payload);
             })
             .await
+            .map_err(|error| error.to_string())
     }
 
     async fn sink_count(client: &mut SignalRClient, expected: usize) -> Result<(), String> {
-        let received = client.invoke::<i64>("SinkCount".to_string()).await?;
+        let received = client
+            .invoke::<i64>("SinkCount".to_string())
+            .await
+            .map_err(|error| error.to_string())?;
         if usize::try_from(received).ok() == Some(expected) {
             Ok(())
         } else {

@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use log::{debug, trace};
 
-use crate::protocol::negotiate::MessageType;
+use crate::{error::Error, protocol::negotiate::MessageType};
 
 /// The log target of the stateful sequencing records: tracked and received sequence ids with their
 /// decisions, Acks, Sequence messages and resend ranges at `debug`, each tagged with the physical
@@ -61,12 +61,24 @@ pub(crate) struct StatefulMessageBuffer {
 
 /// Returned when a writer of a lost transport tries to track a frame.
 #[cfg(any(not(target_arch = "wasm32"), test))]
-pub(crate) const STALE_TRANSPORT: &str = "The connection was lost before the message was sent";
+pub(crate) const STALE_TRANSPORT: &str = "the connection was lost before the message was sent";
+
+/// The configuration setting that sizes the replay buffer.
+const BUFFER_SETTING: &str = "StatefulReconnectConfig::buffer_size_bytes";
+
+fn overflow(counter: &str) -> Error {
+    Error::protocol(format!(
+        "the {counter} stateful sequence counter overflowed"
+    ))
+}
 
 impl StatefulMessageBuffer {
-    pub(crate) fn new(capacity: usize) -> Result<Self, String> {
+    pub(crate) fn new(capacity: usize) -> Result<Self, Error> {
         if capacity == 0 {
-            return Err("Stateful reconnect buffer size must be greater than zero".to_string());
+            return Err(Error::configuration(
+                BUFFER_SETTING,
+                "the stateful reconnect buffer size must be greater than zero",
+            ));
         }
         Ok(Self {
             capacity,
@@ -98,9 +110,12 @@ impl StatefulMessageBuffer {
         generation: u64,
         message_type: MessageType,
         payload: SerializedFrame,
-    ) -> Result<TrackResult, String> {
+    ) -> Result<TrackResult, Error> {
         if generation != self.transport_generation {
-            return Err(STALE_TRANSPORT.to_string());
+            return Err(Error::transport_failure(
+                Some(crate::communication::transport::TransportKind::WebSockets),
+                STALE_TRANSPORT,
+            ));
         }
         self.track(message_type, payload)
     }
@@ -109,16 +124,19 @@ impl StatefulMessageBuffer {
         &mut self,
         message_type: MessageType,
         payload: SerializedFrame,
-    ) -> Result<TrackResult, String> {
+    ) -> Result<TrackResult, Error> {
         self.ensure_active()?;
         if !is_trackable(message_type) {
             return Ok(TrackResult::Bypass);
         }
         let bytes = payload.len();
         if bytes > self.capacity {
-            return Err(format!(
-                "Serialized frame size {bytes} exceeds stateful reconnect capacity {}",
-                self.capacity
+            return Err(Error::configuration(
+                BUFFER_SETTING,
+                format!(
+                    "a {bytes}-byte message exceeds the {}-byte stateful reconnect buffer",
+                    self.capacity
+                ),
             ));
         }
         if self.resending || self.buffered_bytes + bytes > self.capacity {
@@ -136,7 +154,7 @@ impl StatefulMessageBuffer {
         self.next_outgoing = self
             .next_outgoing
             .checked_add(1)
-            .ok_or_else(|| "Outgoing stateful sequence counter overflow".to_string())?;
+            .ok_or_else(|| overflow("outgoing"))?;
         self.buffered_bytes += bytes;
         self.frames.push_back(BufferedFrame {
             sequence_id,
@@ -155,8 +173,8 @@ impl StatefulMessageBuffer {
     pub(crate) fn receive_control(
         &mut self,
         message_type: MessageType,
-        sequence_id: Result<u64, String>,
-    ) -> Result<(), String> {
+        sequence_id: Result<u64, Error>,
+    ) -> Result<(), Error> {
         let name = match message_type {
             MessageType::Ack => "ack",
             MessageType::Sequence => "sequence",
@@ -180,16 +198,16 @@ impl StatefulMessageBuffer {
         }
     }
 
-    pub(crate) fn acknowledge(&mut self, sequence_id: u64) -> Result<usize, String> {
+    pub(crate) fn acknowledge(&mut self, sequence_id: u64) -> Result<usize, Error> {
         self.ensure_active()?;
         if let Err(error) = crate::protocol::stateful::validate_sequence_id(sequence_id) {
             return Err(self.rejected("ack", sequence_id, "zero", error));
         }
         if sequence_id >= self.next_outgoing {
-            let error = format!(
+            let error = Error::protocol(format!(
                 "Ack {sequence_id} is beyond the highest sent sequence {}",
                 self.next_outgoing - 1
-            );
+            ));
             return Err(self.rejected("ack", sequence_id, "beyond-highest-sent", error));
         }
         if sequence_id <= self.last_acknowledged {
@@ -225,7 +243,7 @@ impl StatefulMessageBuffer {
         Ok(released)
     }
 
-    pub(crate) fn disconnected(&mut self) -> Result<(), String> {
+    pub(crate) fn disconnected(&mut self) -> Result<(), Error> {
         self.ensure_active()?;
         debug!(
             target: TRACE_TARGET,
@@ -242,21 +260,23 @@ impl StatefulMessageBuffer {
         Ok(())
     }
 
-    pub(crate) fn reset_incoming_sequence(&mut self, sequence_id: u64) -> Result<(), String> {
+    pub(crate) fn reset_incoming_sequence(&mut self, sequence_id: u64) -> Result<(), Error> {
         self.ensure_active()?;
         if let Err(error) = crate::protocol::stateful::validate_sequence_id(sequence_id) {
             return Err(self.rejected("sequence", sequence_id, "zero", error));
         }
         if !self.awaiting_sequence {
-            let error = "Unexpected Sequence message while transport is active".to_string();
+            let error = Error::protocol("a Sequence message arrived while the transport is active");
             return Err(self.rejected("sequence", sequence_id, "transport-active", error));
         }
         let maximum = self
             .highest_incoming
             .checked_add(1)
-            .ok_or_else(|| "Incoming stateful sequence counter overflow".to_string())?;
+            .ok_or_else(|| overflow("incoming"))?;
         if sequence_id > maximum {
-            let error = format!("Sequence {sequence_id} creates a future gap beyond {maximum}");
+            let error = Error::protocol(format!(
+                "Sequence {sequence_id} leaves a gap after {maximum}"
+            ));
             return Err(self.rejected("sequence", sequence_id, "gap", error));
         }
         debug!(
@@ -270,7 +290,7 @@ impl StatefulMessageBuffer {
         Ok(())
     }
 
-    pub(crate) fn should_process(&mut self, message_type: MessageType) -> Result<bool, String> {
+    pub(crate) fn should_process(&mut self, message_type: MessageType) -> Result<bool, Error> {
         self.ensure_active()?;
         if !is_trackable(message_type) {
             return Ok(true);
@@ -281,13 +301,15 @@ impl StatefulMessageBuffer {
                 "generation={} receive-rejected type={message_type:?} reason=before-sequence",
                 self.transport_generation
             );
-            return Err("Trackable message arrived before Sequence after resume".to_string());
+            return Err(Error::protocol(
+                "a message arrived before the Sequence message after a resume",
+            ));
         }
         let sequence_id = self.next_incoming;
         self.next_incoming = self
             .next_incoming
             .checked_add(1)
-            .ok_or_else(|| "Incoming stateful sequence counter overflow".to_string())?;
+            .ok_or_else(|| overflow("incoming"))?;
         if sequence_id <= self.highest_incoming {
             debug!(
                 target: TRACE_TARGET,
@@ -307,7 +329,7 @@ impl StatefulMessageBuffer {
         Ok(true)
     }
 
-    pub(crate) fn take_acknowledgement(&mut self) -> Result<Option<u64>, String> {
+    pub(crate) fn take_acknowledgement(&mut self) -> Result<Option<u64>, Error> {
         self.ensure_active()?;
         if self.highest_incoming == 0 || self.highest_incoming <= self.last_acknowledgement_sent {
             return Ok(None);
@@ -322,7 +344,7 @@ impl StatefulMessageBuffer {
         Ok(Some(self.highest_incoming))
     }
 
-    pub(crate) fn begin_resend(&mut self) -> Result<(u64, Vec<BufferedFrame>), String> {
+    pub(crate) fn begin_resend(&mut self) -> Result<(u64, Vec<BufferedFrame>), Error> {
         self.ensure_active()?;
         self.resending = true;
         let sequence_id = self
@@ -355,7 +377,7 @@ impl StatefulMessageBuffer {
 
     /// Ends the resend that `begin_resend` started; `completed` is false when sending the
     /// Sequence message or a buffered frame failed (the frames stay buffered for the next resume).
-    pub(crate) fn finish_resend(&mut self, completed: bool) -> Result<(), String> {
+    pub(crate) fn finish_resend(&mut self, completed: bool) -> Result<(), Error> {
         self.ensure_active()?;
         self.resending = false;
         if completed {
@@ -375,7 +397,7 @@ impl StatefulMessageBuffer {
     }
 
     /// Records a rejected Ack or Sequence (`message` names it) and returns its error.
-    fn rejected(&self, message: &str, sequence_id: u64, reason: &str, error: String) -> String {
+    fn rejected(&self, message: &str, sequence_id: u64, reason: &str, error: Error) -> Error {
         debug!(
             target: TRACE_TARGET,
             "generation={} {message}-rejected sequence={sequence_id} reason={reason}",
@@ -422,9 +444,9 @@ impl StatefulMessageBuffer {
         self.buffered_bytes
     }
 
-    fn ensure_active(&self) -> Result<(), String> {
+    fn ensure_active(&self) -> Result<(), Error> {
         if self.disposed {
-            Err("Stateful reconnect buffer was disposed".to_string())
+            Err(Error::canceled("the stateful connection has ended"))
         } else {
             Ok(())
         }
@@ -594,12 +616,11 @@ mod stateful_transport_generation {
         ));
         buffer.disconnected().unwrap();
         let before = buffer.buffered_bytes();
-        assert_eq!(
-            buffer
-                .track_for(first, MessageType::Invocation, frame())
-                .unwrap_err(),
-            STALE_TRANSPORT
-        );
+        let stale = buffer
+            .track_for(first, MessageType::Invocation, frame())
+            .unwrap_err();
+        assert_eq!(stale.kind(), crate::ErrorKind::Transport);
+        assert_eq!(stale.to_string(), STALE_TRANSPORT);
         assert_eq!(
             buffer.buffered_bytes(),
             before,

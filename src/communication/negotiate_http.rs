@@ -11,48 +11,42 @@ use tokio::{
 };
 
 use super::tls::TlsContext;
+use crate::error::{Error, TimeoutOperation};
 
-/// The bound for native connection setup (negotiate request, TCP connect, TLS and the WebSocket
-/// upgrade), matching the browser's socket-open bound; the SignalR handshake has its own timeout.
-pub(crate) const CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
-
-/// POSTs an empty body to `url` within the connection-setup bound and returns the response text;
-/// non-2xx statuses are errors.
+/// POSTs an empty body to `url` within `timeout` (the connection's connect timeout) and returns
+/// the response text; non-2xx statuses are errors.
 pub(crate) async fn post(
     url: &str,
     authorization: Option<String>,
     tls: &TlsContext,
-) -> Result<String, String> {
-    post_within(url, authorization, tls, CONNECT_TIMEOUT).await
-}
-
-async fn post_within(
-    url: &str,
-    authorization: Option<String>,
-    tls: &TlsContext,
     timeout: std::time::Duration,
-) -> Result<String, String> {
+) -> Result<String, Error> {
     tokio::time::timeout(timeout, post_unbounded(url, authorization, tls))
         .await
-        .map_err(|_| format!("The negotiate request did not complete within {timeout:?}"))?
+        .map_err(|_| Error::timed_out(TimeoutOperation::Negotiate, timeout))?
 }
 
 async fn post_unbounded(
     url: &str,
     authorization: Option<String>,
     tls: &TlsContext,
-) -> Result<String, String> {
-    let uri: Uri = url
-        .parse()
-        .map_err(|error| format!("The negotiate URL is invalid: {error}"))?;
+) -> Result<String, Error> {
+    let uri: Uri = url.parse().map_err(|error| {
+        Error::negotiate(None, format!("the negotiate URL is invalid: {error}"))
+    })?;
     let secure = match uri.scheme_str() {
         Some("https") => true,
         Some("http") => false,
-        other => return Err(format!("Unsupported negotiate scheme {other:?}")),
+        other => {
+            return Err(Error::negotiate(
+                None,
+                format!("the negotiate URL has the unsupported scheme {other:?}"),
+            ))
+        }
     };
     let authority = uri
         .authority()
-        .ok_or_else(|| "The negotiate URL has no host".to_string())?
+        .ok_or_else(|| Error::negotiate(None, "the negotiate URL has no host"))?
         .clone();
     let host = authority
         .host()
@@ -72,9 +66,12 @@ async fn post_unbounded(
     if let Some(value) = authorization {
         request = request.header(header::AUTHORIZATION, value);
     }
-    let request = request
-        .body(Empty::<Bytes>::new())
-        .map_err(|_| "Cannot build the negotiate request".to_string())?;
+    let request = request.body(Empty::<Bytes>::new()).map_err(|_| {
+        Error::configuration(
+            "authentication",
+            "the credentials are not a valid Authorization header value",
+        )
+    })?;
 
     let tcp = connect_tcp(host, port).await?;
     if secure {
@@ -87,18 +84,25 @@ async fn post_unbounded(
 /// Opens a TCP connection to the first reachable resolved address, with Nagle's algorithm off:
 /// SignalR exchanges small frames (Pings, stateful Acks, invocations) whose latency must not wait
 /// for delayed TCP acknowledgements.
-pub(crate) async fn connect_tcp(host: &str, port: u16) -> Result<TcpStream, String> {
+pub(crate) async fn connect_tcp(host: &str, port: u16) -> Result<TcpStream, Error> {
     // `Uri::host` keeps the brackets of IPv6 literals; resolvers need them removed.
     let host = host.trim_start_matches('[').trim_end_matches(']');
     let addresses = tokio::net::lookup_host((host, port))
         .await
-        .map_err(|error| format!("Cannot resolve {host}:{port}: {error}"))?;
+        .map_err(|error| {
+            Error::transport_failure(None, format!("cannot resolve {host}:{port}: {error}"))
+                .with_source(error)
+        })?;
     let mut last_error = None;
     for address in addresses {
         match TcpStream::connect(address).await {
             Ok(stream) => {
                 stream.set_nodelay(true).map_err(|error| {
-                    format!("Cannot configure the connection to {host}:{port}: {error}")
+                    Error::transport_failure(
+                        None,
+                        format!("cannot configure the connection to {host}:{port}: {error}"),
+                    )
+                    .with_source(error)
                 })?;
                 return Ok(stream);
             }
@@ -106,8 +110,13 @@ pub(crate) async fn connect_tcp(host: &str, port: u16) -> Result<TcpStream, Stri
         }
     }
     Err(match last_error {
-        Some(error) => format!("Cannot connect to {host}:{port}: {error}"),
-        None => format!("Cannot resolve {host}:{port}: no addresses"),
+        Some(error) => {
+            Error::transport_failure(None, format!("cannot connect to {host}:{port}: {error}"))
+                .with_source(error)
+        }
+        None => {
+            Error::transport_failure(None, format!("cannot resolve {host}:{port}: no addresses"))
+        }
     })
 }
 
@@ -116,114 +125,95 @@ async fn tls_stream(
     tls: &TlsContext,
     host: &str,
     tcp: TcpStream,
-) -> Result<tokio_rustls::client::TlsStream<TcpStream>, String> {
-    let name = rustls_pki_types::ServerName::try_from(host.to_string())
-        .map_err(|error| format!("Invalid TLS server name {host}: {error}"))?;
+) -> Result<tokio_rustls::client::TlsStream<TcpStream>, Error> {
+    let name = rustls_pki_types::ServerName::try_from(host.to_string()).map_err(|error| {
+        Error::configuration("domain", format!("invalid TLS server name {host}: {error}"))
+    })?;
     tokio_rustls::TlsConnector::from(tls.config()?)
         .connect(name, tcp)
         .await
-        .map_err(|error| format!("TLS handshake with {host} failed: {error}"))
+        .map_err(|error| {
+            Error::tls(format!("the TLS handshake with {host} failed: {error}")).with_source(error)
+        })
 }
 
 #[cfg(not(rayx_tls))]
-async fn tls_stream(_tls: &TlsContext, _host: &str, _tcp: TcpStream) -> Result<TcpStream, String> {
-    Err(super::tls::TLS_DISABLED.to_string())
+async fn tls_stream(_tls: &TlsContext, _host: &str, _tcp: TcpStream) -> Result<TcpStream, Error> {
+    Err(super::tls::tls_disabled())
 }
 
-async fn send<S>(stream: S, request: Request<Empty<Bytes>>) -> Result<String, String>
+async fn send<S>(stream: S, request: Request<Empty<Bytes>>) -> Result<String, Error>
 where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     let (mut sender, connection) = hyper::client::conn::http1::handshake(TokioIo::new(stream))
         .await
-        .map_err(|error| format!("The negotiate HTTP handshake failed: {error}"))?;
+        .map_err(|error| {
+            Error::transport_failure(
+                None,
+                format!("the negotiate HTTP handshake failed: {error}"),
+            )
+            .with_source(error)
+        })?;
     tokio::spawn(async move {
         let _ = connection.await;
     });
-    let response = sender
-        .send_request(request)
-        .await
-        .map_err(|error| format!("The negotiate request failed: {error}"))?;
+    let response = sender.send_request(request).await.map_err(|error| {
+        Error::transport_failure(None, format!("the negotiate request failed: {error}"))
+            .with_source(error)
+    })?;
     let status = response.status();
     let body = response
         .into_body()
         .collect()
         .await
-        .map_err(|error| format!("Cannot read the negotiate response: {error}"))?
+        .map_err(|error| {
+            Error::transport_failure(None, format!("cannot read the negotiate response: {error}"))
+                .with_source(error)
+        })?
         .to_bytes();
     if !status.is_success() {
         return Err(failure(status, &body));
     }
-    String::from_utf8(body.to_vec())
-        .map_err(|_| "The negotiate response is not UTF-8 text".to_string())
+    String::from_utf8(body.to_vec()).map_err(|_| {
+        Error::negotiate(
+            Some(status.as_u16()),
+            "the negotiate response is not UTF-8 text",
+        )
+    })
 }
 
-/// The longest body excerpt a negotiate failure reports.
-const EXCERPT_BYTES: usize = 256;
+#[cfg(test)]
+use super::negotiation::EXCERPT_BYTES;
+
+/// A non-2xx negotiate response (see `negotiation::negotiate_failure`).
+fn failure(status: http::StatusCode, body: &[u8]) -> Error {
+    super::negotiation::negotiate_failure(
+        status.as_u16(),
+        status.canonical_reason().unwrap_or_default(),
+        body,
+    )
+}
 
 /// Describes a non-2xx negotiate response with a short, credential-redacted body excerpt.
-fn failure(status: http::StatusCode, body: &[u8]) -> String {
-    let excerpt = String::from_utf8_lossy(&body[..body.len().min(EXCERPT_BYTES)]);
-    let excerpt = redact(excerpt.trim());
-    if excerpt.is_empty() {
-        format!("the server returned {status}")
-    } else {
-        format!("the server returned {status}: {excerpt}")
-    }
-}
-
-/// Replaces `access_token=`, `Bearer` and `Authorization` values with `[REDACTED]`.
-fn redact(text: &str) -> String {
-    // Authorization values run to the end of the line; token values end at a delimiter.
-    let token_end = |character: char| {
-        character.is_whitespace() || matches!(character, '&' | '"' | '\'' | ',' | ';')
-    };
-    let line_end = |character: char| matches!(character, '\r' | '\n' | '"' | '\'');
-    let markers: [(&str, &dyn Fn(char) -> bool); 3] = [
-        ("authorization:", &line_end),
-        ("access_token=", &token_end),
-        ("bearer ", &token_end),
-    ];
-    // ASCII lowercasing keeps byte offsets, and every index below is a marker end (ASCII) or a
-    // `find` result, so all slices stay on character boundaries.
-    let lower = text.to_ascii_lowercase();
-    let mut redacted = String::with_capacity(text.len());
-    let mut position = 0;
-    while position < text.len() {
-        let next = markers
-            .iter()
-            .filter_map(|(marker, ends)| {
-                lower[position..]
-                    .find(marker)
-                    .map(|offset| (position + offset + marker.len(), ends))
-            })
-            .min_by_key(|(value_start, _)| *value_start);
-        let Some((marker_end, ends)) = next else {
-            redacted.push_str(&text[position..]);
-            break;
-        };
-        let value_start = marker_end
-            + (text[marker_end..].len() - text[marker_end..].trim_start_matches([' ', '\t']).len());
-        let value_end = text[value_start..]
-            .find(|character: char| ends(character))
-            .map_or(text.len(), |offset| value_start + offset);
-        redacted.push_str(&text[position..value_start]);
-        if value_end > value_start {
-            redacted.push_str("[REDACTED]");
-        }
-        position = value_end;
-    }
-    redacted
+#[cfg(test)]
+fn failure_message(status: http::StatusCode, body: &[u8]) -> String {
+    super::negotiation::negotiate_failure_message(
+        status.as_u16(),
+        status.canonical_reason().unwrap_or_default(),
+        body,
+    )
 }
 
 #[cfg(test)]
 mod negotiate_http_errors {
-    use super::{failure, EXCERPT_BYTES};
+    use super::{failure, failure_message as failure_text, EXCERPT_BYTES};
+    use crate::ErrorKind;
     use http::StatusCode;
 
     #[test]
     fn failures_report_the_status_and_a_body_excerpt() {
-        let message = failure(
+        let message = failure_text(
             StatusCode::SERVICE_UNAVAILABLE,
             b"negotiation temporarily rejected",
         );
@@ -232,14 +222,28 @@ mod negotiate_http_errors {
             "the server returned 503 Service Unavailable: negotiation temporarily rejected"
         );
         assert_eq!(
-            failure(StatusCode::UNAUTHORIZED, b""),
+            failure_text(StatusCode::UNAUTHORIZED, b""),
             "the server returned 401 Unauthorized"
         );
     }
 
     #[test]
+    fn failures_are_authentication_errors_for_401_and_403_and_negotiate_errors_otherwise() {
+        for (status, kind) in [
+            (StatusCode::UNAUTHORIZED, ErrorKind::Authentication),
+            (StatusCode::FORBIDDEN, ErrorKind::Authentication),
+            (StatusCode::NOT_FOUND, ErrorKind::Negotiate),
+            (StatusCode::SERVICE_UNAVAILABLE, ErrorKind::Negotiate),
+        ] {
+            let error = failure(status, b"");
+            assert_eq!(error.kind(), kind, "{status}");
+            assert_eq!(error.status(), Some(status.as_u16()));
+        }
+    }
+
+    #[test]
     fn failure_excerpts_redact_credentials() {
-        let message = failure(
+        let message = failure_text(
             StatusCode::BAD_REQUEST,
             b"bad ws://host/hub?id=1&access_token=secret-token&x=1 Authorization: Basic c2VjcmV0 Bearer abc.def",
         );
@@ -256,19 +260,19 @@ mod negotiate_http_errors {
             "Bearer \u{fffd}ü access_token= ü Authorization:\nü".as_bytes(),
             "üüü access_token=ünicode-token&x=ü".as_bytes(),
         ] {
-            let message = failure(StatusCode::BAD_REQUEST, body);
+            let message = failure_text(StatusCode::BAD_REQUEST, body);
             assert!(!message.contains("ünicode-token"), "{message}");
         }
         // Cut inside a multi-byte character at the excerpt bound.
         let mut body = vec![b'a'; EXCERPT_BYTES - 1];
         body.extend("üaccess_token=secret".as_bytes());
-        let message = failure(StatusCode::BAD_REQUEST, &body);
+        let message = failure_text(StatusCode::BAD_REQUEST, &body);
         assert!(!message.contains("secret"), "{message}");
     }
 
     #[test]
     fn authorization_redaction_stops_at_the_line_end() {
-        let message = failure(
+        let message = failure_text(
             StatusCode::BAD_REQUEST,
             b"Authorization: Basic c2VjcmV0\r\nnext line stays",
         );
@@ -279,7 +283,7 @@ mod negotiate_http_errors {
     #[test]
     fn failure_excerpts_are_bounded() {
         let body = vec![b'x'; 10 * EXCERPT_BYTES];
-        let message = failure(StatusCode::INTERNAL_SERVER_ERROR, &body);
+        let message = failure_text(StatusCode::INTERNAL_SERVER_ERROR, &body);
         assert!(message.len() < EXCERPT_BYTES + 64, "{}", message.len());
     }
 }
@@ -326,13 +330,19 @@ mod negotiate_tcp_connect {
                 listener.local_addr().unwrap().port()
             };
             let refused = connect_tcp("127.0.0.1", port).await.unwrap_err();
+            assert_eq!(refused.kind(), crate::ErrorKind::Transport);
             assert!(
-                refused.starts_with(&format!("Cannot connect to 127.0.0.1:{port}")),
+                refused
+                    .to_string()
+                    .starts_with(&format!("cannot connect to 127.0.0.1:{port}")),
                 "{refused}"
             );
             let unresolvable = connect_tcp("rayx-signalr.invalid", 80).await.unwrap_err();
+            assert_eq!(unresolvable.kind(), crate::ErrorKind::Transport);
             assert!(
-                unresolvable.starts_with("Cannot resolve rayx-signalr.invalid:80"),
+                unresolvable
+                    .to_string()
+                    .starts_with("cannot resolve rayx-signalr.invalid:80"),
                 "{unresolvable}"
             );
         });
@@ -343,7 +353,7 @@ mod negotiate_tcp_connect {
 mod connection_setup_bounds {
     use std::time::Duration;
 
-    use super::post_within;
+    use super::post;
     use crate::communication::tls::TlsContext;
 
     #[tokio::test]
@@ -357,7 +367,7 @@ mod connection_setup_bounds {
         });
         let tls = TlsContext::for_connection(false, &Default::default()).unwrap();
         let started = std::time::Instant::now();
-        let error = post_within(
+        let error = post(
             &format!("http://127.0.0.1:{port}/hub/negotiate?access_token=secret"),
             None,
             &tls,
@@ -365,17 +375,17 @@ mod connection_setup_bounds {
         )
         .await
         .unwrap_err();
-        assert!(error.contains("did not complete"), "{error}");
+        assert_eq!(error.kind(), crate::ErrorKind::Timeout);
+        assert_eq!(
+            error.timeout_operation(),
+            Some(crate::TimeoutOperation::Negotiate)
+        );
+        assert_eq!(error.timeout(), Some(Duration::from_millis(300)));
         assert!(
-            !error.contains("secret"),
+            !error.to_string().contains("secret"),
             "errors never repeat the URL: {error}"
         );
         assert!(started.elapsed() < Duration::from_secs(5));
         silent.abort();
-    }
-
-    #[test]
-    fn connection_setup_bound_matches_the_browser() {
-        assert_eq!(super::CONNECT_TIMEOUT, Duration::from_secs(15));
     }
 }

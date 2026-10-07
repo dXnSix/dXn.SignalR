@@ -110,13 +110,19 @@ async fn scenario(protocol: Protocol) {
         })
         .await
         .unwrap_err();
-    assert!(failure.contains("detailed failure 42"), "{failure}");
+    assert_eq!(failure.kind(), rayx_signalr::ErrorKind::Hub, "{failure}");
+    assert!(
+        failure
+            .server_message()
+            .is_some_and(|message| message.contains("detailed failure 42")),
+        "{failure}"
+    );
 
     let unknown = client
         .invoke::<i32>("NoSuchHubMethod".to_string())
         .await
         .unwrap_err();
-    assert!(!unknown.is_empty());
+    assert_eq!(unknown.kind(), rayx_signalr::ErrorKind::Hub, "{unknown}");
 
     let still_serving = client
         .invoke_with_args::<i32, _>("Echo".to_string(), |arguments| {

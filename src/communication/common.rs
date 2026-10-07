@@ -1,4 +1,5 @@
 use crate::client::ConnectionRecipe;
+use crate::error::Error;
 use crate::execution::UpdatableActionStorage;
 use crate::protocol::hub_protocol::HubProtocolKind;
 use serde::Deserialize;
@@ -7,24 +8,35 @@ use serde::Serialize;
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CloseEnvelope {
+    error: Option<String>,
     allow_reconnect: Option<bool>,
 }
 
-pub(crate) fn close_allows_reconnect(
-    payload: &crate::protocol::hub_protocol::MessagePayload,
-) -> Result<bool, String> {
-    match payload {
+/// The error a server Close message ends the connection with: its optional error text and its
+/// reconnect permission (absent or malformed means no reconnect, as in the official clients).
+pub(crate) fn server_close(payload: &crate::protocol::hub_protocol::MessagePayload) -> Error {
+    let (message, allow_reconnect) = match payload {
         crate::protocol::hub_protocol::MessagePayload::Text(text) => {
-            serde_json::from_str::<CloseEnvelope>(text)
-                .map(|close| close.allow_reconnect.unwrap_or(false))
-                .map_err(|error| format!("Cannot parse Close message: {error}"))
+            match serde_json::from_str::<CloseEnvelope>(text) {
+                Ok(close) => (close.error, close.allow_reconnect.unwrap_or(false)),
+                Err(_) => (None, false),
+            }
         }
         #[cfg(feature = "messagepack")]
         crate::protocol::hub_protocol::MessagePayload::Binary(data) => {
-            let items = crate::protocol::msgpack::parse_msgpack_message(data)?;
-            Ok(items.get(2).and_then(rmpv::Value::as_bool).unwrap_or(false))
+            match crate::protocol::msgpack::parse_msgpack_message(data) {
+                Ok(items) => (
+                    items
+                        .get(1)
+                        .and_then(rmpv::Value::as_str)
+                        .map(str::to_string),
+                    items.get(2).and_then(rmpv::Value::as_bool).unwrap_or(false),
+                ),
+                Err(_) => (None, false),
+            }
         }
-    }
+    };
+    Error::closed_by_server(message, allow_reconnect)
 }
 
 #[derive(Clone)]
@@ -76,11 +88,11 @@ impl ConnectionData {
 }
 
 pub trait Communication: Clone {
-    async fn connect(configuration: &ConnectionData) -> Result<Self, String>;
-    async fn send<T: Serialize>(&mut self, data: T) -> Result<(), String>;
+    async fn connect(configuration: &ConnectionData) -> Result<Self, Error>;
+    async fn send<T: Serialize>(&mut self, data: T) -> Result<(), Error>;
     #[cfg(feature = "messagepack")]
-    async fn send_binary(&mut self, data: Vec<u8>) -> Result<(), String>;
-    fn get_storage(&self) -> Result<UpdatableActionStorage, String>;
+    async fn send_binary(&mut self, data: Vec<u8>) -> Result<(), Error>;
+    fn get_storage(&self) -> Result<UpdatableActionStorage, Error>;
     fn get_protocol_kind(&self) -> HubProtocolKind;
     async fn disconnect(&mut self);
 }
@@ -89,48 +101,86 @@ pub struct HttpClient {}
 
 impl HttpClient {
     /// Negotiates (following redirects) or connects directly when negotiation is skipped.
-    pub(crate) async fn negotiate(recipe: &ConnectionRecipe) -> Result<ConnectionData, String> {
+    pub(crate) async fn negotiate(recipe: &ConnectionRecipe) -> Result<ConnectionData, Error> {
         super::negotiation::negotiate_with(recipe, |url, authorization| {
             Self::post_text(url, authorization, recipe)
         })
         .await
     }
 
-    /// Native negotiate: hyper over the connection's TCP or rustls stream.
+    /// Native negotiate: hyper over the connection's TCP or rustls stream, within the connect
+    /// timeout.
     #[cfg(not(target_arch = "wasm32"))]
     async fn post_text(
         endpoint: String,
         authorization: Option<String>,
         recipe: &ConnectionRecipe,
-    ) -> Result<String, String> {
-        super::negotiate_http::post(&endpoint, authorization, recipe.tls()).await
+    ) -> Result<String, Error> {
+        let timeout = recipe.liveness().connect_timeout;
+        super::negotiate_http::post(&endpoint, authorization, recipe.tls(), timeout).await
     }
 
-    /// Browser negotiate: `fetch` on the global scope, so it also works in Web Workers.
+    /// Browser negotiate: `fetch` on the global scope, so it also works in Web Workers. The
+    /// request is aborted when the connect timeout elapses or the caller stops waiting.
     #[cfg(target_arch = "wasm32")]
     async fn post_text(
         endpoint: String,
         authorization: Option<String>,
-        _recipe: &ConnectionRecipe,
-    ) -> Result<String, String> {
-        let mut request = gloo_net::http::Request::post(&endpoint);
+        recipe: &ConnectionRecipe,
+    ) -> Result<String, Error> {
+        use futures::future::{select, Either};
+
+        /// Aborts the fetch when dropped; aborting a finished request does nothing.
+        struct AbortOnDrop(web_sys::AbortController);
+
+        impl Drop for AbortOnDrop {
+            fn drop(&mut self) {
+                self.0.abort();
+            }
+        }
+
+        let timeout = recipe.liveness().connect_timeout;
+        let controller = web_sys::AbortController::new().map_err(|_| {
+            Error::transport_failure(None, "the browser cannot create an AbortController")
+        })?;
+        let request = Self::fetch_text(endpoint, authorization, controller.signal());
+        let _abort = AbortOnDrop(controller);
+        let timer = gloo_timers::future::sleep(timeout);
+        match select(std::pin::pin!(request), std::pin::pin!(timer)).await {
+            Either::Left((result, _)) => result,
+            Either::Right(((), _)) => Err(Error::timed_out(
+                crate::error::TimeoutOperation::Negotiate,
+                timeout,
+            )),
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    async fn fetch_text(
+        endpoint: String,
+        authorization: Option<String>,
+        signal: web_sys::AbortSignal,
+    ) -> Result<String, Error> {
+        let mut request = gloo_net::http::Request::post(&endpoint).abort_signal(Some(&signal));
         if let Some(value) = authorization {
             request = request.header("Authorization", &value);
         }
-        let response = request
-            .send()
-            .await
-            .map_err(|error| format!("The call failed: {error}"))?;
+        let response = request.send().await.map_err(|error| {
+            Error::transport_failure(None, format!("the negotiate request failed: {error}"))
+        })?;
         if !response.ok() {
-            return Err(format!(
-                "the server returned {} {}",
+            let body = response.binary().await.unwrap_or_default();
+            return Err(super::negotiation::negotiate_failure(
                 response.status(),
-                response.status_text()
+                &response.status_text(),
+                &body,
             ));
         }
-        response
-            .text()
-            .await
-            .map_err(|error| format!("The returned response has no text body: {error}"))
+        response.text().await.map_err(|error| {
+            Error::negotiate(
+                Some(response.status()),
+                format!("the negotiate response has no text body: {error}"),
+            )
+        })
     }
 }

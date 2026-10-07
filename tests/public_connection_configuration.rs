@@ -1,6 +1,6 @@
 //! Consumers name `ConnectionConfiguration` to forward connection options through their own helpers.
 
-use rayx_signalr::{ConnectionConfiguration, SignalRClient};
+use rayx_signalr::{ConnectionConfiguration, Error, SignalRClient};
 
 fn configure_secure_bearer(config: &mut ConnectionConfiguration) {
     config.secure();
@@ -12,7 +12,7 @@ async fn connect_through_consumer_helper<F>(
     endpoint: &str,
     hub: &str,
     options: F,
-) -> Result<SignalRClient, String>
+) -> Result<SignalRClient, Error>
 where
     F: FnMut(&mut ConnectionConfiguration),
 {

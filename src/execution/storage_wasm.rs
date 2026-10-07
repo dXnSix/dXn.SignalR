@@ -2,6 +2,7 @@ use log::{debug, error, info, warn};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use super::{storage::Storage, UpdatableAction};
+use crate::error::Error;
 
 type SharedAction = Rc<RefCell<Box<dyn UpdatableAction>>>;
 
@@ -100,7 +101,7 @@ impl Storage for UpdatableActionStorage {
         }
     }
 
-    fn fail_pending(&mut self, error: &str) {
+    fn fail_pending(&mut self, error: &Error) {
         let pending_keys = self
             ._data
             .borrow()
@@ -122,7 +123,7 @@ impl Storage for UpdatableActionStorage {
         }
     }
 
-    fn fail_action(&mut self, key: String, error: &str) {
+    fn fail_action(&mut self, key: String, error: &Error) {
         let action = self
             ._data
             .borrow_mut()

@@ -12,7 +12,6 @@ type CallbackFn = dyn Fn(InvocationContext) + Send + 'static;
 type CallbackFn = dyn Fn(InvocationContext) + 'static;
 
 pub(crate) struct CallbackAction {
-    #[allow(dead_code)]
     target: String,
     callback: Box<CallbackFn>,
     client: SignalRClient,
@@ -38,9 +37,17 @@ impl UpdatableAction for CallbackAction {
             MessageType::Invocation => {
                 match message {
                     MessagePayload::Text(s) => {
-                        let invocation: Invocation = MessageParser::parse_message(s).unwrap();
-                        let context = InvocationContext::create(self.client.clone(), invocation);
-                        (self.callback)(context);
+                        match MessageParser::parse_message::<Invocation>(s) {
+                            Ok(invocation) => {
+                                let context =
+                                    InvocationContext::create(self.client.clone(), invocation);
+                                (self.callback)(context);
+                            }
+                            Err(error) => log::error!(
+                                "Cannot parse the invocation of callback {}: {error}",
+                                self.target
+                            ),
+                        }
                     }
                     #[cfg(feature = "messagepack")]
                     MessagePayload::Binary(data) => {

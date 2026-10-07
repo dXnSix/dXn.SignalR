@@ -3,12 +3,14 @@ use std::{
     pin::Pin,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
+        Arc, Mutex, OnceLock,
     },
     task::{Context, Poll, Waker},
 };
 
 use futures::{stream::FusedStream, Stream};
+
+use crate::error::Error;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) type StreamDropHandler = Box<dyn FnOnce() + Send + 'static>;
@@ -17,7 +19,8 @@ pub(crate) type StreamDropHandler = Box<dyn FnOnce() + 'static>;
 
 struct ManualStreamState<T> {
     queue: Arc<Mutex<VecDeque<T>>>,
-    error: Arc<Mutex<Option<String>>>,
+    /// Set once, by the first failure that ends the stream.
+    error: Arc<OnceLock<Error>>,
     waker: Arc<Mutex<Option<Waker>>>,
     closed: Arc<AtomicBool>,
     drop_handler: Arc<Mutex<Option<StreamDropHandler>>>,
@@ -39,7 +42,7 @@ impl<T> ManualStreamState<T> {
     pub fn new(drop_handler: Option<StreamDropHandler>) -> Self {
         ManualStreamState {
             queue: Arc::new(Mutex::new(VecDeque::new())),
-            error: Arc::new(Mutex::new(None)),
+            error: Arc::new(OnceLock::new()),
             waker: Arc::new(Mutex::new(None)),
             closed: Arc::new(AtomicBool::new(false)),
             drop_handler: Arc::new(Mutex::new(drop_handler)),
@@ -105,11 +108,13 @@ impl<T> ManualStream<T> {
 }
 
 impl<T> ManualStream<T> {
-    /// Returns the error that ended the stream, if the server completed it with an error, the
-    /// connection failed it, or its invocation could not be sent. `None` while the stream is open
-    /// or after a normal completion.
-    pub fn error(&self) -> Option<String> {
-        self.state.error.lock().unwrap().clone()
+    /// Returns the error that ended the stream: [`ErrorKind::Hub`](crate::ErrorKind::Hub) when the
+    /// server completed it with an error, the connection's error when the connection failed it
+    /// (for example [`ErrorKind::ConnectionClosed`](crate::ErrorKind::ConnectionClosed) or
+    /// [`ErrorKind::Paused`](crate::ErrorKind::Paused)), or the send error when its invocation
+    /// could not be sent. `None` while the stream is open or after a normal completion.
+    pub fn error(&self) -> Option<&Error> {
+        self.state.error.get()
     }
 }
 
@@ -136,9 +141,9 @@ impl<T> ManualStreamCompleter<T> {
     }
 
     /// Ends the stream with an error that [`ManualStream::error`] reports.
-    pub fn fail(&self, error: String) {
+    pub fn fail(&self, error: Error) {
         if !self.state.closed.load(Ordering::Acquire) {
-            *self.state.error.lock().unwrap() = Some(error);
+            let _ = self.state.error.set(error);
         }
         self.state.close();
     }
@@ -230,19 +235,22 @@ mod fused_end {
             assert_eq!(stream.next().now_or_never(), Some(None));
             assert!(stream.is_terminated());
         }
-        assert_eq!(stream.error(), None);
+        assert!(stream.error().is_none());
     }
 
     #[test]
     fn a_failed_stream_returns_none_on_every_later_poll_and_keeps_its_error() {
         let (mut stream, completer) = ManualStream::<i32>::create();
 
-        completer.fail("boom".to_string());
+        completer.fail(crate::Error::hub("boom"));
 
         for _ in 0..3 {
             assert_eq!(stream.next().now_or_never(), Some(None));
             assert!(stream.is_terminated());
-            assert_eq!(stream.error().as_deref(), Some("boom"));
+            assert_eq!(
+                stream.error().and_then(crate::Error::server_message),
+                Some("boom")
+            );
         }
     }
 
@@ -252,14 +260,17 @@ mod fused_end {
 
         completer.push(1);
         completer.push(2);
-        completer.fail("boom".to_string());
+        completer.fail(crate::Error::hub("boom"));
 
         assert_eq!(stream.next().now_or_never(), Some(Some(1)));
         assert_eq!(stream.next().now_or_never(), Some(Some(2)));
         assert!(!stream.is_terminated());
         assert_eq!(stream.next().now_or_never(), Some(None));
         assert_eq!(stream.next().now_or_never(), Some(None));
-        assert_eq!(stream.error().as_deref(), Some("boom"));
+        assert_eq!(
+            stream.error().and_then(crate::Error::server_message),
+            Some("boom")
+        );
     }
 
     #[test]

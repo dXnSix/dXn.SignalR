@@ -5,6 +5,7 @@ use serde::Serialize;
 use std::sync::Arc;
 
 use crate::communication::{Communication, CommunicationClient, HttpClient};
+use crate::error::Error;
 use crate::execution::{
     ArgumentConfiguration, CallbackHandler, Storage, StorageUnregistrationHandler,
     UpdatableActionStorage,
@@ -22,9 +23,10 @@ use crate::communication::WasmReconnectionContext;
 /// Trait for handling disconnection events.
 ///
 /// When a connection drops, the `on_disconnected` method is called with a
-/// `ReconnectionHandler` that allows manual reconnection. It is also called when the
-/// server closes the connection without allowing reconnect; then
-/// [`ReconnectionHandler::server_allows_reconnect`] is `false` and reconnecting fails.
+/// `ReconnectionHandler` that allows manual reconnection and reports why the transport ended
+/// ([`ReconnectionHandler::reason`]). It is also called when the server closes the connection
+/// without allowing reconnect; then [`ReconnectionHandler::server_allows_reconnect`] is `false`
+/// and reconnecting fails with that close error.
 ///
 /// **Important**: When you provide a `DisconnectionHandler`, automatic reconnection
 /// is disabled. You have full control over when and if to reconnect.
@@ -39,6 +41,8 @@ use crate::communication::WasmReconnectionContext;
 ///         if !handler.server_allows_reconnect() {
 ///             return;
 ///         }
+///
+///         eprintln!("Connection lost: {}", handler.reason());
 ///
 ///         // Option 1: Reconnect immediately
 ///         tokio::spawn(async move {
@@ -75,14 +79,42 @@ impl ReconnectionHandler {
         self.context.server_allows_reconnect()
     }
 
+    /// Why the transport ended: a dropped transport ([`ErrorKind::Transport`]), the server
+    /// timeout ([`ErrorKind::Timeout`]), a server Close ([`ErrorKind::ConnectionClosed`] with
+    /// the server's message), or a protocol violation ([`ErrorKind::Protocol`]).
+    ///
+    /// [`ErrorKind::Transport`]: crate::ErrorKind::Transport
+    /// [`ErrorKind::Timeout`]: crate::ErrorKind::Timeout
+    /// [`ErrorKind::ConnectionClosed`]: crate::ErrorKind::ConnectionClosed
+    /// [`ErrorKind::Protocol`]: crate::ErrorKind::Protocol
+    pub fn reason(&self) -> &Error {
+        self.context.reason()
+    }
+
     /// Attempt to reconnect once. Returns Ok(()) on success.
-    pub async fn reconnect(&self) -> Result<(), String> {
+    ///
+    /// # Errors
+    ///
+    /// The attempt's error (for example [`ErrorKind::Negotiate`](crate::ErrorKind::Negotiate) or
+    /// [`ErrorKind::Transport`](crate::ErrorKind::Transport)); the server's close error when it
+    /// forbade reconnecting; [`ErrorKind::Paused`](crate::ErrorKind::Paused) or
+    /// [`ErrorKind::ConnectionClosed`](crate::ErrorKind::ConnectionClosed) when `pause` or a
+    /// local close superseded it; [`ErrorKind::Canceled`](crate::ErrorKind::Canceled) when
+    /// another reconnect is running.
+    pub async fn reconnect(&self) -> Result<(), Error> {
         self.context.reconnect().await
     }
 
     /// Attempt reconnection with automatic retries using the configured policy.
     /// Returns Ok(()) on success, Err if all attempts are exhausted.
-    pub async fn reconnect_with_policy(&self) -> Result<(), String> {
+    ///
+    /// # Errors
+    ///
+    /// As [`reconnect`](Self::reconnect); when the policy gives up,
+    /// [`ErrorKind::ConnectionClosed`](crate::ErrorKind::ConnectionClosed) with
+    /// [`CloseReason::ReconnectExhausted`](crate::CloseReason::ReconnectExhausted) (its source is the
+    /// last attempt's error).
+    pub async fn reconnect_with_policy(&self) -> Result<(), Error> {
         self.context.reconnect_with_policy().await
     }
 
@@ -110,11 +142,19 @@ impl ReconnectionHandler {
         self.context.server_allows_reconnect()
     }
 
-    pub async fn reconnect(&self) -> Result<(), String> {
+    /// Why the transport ended (see the native [`ReconnectionHandler::reason`]).
+    pub fn reason(&self) -> &Error {
+        self.context.reason()
+    }
+
+    /// Attempt to reconnect once (see the native [`ReconnectionHandler::reconnect`]).
+    pub async fn reconnect(&self) -> Result<(), Error> {
         self.context.reconnect().await
     }
 
-    pub async fn reconnect_with_policy(&self) -> Result<(), String> {
+    /// Attempt reconnection with the configured policy (see the native
+    /// [`ReconnectionHandler::reconnect_with_policy`]).
+    pub async fn reconnect_with_policy(&self) -> Result<(), Error> {
         self.context.reconnect_with_policy().await
     }
 
@@ -254,14 +294,18 @@ impl SignalRClient {
     ///
     /// # Returns
     ///
-    /// * `Result<Self, String>` - On success, returns an instance of `Self`. On failure, returns an error message as a `String`.
+    /// * `Result<Self, Error>` - On success, returns an instance of `Self`.
+    ///
+    /// # Errors
+    ///
+    /// See [`connect_with`](Self::connect_with).
     ///
     /// # Examples
     ///
     /// ```ignore
     /// let client = SignalRClient::connect("localhost", "test").await.unwrap();
     /// ```
-    pub async fn connect(domain: &str, hub: &str) -> Result<Self, String> {
+    pub async fn connect(domain: &str, hub: &str) -> Result<Self, Error> {
         SignalRClient::connect_internal(domain, hub, None::<fn(&mut ConnectionConfiguration)>).await
     }
 
@@ -273,20 +317,28 @@ impl SignalRClient {
     /// * `hub` - A string slice that holds the name of the hub to connect to.
     /// * `options` - A closure that allows the user to configure the connection properties.
     ///
-    /// # Returns
+    /// # Errors
     ///
-    pub async fn connect_with<F>(domain: &str, hub: &str, options: F) -> Result<Self, String>
+    /// - [`ErrorKind::Configuration`](crate::ErrorKind::Configuration) before any I/O, naming the
+    ///   rejected setting (for example a zero timeout, `skip_negotiation` with stateful reconnect,
+    ///   a missing Tokio runtime, or a secure endpoint without TLS features).
+    /// - [`ErrorKind::Negotiate`](crate::ErrorKind::Negotiate) or
+    ///   [`ErrorKind::Authentication`](crate::ErrorKind::Authentication) with the HTTP status when
+    ///   negotiation fails.
+    /// - [`ErrorKind::Timeout`](crate::ErrorKind::Timeout) naming the negotiate, connect or
+    ///   handshake step.
+    /// - [`ErrorKind::Tls`](crate::ErrorKind::Tls), [`ErrorKind::Transport`](crate::ErrorKind::Transport),
+    ///   [`ErrorKind::TransportUnavailable`](crate::ErrorKind::TransportUnavailable) or
+    ///   [`ErrorKind::Handshake`](crate::ErrorKind::Handshake) when the transport cannot be
+    ///   opened.
+    pub async fn connect_with<F>(domain: &str, hub: &str, options: F) -> Result<Self, Error>
     where
         F: FnMut(&mut ConnectionConfiguration),
     {
         SignalRClient::connect_internal(domain, hub, Some(options)).await
     }
 
-    async fn connect_internal<F>(
-        domain: &str,
-        hub: &str,
-        options: Option<F>,
-    ) -> Result<Self, String>
+    async fn connect_internal<F>(domain: &str, hub: &str, options: Option<F>) -> Result<Self, Error>
     where
         F: FnMut(&mut ConnectionConfiguration),
     {
@@ -318,7 +370,10 @@ impl SignalRClient {
             .stateful_reconnect()
             .is_some_and(|stateful| stateful.buffer_size_bytes == 0)
         {
-            return Err("Stateful reconnect buffer size must be greater than zero".to_string());
+            return Err(Error::configuration(
+                "with_stateful_reconnect",
+                "the stateful reconnect buffer size must be greater than zero",
+            ));
         }
 
         let mut client = Self::open(recipe).await?;
@@ -341,16 +396,19 @@ impl SignalRClient {
 
     /// Negotiates and opens the connection; natively on the connection's runtime, so the caller's
     /// executor never polls Tokio I/O or timers.
-    async fn open(recipe: ConnectionRecipe) -> Result<CommunicationClient, String> {
+    async fn open(recipe: ConnectionRecipe) -> Result<CommunicationClient, Error> {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let runtime = recipe
                 .runtime()
-                .ok_or_else(|| crate::client::configuration::NO_RUNTIME.to_string())?;
+                .ok_or_else(crate::client::configuration::no_runtime)?;
             runtime
                 .spawn(Self::negotiate_and_connect(recipe))
                 .await
-                .map_err(|error| format!("The connection task failed: {error}"))?
+                .map_err(|error| {
+                    Error::canceled(format!("the connection task stopped: {error}"))
+                        .with_source(error)
+                })?
         }
         #[cfg(target_arch = "wasm32")]
         {
@@ -358,9 +416,7 @@ impl SignalRClient {
         }
     }
 
-    async fn negotiate_and_connect(
-        recipe: ConnectionRecipe,
-    ) -> Result<CommunicationClient, String> {
+    async fn negotiate_and_connect(recipe: ConnectionRecipe) -> Result<CommunicationClient, Error> {
         let configuration = HttpClient::negotiate(&recipe).await?;
         info!("Negotiation successful for {}", recipe.display_endpoint());
         CommunicationClient::connect(&configuration).await
@@ -412,7 +468,11 @@ impl SignalRClient {
     ///
     /// # Returns
     ///
-    /// * `Result<T, String>` - On success, returns the response of type `T`. On failure, returns an error message as a `String`.
+    /// * `Result<T, Error>` - On success, returns the response of type `T`.
+    ///
+    /// # Errors
+    ///
+    /// See [`invoke_with_args`](Self::invoke_with_args).
     ///
     /// # Type Parameters
     ///
@@ -422,7 +482,7 @@ impl SignalRClient {
     ///
     /// ```ignore
     /// let client = SignalRClient::connect("localhost", "test").await.unwrap();
-    /// let response: Result<TestEntity, String> = client.invoke("SingleEntity".to_string()).await;
+    /// let response: Result<TestEntity, rayx_signalr::Error> = client.invoke("SingleEntity".to_string()).await;
     /// match response {
     ///     Ok(entity) => {
     ///         info!("Received entity: {}, {}", entity.text, entity.number);
@@ -435,7 +495,7 @@ impl SignalRClient {
     pub async fn invoke<T: 'static + DeserializeOwned + Unpin + crate::platform::MaybeSend>(
         &mut self,
         target: String,
-    ) -> Result<T, String> {
+    ) -> Result<T, Error> {
         return self
             .invoke_internal(target, None::<fn(&mut ArgumentConfiguration)>)
             .await;
@@ -450,7 +510,23 @@ impl SignalRClient {
     ///
     /// # Returns
     ///
-    /// * `Result<T, String>` - On success, returns the response of type `T`. On failure, returns an error message as a `String`.
+    /// * `Result<T, Error>` - On success, returns the response of type `T`.
+    ///
+    /// # Errors
+    ///
+    /// - [`ErrorKind::Hub`](crate::ErrorKind::Hub) with the server's message when the hub method
+    ///   throws.
+    /// - [`ErrorKind::Serialization`](crate::ErrorKind::Serialization) when an argument cannot be
+    ///   encoded or the result cannot be decoded into `T`.
+    /// - [`ErrorKind::Paused`](crate::ErrorKind::Paused) while paused;
+    ///   [`ErrorKind::ConnectionClosed`](crate::ErrorKind::ConnectionClosed) after a local or server
+    ///   close; [`ErrorKind::Transport`](crate::ErrorKind::Transport) when the connection is lost or
+    ///   reconnecting (ordinary connections; stateful ones resume the call).
+    /// - [`ErrorKind::Canceled`](crate::ErrorKind::Canceled) when the call ended before the server
+    ///   completed it.
+    /// - [`ErrorKind::Configuration`](crate::ErrorKind::Configuration) with stateful reconnect when
+    ///   the encoded message is larger than the replay buffer (`setting()` names
+    ///   `StatefulReconnectConfig::buffer_size_bytes`).
     ///
     /// # Type Parameters
     ///
@@ -460,7 +536,7 @@ impl SignalRClient {
     ///
     /// ```ignore
     /// let client = SignalRClient::connect("localhost", "test").await.unwrap();
-    /// let response: Result<TestEntity, String> = client.invoke_with_args("PushTwoEntities".to_string(), |c| {
+    /// let response: Result<TestEntity, rayx_signalr::Error> = client.invoke_with_args("PushTwoEntities".to_string(), |c| {
     ///     c.argument(TestEntity {
     ///         text: "entity1".to_string(),
     ///         number: 200,
@@ -485,7 +561,7 @@ impl SignalRClient {
         &mut self,
         target: String,
         configuration: F,
-    ) -> Result<T, String>
+    ) -> Result<T, Error>
     where
         F: FnMut(&mut ArgumentConfiguration),
     {
@@ -499,28 +575,43 @@ impl SignalRClient {
         &mut self,
         target: String,
         configuration: Option<F>,
-    ) -> Result<T, String>
+    ) -> Result<T, Error>
     where
         F: FnMut(&mut ArgumentConfiguration),
     {
         let invocation_id = self._actions.create_key(target.clone());
-        let ret = self._actions.add_invocation::<T>(invocation_id.clone());
-
         let mut invocation = Invocation::create_single(target.clone());
-        invocation.with_invocation_id(invocation_id);
+        invocation.with_invocation_id(invocation_id.clone());
+        let invocation = Self::with_arguments(invocation, configuration)?;
 
-        if let Some(mut configuration) = configuration {
-            let mut args = ArgumentConfiguration::new(invocation);
-            configuration(&mut args);
-
-            invocation = args.build_invocation();
+        let Some(ref mut conn) = self._connection else {
+            return Err(Error::closed_locally());
+        };
+        // Registered before sending, so a fast Completion always finds its awaiter.
+        let ret = self._actions.add_invocation::<T>(invocation_id.clone());
+        if let Err(error) = Self::send_invocation(conn, &invocation).await {
+            // The server never saw the invocation: nothing will complete it.
+            self._actions.fail_action(invocation_id, &error);
         }
+        ret.await
+    }
 
-        if let Some(ref mut conn) = self._connection {
-            Self::send_invocation(conn, &invocation).await?;
-            ret.await
-        } else {
-            Err("Not connected".to_string())
+    /// Applies the caller's argument configuration; an argument that cannot be encoded fails the
+    /// call before anything is sent.
+    fn with_arguments<F>(
+        invocation: Invocation,
+        configuration: Option<F>,
+    ) -> Result<Invocation, Error>
+    where
+        F: FnMut(&mut ArgumentConfiguration),
+    {
+        match configuration {
+            Some(mut configuration) => {
+                let mut args = ArgumentConfiguration::new(invocation);
+                configuration(&mut args);
+                args.build_invocation()
+            }
+            None => Ok(invocation),
         }
     }
 
@@ -532,7 +623,11 @@ impl SignalRClient {
     ///
     /// # Returns
     ///
-    /// * `Result<(), String>` - On success, returns `Ok(())`. On failure, returns an error message as a `String`.
+    /// * `Result<(), Error>` - `Ok(())` once the message was handed to the transport.
+    ///
+    /// # Errors
+    ///
+    /// See [`send_with_args`](Self::send_with_args).
     ///
     /// # Examples
     ///
@@ -548,7 +643,7 @@ impl SignalRClient {
     ///     }
     /// }
     /// ```
-    pub async fn send(&mut self, target: String) -> Result<(), String> {
+    pub async fn send(&mut self, target: String) -> Result<(), Error> {
         return self
             .send_internal(target, None::<fn(&mut ArgumentConfiguration)>)
             .await;
@@ -563,7 +658,19 @@ impl SignalRClient {
     ///
     /// # Returns
     ///
-    /// * `Result<(), String>` - On success, returns `Ok(())`. On failure, returns an error message as a `String`.
+    /// * `Result<(), Error>` - `Ok(())` once the message was handed to the transport.
+    ///
+    /// # Errors
+    ///
+    /// - [`ErrorKind::Serialization`](crate::ErrorKind::Serialization) when an argument cannot be
+    ///   encoded.
+    /// - [`ErrorKind::Paused`](crate::ErrorKind::Paused) while paused;
+    ///   [`ErrorKind::ConnectionClosed`](crate::ErrorKind::ConnectionClosed) after a local or server
+    ///   close; [`ErrorKind::Transport`](crate::ErrorKind::Transport) when the transport is lost or
+    ///   reconnecting.
+    /// - [`ErrorKind::Configuration`](crate::ErrorKind::Configuration) with stateful reconnect when
+    ///   the encoded message is larger than the replay buffer (`setting()` names
+    ///   `StatefulReconnectConfig::buffer_size_bytes`).
     ///
     /// # Examples
     ///
@@ -581,11 +688,7 @@ impl SignalRClient {
     ///     }
     /// }
     /// ```
-    pub async fn send_with_args<F>(
-        &mut self,
-        target: String,
-        configuration: F,
-    ) -> Result<(), String>
+    pub async fn send_with_args<F>(&mut self, target: String, configuration: F) -> Result<(), Error>
     where
         F: FnMut(&mut ArgumentConfiguration),
     {
@@ -596,24 +699,17 @@ impl SignalRClient {
         &mut self,
         target: String,
         configuration: Option<F>,
-    ) -> Result<(), String>
+    ) -> Result<(), Error>
     where
         F: FnMut(&mut ArgumentConfiguration),
     {
-        // debug!("CLIENT creating actual invocation data");
-        let mut invocation = Invocation::create_single(target.clone());
-
-        if let Some(mut configuration) = configuration {
-            let mut args = ArgumentConfiguration::new(invocation);
-            configuration(&mut args);
-
-            invocation = args.build_invocation();
-        }
+        let invocation =
+            Self::with_arguments(Invocation::create_single(target.clone()), configuration)?;
 
         if let Some(ref mut conn) = self._connection {
             Self::send_invocation(conn, &invocation).await
         } else {
-            Err("Not connected".to_string())
+            Err(Error::closed_locally())
         }
     }
 
@@ -621,7 +717,7 @@ impl SignalRClient {
         &mut self,
         invocation_id: String,
         result: T,
-    ) -> Result<(), String> {
+    ) -> Result<(), Error> {
         if let Some(ref mut conn) = self._connection {
             match conn.get_protocol_kind() {
                 HubProtocolKind::Json => {
@@ -636,7 +732,7 @@ impl SignalRClient {
                 }
             }
         } else {
-            Err("Not connected".to_string())
+            Err(Error::closed_locally())
         }
     }
 
@@ -773,16 +869,12 @@ impl SignalRClient {
         let mut invocation = Invocation::create_multiple(target.clone());
         invocation.with_invocation_id(invocation_id.clone());
 
-        if let Some(mut configuration) = configuration {
-            let mut args = ArgumentConfiguration::new(invocation);
-            configuration(&mut args);
-
-            invocation = args.build_invocation();
-        }
-
-        let sent = match self._connection {
-            Some(ref mut conn) => Self::send_invocation(conn, &invocation).await,
-            None => Err("Not connected".to_string()),
+        let sent = match Self::with_arguments(invocation, configuration) {
+            Ok(invocation) => match self._connection {
+                Some(ref mut conn) => Self::send_invocation(conn, &invocation).await,
+                None => Err(Error::closed_locally()),
+            },
+            Err(error) => Err(error),
         };
         if let Err(error) = sent {
             // The server never saw the invocation: end the stream with the send error. Failing it
@@ -796,7 +888,7 @@ impl SignalRClient {
     async fn send_cancel_invocation(
         conn: &mut CommunicationClient,
         invocation_id: String,
-    ) -> Result<(), String> {
+    ) -> Result<(), Error> {
         match conn.get_protocol_kind() {
             HubProtocolKind::Json => conn.send(CancelInvocation::new(invocation_id)).await,
             #[cfg(feature = "messagepack")]
@@ -812,7 +904,7 @@ impl SignalRClient {
     async fn send_invocation(
         conn: &mut CommunicationClient,
         invocation: &Invocation,
-    ) -> Result<(), String> {
+    ) -> Result<(), Error> {
         match conn.get_protocol_kind() {
             HubProtocolKind::Json => conn.send(invocation).await,
             #[cfg(feature = "messagepack")]
@@ -825,7 +917,7 @@ impl SignalRClient {
 
     /// Encodes an Invocation or StreamInvocation as a framed MessagePack message.
     #[cfg(feature = "messagepack")]
-    pub(crate) fn messagepack_invocation_frame(invocation: &Invocation) -> Result<Vec<u8>, String> {
+    pub(crate) fn messagepack_invocation_frame(invocation: &Invocation) -> Result<Vec<u8>, Error> {
         // Preserve the serializer-owned wire names. ASP.NET Core can
         // bind explicitly attributed names, while a transport-level
         // casing rewrite corrupts compact schemas and serde renames.
@@ -888,7 +980,8 @@ impl SignalRClient {
     /// transport (which stops keep-alive), stops automatic reconnects and reports
     /// [`ConnectionStatus::Paused`](crate::ConnectionStatus::Paused). `invoke` and `send` fail
     /// while paused, and a stream started with `enumerate` ends at once with the send error.
-    /// Ordinary pending invocations fail with "The connection is paused".
+    /// Ordinary pending invocations and streams fail with
+    /// [`ErrorKind::Paused`](crate::ErrorKind::Paused).
     ///
     /// With stateful reconnect, native clients drop the transport without a WebSocket Close, so
     /// the server keeps the logical connection and its pending work resumes after `resume`, but
@@ -898,11 +991,16 @@ impl SignalRClient {
     /// a browser pause therefore fails all pending work and `resume` negotiates a fresh stateful
     /// connection.
     ///
-    /// Pausing a paused client does nothing; a locally closed client returns an error.
-    pub async fn pause(&self) -> Result<(), String> {
+    /// Pausing a paused client does nothing.
+    ///
+    /// # Errors
+    ///
+    /// [`ErrorKind::ConnectionClosed`](crate::ErrorKind::ConnectionClosed) for a locally closed
+    /// client.
+    pub async fn pause(&self) -> Result<(), Error> {
         match &self._connection {
             Some(connection) => connection.pause().await,
-            None => Err(crate::communication::reconnection::LOCALLY_CLOSED.to_string()),
+            None => Err(Error::closed_locally()),
         }
     }
 
@@ -918,12 +1016,18 @@ impl SignalRClient {
     ///
     /// If every attempt fails, the client is disconnected and the logical connection ends like
     /// an exhausted automatic reconnect: stateful pending work fails too, and a later `resume`
-    /// negotiates a fresh connection. Resuming a connected or reconnecting client does nothing;
-    /// a locally closed client returns an error.
-    pub async fn resume(&self) -> Result<(), String> {
+    /// negotiates a fresh connection. Resuming a connected or reconnecting client does nothing.
+    ///
+    /// # Errors
+    ///
+    /// [`ErrorKind::ConnectionClosed`](crate::ErrorKind::ConnectionClosed) for a locally closed
+    /// client, or with [`CloseReason::ReconnectExhausted`](crate::CloseReason::ReconnectExhausted)
+    /// when every attempt failed (its source is the last attempt's error);
+    /// [`ErrorKind::Paused`](crate::ErrorKind::Paused) when `pause` superseded the run.
+    pub async fn resume(&self) -> Result<(), Error> {
         match &self._connection {
             Some(connection) => connection.resume().await,
-            None => Err(crate::communication::reconnection::LOCALLY_CLOSED.to_string()),
+            None => Err(Error::closed_locally()),
         }
     }
 }
@@ -951,7 +1055,7 @@ mod unsent_stream_invocation {
 
     /// A client whose connection never opened, so every send fails. Its tasks belong to
     /// `runtime`.
-    fn not_connected_client(
+    pub(super) fn not_connected_client(
         protocol: HubProtocolKind,
         runtime: tokio::runtime::Handle,
     ) -> SignalRClient {
@@ -988,7 +1092,7 @@ mod unsent_stream_invocation {
             "the stream must end at once"
         );
         let error = stream.error().expect("the send error must end the stream");
-        assert!(error.contains("not connected"), "{error}");
+        assert_eq!(error.kind(), crate::ErrorKind::Transport, "{error}");
         assert!(!client._actions.contains("Numbers_1".to_string()));
 
         drop(stream);
@@ -1008,6 +1112,70 @@ mod unsent_stream_invocation {
     #[test]
     fn messagepack_stream_that_cannot_be_sent_ends_with_the_send_error() {
         a_stream_that_cannot_be_sent_ends_with_the_send_error(HubProtocolKind::MessagePack);
+    }
+}
+
+/// An argument that cannot be encoded fails the call with `Serialization` before anything is
+/// sent: the client's connection never opened, so a send attempt would fail with `Transport`.
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod argument_encoding {
+    use futures::{executor::block_on, FutureExt, StreamExt};
+    use serde::{ser, Serialize, Serializer};
+
+    use super::unsent_stream_invocation::not_connected_client;
+    use crate::{execution::Storage, protocol::hub_protocol::HubProtocolKind, ErrorKind};
+
+    /// A value whose serialization always fails.
+    struct Unencodable;
+
+    impl Serialize for Unencodable {
+        fn serialize<S: Serializer>(&self, _: S) -> Result<S::Ok, S::Error> {
+            Err(ser::Error::custom("this value cannot be encoded"))
+        }
+    }
+
+    fn an_unencodable_argument_fails_the_call_before_sending(protocol: HubProtocolKind) {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let mut client = not_connected_client(protocol, runtime.handle().clone());
+
+        let invoked = block_on(client.invoke_with_args::<i32, _>(
+            "Target".to_string(),
+            |arguments| {
+                arguments.argument(1).argument(Unencodable).argument(2);
+            },
+        ))
+        .unwrap_err();
+        assert_eq!(invoked.kind(), ErrorKind::Serialization, "{invoked}");
+        assert!(!client._actions.contains("Target_1".to_string()));
+
+        let sent = block_on(client.send_with_args("Target".to_string(), |arguments| {
+            arguments.argument(Unencodable);
+        }))
+        .unwrap_err();
+        assert_eq!(sent.kind(), ErrorKind::Serialization, "{sent}");
+
+        let mut stream = block_on(client.enumerate_with_args::<i32, _>(
+            "Numbers".to_string(),
+            |arguments| {
+                arguments.argument(Unencodable);
+            },
+        ));
+        assert_eq!(stream.next().now_or_never(), Some(None));
+        let ended = stream.error().expect("the encode error ends the stream");
+        assert_eq!(ended.kind(), ErrorKind::Serialization, "{ended}");
+    }
+
+    #[test]
+    fn error_model_json_unencodable_argument_fails_the_call_before_sending() {
+        an_unencodable_argument_fails_the_call_before_sending(HubProtocolKind::Json);
+    }
+
+    #[cfg(feature = "messagepack")]
+    #[test]
+    fn error_model_messagepack_unencodable_argument_fails_the_call_before_sending() {
+        an_unencodable_argument_fails_the_call_before_sending(HubProtocolKind::MessagePack);
     }
 }
 
@@ -1043,8 +1211,8 @@ mod runtime_ownership {
             .err()
             .expect("connect must fail without a runtime")
         });
-        assert!(error.contains("needs a Tokio runtime"), "{error}");
-        assert!(error.contains("with_runtime_handle"), "{error}");
+        assert_eq!(error.kind(), crate::ErrorKind::Configuration, "{error}");
+        assert_eq!(error.setting(), Some("with_runtime_handle"));
     }
 
     #[test]
@@ -1065,11 +1233,12 @@ mod runtime_ownership {
             .err()
             .expect("nothing listens on the port")
         });
-        assert!(
-            !error.contains("needs a Tokio runtime"),
+        // The negotiate request reached the closed port, so the configured runtime ran it.
+        assert_eq!(
+            error.kind(),
+            crate::ErrorKind::Transport,
             "the configured runtime was not used: {error}"
         );
-        assert!(error.contains("Cannot connect"), "{error}");
     }
 
     #[test]

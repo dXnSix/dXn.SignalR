@@ -2,6 +2,7 @@ use core::future::Future;
 
 use self::messages::MessageParser;
 use super::SignalRClient;
+use crate::error::Error;
 use crate::protocol::{invoke::Invocation, messages};
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -63,7 +64,9 @@ use serde::{de::DeserializeOwned, Serialize};
 ///
 /// ### Returns
 ///
-/// * `Result<T, String>` - On success, returns the argument of type `T`. On failure, returns an error message as a `String`.
+/// * `Result<T, Error>` - On success, returns the argument of type `T`; an
+///   [`ErrorKind::Serialization`](crate::ErrorKind::Serialization) error when the argument is
+///   missing or cannot be decoded into `T`.
 ///
 /// ### Type Parameters
 ///
@@ -95,7 +98,7 @@ use serde::{de::DeserializeOwned, Serialize};
 ///
 /// ### Returns
 ///
-/// * `Result<(), String>` - On success, returns `Ok(())`. On failure, returns an error message as a `String`.
+/// * `Result<(), Error>` - On success, returns `Ok(())`; the send error otherwise.
 ///
 /// ### Type Parameters
 ///
@@ -137,7 +140,12 @@ impl InvocationContext {
     ///
     /// # Returns
     ///
-    /// * `Result<T, String>` - On success, returns the argument of type `T`. On failure, returns an error message as a `String`.
+    /// * `Result<T, Error>` - On success, returns the argument of type `T`.
+    ///
+    /// # Errors
+    ///
+    /// [`ErrorKind::Serialization`](crate::ErrorKind::Serialization) when the server sent no
+    /// argument at `index` or it cannot be decoded into `T`.
     ///
     /// # Type Parameters
     ///
@@ -156,18 +164,20 @@ impl InvocationContext {
     ///     }
     /// }
     /// ```
-    pub fn argument<T: DeserializeOwned + Unpin>(&self, index: usize) -> Result<T, String> {
+    pub fn argument<T: DeserializeOwned + Unpin>(&self, index: usize) -> Result<T, Error> {
         let arguments = self
             .invocation
             .arguments
             .as_ref()
-            .ok_or_else(|| "There are no arguments for the invocation".to_string())?;
-        let value = arguments
-            .get(index)
-            .ok_or_else(|| format!("The argument does not exist at the given index {index}"))?;
-        MessageParser::parse_message::<T>(&value.to_string()).map_err(|error| {
-            format!("The argument at index {index} cannot be deserialized: {error}")
-        })
+            .ok_or_else(|| Error::serialization("the invocation carries no arguments"))?;
+        let value = arguments.get(index).ok_or_else(|| {
+            Error::serialization(format!(
+                "the invocation has {} arguments, so there is none at index {index}",
+                arguments.len()
+            ))
+        })?;
+        MessageParser::decode_payload::<T>(&value.to_string())
+            .map_err(|error| error.context(format!("argument {index}")))
     }
 
     /// Returns a specific result from the callback to the hub.
@@ -180,7 +190,14 @@ impl InvocationContext {
     ///
     /// # Returns
     ///
-    /// * `Result<(), String>` - On success, returns `Ok(())`. On failure, returns an error message as a `String`.
+    /// * `Result<(), Error>` - On success, returns `Ok(())`.
+    ///
+    /// # Errors
+    ///
+    /// [`ErrorKind::Protocol`](crate::ErrorKind::Protocol) when the server's call carries no
+    /// invocation id (it expects no result); [`ErrorKind::Serialization`](crate::ErrorKind::Serialization)
+    /// when `result` cannot be encoded; otherwise the send errors of
+    /// [`SignalRClient::send`](crate::SignalRClient::send).
     ///
     /// # Type Parameters
     ///
@@ -202,10 +219,11 @@ impl InvocationContext {
     ///     }
     /// }
     /// ```
-    pub async fn complete<T: Serialize>(&mut self, result: T) -> Result<(), String> {
+    pub async fn complete<T: Serialize>(&mut self, result: T) -> Result<(), Error> {
         let invocation_id = self.invocation.get_invocation_id().ok_or_else(|| {
-            "The completion cannot be sent, because there was no invocation id for the call"
-                .to_string()
+            Error::protocol(
+                "the completion cannot be sent: the server's call carries no invocation id",
+            )
         })?;
         self.client.send_completion(invocation_id, result).await
     }

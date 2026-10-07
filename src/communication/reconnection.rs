@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use crate::error::Error;
+
 /// The lifecycle of one logical connection, shared by both targets.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum LifecycleState {
@@ -27,11 +29,6 @@ pub enum ConnectionStatus {
     /// Closed locally by `disconnect`; terminal.
     Closed,
 }
-
-/// Returned when an operation needs a client that was not closed locally.
-pub(crate) const LOCALLY_CLOSED: &str = "Client was locally disconnected";
-/// Returned when a reconnect is requested while the application paused the connection.
-pub(crate) const PAUSED: &str = "The connection is paused";
 
 /// What `pause` did.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -89,20 +86,22 @@ impl Lifecycle {
     }
 
     /// Why a reconnect of an older generation stopped.
-    pub(crate) fn superseded_reason(&self) -> &'static str {
+    pub(crate) fn superseded(&self) -> Error {
         match self.state {
-            LifecycleState::LocalClosed => LOCALLY_CLOSED,
-            LifecycleState::Paused => PAUSED,
-            _ => "The reconnect attempt was superseded",
+            LifecycleState::LocalClosed => Error::closed_locally(),
+            LifecycleState::Paused => Error::paused(),
+            _ => Error::canceled("the reconnect attempt was superseded"),
         }
     }
 
     /// Starts a reconnect (automatic or manual) from a connected or disconnected client.
-    pub(crate) fn begin(&mut self) -> Result<u64, &'static str> {
+    pub(crate) fn begin(&mut self) -> Result<u64, Error> {
         match self.state {
-            LifecycleState::LocalClosed => Err(LOCALLY_CLOSED),
-            LifecycleState::Paused => Err(PAUSED),
-            LifecycleState::Reconnecting => Err("A reconnect attempt is already running"),
+            LifecycleState::LocalClosed => Err(Error::closed_locally()),
+            LifecycleState::Paused => Err(Error::paused()),
+            LifecycleState::Reconnecting => {
+                Err(Error::canceled("a reconnect attempt is already running"))
+            }
             LifecycleState::Connected | LifecycleState::Disconnected => Ok(self.start()),
         }
     }
@@ -157,9 +156,9 @@ impl Lifecycle {
 
     /// Pauses a connected, reconnecting or disconnected client, superseding any running
     /// reconnect. Pausing a paused client is a no-op; a closed client rejects it.
-    pub(crate) fn pause(&mut self) -> Result<PauseOutcome, &'static str> {
+    pub(crate) fn pause(&mut self) -> Result<PauseOutcome, Error> {
         match self.state {
-            LifecycleState::LocalClosed => Err(LOCALLY_CLOSED),
+            LifecycleState::LocalClosed => Err(Error::closed_locally()),
             LifecycleState::Paused => Ok(PauseOutcome::AlreadyPaused),
             LifecycleState::Connected
             | LifecycleState::Reconnecting
@@ -173,9 +172,9 @@ impl Lifecycle {
 
     /// Resumes a paused or disconnected client by beginning a reconnect. Resuming a connected or
     /// reconnecting client is a no-op; a closed client rejects it.
-    pub(crate) fn resume(&mut self) -> Result<ResumeOutcome, &'static str> {
+    pub(crate) fn resume(&mut self) -> Result<ResumeOutcome, Error> {
         match self.state {
-            LifecycleState::LocalClosed => Err(LOCALLY_CLOSED),
+            LifecycleState::LocalClosed => Err(Error::closed_locally()),
             LifecycleState::Connected | LifecycleState::Reconnecting => {
                 Ok(ResumeOutcome::AlreadyActive)
             }
@@ -235,7 +234,7 @@ impl ReconnectCoordinator {
         change(&mut self.state.lock().expect("reconnect coordinator poisoned"))
     }
 
-    pub(crate) fn begin(&self) -> Result<u64, &'static str> {
+    pub(crate) fn begin(&self) -> Result<u64, Error> {
         self.with(Lifecycle::begin)
     }
 
@@ -251,8 +250,8 @@ impl ReconnectCoordinator {
         self.with(|lifecycle| lifecycle.owns(generation))
     }
 
-    pub(crate) fn superseded_reason(&self) -> &'static str {
-        self.with(|lifecycle| lifecycle.superseded_reason())
+    pub(crate) fn superseded(&self) -> Error {
+        self.with(|lifecycle| lifecycle.superseded())
     }
 
     pub(crate) fn transport_lost(&self) {
@@ -268,11 +267,11 @@ impl ReconnectCoordinator {
         self.with(Lifecycle::local_close)
     }
 
-    pub(crate) fn pause(&self) -> Result<PauseOutcome, &'static str> {
+    pub(crate) fn pause(&self) -> Result<PauseOutcome, Error> {
         self.with(Lifecycle::pause)
     }
 
-    pub(crate) fn resume(&self) -> Result<ResumeOutcome, &'static str> {
+    pub(crate) fn resume(&self) -> Result<ResumeOutcome, Error> {
         self.with(Lifecycle::resume)
     }
 
@@ -461,8 +460,8 @@ mod lifecycle_controls {
     use super::{
         ConnectionStatus, DefaultRetryPolicy, FirstAttempt, Lifecycle, LifecycleState,
         NoReconnectPolicy, PauseOutcome, ReconnectionConfig, ReconnectionPolicy, ResumeOutcome,
-        LOCALLY_CLOSED, PAUSED,
     };
+    use crate::{CloseReason, ErrorKind};
 
     fn reconnecting() -> (Lifecycle, u64) {
         let mut lifecycle = Lifecycle::connected();
@@ -487,16 +486,16 @@ mod lifecycle_controls {
     #[test]
     fn lifecycle_controls_pause_is_accepted_from_every_open_state() {
         let mut connected = Lifecycle::connected();
-        assert_eq!(connected.pause(), Ok(PauseOutcome::Paused));
+        assert_eq!(connected.pause().ok(), Some(PauseOutcome::Paused));
         assert_eq!(connected.state(), LifecycleState::Paused);
 
         let (mut reconnecting, _) = reconnecting();
-        assert_eq!(reconnecting.pause(), Ok(PauseOutcome::Paused));
+        assert_eq!(reconnecting.pause().ok(), Some(PauseOutcome::Paused));
 
         let mut disconnected = Lifecycle::connected();
         disconnected.transport_lost();
         assert_eq!(disconnected.status(), ConnectionStatus::Disconnected);
-        assert_eq!(disconnected.pause(), Ok(PauseOutcome::Paused));
+        assert_eq!(disconnected.pause().ok(), Some(PauseOutcome::Paused));
     }
 
     #[test]
@@ -510,14 +509,14 @@ mod lifecycle_controls {
         );
         lifecycle.fail(generation);
         assert_eq!(lifecycle.state(), LifecycleState::Paused);
-        assert_eq!(lifecycle.superseded_reason(), PAUSED);
+        assert_eq!(lifecycle.superseded().kind(), ErrorKind::Paused);
     }
 
     #[test]
     fn lifecycle_controls_paused_clients_refuse_reconnects_and_server_closes() {
         let mut lifecycle = Lifecycle::connected();
         lifecycle.pause().unwrap();
-        assert_eq!(lifecycle.begin(), Err(PAUSED));
+        assert_eq!(lifecycle.begin().unwrap_err().kind(), ErrorKind::Paused);
         lifecycle.remote_close();
         lifecycle.transport_lost();
         assert_eq!(lifecycle.state(), LifecycleState::Paused);
@@ -545,15 +544,15 @@ mod lifecycle_controls {
     #[test]
     fn lifecycle_controls_repeated_pause_and_resume_are_no_ops() {
         let mut lifecycle = Lifecycle::connected();
-        assert_eq!(lifecycle.resume(), Ok(ResumeOutcome::AlreadyActive));
+        assert_eq!(lifecycle.resume().ok(), Some(ResumeOutcome::AlreadyActive));
         assert_eq!(lifecycle.state(), LifecycleState::Connected);
         let (mut running, generation) = reconnecting();
-        assert_eq!(running.resume(), Ok(ResumeOutcome::AlreadyActive));
+        assert_eq!(running.resume().ok(), Some(ResumeOutcome::AlreadyActive));
         assert!(running.owns(generation));
 
         lifecycle.pause().unwrap();
         let paused = lifecycle;
-        assert_eq!(lifecycle.pause(), Ok(PauseOutcome::AlreadyPaused));
+        assert_eq!(lifecycle.pause().ok(), Some(PauseOutcome::AlreadyPaused));
         assert_eq!(lifecycle, paused, "a repeated pause changes nothing");
     }
 
@@ -562,9 +561,13 @@ mod lifecycle_controls {
         let (mut lifecycle, generation) = reconnecting();
         lifecycle.local_close();
         assert!(!lifecycle.complete(generation));
-        assert_eq!(lifecycle.pause(), Err(LOCALLY_CLOSED));
-        assert_eq!(lifecycle.resume(), Err(LOCALLY_CLOSED));
-        assert_eq!(lifecycle.begin(), Err(LOCALLY_CLOSED));
+        for error in [
+            lifecycle.pause().unwrap_err(),
+            lifecycle.resume().unwrap_err(),
+            lifecycle.begin().unwrap_err(),
+        ] {
+            assert_eq!(error.close_reason(), Some(CloseReason::Local));
+        }
         lifecycle.remote_close();
         assert_eq!(lifecycle.status(), ConnectionStatus::Closed);
     }
@@ -611,13 +614,16 @@ mod lifecycle_controls {
         assert!(!buffer.is_disposed());
         assert_eq!(buffer.buffered_bytes(), 0);
         assert_eq!(
-            buffer.track(MessageType::Invocation, frame()),
-            Ok(TrackResult::Buffered(1)),
+            buffer.track(MessageType::Invocation, frame()).ok(),
+            Some(TrackResult::Buffered(1)),
             "a renewed buffer numbers frames from the start"
         );
         assert_eq!(
-            buffer.track_for(old_generation, MessageType::Invocation, frame()),
-            Err(STALE_TRANSPORT.to_string()),
+            buffer
+                .track_for(old_generation, MessageType::Invocation, frame())
+                .unwrap_err()
+                .to_string(),
+            STALE_TRANSPORT,
             "writers of the ended connection can never track frames"
         );
     }
@@ -660,8 +666,8 @@ mod reconnect_lifecycle {
         let generation = coordinator.begin().unwrap();
         assert_eq!(coordinator.lifecycle(), LifecycleState::Reconnecting);
         assert_eq!(
-            coordinator.begin(),
-            Err("A reconnect attempt is already running")
+            coordinator.begin().unwrap_err().kind(),
+            crate::ErrorKind::Canceled
         );
         assert!(coordinator.complete(generation));
         assert_eq!(coordinator.lifecycle(), LifecycleState::Connected);
@@ -674,7 +680,10 @@ mod reconnect_lifecycle {
         coordinator.local_close();
         assert!(!coordinator.complete(stale_generation));
         assert_eq!(coordinator.lifecycle(), LifecycleState::LocalClosed);
-        assert_eq!(coordinator.begin(), Err("Client was locally disconnected"));
+        assert_eq!(
+            coordinator.begin().unwrap_err().close_reason(),
+            Some(crate::CloseReason::Local)
+        );
     }
 
     #[test]

@@ -9,6 +9,7 @@ pub mod reconnection;
 pub(crate) mod stateful;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod tls;
+pub(crate) mod transport;
 
 #[cfg(target_arch = "wasm32")]
 mod client_wasm;

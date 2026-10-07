@@ -17,6 +17,7 @@ const scenarios = [
   "negotiate-redirect",
   "skip-negotiation",
   "message-burst",
+  "error-kinds",
 ];
 
 for (const scenario of scenarios) {

@@ -9,10 +9,20 @@
 #[cfg(rayx_tls)]
 use std::sync::Arc;
 
+use crate::error::Error;
+
 /// Returned for `https`/`wss` endpoints when the crate was built without TLS features.
 pub(crate) const TLS_DISABLED: &str = "TLS support is disabled in this build of rayx-signalr; \
 enable a verifier feature (tls-platform-verifier or tls-webpki-roots) and a provider feature \
 (tls-ring or tls-aws-lc-rs) to connect to https/wss endpoints";
+
+/// The setting a [`TLS_DISABLED`] error names: the crate's Cargo features.
+pub(crate) const TLS_FEATURES: &str = "TLS Cargo features";
+
+/// The configuration error of a secure endpoint in a build without TLS features.
+pub(crate) fn tls_disabled() -> Error {
+    Error::configuration(TLS_FEATURES, TLS_DISABLED)
+}
 
 /// TLS options collected by `ConnectionConfiguration`.
 #[derive(Clone, Debug, Default)]
@@ -64,13 +74,13 @@ impl CompiledTls {
     };
 
     /// aws-lc-rs when enabled, else ring.
-    pub(crate) fn provider(self) -> Result<ProviderKind, String> {
+    pub(crate) fn provider(self) -> Result<ProviderKind, Error> {
         if self.aws_lc_rs {
             Ok(ProviderKind::AwsLcRs)
         } else if self.ring {
             Ok(ProviderKind::Ring)
         } else {
-            Err(TLS_DISABLED.to_string())
+            Err(tls_disabled())
         }
     }
 
@@ -81,12 +91,15 @@ impl CompiledTls {
         self,
         use_webpki_roots: bool,
         has_extra_roots: bool,
-    ) -> Result<VerifierKind, String> {
+    ) -> Result<VerifierKind, Error> {
         if use_webpki_roots {
             return if self.webpki_roots {
                 Ok(VerifierKind::WebPki)
             } else {
-                Err("use_webpki_roots() requires the tls-webpki-roots feature".to_string())
+                Err(Error::configuration(
+                    "use_webpki_roots",
+                    "use_webpki_roots() requires the tls-webpki-roots feature",
+                ))
             };
         }
         if self.platform_verifier {
@@ -99,7 +112,7 @@ impl CompiledTls {
         if self.webpki_roots {
             Ok(VerifierKind::WebPki)
         } else {
-            Err(TLS_DISABLED.to_string())
+            Err(tls_disabled())
         }
     }
 }
@@ -125,7 +138,7 @@ pub(crate) struct TlsContext {
 impl TlsContext {
     /// Validates the TLS options and, for a secure endpoint, builds the connection's config.
     /// Runs at `connect`, before any I/O.
-    pub(crate) fn for_connection(secure: bool, settings: &TlsSettings) -> Result<Self, String> {
+    pub(crate) fn for_connection(secure: bool, settings: &TlsSettings) -> Result<Self, Error> {
         #[cfg(rayx_tls)]
         {
             let extra_roots = match &settings.extra_roots_pem {
@@ -148,7 +161,7 @@ impl TlsContext {
         {
             let _ = settings;
             if secure {
-                Err(TLS_DISABLED.to_string())
+                Err(tls_disabled())
             } else {
                 Ok(Self::default())
             }
@@ -157,7 +170,7 @@ impl TlsContext {
 
     /// The connection's rustls config, built once on first use.
     #[cfg(rayx_tls)]
-    pub(crate) fn config(&self) -> Result<Arc<rustls::ClientConfig>, String> {
+    pub(crate) fn config(&self) -> Result<Arc<rustls::ClientConfig>, Error> {
         let mut slot = self.config.lock().expect("TLS config slot poisoned");
         if let Some(config) = slot.as_ref() {
             return Ok(config.clone());
@@ -165,7 +178,7 @@ impl TlsContext {
         let prepared = self
             .prepared
             .as_ref()
-            .ok_or_else(|| "The connection was not configured for TLS".to_string())?;
+            .ok_or_else(|| Error::tls("the connection was not configured for TLS"))?;
         let compiled = CompiledTls::CURRENT;
         let verifier =
             compiled.verifier(prepared.use_webpki_roots, !prepared.extra_roots.is_empty())?;
@@ -188,7 +201,7 @@ impl TlsContext {
     }
 
     /// The WebSocket connector for a `wss` endpoint.
-    pub(crate) fn websocket_connector(&self) -> Result<tokio_websockets::Connector, String> {
+    pub(crate) fn websocket_connector(&self) -> Result<tokio_websockets::Connector, Error> {
         #[cfg(rayx_tls)]
         {
             Ok(tokio_websockets::Connector::Rustls(
@@ -197,7 +210,7 @@ impl TlsContext {
         }
         #[cfg(not(rayx_tls))]
         {
-            Err(TLS_DISABLED.to_string())
+            Err(tls_disabled())
         }
     }
 }
@@ -206,14 +219,23 @@ impl TlsContext {
 #[cfg(rayx_tls)]
 pub(crate) fn parse_certificates(
     pem: &[u8],
-) -> Result<Vec<rustls_pki_types::CertificateDer<'static>>, String> {
+) -> Result<Vec<rustls_pki_types::CertificateDer<'static>>, Error> {
     use rustls_pki_types::{pem::PemObject, CertificateDer};
 
+    const SETTING: &str = "with_additional_root_certificates_pem";
     let certificates = CertificateDer::pem_slice_iter(pem)
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| format!("The additional root certificates are not valid PEM: {error}"))?;
+        .map_err(|error| {
+            Error::configuration(
+                SETTING,
+                format!("the additional root certificates are not valid PEM: {error}"),
+            )
+        })?;
     if certificates.is_empty() {
-        return Err("The additional root certificates contain no PEM certificate".to_string());
+        return Err(Error::configuration(
+            SETTING,
+            "the additional root certificates contain no PEM certificate",
+        ));
     }
     Ok(certificates)
 }
@@ -235,20 +257,23 @@ fn build_config(
     provider: ProviderKind,
     verifier: VerifierKind,
     extra_roots: Vec<rustls_pki_types::CertificateDer<'static>>,
-) -> Result<rustls::ClientConfig, String> {
+) -> Result<rustls::ClientConfig, Error> {
     use rustls::client::danger::ServerCertVerifier;
 
     let provider = crypto_provider(provider);
     let verifier: Arc<dyn ServerCertVerifier> = match verifier {
         #[cfg(feature = "tls-platform-verifier")]
         VerifierKind::Platform => Arc::new(
-            rustls_platform_verifier::Verifier::new(provider.clone())
-                .map_err(|error| format!("Cannot create the platform TLS verifier: {error}"))?,
+            rustls_platform_verifier::Verifier::new(provider.clone()).map_err(|error| {
+                Error::tls(format!("cannot create the platform TLS verifier: {error}"))
+            })?,
         ),
         #[cfg(all(feature = "tls-platform-verifier", not(target_os = "android")))]
         VerifierKind::PlatformWithExtraRoots => Arc::new(
             rustls_platform_verifier::Verifier::new_with_extra_roots(extra_roots, provider.clone())
-                .map_err(|error| format!("Cannot create the platform TLS verifier: {error}"))?,
+                .map_err(|error| {
+                    Error::tls(format!("cannot create the platform TLS verifier: {error}"))
+                })?,
         ),
         VerifierKind::WebPki => {
             let mut store = rustls::RootCertStore::empty();
@@ -256,29 +281,42 @@ fn build_config(
             store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
             for root in extra_roots {
                 store.add(root).map_err(|error| {
-                    format!("Cannot trust an additional root certificate: {error}")
+                    Error::configuration(
+                        "with_additional_root_certificates_pem",
+                        format!("cannot trust an additional root certificate: {error}"),
+                    )
                 })?;
             }
             if store.is_empty() {
-                return Err("No trusted root certificates are configured".to_string());
+                return Err(Error::configuration(
+                    TLS_FEATURES,
+                    "no trusted root certificates are configured",
+                ));
             }
             rustls::client::WebPkiServerVerifier::builder_with_provider(
                 Arc::new(store),
                 provider.clone(),
             )
             .build()
-            .map_err(|error| format!("Cannot create the webpki TLS verifier: {error}"))?
+            .map_err(|error| {
+                Error::tls(format!("cannot create the webpki TLS verifier: {error}"))
+            })?
         }
         #[allow(unreachable_patterns)]
         other => {
-            return Err(format!(
-                "The {other:?} verifier is not compiled into this build"
+            return Err(Error::configuration(
+                TLS_FEATURES,
+                format!("the {other:?} verifier is not compiled into this build"),
             ))
         }
     };
     Ok(rustls::ClientConfig::builder_with_provider(provider)
         .with_safe_default_protocol_versions()
-        .map_err(|error| format!("Cannot configure TLS protocol versions: {error}"))?
+        .map_err(|error| {
+            Error::tls(format!(
+                "cannot configure the TLS protocol versions: {error}"
+            ))
+        })?
         .dangerous()
         .with_custom_certificate_verifier(verifier)
         .with_no_client_auth())
@@ -301,36 +339,47 @@ mod tls_configuration {
     #[test]
     fn provider_prefers_aws_lc_rs_then_ring() {
         assert_eq!(
-            compiled(true, false, true, true, false).provider(),
-            Ok(ProviderKind::AwsLcRs)
+            compiled(true, false, true, true, false).provider().ok(),
+            Some(ProviderKind::AwsLcRs)
         );
         assert_eq!(
-            compiled(true, false, false, true, false).provider(),
-            Ok(ProviderKind::Ring)
+            compiled(true, false, false, true, false).provider().ok(),
+            Some(ProviderKind::Ring)
         );
         let disabled = compiled(true, false, false, false, false)
             .provider()
             .unwrap_err();
-        assert!(disabled.contains("TLS support is disabled"), "{disabled}");
+        assert_eq!(disabled.kind(), crate::ErrorKind::Configuration);
+        assert!(
+            disabled.to_string().contains("TLS support is disabled"),
+            "{disabled}"
+        );
     }
 
     #[test]
     fn verifier_selection_follows_features_and_options() {
         let both = compiled(true, true, false, true, false);
-        assert_eq!(both.verifier(false, false), Ok(VerifierKind::Platform));
         assert_eq!(
-            both.verifier(false, true),
-            Ok(VerifierKind::PlatformWithExtraRoots)
+            both.verifier(false, false).ok(),
+            Some(VerifierKind::Platform)
         );
-        assert_eq!(both.verifier(true, false), Ok(VerifierKind::WebPki));
-        assert_eq!(both.verifier(true, true), Ok(VerifierKind::WebPki));
+        assert_eq!(
+            both.verifier(false, true).ok(),
+            Some(VerifierKind::PlatformWithExtraRoots)
+        );
+        assert_eq!(both.verifier(true, false).ok(), Some(VerifierKind::WebPki));
+        assert_eq!(both.verifier(true, true).ok(), Some(VerifierKind::WebPki));
 
         let webpki_only = compiled(false, true, false, true, false);
-        assert_eq!(webpki_only.verifier(false, false), Ok(VerifierKind::WebPki));
+        assert_eq!(
+            webpki_only.verifier(false, false).ok(),
+            Some(VerifierKind::WebPki)
+        );
 
         let platform_only = compiled(true, false, false, true, false);
         let error = platform_only.verifier(true, false).unwrap_err();
-        assert!(error.contains("tls-webpki-roots"), "{error}");
+        assert_eq!(error.setting(), Some("use_webpki_roots"));
+        assert!(error.to_string().contains("tls-webpki-roots"), "{error}");
 
         let neither = compiled(false, false, false, true, false);
         assert!(neither.verifier(false, false).is_err());
@@ -339,8 +388,14 @@ mod tls_configuration {
     #[test]
     fn android_extra_roots_select_webpki_verification() {
         let android = compiled(true, false, false, true, true);
-        assert_eq!(android.verifier(false, false), Ok(VerifierKind::Platform));
-        assert_eq!(android.verifier(false, true), Ok(VerifierKind::WebPki));
+        assert_eq!(
+            android.verifier(false, false).ok(),
+            Some(VerifierKind::Platform)
+        );
+        assert_eq!(
+            android.verifier(false, true).ok(),
+            Some(VerifierKind::WebPki)
+        );
     }
 
     #[test]
@@ -384,7 +439,7 @@ NQ==
             } else {
                 ProviderKind::Ring
             };
-            assert_eq!(CompiledTls::CURRENT.provider(), Ok(expected));
+            assert_eq!(CompiledTls::CURRENT.provider().ok(), Some(expected));
         }
 
         #[test]
@@ -408,7 +463,11 @@ NQ==
             let error = TlsContext::for_connection(false, &settings(Some(malformed), false))
                 .err()
                 .expect("malformed PEM must fail");
-            assert!(error.contains("not valid PEM"), "{error}");
+            assert_eq!(
+                error.setting(),
+                Some("with_additional_root_certificates_pem"),
+                "{error}"
+            );
         }
 
         #[test]
@@ -417,7 +476,11 @@ NQ==
                 TlsContext::for_connection(true, &settings(Some("no certificates here"), false))
                     .err()
                     .expect("PEM without certificates must fail");
-            assert!(error.contains("no PEM certificate"), "{error}");
+            assert_eq!(
+                error.setting(),
+                Some("with_additional_root_certificates_pem"),
+                "{error}"
+            );
         }
 
         #[test]
@@ -444,7 +507,9 @@ NQ==
         let error = TlsContext::for_connection(true, &TlsSettings::default())
             .err()
             .expect("secure endpoints need TLS features");
-        assert_eq!(error, super::TLS_DISABLED);
+        assert_eq!(error.kind(), crate::ErrorKind::Configuration);
+        let error = error.to_string();
+        assert!(error.contains(super::TLS_DISABLED), "{error}");
         for feature in [
             "tls-platform-verifier",
             "tls-webpki-roots",

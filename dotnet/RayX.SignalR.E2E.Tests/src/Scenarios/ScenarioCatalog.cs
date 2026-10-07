@@ -103,7 +103,8 @@ public static class ScenarioCatalog
     Everywhere("handshake-timeout"),
     Everywhere("pause-resume"),
     Everywhere("pause-resume-stateful"),
-    Everywhere("unsent-stream")
+    Everywhere("unsent-stream"),
+    Everywhere("error-kinds")
   ];
 
   /// <summary>Looks up a target by name.</summary>

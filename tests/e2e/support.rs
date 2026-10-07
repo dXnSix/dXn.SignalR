@@ -3,7 +3,7 @@
 use std::{future::Future, sync::Arc, time::Duration};
 
 use rayx_signalr::{
-    ConnectionConfiguration, ConstantDelayPolicy, ReconnectionConfig, SignalRClient,
+    ConnectionConfiguration, ConstantDelayPolicy, Error, ReconnectionConfig, SignalRClient,
 };
 use serde::{Deserialize, Serialize};
 
@@ -120,7 +120,7 @@ pub async fn try_connect<F>(
     hub: &str,
     protocol: Protocol,
     mut configure: F,
-) -> Result<SignalRClient, String>
+) -> Result<SignalRClient, Error>
 where
     F: FnMut(&mut ConnectionConfiguration),
 {
@@ -238,7 +238,7 @@ macro_rules! protocol_tests {
 }
 
 /// Returns the hub-side connection id of the current logical connection.
-pub async fn connection_identity(client: &mut SignalRClient) -> Result<String, String> {
+pub async fn connection_identity(client: &mut SignalRClient) -> Result<String, Error> {
     client
         .invoke::<String>("ConnectionIdentity".to_string())
         .await

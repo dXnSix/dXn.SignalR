@@ -4,6 +4,7 @@ use super::{
 };
 use crate::{
     completer::{ManualFuture, ManualStream, StreamDropHandler},
+    error::Error,
     {
         client::SignalRClient,
         protocol::{
@@ -26,9 +27,9 @@ pub trait Storage: Clone {
     fn update(&mut self, key: String, f: impl FnMut(&mut Box<dyn UpdatableAction>));
     fn remove(&mut self, key: String);
     fn dispose(&mut self);
-    fn fail_pending(&mut self, error: &str);
+    fn fail_pending(&mut self, error: &Error);
     /// Removes the action at `key` and ends it with `error`, like `fail_pending` for one action.
-    fn fail_action(&mut self, key: String, error: &str);
+    fn fail_action(&mut self, key: String, error: &Error);
     fn increment(&mut self) -> usize;
 
     fn create_key(&mut self, target: String) -> String {
@@ -53,7 +54,7 @@ pub trait Storage: Clone {
     fn add_invocation<R: 'static + DeserializeOwned + Unpin + crate::platform::MaybeSend>(
         &mut self,
         invocation_id: String,
-    ) -> ManualFuture<Result<R, String>> {
+    ) -> ManualFuture<Result<R, Error>> {
         let (invocation, f) = InvocationAction::<R>::new(invocation_id.clone());
 
         debug!("Inserting invocation for key {}", invocation_id);
@@ -78,7 +79,7 @@ pub trait Storage: Clone {
         &mut self,
         message: MessagePayload,
         message_type: MessageType,
-    ) -> Result<(), String> {
+    ) -> Result<(), Error> {
         debug!("MESSAGE: {:?} -> {:?}", message_type, message);
 
         match message_type {

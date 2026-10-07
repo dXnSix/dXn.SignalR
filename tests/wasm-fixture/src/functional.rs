@@ -6,8 +6,9 @@ use std::{cell::Cell, cell::RefCell, future::Future, rc::Rc, sync::Arc, time::Du
 use futures::{channel::oneshot, future::Either, StreamExt};
 use gloo_timers::future::TimeoutFuture;
 use rayx_signalr::{
-    CallbackHandler, ConnectionConfiguration, ConstantDelayPolicy, DisconnectionHandler,
-    InvocationContext, ManualStream, ReconnectionConfig, ReconnectionHandler, SignalRClient,
+    CallbackHandler, CloseReason, ConnectionConfiguration, ConstantDelayPolicy,
+    DisconnectionHandler, Error, ErrorKind, InvocationContext, ManualStream, ReconnectionConfig,
+    ReconnectionHandler, SignalRClient, TimeoutOperation,
 };
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
@@ -66,6 +67,7 @@ pub async fn run_functional_scenario(
         "pause-resume" => pause_resume(messagepack).await,
         "pause-resume-stateful" => pause_resume_stateful(messagepack).await,
         "unsent-stream" => unsent_stream(messagepack).await,
+        "error-kinds" => error_kinds(messagepack).await,
         other => Err(format!("unknown functional scenario {other}")),
     };
     outcome
@@ -73,20 +75,23 @@ pub async fn run_functional_scenario(
         .map_err(|error| JsValue::from_str(&format!("{scenario} {protocol}: {error}")))
 }
 
+/// Connects to `hub`; the outer error is a fixture failure, the inner result the client's.
 async fn try_connect(
     hub: &str,
     messagepack: bool,
     mut configure: impl FnMut(&mut ConnectionConfiguration),
-) -> Result<SignalRClient, String> {
+) -> Result<Result<SignalRClient, Error>, String> {
     let endpoint = super::service().map_err(|error| format!("{error:?}"))?;
-    SignalRClient::connect_with(&endpoint.host, hub, |configuration| {
-        endpoint.apply(configuration);
-        if messagepack {
-            configuration.with_messagepack_protocol();
-        }
-        configure(configuration);
-    })
-    .await
+    Ok(
+        SignalRClient::connect_with(&endpoint.host, hub, |configuration| {
+            endpoint.apply(configuration);
+            if messagepack {
+                configuration.with_messagepack_protocol();
+            }
+            configure(configuration);
+        })
+        .await,
+    )
 }
 
 async fn connect(
@@ -95,7 +100,7 @@ async fn connect(
     configure: impl FnMut(&mut ConnectionConfiguration),
 ) -> Result<SignalRClient, String> {
     try_connect(hub, messagepack, configure)
-        .await
+        .await?
         .map_err(|error| format!("connect to {hub} failed: {error}"))
 }
 
@@ -130,7 +135,7 @@ where
     }
 }
 
-async fn identity(client: &mut SignalRClient) -> Result<String, String> {
+async fn identity(client: &mut SignalRClient) -> Result<String, Error> {
     client
         .invoke::<String>("ConnectionIdentity".to_string())
         .await
@@ -178,10 +183,12 @@ async fn connect_negotiate(messagepack: bool) -> Outcome {
     );
     client.disconnect();
 
-    match try_connect("no-such-hub", messagepack, |_| {}).await {
+    match try_connect("no-such-hub", messagepack, |_| {}).await? {
         Ok(_) => Err("connecting to an unknown hub succeeded".to_string()),
-        Err(error) if error.contains("404") => Ok(()),
-        Err(error) => Err(format!("unknown hub failed without a 404: {error}")),
+        Err(error) if (error.kind(), error.status()) == (ErrorKind::Negotiate, Some(404)) => Ok(()),
+        Err(error) => Err(format!(
+            "unknown hub failed without a negotiate 404: {error}"
+        )),
     }
 }
 
@@ -239,17 +246,18 @@ async fn authentication(messagepack: bool) -> Outcome {
         let error = match try_connect("test-auth", messagepack, |configuration| {
             configure(configuration, basic, bearer)
         })
-        .await
+        .await?
         {
             Ok(_) => return Err("connect succeeded without valid credentials".to_string()),
             Err(error) => error,
         };
         ensure!(
-            error.contains("401"),
+            (error.kind(), error.status()) == (ErrorKind::Authentication, Some(401)),
             "expected an authorization error: {error}"
         );
+        let text = format!("{error} {error:?}");
         for secret in ["wrong-token", "e2e-token", "wrong-password", "e2e-password"] {
-            ensure!(!error.contains(secret), "error leaks a credential: {error}");
+            ensure!(!text.contains(secret), "error leaks a credential: {text}");
         }
     }
     Ok(())
@@ -351,16 +359,13 @@ async fn invoke(messagepack: bool) -> Outcome {
         })
         .await
     {
-        Err(error) if error.contains("detailed failure 42") => {}
+        Err(error) if is_hub_error(&error, "detailed failure 42") => {}
         other => return Err(format!("hub exception surfaced as {other:?}")),
     }
-    ensure!(
-        client
-            .invoke::<i32>("NoSuchHubMethod".to_string())
-            .await
-            .is_err(),
-        "an unknown hub method succeeded"
-    );
+    match client.invoke::<i32>("NoSuchHubMethod".to_string()).await {
+        Err(error) if error.kind() == ErrorKind::Hub => {}
+        other => return Err(format!("an unknown hub method returned {other:?}")),
+    }
     let still_serving = client
         .invoke_with_args::<i32, _>("Echo".to_string(), |arguments| {
             arguments.argument(9);
@@ -461,9 +466,9 @@ async fn server_stream(messagepack: bool) -> Outcome {
         delivered == [1, 2, 3],
         "failing stream delivered {delivered:?}"
     );
-    let error = failing.error().unwrap_or_default();
+    let error = failing.error();
     ensure!(
-        error.contains("failed after 3"),
+        error.is_some_and(|error| is_hub_error(error, "failed after 3")),
         "failing stream error {error:?}"
     );
     identity(&mut client).await?;
@@ -585,7 +590,7 @@ async fn callbacks(messagepack: bool) -> Outcome {
     Ok(())
 }
 
-async fn trigger(client: &mut SignalRClient, callback: &str) -> Outcome {
+async fn trigger(client: &mut SignalRClient, callback: &str) -> Result<(), Error> {
     client
         .send_with_args("TriggerCallback".to_string(), |arguments| {
             arguments.argument(callback.to_string());
@@ -615,7 +620,10 @@ async fn concurrency_and_clones(messagepack: bool) -> Outcome {
         }
     });
     for (sent, echoed) in futures::future::join_all(invocations).await {
-        ensure!(echoed == Ok(sent), "Echo({sent}) returned {echoed:?}");
+        ensure!(
+            matches!(&echoed, Ok(value) if *value == sent),
+            "Echo({sent}) returned {echoed:?}"
+        );
     }
 
     let mut first = client;
@@ -652,7 +660,7 @@ async fn concurrency_and_clones(messagepack: bool) -> Outcome {
     Ok(())
 }
 
-async fn disconnects(probe: &mut SignalRClient, connection_id: &str) -> Result<i32, String> {
+async fn disconnects(probe: &mut SignalRClient, connection_id: &str) -> Result<i32, Error> {
     probe
         .invoke_with_args::<i32, _>("DisconnectCount".to_string(), |arguments| {
             arguments.argument(connection_id.to_string());
@@ -696,7 +704,7 @@ async fn large_payload(messagepack: bool) -> Outcome {
 }
 
 /// One handler notification: the close kind and the result of reconnecting from the handler.
-type Notification = (bool, Option<Result<(), String>>);
+type Notification = (bool, Option<Result<(), Error>>);
 
 /// Records each notification and, like a typical handler, tries to reconnect.
 #[derive(Clone, Default)]
@@ -747,7 +755,7 @@ async fn schedule_close(
     client: &mut SignalRClient,
     allow_reconnect: bool,
     delay_ms: i32,
-) -> Outcome {
+) -> Result<(), Error> {
     client
         .invoke_with_args::<(), _>("ScheduleServerClose".to_string(), |arguments| {
             arguments.argument(allow_reconnect).argument(delay_ms);
@@ -755,7 +763,7 @@ async fn schedule_close(
         .await
 }
 
-fn pending_identity(client: &SignalRClient) -> oneshot::Receiver<Result<String, String>> {
+fn pending_identity(client: &SignalRClient) -> oneshot::Receiver<Result<String, Error>> {
     let mut clone = client.clone();
     spawn(async move {
         clone
@@ -764,6 +772,21 @@ fn pending_identity(client: &SignalRClient) -> oneshot::Receiver<Result<String, 
             })
             .await
     })
+}
+
+/// A Hub error whose server message contains `expected`.
+fn is_hub_error(error: &Error, expected: &str) -> bool {
+    error.kind() == ErrorKind::Hub
+        && error
+            .server_message()
+            .is_some_and(|message| message.contains(expected))
+}
+
+/// A server Close without reconnect permission, carrying the test service's message.
+fn is_final_close(error: &Error) -> bool {
+    error.close_reason() == Some(CloseReason::Server)
+        && error.server_allows_reconnect() == Some(false)
+        && error.server_message() == Some("Server requested close")
 }
 
 async fn server_close(messagepack: bool) -> Outcome {
@@ -775,7 +798,7 @@ async fn server_close(messagepack: bool) -> Outcome {
         .await
         .map_err(|_| "the pending invocation task was dropped".to_string())?;
     match failure {
-        Err(error) if error.contains("without allowing reconnect") => {}
+        Err(error) if is_final_close(&error) => {}
         other => return Err(format!("pending work after a terminal close: {other:?}")),
     }
     progress("server-close: manual pending work failed");
@@ -785,7 +808,7 @@ async fn server_close(messagepack: bool) -> Outcome {
         "a final close reported that reconnecting is allowed"
     );
     match reconnect {
-        Some(Err(error)) if error.contains("without allowing reconnect") => {}
+        Some(Err(error)) if is_final_close(&error) => {}
         other => return Err(format!("reconnect after a final close returned {other:?}")),
     }
     sleep(1_500).await;
@@ -917,7 +940,7 @@ async fn reconnect_exhaustion(messagepack: bool) -> Outcome {
     Ok(())
 }
 
-async fn hub_negotiates(probe: &mut SignalRClient, hub_path: &str) -> Result<i32, String> {
+async fn hub_negotiates(probe: &mut SignalRClient, hub_path: &str) -> Result<i32, Error> {
     probe
         .invoke_with_args::<i32, _>("NegotiateCount".to_string(), |arguments| {
             arguments.argument(hub_path.to_string());
@@ -1154,7 +1177,7 @@ async fn tls(messagepack: bool) -> Outcome {
     Ok(())
 }
 
-async fn negotiate_count(probe: &mut SignalRClient) -> Result<i32, String> {
+async fn negotiate_count(probe: &mut SignalRClient) -> Result<i32, Error> {
     probe
         .invoke_with_args::<i32, _>("NegotiateCount".to_string(), |arguments| {
             arguments.argument("/test-exhaust".to_string());
@@ -1268,11 +1291,18 @@ async fn handshake_timeout(messagepack: bool) -> Outcome {
         configuration.skip_negotiation();
         configuration.with_handshake_timeout(Duration::from_secs(1));
     })
-    .await;
+    .await?;
     let elapsed = js_sys::Date::now() - started;
     match result {
         Ok(_) => Err("connect succeeded although the server never answered".to_string()),
-        Err(error) if !error.contains("handshake timed out") => {
+        Err(error)
+            if (error.kind(), error.timeout_operation(), error.timeout())
+                != (
+                    ErrorKind::Timeout,
+                    Some(TimeoutOperation::Handshake),
+                    Some(Duration::from_secs(1)),
+                ) =>
+        {
             Err(format!("unexpected handshake failure: {error}"))
         }
         Err(_) if !(1_000.0..=3_000.0).contains(&elapsed) => {
@@ -1323,7 +1353,7 @@ async fn pause_resume(messagepack: bool) -> Outcome {
     );
     let paused_at = js_sys::Date::now();
     match pending.await {
-        Ok(Err(error)) if error.contains("paused") => {}
+        Ok(Err(error)) if error.kind() == ErrorKind::Paused => {}
         other => return Err(format!("pending work after pause: {other:?}")),
     }
     ensure!(
@@ -1489,7 +1519,7 @@ async fn pause_resume_stateful(messagepack: bool) -> Outcome {
         "the stream after a browser pause yielded {values:?}"
     );
     match stream.error() {
-        Some(error) if error.contains("paused") => {}
+        Some(error) if error.kind() == ErrorKind::Paused => {}
         other => return Err(format!("the paused stream ended with {other:?}")),
     }
 
@@ -1561,7 +1591,7 @@ async fn unsent_stream_ends(
         Either::Right(_) => return Err(format!("a stream started while {phase} did not end")),
     }
     match unsent.error() {
-        Some(error) if error.contains("not connected") => {}
+        Some(error) if matches!(error.kind(), ErrorKind::Paused | ErrorKind::Transport) => {}
         other => {
             return Err(format!(
                 "a stream started while {phase} ended with {other:?}"
@@ -1652,4 +1682,209 @@ async fn unsent_stream(messagepack: bool) -> Outcome {
     );
     client.disconnect();
     Ok(())
+}
+
+/// A bearer token the service rejects; no error may repeat it.
+const ERROR_KINDS_TOKEN: &str = "error-kinds-secret-token";
+
+/// Error kinds: every failure class reaches the caller as its `ErrorKind` with its structured
+/// fields (see `tests/e2e/error_kinds.rs`; browsers report an untrusted certificate as a failed
+/// request, so only native targets prove `Tls`). No error repeats the test token.
+async fn error_kinds(messagepack: bool) -> Outcome {
+    let mut errors = vec![hub_failure(messagepack).await?];
+    errors.extend(rejected_credentials(messagepack).await?);
+    errors.push(unknown_hub(messagepack).await?);
+    errors.push(negotiate_timeout(messagepack).await?);
+    errors.push(undecodable_result(messagepack).await?);
+    errors.push(invoke_while_paused(messagepack).await?);
+    errors.push(server_close_with_message(messagepack).await?);
+    errors.push(reconnect_after_disconnect(messagepack).await?);
+    for error in &errors {
+        let text = format!("{error} {error:?}");
+        ensure!(
+            !text.contains(ERROR_KINDS_TOKEN),
+            "an error repeats the token: {text}"
+        );
+    }
+    Ok(())
+}
+
+/// A hub method that throws: `Hub` with the server's message.
+async fn hub_failure(messagepack: bool) -> Result<Error, String> {
+    let mut client = connect("test", messagepack, |_| {}).await?;
+    let error = match client
+        .invoke_with_args::<i32, _>("Fail".to_string(), |arguments| {
+            arguments.argument("error-kinds failure".to_string());
+        })
+        .await
+    {
+        Err(error) if is_hub_error(&error, "error-kinds failure") && !error.is_transient() => error,
+        other => return Err(format!("a throwing hub method returned {other:?}")),
+    };
+    client.disconnect();
+    Ok(error)
+}
+
+/// Connecting without credentials and with a rejected token: `Authentication` with 401.
+async fn rejected_credentials(messagepack: bool) -> Result<Vec<Error>, String> {
+    let mut errors = Vec::new();
+    for token in [None, Some(ERROR_KINDS_TOKEN)] {
+        match try_connect("test-auth", messagepack, |configuration| {
+            if let Some(token) = token {
+                configuration.authenticate_bearer(token.to_string());
+            }
+        })
+        .await?
+        {
+            Err(error)
+                if (error.kind(), error.status()) == (ErrorKind::Authentication, Some(401)) =>
+            {
+                errors.push(error)
+            }
+            Err(error) => return Err(format!("rejected credentials failed with {error:?}")),
+            Ok(_) => return Err("connect succeeded without valid credentials".to_string()),
+        }
+    }
+    Ok(errors)
+}
+
+/// An unknown hub path: `Negotiate` with 404.
+async fn unknown_hub(messagepack: bool) -> Result<Error, String> {
+    match try_connect("no-such-hub", messagepack, |configuration| {
+        configuration.authenticate_bearer(ERROR_KINDS_TOKEN.to_string());
+    })
+    .await?
+    {
+        Err(error) if (error.kind(), error.status()) == (ErrorKind::Negotiate, Some(404)) => {
+            Ok(error)
+        }
+        Err(error) => Err(format!("an unknown hub failed with {error:?}")),
+        Ok(_) => Err("connecting to an unknown hub succeeded".to_string()),
+    }
+}
+
+/// A negotiate the service never answers: `Timeout` naming negotiate and the 2 s connect
+/// timeout, within the bound plus 2 s.
+async fn negotiate_timeout(messagepack: bool) -> Result<Error, String> {
+    const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
+    let started = js_sys::Date::now();
+    let result = try_connect("test-hang", messagepack, |configuration| {
+        configuration.with_connect_timeout(CONNECT_TIMEOUT);
+        configuration.authenticate_bearer(ERROR_KINDS_TOKEN.to_string());
+    })
+    .await?;
+    let elapsed = js_sys::Date::now() - started;
+    let error = match result {
+        Err(error)
+            if (error.kind(), error.timeout_operation(), error.timeout())
+                == (
+                    ErrorKind::Timeout,
+                    Some(TimeoutOperation::Negotiate),
+                    Some(CONNECT_TIMEOUT),
+                )
+                && error.is_transient() =>
+        {
+            error
+        }
+        Err(error) => return Err(format!("a hanging negotiate failed with {error:?}")),
+        Ok(_) => return Err("connect succeeded although negotiate never answered".to_string()),
+    };
+    ensure!(
+        (2_000.0..=4_000.0).contains(&elapsed),
+        "the hanging negotiate failed after {elapsed} ms"
+    );
+    Ok(error)
+}
+
+/// A result that cannot be decoded into the requested type: `Serialization`; the connection
+/// keeps working.
+async fn undecodable_result(messagepack: bool) -> Result<Error, String> {
+    let mut client = connect("test", messagepack, |_| {}).await?;
+    let error = match client
+        .invoke_with_args::<String, _>("Echo".to_string(), |arguments| {
+            arguments.argument(7);
+        })
+        .await
+    {
+        Err(error) if error.kind() == ErrorKind::Serialization => error,
+        other => return Err(format!("an undecodable result returned {other:?}")),
+    };
+    let echoed = client
+        .invoke_with_args::<i32, _>("Echo".to_string(), |arguments| {
+            arguments.argument(8);
+        })
+        .await?;
+    ensure!(echoed == 8, "Echo after a decode failure returned {echoed}");
+    client.disconnect();
+    Ok(error)
+}
+
+/// Invoking while paused: `Paused`.
+async fn invoke_while_paused(messagepack: bool) -> Result<Error, String> {
+    let mut client = connect("test", messagepack, |_| {}).await?;
+    client.pause().await?;
+    let error = match identity(&mut client).await {
+        Err(error) if error.kind() == ErrorKind::Paused => error,
+        other => return Err(format!("invoking while paused returned {other:?}")),
+    };
+    client.disconnect();
+    Ok(error)
+}
+
+/// A server close with an error message: pending work fails with `ConnectionClosed` carrying the
+/// message and the server's refusal to reconnect.
+async fn server_close_with_message(messagepack: bool) -> Result<Error, String> {
+    let mut client = connect("test", messagepack, |_| {}).await?;
+    schedule_close(&mut client, false, 500).await?;
+    let error = match client
+        .invoke_with_args::<String, _>("DelayedConnectionIdentity".to_string(), |arguments| {
+            arguments.argument(10_000);
+        })
+        .await
+    {
+        Err(error) if error.kind() == ErrorKind::ConnectionClosed && is_final_close(&error) => {
+            error
+        }
+        other => return Err(format!("pending work after a server close: {other:?}")),
+    };
+    client.disconnect();
+    Ok(error)
+}
+
+/// Keeps the reconnection handler of a drop, as an application that reconnects later does.
+#[derive(Clone, Default)]
+struct KeptHandler(Rc<RefCell<Option<ReconnectionHandler>>>);
+
+impl DisconnectionHandler for KeptHandler {
+    fn on_disconnected(&self, reconnection: ReconnectionHandler) {
+        *self.0.borrow_mut() = Some(reconnection);
+    }
+}
+
+/// A manual reconnect after the last handle disconnected: `ConnectionClosed`, local.
+async fn reconnect_after_disconnect(messagepack: bool) -> Result<Error, String> {
+    let kept = KeptHandler::default();
+    let mut handler = Some(kept.clone());
+    let mut client = connect("test", messagepack, |configuration| {
+        if let Some(handler) = handler.take() {
+            configuration.with_disconnection_handler(handler);
+        }
+    })
+    .await?;
+    schedule_close(&mut client, true, 200).await?;
+    let reconnection = eventually("the disconnection handler", 10_000.0, || {
+        let kept = kept.clone();
+        async move { kept.0.borrow_mut().take() }
+    })
+    .await?;
+    client.disconnect();
+    match reconnection.reconnect().await {
+        Err(error)
+            if (error.kind(), error.close_reason())
+                == (ErrorKind::ConnectionClosed, Some(CloseReason::Local)) =>
+        {
+            Ok(error)
+        }
+        other => Err(format!("a reconnect after disconnect returned {other:?}")),
+    }
 }

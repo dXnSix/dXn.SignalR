@@ -40,8 +40,9 @@ async fn scenario(protocol: Protocol) {
         .expect("pending work must fail promptly on pause")
         .unwrap()
         .unwrap_err();
-    assert!(
-        failure.contains("paused"),
+    assert_eq!(
+        failure.kind(),
+        rayx_signalr::ErrorKind::Paused,
         "pending work failed with: {failure}"
     );
 

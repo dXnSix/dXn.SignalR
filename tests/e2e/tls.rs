@@ -47,8 +47,9 @@ async fn scenario(protocol: Protocol) {
         .await
         .err()
         .expect("a client without the test CA must reject the server certificate");
-    assert!(
-        error.to_ascii_lowercase().contains("certificate"),
+    assert_eq!(
+        error.kind(),
+        rayx_signalr::ErrorKind::Tls,
         "expected a certificate trust failure: {error}"
     );
 

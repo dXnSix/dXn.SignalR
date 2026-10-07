@@ -6,6 +6,7 @@ use std::{
 
 use crate::{
     client::ConnectionRecipe,
+    error::{Error, TimeoutOperation},
     execution::{Storage, UpdatableActionStorage},
     protocol::{
         hub_protocol::{HubProtocolKind, MessagePayload},
@@ -22,6 +23,7 @@ use super::{
         ReconnectionConfig, ResumeOutcome,
     },
     stateful::{SerializedFrame, StatefulMessageBuffer, TrackResult},
+    transport::TransportKind,
     Communication, HttpClient,
 };
 use futures::{
@@ -36,7 +38,8 @@ use tokio::{net::TcpStream, runtime::Handle, sync::Mutex, task::JoinHandle};
 use tokio_websockets::{ClientBuilder, MaybeTlsStream, Message, WebSocketStream};
 
 trait CommunicationDisconnectionHandler: Send {
-    fn on_connection_dropped(&self, allow_reconnect: bool);
+    /// The transport ended; `reason` says why and whether the server allowed reconnecting.
+    fn on_connection_dropped(&self, reason: Error);
 }
 
 type UserDisconnectionHandler = Arc<Box<dyn Fn(ReconnectionContext) + Send + Sync>>;
@@ -142,8 +145,30 @@ fn classify_handshake_frame(frame: Option<Message>) -> HandshakeFrame {
     }
 }
 
-/// Returned when every client handle is gone while a reconnect still runs.
-const CLIENT_DROPPED: &str = "Client has been dropped";
+/// A WebSocket transport error.
+fn websocket_error(message: impl Into<String>) -> Error {
+    Error::transport_failure(Some(TransportKind::WebSockets), message)
+}
+
+/// A failed WebSocket send.
+fn send_failed(error: tokio_websockets::Error) -> Error {
+    websocket_error(format!("the WebSocket send failed: {error}")).with_source(error)
+}
+
+/// The error a send fails with when its connection stopped before the frame went out.
+fn closed_before_sent() -> Error {
+    websocket_error("the connection closed before the message was sent")
+}
+
+/// The error ordinary pending work fails with when the transport that carried it ended.
+fn transport_lost(cause: &Error) -> Error {
+    websocket_error("the connection was lost before the call completed").with_source(cause.clone())
+}
+
+/// The error ordinary pending work fails with when a reconnect starts a new logical connection.
+fn replaced_by_reconnect() -> Error {
+    websocket_error("the connection was replaced by a new logical connection")
+}
 
 /// What woke the writer task.
 enum WriterEvent {
@@ -157,7 +182,7 @@ struct OutboundFrame {
     message: Message,
     /// The message type and serialized frame for the stateful replay buffer.
     tracking: Option<(MessageType, SerializedFrame)>,
-    done: oneshot::Sender<Result<(), String>>,
+    done: oneshot::Sender<Result<(), Error>>,
 }
 
 /// Sends frames through a physical connection's runtime-owned writer task. Awaiting a send only
@@ -174,7 +199,7 @@ impl ConnectionWriter {
         &self,
         message: Message,
         tracking: Option<(MessageType, SerializedFrame)>,
-    ) -> Result<(), String> {
+    ) -> Result<(), Error> {
         let (done, completed) = oneshot::channel();
         self.data
             .clone()
@@ -184,16 +209,14 @@ impl ConnectionWriter {
                 done,
             })
             .await
-            .map_err(|_| "The connection is closed".to_string())?;
-        completed
-            .await
-            .map_err(|_| "The connection closed before the message was sent".to_string())?
+            .map_err(|_| closed_before_sent())?;
+        completed.await.map_err(|_| closed_before_sent())?
     }
 
-    fn send_control(&self, message: Message) -> Result<(), String> {
+    fn send_control(&self, message: Message) -> Result<(), Error> {
         self.control
             .unbounded_send(message)
-            .map_err(|_| "The connection is closed".to_string())
+            .map_err(|_| closed_before_sent())
     }
 }
 
@@ -201,13 +224,12 @@ impl ConnectionWriter {
 /// caller's executor never polls Tokio I/O or timers itself.
 async fn on_runtime<T: Send + 'static>(
     runtime: Option<Handle>,
-    future: impl std::future::Future<Output = Result<T, String>> + Send + 'static,
-) -> Result<T, String> {
+    future: impl std::future::Future<Output = Result<T, Error>> + Send + 'static,
+) -> Result<T, Error> {
     match runtime {
-        Some(runtime) => runtime
-            .spawn(future)
-            .await
-            .map_err(|error| format!("The connection task failed: {error}"))?,
+        Some(runtime) => runtime.spawn(future).await.map_err(|error| {
+            Error::canceled(format!("the connection task stopped: {error}")).with_source(error)
+        })?,
         None => future.await,
     }
 }
@@ -229,6 +251,8 @@ pub struct ReconnectionContext {
     protocol_kind: HubProtocolKind,
     stateful: Option<SharedStatefulBuffer>,
     server_allows_reconnect: bool,
+    /// Why the transport this context was created for ended.
+    reason: Error,
 }
 
 impl ReconnectionContext {
@@ -237,9 +261,14 @@ impl ReconnectionContext {
         self.server_allows_reconnect
     }
 
+    /// Why the transport ended.
+    pub fn reason(&self) -> &Error {
+        &self.reason
+    }
+
     /// Attempt to reconnect once. Returns Ok(()) on success. The attempt runs on the
     /// connection's runtime, so this future may be awaited from any executor.
-    pub async fn reconnect(&self) -> Result<(), String> {
+    pub async fn reconnect(&self) -> Result<(), Error> {
         let context = self.clone();
         on_runtime(self.recipe.runtime(), async move {
             let generation = context.begin_reconnect().await?;
@@ -252,7 +281,7 @@ impl ReconnectionContext {
     /// Attempt reconnection with automatic retries using the configured policy.
     /// Returns Ok(()) on success, Err if all attempts are exhausted. The attempts and the policy
     /// delays run on the connection's runtime, so this future may be awaited from any executor.
-    pub async fn reconnect_with_policy(&self) -> Result<(), String> {
+    pub async fn reconnect_with_policy(&self) -> Result<(), Error> {
         let context = self.clone();
         on_runtime(self.recipe.runtime(), async move {
             let generation = context.begin_reconnect().await?;
@@ -270,23 +299,23 @@ impl ReconnectionContext {
 
     /// Begins a manual reconnect generation (refused after a final server close or while
     /// paused).
-    async fn begin_reconnect(&self) -> Result<u64, String> {
+    async fn begin_reconnect(&self) -> Result<u64, Error> {
         if !self.server_allows_reconnect {
-            return Err("The server closed the connection without allowing reconnect".to_string());
+            return Err(self.reason.clone());
         }
-        let state = self.state.upgrade().ok_or("Client has been dropped")?;
+        let state = self.state.upgrade().ok_or_else(Error::closed_locally)?;
         let generation = {
             let mut guard = state.lock().await;
-            let generation = self.coordinator.begin().map_err(str::to_string)?;
+            let generation = self.coordinator.begin()?;
             *guard = ConnectionState::NotConnected(DisconnectionReason::Reconnecting);
             generation
         };
-        self.fail_ordinary_pending("The connection was replaced by a fresh logical reconnect");
+        self.fail_ordinary_pending(&replaced_by_reconnect());
         Ok(generation)
     }
 
     /// Fails ordinary pending work; stateful pending work waits for the resume.
-    fn fail_ordinary_pending(&self, reason: &str) {
+    fn fail_ordinary_pending(&self, reason: &Error) {
         if self.stateful.is_none() {
             let mut actions = self.actions.clone();
             actions.fail_pending(reason);
@@ -296,9 +325,9 @@ impl ReconnectionContext {
     /// One connect attempt of `generation`: a stateful resume, or a fresh negotiation (also for a
     /// stateful client whose logical connection ended, which then starts a fresh replay buffer).
     /// The new connection is installed only if the generation still runs.
-    async fn attempt(&self, generation: u64) -> Result<(), String> {
+    async fn attempt(&self, generation: u64) -> Result<(), Error> {
         if !self.coordinator.owns(generation) {
-            return Err(self.coordinator.superseded_reason().to_string());
+            return Err(self.coordinator.superseded());
         }
         info!("Reconnecting to {}...", self.endpoint);
         let resumable = self.stateful.as_ref().filter(|buffer| {
@@ -332,10 +361,10 @@ impl ReconnectionContext {
         };
         // The connection state is only held while installing, never across network I/O, so a
         // dropped or disconnected client is never kept alive by a reconnect.
-        let state = self.state.upgrade().ok_or(CLIENT_DROPPED)?;
+        let state = self.state.upgrade().ok_or_else(Error::closed_locally)?;
         let mut guard = state.lock().await;
         if !self.coordinator.complete(generation) {
-            return Err(self.coordinator.superseded_reason().to_string());
+            return Err(self.coordinator.superseded());
         }
         if let (Some(buffer), Some(endpoint)) = (&self.stateful, fresh_endpoint) {
             buffer.lock().expect("stateful buffer poisoned").renew();
@@ -358,17 +387,16 @@ impl ReconnectionContext {
 
     /// Why a reconnect run of `generation` must stop: every client handle was dropped, or the
     /// generation was superseded (by `pause` or a local close).
-    fn stopped(&self, generation: u64) -> Option<String> {
+    fn stopped(&self, generation: u64) -> Option<Error> {
         if self.state.strong_count() == 0 {
-            return Some(CLIENT_DROPPED.to_string());
+            return Some(Error::closed_locally());
         }
-        (!self.coordinator.owns(generation))
-            .then(|| self.coordinator.superseded_reason().to_string())
+        (!self.coordinator.owns(generation)).then(|| self.coordinator.superseded())
     }
 
     /// Attempts until one succeeds, the policy gives up, or the generation is superseded (by
     /// `pause` or a local close), which is checked again after every delay.
-    async fn run_policy(&self, generation: u64, first: FirstAttempt) -> Result<(), String> {
+    async fn run_policy(&self, generation: u64, first: FirstAttempt) -> Result<(), Error> {
         let policy = self
             .reconnection_config
             .read()
@@ -377,13 +405,14 @@ impl ReconnectionContext {
             .clone();
         let started = std::time::Instant::now();
         let mut retry_count = 0u32;
+        let mut last_error = None;
         loop {
             if let Some(reason) = self.stopped(generation) {
                 return Err(reason);
             }
             let elapsed = started.elapsed().as_millis() as u64;
             let Some(delay) = first.delay(policy.as_ref(), retry_count, elapsed) else {
-                return Err("Reconnection attempts exhausted".to_string());
+                return Err(Error::reconnect_exhausted(last_error));
             };
             if !delay.is_zero() {
                 tokio::time::sleep(delay).await;
@@ -396,6 +425,7 @@ impl ReconnectionContext {
                     }
                     error!("Reconnection attempt {} failed: {error}", retry_count + 1);
                     retry_count += 1;
+                    last_error = Some(error);
                 }
             }
         }
@@ -403,16 +433,16 @@ impl ReconnectionContext {
 
     /// Ends a manual run: a failure that still owns its generation leaves the client
     /// disconnected.
-    async fn finish_run(&self, generation: u64, result: Result<(), String>) -> Result<(), String> {
-        if result.is_err() {
-            self.fail_generation(generation).await;
+    async fn finish_run(&self, generation: u64, result: Result<(), Error>) -> Result<(), Error> {
+        if let Err(error) = &result {
+            self.fail_generation(generation, error).await;
         }
         result
     }
 
-    /// Moves a still-running `generation` to Disconnected under the state lock; false when it was
-    /// superseded meanwhile.
-    async fn fail_generation(&self, generation: u64) -> bool {
+    /// Moves a still-running `generation` to Disconnected under the state lock, recording why;
+    /// false when it was superseded meanwhile.
+    async fn fail_generation(&self, generation: u64, reason: &Error) -> bool {
         let Some(state) = self.state.upgrade() else {
             return false;
         };
@@ -420,15 +450,15 @@ impl ReconnectionContext {
         if !self.coordinator.fail(generation) {
             return false;
         }
-        *guard = ConnectionState::NotConnected(DisconnectionReason::RemoteClosed);
+        *guard = ConnectionState::NotConnected(DisconnectionReason::RemoteClosed(reason.clone()));
         true
     }
 
     /// A policy run that gave up while it still owned its generation ends the logical
     /// connection: a stateful buffer is disposed (a later resume negotiates a fresh one) and
     /// pending work fails.
-    async fn end_after_exhaustion(&self, generation: u64, reason: &str) {
-        if self.fail_generation(generation).await {
+    async fn end_after_exhaustion(&self, generation: u64, reason: &Error) {
+        if self.fail_generation(generation, reason).await {
             if let Some(buffer) = &self.stateful {
                 buffer.lock().expect("stateful buffer poisoned").dispose();
             }
@@ -478,9 +508,11 @@ impl ReconnectionContext {
         let mut actions = self.actions.clone();
         if !self.server_allows_reconnect {
             self.coordinator.remote_close();
-            *guard = ConnectionState::NotConnected(DisconnectionReason::RemoteClosed);
+            *guard = ConnectionState::NotConnected(DisconnectionReason::RemoteClosed(
+                self.reason.clone(),
+            ));
             drop(guard);
-            actions.fail_pending("Server closed the connection without allowing reconnect");
+            actions.fail_pending(&self.reason);
             if let Some(buffer) = &self.stateful {
                 buffer.lock().expect("stateful buffer poisoned").dispose();
             }
@@ -499,7 +531,8 @@ impl ReconnectionContext {
             {
                 error!("Cannot enter stateful resume: {}", error);
                 self.coordinator.transport_lost();
-                *guard = ConnectionState::NotConnected(DisconnectionReason::RemoteClosed);
+                *guard =
+                    ConnectionState::NotConnected(DisconnectionReason::RemoteClosed(error.clone()));
                 drop(guard);
                 actions.fail_pending(&error);
                 return;
@@ -509,10 +542,12 @@ impl ReconnectionContext {
         // With a handler the application has full control (manual mode).
         if let Some(handler) = self.user_handler() {
             self.coordinator.transport_lost();
-            *guard = ConnectionState::NotConnected(DisconnectionReason::RemoteClosed);
+            *guard = ConnectionState::NotConnected(DisconnectionReason::RemoteClosed(
+                self.reason.clone(),
+            ));
             drop(guard);
             // Ordinary pending work can never complete on a new logical connection.
-            self.fail_ordinary_pending("The connection was lost");
+            self.fail_ordinary_pending(&transport_lost(&self.reason));
             info!("Connection dropped. Calling user's disconnection handler (manual mode).");
             handler(self.clone());
             return;
@@ -524,14 +559,13 @@ impl ReconnectionContext {
         *guard = ConnectionState::NotConnected(DisconnectionReason::Reconnecting);
         drop(guard);
         drop(state);
-        self.fail_ordinary_pending("The connection was replaced by a fresh logical reconnect");
+        self.fail_ordinary_pending(&transport_lost(&self.reason));
         let result = self
             .run_policy(generation, FirstAttempt::AfterPolicyDelay)
             .await;
-        if result.is_err() {
-            info!("Automatic reconnection attempts exhausted.");
-            self.end_after_exhaustion(generation, "Automatic reconnection attempts exhausted")
-                .await;
+        if let Err(error) = result {
+            info!("Automatic reconnection stopped: {error}");
+            self.end_after_exhaustion(generation, &error).await;
         }
     }
 
@@ -702,7 +736,7 @@ impl CommunicationConnection {
         ),
         message: Message,
         tracking: Option<(MessageType, SerializedFrame)>,
-    ) -> (Result<(), String>, bool) {
+    ) -> (Result<(), Error>, bool) {
         let mut buffered = false;
         if let (Some((buffer, generation)), Some((message_type, payload))) = (stateful, tracking) {
             loop {
@@ -719,22 +753,19 @@ impl CommunicationConnection {
                     Ok(TrackResult::Bypass) => break,
                     Ok(TrackResult::Backpressured) => {
                         if stopping() {
-                            return (
-                                Err("The connection closed before the message was sent".to_string()),
-                                true,
-                            );
+                            return (Err(closed_before_sent()), true);
                         }
                         // Keep acknowledging inbound frames, and keep the connection alive, while
                         // the replay buffer is full.
                         while let Ok(ack) = control.try_recv() {
                             if let Err(error) = sink.send(ack).await {
-                                return (Err(error.to_string()), true);
+                                return (Err(send_failed(error)), true);
                             }
                             liveness.sent();
                         }
                         if tokio::time::Instant::now() >= liveness.ping_deadline() {
                             if let Err(error) = sink.send(Self::ping_message(ping)).await {
-                                return (Err(error.to_string()), true);
+                                return (Err(send_failed(error)), true);
                             }
                             liveness.sent();
                         }
@@ -748,7 +779,7 @@ impl CommunicationConnection {
         match sink.send(message).await {
             Ok(()) => (Ok(()), false),
             Err(_) if buffered => (Ok(()), true),
-            Err(error) => (Err(error.to_string()), true),
+            Err(error) => (Err(send_failed(error)), true),
         }
     }
 
@@ -774,8 +805,8 @@ impl CommunicationConnection {
         writer: ConnectionWriter,
     ) {
         {
-            let mut allow_reconnect = true;
-            'receive: loop {
+            let server_timeout = disconnection_handler.recipe.liveness().server_timeout;
+            let reason = 'receive: loop {
                 let item = match pending.take() {
                     Some(message) => Ok(message),
                     None => {
@@ -783,13 +814,18 @@ impl CommunicationConnection {
                             .await
                         {
                             Ok(Some(item)) => item,
-                            Ok(None) => break 'receive,
+                            Ok(None) => {
+                                break 'receive websocket_error("the server closed the WebSocket");
+                            }
                             Err(_) => {
                                 error!(
                                     "No message from the server within the server timeout; \
                                      the connection is considered lost"
                                 );
-                                break 'receive;
+                                break 'receive Error::timed_out(
+                                    TimeoutOperation::ServerTimeout,
+                                    server_timeout,
+                                );
                             }
                         }
                     }
@@ -818,8 +854,8 @@ impl CommunicationConnection {
                                         };
                                         if let Err(error) = control_result {
                                             error!("Stateful protocol error: {}", error);
-                                            allow_reconnect = false;
-                                            break 'receive;
+                                            break 'receive error
+                                                .with_server_allows_reconnect(false);
                                         }
                                         if matches!(
                                             message_type,
@@ -835,8 +871,8 @@ impl CommunicationConnection {
                                             Ok(value) => value,
                                             Err(error) => {
                                                 error!("Stateful protocol error: {}", error);
-                                                allow_reconnect = false;
-                                                break 'receive;
+                                                break 'receive error
+                                                    .with_server_allows_reconnect(false);
                                             }
                                         };
                                         let acknowledgement = match buffer
@@ -847,8 +883,8 @@ impl CommunicationConnection {
                                             Ok(value) => value,
                                             Err(error) => {
                                                 error!("Cannot prepare stateful Ack: {error}");
-                                                allow_reconnect = false;
-                                                break 'receive;
+                                                break 'receive error
+                                                    .with_server_allows_reconnect(false);
                                             }
                                         };
                                         if let Some(sequence_id) = acknowledgement {
@@ -857,8 +893,8 @@ impl CommunicationConnection {
                                                     .and_then(|ack| writer.send_control(ack))
                                             {
                                                 error!("Cannot send stateful Ack: {error}");
-                                                allow_reconnect = false;
-                                                break 'receive;
+                                                break 'receive error
+                                                    .with_server_allows_reconnect(false);
                                             }
                                         }
                                         if !should_process {
@@ -869,11 +905,9 @@ impl CommunicationConnection {
                                     if message_type
                                         == crate::protocol::negotiate::MessageType::Close
                                     {
-                                        allow_reconnect =
-                                            super::common::close_allows_reconnect(&payload)
-                                                .unwrap_or(false);
+                                        let reason = super::common::server_close(&payload);
                                         let _ = storage.process_message(payload, message_type);
-                                        break 'receive;
+                                        break 'receive reason;
                                     }
                                     if let Err(error) =
                                         storage.process_message(payload, message_type)
@@ -906,8 +940,8 @@ impl CommunicationConnection {
                                             };
                                             if let Err(error) = control_result {
                                                 error!("Stateful protocol error: {}", error);
-                                                allow_reconnect = false;
-                                                break 'receive;
+                                                break 'receive error
+                                                    .with_server_allows_reconnect(false);
                                             }
                                             if matches!(
                                                 msg_type,
@@ -923,8 +957,8 @@ impl CommunicationConnection {
                                                 Ok(value) => value,
                                                 Err(error) => {
                                                     error!("Stateful protocol error: {}", error);
-                                                    allow_reconnect = false;
-                                                    break 'receive;
+                                                    break 'receive error
+                                                        .with_server_allows_reconnect(false);
                                                 }
                                             };
                                             let acknowledgement = match buffer
@@ -935,8 +969,8 @@ impl CommunicationConnection {
                                                 Ok(value) => value,
                                                 Err(error) => {
                                                     error!("Cannot prepare stateful Ack: {error}");
-                                                    allow_reconnect = false;
-                                                    break 'receive;
+                                                    break 'receive error
+                                                        .with_server_allows_reconnect(false);
                                                 }
                                             };
                                             if let Some(sequence_id) = acknowledgement {
@@ -945,8 +979,8 @@ impl CommunicationConnection {
                                                         .and_then(|ack| writer.send_control(ack))
                                                 {
                                                     error!("Cannot send stateful Ack: {error}");
-                                                    allow_reconnect = false;
-                                                    break 'receive;
+                                                    break 'receive error
+                                                        .with_server_allows_reconnect(false);
                                                 }
                                             }
                                             if !should_process {
@@ -957,11 +991,9 @@ impl CommunicationConnection {
                                         if msg_type
                                             == crate::protocol::negotiate::MessageType::Close
                                         {
-                                            allow_reconnect =
-                                                super::common::close_allows_reconnect(&payload)
-                                                    .unwrap_or(false);
+                                            let reason = super::common::server_close(&payload);
                                             let _ = storage.process_message(payload, msg_type);
-                                            break 'receive;
+                                            break 'receive reason;
                                         }
                                         if let Err(error) =
                                             storage.process_message(payload, msg_type)
@@ -976,20 +1008,23 @@ impl CommunicationConnection {
                     },
                     Err(error) => {
                         error!("WebSocket receive error: {error}");
-                        break 'receive;
+                        break 'receive websocket_error(format!("the WebSocket failed: {error}"))
+                            .with_source(error);
                     }
                 }
-            }
+            };
 
-            disconnection_handler.on_connection_dropped(allow_reconnect);
+            disconnection_handler.on_connection_dropped(reason);
         }
     }
 
     /// Serializes a JSON message and its replay-buffer tracking data.
     pub(crate) fn json_frame<T: serde::Serialize>(
         data: T,
-    ) -> Result<(Message, Option<(MessageType, SerializedFrame)>), String> {
-        let json = MessageParser::to_json(&data).map_err(|error| error.to_string())?;
+    ) -> Result<(Message, Option<(MessageType, SerializedFrame)>), Error> {
+        let json = MessageParser::to_json(&data).map_err(|error| {
+            Error::serialization(format!("cannot encode the message as JSON: {error}"))
+        })?;
         let message_type =
             MessageParser::parse_message::<Ping>(MessageParser::strip_record_separator(&json))?
                 .message_type();
@@ -1003,11 +1038,11 @@ impl CommunicationConnection {
     #[cfg(feature = "messagepack")]
     pub(crate) fn binary_frame(
         data: Vec<u8>,
-    ) -> Result<(Message, Option<(MessageType, SerializedFrame)>), String> {
+    ) -> Result<(Message, Option<(MessageType, SerializedFrame)>), Error> {
         let frames = crate::protocol::msgpack::split_framed_messages(&data)?;
         let first = frames
             .first()
-            .ok_or_else(|| "Cannot send an empty MessagePack frame".to_string())?;
+            .ok_or_else(|| Error::protocol("cannot send an empty MessagePack frame"))?;
         let message_type = crate::protocol::msgpack::read_message_type(first)?;
         Ok((
             Message::binary(data.clone()),
@@ -1015,11 +1050,12 @@ impl CommunicationConnection {
         ))
     }
 
-    fn ack_message(protocol_kind: HubProtocolKind, sequence_id: u64) -> Result<Message, String> {
+    fn ack_message(protocol_kind: HubProtocolKind, sequence_id: u64) -> Result<Message, Error> {
         let message = match protocol_kind {
             HubProtocolKind::Json => Message::text(
-                MessageParser::to_json(&Ack::new(sequence_id))
-                    .map_err(|error| error.to_string())?,
+                MessageParser::to_json(&Ack::new(sequence_id)).map_err(|error| {
+                    Error::serialization(format!("cannot encode an Ack: {error}"))
+                })?,
             ),
             #[cfg(feature = "messagepack")]
             HubProtocolKind::MessagePack => {
@@ -1081,11 +1117,33 @@ impl Drop for CommunicationConnection {
 
 #[derive(Clone, Debug)]
 enum DisconnectionReason {
-    RemoteClosed,
+    /// The transport ended and nothing reconnects: a terminal server close, a manual-mode drop,
+    /// or a reconnect run that gave up. The error says why.
+    RemoteClosed(Error),
     LocalClosed,
     NeverOpened,
     Reconnecting,
     Paused,
+}
+
+impl DisconnectionReason {
+    /// The error a send fails with in this state.
+    fn send_error(&self) -> Error {
+        match self {
+            DisconnectionReason::RemoteClosed(error)
+                if error.kind() == crate::ErrorKind::ConnectionClosed =>
+            {
+                error.clone()
+            }
+            DisconnectionReason::RemoteClosed(error) => {
+                websocket_error("the connection is disconnected").with_source(error.clone())
+            }
+            DisconnectionReason::LocalClosed => Error::closed_locally(),
+            DisconnectionReason::NeverOpened => websocket_error("the connection is not open"),
+            DisconnectionReason::Reconnecting => websocket_error("the connection is reconnecting"),
+            DisconnectionReason::Paused => Error::paused(),
+        }
+    }
 }
 
 enum ConnectionState {
@@ -1131,19 +1189,13 @@ impl Clone for CommunicationClient {
 }
 
 impl Communication for CommunicationClient {
-    async fn connect(configuration: &super::ConnectionData) -> Result<Self, String> {
+    async fn connect(configuration: &super::ConnectionData) -> Result<Self, Error> {
         let mut ret = CommunicationClient::create(configuration)?;
-
-        let res = ret.connect_internal().await;
-
-        if res.is_ok() {
-            Ok(ret)
-        } else {
-            Err(res.err().unwrap())
-        }
+        ret.connect_internal().await?;
+        Ok(ret)
     }
 
-    fn get_storage(&self) -> Result<crate::execution::UpdatableActionStorage, String> {
+    fn get_storage(&self) -> Result<crate::execution::UpdatableActionStorage, Error> {
         Ok(self._actions.clone())
     }
 
@@ -1151,13 +1203,13 @@ impl Communication for CommunicationClient {
         self._protocol_kind
     }
 
-    async fn send<T: serde::Serialize>(&mut self, data: T) -> Result<(), String> {
+    async fn send<T: serde::Serialize>(&mut self, data: T) -> Result<(), Error> {
         let (message, tracking) = CommunicationConnection::json_frame(data)?;
         self.writer().await?.send(message, tracking).await
     }
 
     #[cfg(feature = "messagepack")]
-    async fn send_binary(&mut self, data: Vec<u8>) -> Result<(), String> {
+    async fn send_binary(&mut self, data: Vec<u8>) -> Result<(), Error> {
         let (message, tracking) = CommunicationConnection::binary_frame(data)?;
         self.writer().await?.send(message, tracking).await
     }
@@ -1199,21 +1251,16 @@ impl Communication for CommunicationClient {
             buffer.lock().expect("stateful buffer poisoned").dispose();
         }
         let mut actions = self._actions.clone();
-        actions.fail_pending(super::reconnection::LOCALLY_CLOSED);
+        actions.fail_pending(&Error::closed_locally());
     }
 }
 
 impl CommunicationClient {
     /// The current physical connection's writer. The state lock is released before sending, so a
     /// waiting send never blocks `disconnect` or a reconnect.
-    async fn writer(&self) -> Result<ConnectionWriter, String> {
+    async fn writer(&self) -> Result<ConnectionWriter, Error> {
         let connection = match &*self._state.lock().await {
-            ConnectionState::NotConnected(reason) => {
-                return Err(format!(
-                    "Client is not connected, cannot send: {:?}",
-                    reason
-                ));
-            }
+            ConnectionState::NotConnected(reason) => return Err(reason.send_error()),
             ConnectionState::Connected(connection) => connection.clone(),
         };
         let writer = connection.lock().await.writer.clone();
@@ -1234,10 +1281,10 @@ impl CommunicationClient {
     /// stateful mode drops it without a Close so the server keeps the logical connection
     /// resumable (while it holds the disconnected connection), and keeps pending work. Sends
     /// fail until `resume`. The transition happens under the state lock.
-    pub(crate) async fn pause(&self) -> Result<(), String> {
+    pub(crate) async fn pause(&self) -> Result<(), Error> {
         {
             let mut guard = self._state.lock().await;
-            if self._coordinator.pause().map_err(str::to_string)? == PauseOutcome::AlreadyPaused {
+            if self._coordinator.pause()? == PauseOutcome::AlreadyPaused {
                 return Ok(());
             }
             let previous = std::mem::replace(
@@ -1264,7 +1311,7 @@ impl CommunicationClient {
         }
         if self._stateful.is_none() {
             let mut actions = self._actions.clone();
-            actions.fail_pending("The connection is paused");
+            actions.fail_pending(&Error::paused());
         }
         info!("Connection paused");
         Ok(())
@@ -1273,10 +1320,10 @@ impl CommunicationClient {
     /// Resumes a paused or disconnected connection: the first attempt starts immediately, later
     /// ones follow the reconnection policy, and a run that gives up ends the logical connection
     /// like an exhausted automatic reconnect. Runs on the connection's runtime.
-    pub(crate) async fn resume(&self) -> Result<(), String> {
+    pub(crate) async fn resume(&self) -> Result<(), Error> {
         let generation = {
             let mut guard = self._state.lock().await;
-            match self._coordinator.resume().map_err(str::to_string)? {
+            match self._coordinator.resume()? {
                 ResumeOutcome::AlreadyActive => return Ok(()),
                 ResumeOutcome::Started(generation) => {
                     *guard = ConnectionState::NotConnected(DisconnectionReason::Reconnecting);
@@ -1285,7 +1332,7 @@ impl CommunicationClient {
             }
         };
         let context = self.reconnection_context();
-        context.fail_ordinary_pending("The connection was replaced by a fresh logical reconnect");
+        context.fail_ordinary_pending(&replaced_by_reconnect());
         on_runtime(self.runtime(), async move {
             let result = context.run_policy(generation, FirstAttempt::Always).await;
             if let Err(error) = &result {
@@ -1298,7 +1345,7 @@ impl CommunicationClient {
 
     fn reconnection_context(&self) -> ReconnectionContext {
         self.disconnection_handler(self._coordinator.generation())
-            .context(true)
+            .context(Error::paused())
     }
 
     fn disconnection_handler(&self, connection_generation: u64) -> ClientDisconnectionHandler {
@@ -1318,7 +1365,7 @@ impl CommunicationClient {
         }
     }
 
-    pub(crate) fn create(configuration: &super::ConnectionData) -> Result<Self, String> {
+    pub(crate) fn create(configuration: &super::ConnectionData) -> Result<Self, Error> {
         let recipe = configuration.get_recipe();
         info!(
             "Creating communication client to {}",
@@ -1326,9 +1373,12 @@ impl CommunicationClient {
         );
         // The transport URL can carry an access token, so the error never repeats it.
         let endpoint = Uri::from_str(&configuration.get_endpoint()).map_err(|_| {
-            format!(
-                "The WebSocket endpoint for {} is not a valid URI",
-                recipe.display_endpoint()
+            Error::negotiate(
+                None,
+                format!(
+                    "the WebSocket endpoint for {} is not a valid URI",
+                    recipe.display_endpoint()
+                ),
             )
         })?;
 
@@ -1377,7 +1427,7 @@ impl CommunicationClient {
         protocol_kind: HubProtocolKind,
         stateful_reconnect: bool,
         recipe: &ConnectionRecipe,
-    ) -> Result<OpenSocket, String> {
+    ) -> Result<OpenSocket, Error> {
         let ws = Self::connect_socket(endpoint, recipe).await?;
         let (mut write, mut read) = ws.split();
 
@@ -1388,48 +1438,51 @@ impl CommunicationClient {
                 "protocol": protocol_kind.protocol_name(),
                 "version": 2,
             }))
-            .map_err(|error| error.to_string())?
         } else {
             let handshake = HandshakeRequest::new(protocol_kind.protocol_name().to_string());
-            MessageParser::to_json(&handshake).map_err(|error| error.to_string())?
-        };
+            MessageParser::to_json(&handshake)
+        }
+        .map_err(|error| Error::serialization(format!("cannot encode the handshake: {error}")))?;
         write
             .send(Message::text(message))
             .await
-            .map_err(|error| error.to_string())?;
+            .map_err(send_failed)?;
         let timeout = recipe.liveness().handshake_timeout;
         let response = tokio::time::timeout(timeout, async {
             loop {
                 let frame = match read.next().await {
                     None => None,
-                    Some(Err(error)) => return Err(format!("SignalR handshake failed: {error}")),
+                    Some(Err(error)) => {
+                        return Err(Error::handshake(format!(
+                            "the SignalR handshake failed: {error}"
+                        ))
+                        .with_source(error))
+                    }
                     Some(Ok(frame)) => Some(frame),
                 };
                 match classify_handshake_frame(frame) {
                     HandshakeFrame::Skip => continue,
                     HandshakeFrame::Closed => {
-                        return Err(
-                            "SignalR handshake failed: the connection closed before the server \
-                             answered"
-                                .to_string(),
-                        )
+                        return Err(Error::handshake(
+                            "the SignalR handshake failed: the connection closed before the \
+                             server answered",
+                        ))
                     }
                     HandshakeFrame::Response(response) => return Ok(response),
                 }
             }
         })
         .await
-        .map_err(|_| {
-            format!("SignalR handshake timed out: the server did not answer within {timeout:?}")
-        })??;
+        .map_err(|_| Error::timed_out(TimeoutOperation::Handshake, timeout))??;
         // The response is JSON, in a binary frame when the hub protocol is MessagePack; hub
         // messages after it in the same frame are kept for the receiver.
         let remainder = parse_handshake_response(response.as_payload())?;
         let pending = if remainder.is_empty() {
             None
         } else if response.is_text() {
-            let text = std::str::from_utf8(remainder)
-                .map_err(|_| "SignalR handshake failed: invalid UTF-8 after the response")?;
+            let text = std::str::from_utf8(remainder).map_err(|_| {
+                Error::protocol("the SignalR handshake frame has invalid UTF-8 after the response")
+            })?;
             Some(Message::text(text.to_string()))
         } else {
             Some(Message::binary(remainder.to_vec()))
@@ -1445,24 +1498,24 @@ impl CommunicationClient {
     async fn connect_socket(
         endpoint: Uri,
         recipe: &ConnectionRecipe,
-    ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, String> {
-        Self::connect_socket_within(endpoint, recipe, super::negotiate_http::CONNECT_TIMEOUT).await
+    ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, Error> {
+        Self::connect_socket_within(endpoint, recipe, recipe.liveness().connect_timeout).await
     }
 
     async fn connect_socket_within(
         endpoint: Uri,
         recipe: &ConnectionRecipe,
         timeout: Duration,
-    ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, String> {
+    ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, Error> {
         tokio::time::timeout(timeout, Self::open_websocket(endpoint, recipe))
             .await
-            .map_err(|_| format!("Opening the WebSocket did not complete within {timeout:?}"))?
+            .map_err(|_| Error::timed_out(TimeoutOperation::Connect, timeout))?
     }
 
     async fn open_websocket(
         endpoint: Uri,
         recipe: &ConnectionRecipe,
-    ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, String> {
+    ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, Error> {
         info!(
             "Connecting to endpoint {}",
             Self::display_endpoint(&endpoint)
@@ -1470,23 +1523,27 @@ impl CommunicationClient {
         // Native clients authenticate the upgrade with the same header as negotiate.
         let mut builder = ClientBuilder::from_uri(endpoint.clone());
         if let Some(value) = recipe.transport_authorization() {
-            let value = http::HeaderValue::from_str(&value).map_err(|_| {
-                "The configured credentials are not a valid header value".to_string()
-            })?;
+            let invalid = || {
+                Error::configuration(
+                    "authentication",
+                    "the credentials are not a valid Authorization header value",
+                )
+            };
+            let value = http::HeaderValue::from_str(&value).map_err(|_| invalid())?;
             builder = builder
                 .add_header(http::header::AUTHORIZATION, value)
-                .map_err(|_| {
-                    "Cannot add the Authorization header to the WebSocket upgrade".to_string()
-                })?;
+                .map_err(|_| invalid())?;
         }
 
         let host = endpoint
             .host()
-            .ok_or_else(|| "The WebSocket endpoint has no host".to_string())?;
+            .ok_or_else(|| Error::negotiate(None, "the WebSocket endpoint has no host"))?;
         let secure = Some("wss") == endpoint.scheme_str();
         let port = endpoint.port_u16().unwrap_or(if secure { 443 } else { 80 });
         // Every resolved address is tried and Nagle's algorithm is off (see `connect_tcp`).
-        let tcp = super::negotiate_http::connect_tcp(host, port).await?;
+        let tcp = super::negotiate_http::connect_tcp(host, port)
+            .await
+            .map_err(|error| error.with_transport(TransportKind::WebSockets))?;
         let stream = if secure {
             info!("Connection to secure endpoint...");
             // The same rustls configuration as this connection's negotiate requests.
@@ -1494,7 +1551,10 @@ impl CommunicationClient {
             connector
                 .wrap(host.trim_start_matches('[').trim_end_matches(']'), tcp)
                 .await
-                .map_err(|error| error.to_string())?
+                .map_err(|error| {
+                    Error::tls(format!("the TLS handshake with {host} failed: {error}"))
+                        .with_source(error)
+                })?
         } else {
             info!("Connection to plain endpoint...");
             MaybeTlsStream::Plain(tcp)
@@ -1504,7 +1564,29 @@ impl CommunicationClient {
             .connect_on(stream)
             .await
             .map(|(ws, _)| ws)
-            .map_err(|error| error.to_string())
+            .map_err(Self::upgrade_failed)
+    }
+
+    /// A failed WebSocket upgrade: an authentication error for 401/403, else a transport error.
+    fn upgrade_failed(error: tokio_websockets::Error) -> Error {
+        use tokio_websockets::upgrade::Error as Upgrade;
+        match &error {
+            tokio_websockets::Error::Upgrade(Upgrade::DidNotSwitchProtocols(status))
+                if matches!(status, 401 | 403) =>
+            {
+                Error::authentication(
+                    Some(*status),
+                    format!("the server refused the WebSocket upgrade with status {status}"),
+                )
+            }
+            tokio_websockets::Error::Upgrade(Upgrade::DidNotSwitchProtocols(status)) => {
+                websocket_error(format!(
+                    "the server refused the WebSocket upgrade with status {status}"
+                ))
+            }
+            _ => websocket_error(format!("the WebSocket upgrade failed: {error}")),
+        }
+        .with_source(error)
     }
 
     async fn resume_to_server(
@@ -1512,7 +1594,7 @@ impl CommunicationClient {
         protocol_kind: HubProtocolKind,
         buffer: SharedStatefulBuffer,
         recipe: &ConnectionRecipe,
-    ) -> Result<OpenSocket, String> {
+    ) -> Result<OpenSocket, Error> {
         let ws = Self::connect_socket(endpoint, recipe).await?;
         let (mut write, read) = ws.split();
         let (sequence_id, frames) = buffer
@@ -1523,12 +1605,14 @@ impl CommunicationClient {
         let resend_result = async {
             match protocol_kind {
                 HubProtocolKind::Json => {
-                    let sequence = MessageParser::to_json(&Sequence::new(sequence_id))
-                        .map_err(|error| error.to_string())?;
+                    let sequence =
+                        MessageParser::to_json(&Sequence::new(sequence_id)).map_err(|error| {
+                            Error::serialization(format!("cannot encode a Sequence: {error}"))
+                        })?;
                     write
                         .send(Message::text(sequence))
                         .await
-                        .map_err(|error| error.to_string())?;
+                        .map_err(send_failed)?;
                 }
                 #[cfg(feature = "messagepack")]
                 HubProtocolKind::MessagePack => {
@@ -1539,24 +1623,23 @@ impl CommunicationClient {
                     write
                         .send(Message::binary(sequence))
                         .await
-                        .map_err(|error| error.to_string())?;
+                        .map_err(send_failed)?;
                 }
             }
 
             for frame in frames {
                 match frame.payload {
-                    SerializedFrame::Text(text) => write
-                        .send(Message::text(text))
-                        .await
-                        .map_err(|error| error.to_string())?,
+                    SerializedFrame::Text(text) => {
+                        write.send(Message::text(text)).await.map_err(send_failed)?
+                    }
                     #[cfg(feature = "messagepack")]
                     SerializedFrame::Binary(binary) => write
                         .send(Message::binary(binary))
                         .await
-                        .map_err(|error| error.to_string())?,
+                        .map_err(send_failed)?,
                 }
             }
-            Ok::<(), String>(())
+            Ok::<(), Error>(())
         }
         .await;
 
@@ -1574,10 +1657,11 @@ impl CommunicationClient {
         recipe: &ConnectionRecipe,
         protocol_kind: HubProtocolKind,
         stateful: bool,
-    ) -> Result<(OpenSocket, Uri), String> {
+    ) -> Result<(OpenSocket, Uri), Error> {
         let configuration = HttpClient::negotiate(recipe).await?;
-        let endpoint = Uri::from_str(&configuration.get_endpoint())
-            .map_err(|_| "The negotiated WebSocket endpoint is not a valid URI".to_string())?;
+        let endpoint = Uri::from_str(&configuration.get_endpoint()).map_err(|_| {
+            Error::negotiate(None, "the negotiated WebSocket endpoint is not a valid URI")
+        })?;
         // The negotiated recipe carries any credentials a redirect issued for the transport.
         let socket = Self::connect_to_server(
             endpoint.clone(),
@@ -1589,7 +1673,7 @@ impl CommunicationClient {
         Ok((socket, endpoint))
     }
 
-    async fn connect_internal(&mut self) -> Result<(), String> {
+    async fn connect_internal(&mut self) -> Result<(), Error> {
         let endpoint = self
             ._endpoint
             .read()
@@ -1681,7 +1765,7 @@ struct ClientDisconnectionHandler {
 }
 
 impl ClientDisconnectionHandler {
-    fn context(&self, server_allows_reconnect: bool) -> ReconnectionContext {
+    fn context(&self, reason: Error) -> ReconnectionContext {
         ReconnectionContext {
             state: self.state.clone(),
             endpoint: self.endpoint.clone(),
@@ -1694,14 +1778,15 @@ impl ClientDisconnectionHandler {
             coordinator: self.coordinator.clone(),
             protocol_kind: self.protocol_kind,
             stateful: self.stateful.clone(),
-            server_allows_reconnect,
+            server_allows_reconnect: reason.allows_reconnect(),
+            reason,
         }
     }
 }
 
 impl CommunicationDisconnectionHandler for ClientDisconnectionHandler {
-    fn on_connection_dropped(&self, allow_reconnect: bool) {
-        let context = self.context(allow_reconnect);
+    fn on_connection_dropped(&self, reason: Error) {
+        let context = self.context(reason);
         let runtime = self.recipe.runtime().unwrap_or_else(Handle::current);
         runtime.spawn(context.transport_dropped());
     }
@@ -1813,7 +1898,10 @@ mod native_connection_runs {
         let (client, context) =
             stateful_client(ConstantDelayPolicy::new(Duration::from_millis(10), Some(2)));
         let error = context.reconnect_with_policy().await.unwrap_err();
-        assert!(error.contains("exhausted"), "{error}");
+        assert_eq!(
+            error.close_reason(),
+            Some(crate::CloseReason::ReconnectExhausted)
+        );
         assert_eq!(client.status(), ConnectionStatus::Disconnected);
         assert!(
             buffer_disposed(&client),
@@ -1833,7 +1921,7 @@ mod native_connection_runs {
             .expect("an unbounded run must stop after a local close")
             .unwrap()
             .unwrap_err();
-        assert!(error.contains("locally disconnected"), "{error}");
+        assert_eq!(error.close_reason(), Some(crate::CloseReason::Local));
         assert_eq!(client.status(), ConnectionStatus::Closed);
         assert!(buffer_disposed(&client));
     }
@@ -1850,7 +1938,7 @@ mod native_connection_runs {
             .expect("an unbounded run must stop once the client is gone")
             .unwrap()
             .unwrap_err();
-        assert!(error.contains("dropped"), "{error}");
+        assert_eq!(error.close_reason(), Some(crate::CloseReason::Local));
     }
 
     #[tokio::test]
@@ -1875,7 +1963,10 @@ mod native_connection_runs {
         else {
             panic!("a silent server must not stall the upgrade");
         };
-        assert!(error.contains("did not complete"), "{error}");
+        assert_eq!(
+            error.timeout_operation(),
+            Some(crate::TimeoutOperation::Connect)
+        );
         assert!(started.elapsed() < Duration::from_secs(5));
         silent.abort();
     }

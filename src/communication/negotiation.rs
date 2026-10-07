@@ -8,14 +8,14 @@
 use std::future::Future;
 
 use crate::client::{Authentication, ConnectionRecipe};
+use crate::communication::transport::TransportKind;
+use crate::error::{Error, TransportAttempt};
 use crate::protocol::negotiate::NegotiateResponse;
 
 use super::common::ConnectionData;
 
 /// The most redirects one negotiation follows (as the official clients do).
 pub(crate) const MAX_REDIRECTS: usize = 100;
-
-const WEB_SOCKET_TRANSPORT: &str = "WebSockets";
 
 /// One parsed negotiate response.
 #[derive(Debug)]
@@ -32,9 +32,13 @@ pub(crate) enum NegotiateOutcome {
 }
 
 /// Classifies a negotiate response body; unrecognized bodies are errors naming the endpoint.
-pub(crate) fn parse_outcome(text: &str, endpoint: &str) -> Result<NegotiateOutcome, String> {
-    let unrecognized =
-        |detail: String| format!("Unrecognized negotiate response from {endpoint}: {detail}");
+pub(crate) fn parse_outcome(text: &str, endpoint: &str) -> Result<NegotiateOutcome, Error> {
+    let unrecognized = |detail: String| {
+        Error::negotiate(
+            None,
+            format!("unrecognized negotiate response from {endpoint}: {detail}"),
+        )
+    };
     let value: serde_json::Value =
         serde_json::from_str(text).map_err(|error| unrecognized(error.to_string()))?;
     if let Some(error) = value.get("error").and_then(serde_json::Value::as_str) {
@@ -57,6 +61,36 @@ pub(crate) fn parse_outcome(text: &str, endpoint: &str) -> Result<NegotiateOutco
     Err(unrecognized(
         "no connectionId, url or error field".to_string(),
     ))
+}
+
+/// The longest body excerpt a negotiate failure reports.
+pub(crate) const EXCERPT_BYTES: usize = 256;
+
+/// A non-2xx negotiate response (`status` with its `reason` phrase): an authentication error for
+/// 401 and 403, else a negotiate error, each with the status and a short, credential-redacted body
+/// excerpt.
+pub(crate) fn negotiate_failure(status: u16, reason: &str, body: &[u8]) -> Error {
+    let message = negotiate_failure_message(status, reason, body);
+    match status {
+        401 | 403 => Error::authentication(Some(status), message),
+        _ => Error::negotiate(Some(status), message),
+    }
+}
+
+/// Describes a non-2xx negotiate response with a short, credential-redacted body excerpt.
+pub(crate) fn negotiate_failure_message(status: u16, reason: &str, body: &[u8]) -> String {
+    let excerpt = String::from_utf8_lossy(&body[..body.len().min(EXCERPT_BYTES)]);
+    let excerpt = crate::error::redact(excerpt.trim());
+    let status = if reason.is_empty() {
+        status.to_string()
+    } else {
+        format!("{status} {reason}")
+    };
+    if excerpt.is_empty() {
+        format!("the server returned {status}")
+    } else {
+        format!("the server returned {status}: {excerpt}")
+    }
 }
 
 /// The negotiate URL for a hub base URL, keeping any query (Azure SignalR redirect URLs carry one).
@@ -135,10 +169,10 @@ fn with_trailing_slash(path: &str) -> String {
 pub(crate) async fn negotiate_with<F, Fut>(
     recipe: &ConnectionRecipe,
     mut request: F,
-) -> Result<ConnectionData, String>
+) -> Result<ConnectionData, Error>
 where
     F: FnMut(String, Option<String>) -> Fut,
-    Fut: Future<Output = Result<String, String>>,
+    Fut: Future<Output = Result<String, Error>>,
 {
     if recipe.skips_negotiation() {
         return direct_connection(recipe);
@@ -153,10 +187,7 @@ where
         let text = request(url, authentication.header_value())
             .await
             .map_err(|error| {
-                format!(
-                    "HTTP negotiation with endpoint {} failed: {error}",
-                    display(&base)
-                )
+                error.context(format!("negotiation with {} failed", display(&base)))
             })?;
         match parse_outcome(&text, &display(&base))? {
             NegotiateOutcome::Connection(response) => {
@@ -165,9 +196,12 @@ where
             NegotiateOutcome::Redirect { url, access_token } => {
                 redirects += 1;
                 if redirects > MAX_REDIRECTS {
-                    return Err(format!(
-                        "Negotiation with {} failed: too many negotiate redirects",
-                        recipe.display_endpoint()
+                    return Err(Error::negotiate(
+                        None,
+                        format!(
+                            "negotiation with {} failed: too many negotiate redirects",
+                            recipe.display_endpoint()
+                        ),
                     ));
                 }
                 base = url;
@@ -176,9 +210,12 @@ where
                 }
             }
             NegotiateOutcome::Error(message) => {
-                return Err(format!(
-                    "The server at {} rejected negotiation: {message}",
-                    display(&base)
+                return Err(Error::negotiate(
+                    None,
+                    format!(
+                        "the server at {} rejected negotiation: {message}",
+                        display(&base)
+                    ),
                 ));
             }
         }
@@ -202,19 +239,32 @@ fn connection_data(
     base: &str,
     authentication: &Authentication,
     response: NegotiateResponse,
-) -> Result<ConnectionData, String> {
+) -> Result<ConnectionData, Error> {
     let protocol = recipe.protocol();
     let format = protocol.transfer_format();
     let supported = response.available_transports().iter().any(|transport| {
-        transport.transport == WEB_SOCKET_TRANSPORT
+        transport.transport == TransportKind::WebSockets.name()
             && transport
                 .transfer_formats
                 .iter()
                 .any(|candidate| candidate == format)
     });
     if !supported {
-        return Err(format!(
-            "The negotiation concluded no matching communication protocols for {format:?} transfer format"
+        let transport = TransportKind::WebSockets;
+        return Err(Error::transport_unavailable(
+            format!(
+                "the server offers no transport this client supports for the {format} transfer \
+                 format"
+            ),
+            vec![TransportAttempt::new(
+                transport,
+                Error::transport_failure(
+                    Some(transport),
+                    format!(
+                        "the server does not offer {transport} with the {format} transfer format"
+                    ),
+                ),
+            )],
         ));
     }
     let stateful = if response.use_stateful_reconnect() {
@@ -239,9 +289,9 @@ fn connection_data(
 }
 
 /// Builds the WebSocket connection directly from the configured endpoint, without negotiating.
-fn direct_connection(recipe: &ConnectionRecipe) -> Result<ConnectionData, String> {
+fn direct_connection(recipe: &ConnectionRecipe) -> Result<ConnectionData, Error> {
     if recipe.stateful_reconnect().is_some() {
-        return Err(SKIP_WITH_STATEFUL.to_string());
+        return Err(Error::configuration("skip_negotiation", SKIP_WITH_STATEFUL));
     }
     let authentication = recipe.authentication();
     let parameters: Vec<(&str, &str)> = bearer_parameter(&authentication)
@@ -274,7 +324,7 @@ mod negotiation_tests {
     fn negotiate(
         configure: impl FnOnce(&mut ConnectionConfiguration),
         responses: Vec<&str>,
-    ) -> (Result<super::ConnectionData, String>, Requests) {
+    ) -> (Result<super::ConnectionData, crate::Error>, Requests) {
         let mut configuration = ConnectionConfiguration::new("localhost".into(), "hub".into());
         configuration.unsecure();
         configuration.with_port(5000);
@@ -324,7 +374,8 @@ mod negotiation_tests {
     fn negotiation_rejects_unrecognized_bodies_naming_the_endpoint() {
         for body in ["<html>oops</html>", r#"{"unexpected":true}"#, ""] {
             let error = parse_outcome(body, "http://host/hub").unwrap_err();
-            assert!(error.contains("http://host/hub"), "{error}");
+            assert_eq!(error.kind(), crate::ErrorKind::Negotiate);
+            assert!(error.to_string().contains("http://host/hub"), "{error}");
         }
     }
 
@@ -351,7 +402,8 @@ mod negotiation_tests {
     fn negotiation_error_responses_fail_connect_with_the_server_text() {
         let (result, _) = negotiate(|_| {}, vec![r#"{"error":"Hub is disabled"}"#]);
         let error = result.err().unwrap();
-        assert!(error.contains("Hub is disabled"), "{error}");
+        assert_eq!(error.kind(), crate::ErrorKind::Negotiate);
+        assert!(error.to_string().contains("Hub is disabled"), "{error}");
     }
 
     #[test]
@@ -409,7 +461,11 @@ mod negotiation_tests {
         let redirect = r#"{"url":"http://loop/hub"}"#;
         let (result, requests) = negotiate(|_| {}, vec![redirect; super::MAX_REDIRECTS + 1]);
         let error = result.err().unwrap();
-        assert!(error.contains("too many negotiate redirects"), "{error}");
+        assert_eq!(error.kind(), crate::ErrorKind::Negotiate);
+        assert!(
+            error.to_string().contains("too many negotiate redirects"),
+            "{error}"
+        );
         assert_eq!(requests.borrow().len(), super::MAX_REDIRECTS + 1);
     }
 
@@ -446,7 +502,7 @@ mod negotiation_tests {
     fn negotiation_errors_never_echo_tokens_from_the_endpoint() {
         let redirect = r#"{"url":"https://demo.service.signalr.net/client/?hub=chat&access_token=leak","accessToken":"redirect-token"}"#;
         let (result, _) = negotiate(|_| {}, vec![redirect, r#"{"error":"denied"}"#]);
-        let error = result.err().unwrap();
+        let error = result.err().unwrap().to_string();
         assert!(!error.contains("leak"), "{error}");
         assert!(!error.contains("redirect-token"), "{error}");
     }
@@ -460,7 +516,7 @@ mod skip_negotiation {
 
     fn direct(
         configure: impl FnOnce(&mut ConnectionConfiguration),
-    ) -> (Result<super::ConnectionData, String>, usize) {
+    ) -> (Result<super::ConnectionData, crate::Error>, usize) {
         let mut configuration = ConnectionConfiguration::new("localhost".into(), "hub".into());
         configuration.with_port(5001);
         configuration.skip_negotiation();
@@ -469,7 +525,12 @@ mod skip_negotiation {
         let mut requests = 0;
         let result = futures::executor::block_on(negotiate_with(&recipe, |_, _| {
             requests += 1;
-            async { Err("negotiate must not be requested".to_string()) }
+            async {
+                Err(crate::Error::negotiate(
+                    None,
+                    "negotiate must not be requested",
+                ))
+            }
         }));
         (result, requests)
     }
@@ -513,6 +574,8 @@ mod skip_negotiation {
             configuration.with_stateful_reconnect(StatefulReconnectConfig::default());
         });
         assert_eq!(requests, 0);
-        assert_eq!(result.err().unwrap(), SKIP_WITH_STATEFUL);
+        let error = result.err().unwrap();
+        assert_eq!(error.setting(), Some("skip_negotiation"));
+        assert!(error.to_string().contains(SKIP_WITH_STATEFUL), "{error}");
     }
 }

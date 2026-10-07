@@ -427,6 +427,6 @@ fn set_scenario_error(error: String) {
     SCENARIO_ERROR.with(|slot| *slot.borrow_mut() = Some(error));
 }
 
-fn js_error(prefix: &'static str) -> impl FnOnce(String) -> JsValue {
+fn js_error(prefix: &'static str) -> impl FnOnce(rayx_signalr::Error) -> JsValue {
     move |error| JsValue::from_str(&format!("{prefix}: {error}"))
 }

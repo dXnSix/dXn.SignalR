@@ -42,7 +42,7 @@ fn wait_until(what: &str, limit: Duration, mut probe: impl FnMut() -> bool) {
     }
 }
 
-fn identity(client: &mut SignalRClient) -> Result<String, String> {
+fn identity(client: &mut SignalRClient) -> Result<String, rayx_signalr::Error> {
     block_on(client.invoke::<String>("ConnectionIdentity".to_string()))
 }
 

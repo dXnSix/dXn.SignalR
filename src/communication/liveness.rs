@@ -4,20 +4,26 @@
 
 use std::time::Duration;
 
-use crate::protocol::{
-    hub_protocol::HubProtocolKind,
-    messages::MessageParser,
-    negotiate::{HandshakeResponse, Ping},
+use crate::{
+    error::Error,
+    protocol::{
+        hub_protocol::HubProtocolKind,
+        messages::MessageParser,
+        negotiate::{HandshakeResponse, Ping},
+    },
 };
 
 use super::stateful::SerializedFrame;
 
-/// Keep-alive, server-timeout and handshake-timeout durations (the official clients' defaults).
+/// Keep-alive, server-timeout, handshake-timeout and connection-setup durations (the official
+/// clients' defaults).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct LivenessConfig {
     pub(crate) keep_alive_interval: Duration,
     pub(crate) server_timeout: Duration,
     pub(crate) handshake_timeout: Duration,
+    /// Bounds each negotiate request and opening the transport.
+    pub(crate) connect_timeout: Duration,
 }
 
 impl Default for LivenessConfig {
@@ -26,26 +32,47 @@ impl Default for LivenessConfig {
             keep_alive_interval: Duration::from_secs(15),
             server_timeout: Duration::from_secs(30),
             handshake_timeout: Duration::from_secs(15),
+            // The official .NET client's negotiate bound (its HttpClient timeout).
+            connect_timeout: Duration::from_secs(120),
         }
     }
 }
 
 impl LivenessConfig {
     /// Rejects zero durations and a server timeout that does not exceed the keep-alive interval.
-    pub(crate) fn validate(&self) -> Result<(), String> {
-        for (name, value) in [
-            ("keep-alive interval", self.keep_alive_interval),
-            ("server timeout", self.server_timeout),
-            ("handshake timeout", self.handshake_timeout),
+    pub(crate) fn validate(&self) -> Result<(), Error> {
+        for (setting, name, value) in [
+            (
+                "with_keep_alive_interval",
+                "keep-alive interval",
+                self.keep_alive_interval,
+            ),
+            ("with_server_timeout", "server timeout", self.server_timeout),
+            (
+                "with_handshake_timeout",
+                "handshake timeout",
+                self.handshake_timeout,
+            ),
+            (
+                "with_connect_timeout",
+                "connect timeout",
+                self.connect_timeout,
+            ),
         ] {
             if value.is_zero() {
-                return Err(format!("The {name} must be greater than zero"));
+                return Err(Error::configuration(
+                    setting,
+                    format!("the {name} must be greater than zero"),
+                ));
             }
         }
         if self.server_timeout <= self.keep_alive_interval {
-            return Err(format!(
-                "The server timeout ({:?}) must be greater than the keep-alive interval ({:?})",
-                self.server_timeout, self.keep_alive_interval
+            return Err(Error::configuration(
+                "with_server_timeout",
+                format!(
+                    "the server timeout ({:?}) must be greater than the keep-alive interval ({:?})",
+                    self.server_timeout, self.keep_alive_interval
+                ),
             ));
         }
         Ok(())
@@ -137,27 +164,30 @@ pub(crate) fn ping_frame(protocol: HubProtocolKind) -> SerializedFrame {
 /// protocol is MessagePack (the frame is then binary). An `error` field, a hub message, an empty
 /// or a malformed response fails the handshake. Returns the bytes after the response: hub
 /// messages the server sent in the same frame, which the receiver must still process.
-pub(crate) fn parse_handshake_response(frame: &[u8]) -> Result<&[u8], String> {
+pub(crate) fn parse_handshake_response(frame: &[u8]) -> Result<&[u8], Error> {
     const SEPARATOR: u8 = 0x1e;
+    let invalid =
+        || Error::handshake("the SignalR handshake failed: the server sent an invalid response");
     let end = frame
         .iter()
         .position(|byte| *byte == SEPARATOR)
-        .ok_or_else(|| {
-            "SignalR handshake failed: the server sent an invalid response".to_string()
-        })?;
+        .ok_or_else(invalid)?;
     let record = &frame[..end];
     if record.iter().all(u8::is_ascii_whitespace) {
-        return Err("SignalR handshake failed: the server sent an empty response".to_string());
+        return Err(Error::handshake(
+            "the SignalR handshake failed: the server sent an empty response",
+        ));
     }
-    let response = serde_json::from_slice::<HandshakeResponse>(record)
-        .map_err(|_| "SignalR handshake failed: the server sent an invalid response".to_string())?;
+    let response = serde_json::from_slice::<HandshakeResponse>(record).map_err(|_| invalid())?;
     if let Some(error) = response.error() {
-        return Err(format!("SignalR handshake failed: {error}"));
+        return Err(Error::handshake(format!(
+            "the SignalR handshake failed: {error}"
+        )));
     }
     if response.is_hub_message() {
-        return Err(
-            "SignalR handshake failed: expected a handshake response from the server".to_string(),
-        );
+        return Err(Error::handshake(
+            "the SignalR handshake failed: expected a handshake response from the server",
+        ));
     }
     Ok(&frame[end + 1..])
 }
@@ -177,6 +207,7 @@ mod liveness_tests {
             keep_alive_interval: Duration::from_millis(keep_alive),
             server_timeout: Duration::from_millis(server_timeout),
             handshake_timeout: Duration::from_millis(1_000),
+            connect_timeout: Duration::from_millis(1_000),
         }
     }
 
@@ -186,6 +217,7 @@ mod liveness_tests {
         assert_eq!(defaults.keep_alive_interval, Duration::from_secs(15));
         assert_eq!(defaults.server_timeout, Duration::from_secs(30));
         assert_eq!(defaults.handshake_timeout, Duration::from_secs(15));
+        assert_eq!(defaults.connect_timeout, Duration::from_secs(120));
         assert!(defaults.validate().is_ok());
     }
 
@@ -198,6 +230,10 @@ mod liveness_tests {
         let mut zero_handshake = config(1_000, 2_000);
         zero_handshake.handshake_timeout = Duration::ZERO;
         assert!(zero_handshake.validate().is_err());
+        let mut zero_connect = config(1_000, 2_000);
+        zero_connect.connect_timeout = Duration::ZERO;
+        let error = zero_connect.validate().unwrap_err();
+        assert_eq!(error.setting(), Some("with_connect_timeout"));
     }
 
     #[test]
@@ -251,12 +287,13 @@ mod liveness_tests {
 
     #[test]
     fn liveness_handshake_responses_are_validated() {
-        assert_eq!(parse_handshake_response(&record("{}")), Ok(&b""[..]));
+        assert_eq!(parse_handshake_response(&record("{}")).ok(), Some(&b""[..]));
         let rejected = parse_handshake_response(&record(
             r#"{"error":"Requested protocol 'x' is not available."}"#,
         ))
         .unwrap_err();
-        assert!(rejected.contains("not available"), "{rejected}");
+        assert_eq!(rejected.kind(), crate::ErrorKind::Handshake);
+        assert!(rejected.to_string().contains("not available"), "{rejected}");
         for invalid in [
             record("not json"),
             record(""),
@@ -274,14 +311,14 @@ mod liveness_tests {
         let mut text = record("{}");
         text.extend(record(r#"{"type":6}"#));
         assert_eq!(
-            parse_handshake_response(&text),
-            Ok(&record(r#"{"type":6}"#)[..])
+            parse_handshake_response(&text).ok(),
+            Some(&record(r#"{"type":6}"#)[..])
         );
         let mut binary = record("{}");
         binary.extend([0x02, 0x91, 0x06]);
         assert_eq!(
-            parse_handshake_response(&binary),
-            Ok(&[0x02, 0x91, 0x06][..])
+            parse_handshake_response(&binary).ok(),
+            Some(&[0x02, 0x91, 0x06][..])
         );
     }
 
@@ -309,10 +346,12 @@ mod liveness_tests {
         configuration.with_keep_alive_interval(Duration::from_secs(1));
         configuration.with_server_timeout(Duration::from_secs(2));
         configuration.with_handshake_timeout(Duration::from_secs(3));
+        configuration.with_connect_timeout(Duration::from_secs(4));
         let liveness = configuration.connection_recipe().liveness();
         assert_eq!(liveness.keep_alive_interval, Duration::from_secs(1));
         assert_eq!(liveness.server_timeout, Duration::from_secs(2));
         assert_eq!(liveness.handshake_timeout, Duration::from_secs(3));
+        assert_eq!(liveness.connect_timeout, Duration::from_secs(4));
     }
 
     /// The host does not resolve, so only validation before any I/O can produce this error.
@@ -333,7 +372,8 @@ mod liveness_tests {
             ))
             .err()
             .expect("an invalid liveness configuration must fail connect");
-        assert!(error.contains("server timeout"), "{error}");
+        assert_eq!(error.kind(), crate::ErrorKind::Configuration);
+        assert_eq!(error.setting(), Some("with_server_timeout"));
     }
 
     #[test]

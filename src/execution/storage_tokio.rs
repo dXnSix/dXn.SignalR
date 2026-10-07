@@ -1,4 +1,5 @@
 use super::{Storage, UpdatableAction};
+use crate::error::Error;
 use log::{error, info};
 use std::{
     collections::{hash_map::Entry, HashMap},
@@ -89,7 +90,7 @@ impl Storage for UpdatableActionStorage {
         }
     }
 
-    fn fail_pending(&mut self, error: &str) {
+    fn fail_pending(&mut self, error: &Error) {
         let pending = if let Ok(mut data) = self._data.lock() {
             let keys = data
                 .iter()
@@ -110,7 +111,7 @@ impl Storage for UpdatableActionStorage {
         }
     }
 
-    fn fail_action(&mut self, key: String, error: &str) {
+    fn fail_action(&mut self, key: String, error: &Error) {
         let action = if let Ok(mut data) = self._data.lock() {
             data.remove(&key).map(|(_, action)| action)
         } else {
@@ -178,7 +179,7 @@ mod reconnect_lifecycle_storage {
         storage.insert_persistent("callback".to_string(), TestAction);
         storage.insert("invocation".to_string(), TestAction);
 
-        storage.fail_pending("transport replaced");
+        storage.fail_pending(&crate::Error::paused());
 
         assert!(storage.contains("callback".to_string()));
         assert!(!storage.contains("invocation".to_string()));
@@ -225,13 +226,19 @@ mod unsent_stream_invocation {
         );
         let _other = storage.add_stream::<i32>("Stream_2".to_string(), Box::new(|| {}));
 
-        storage.fail_action("Stream_1".to_string(), "not sent");
+        storage.fail_action(
+            "Stream_1".to_string(),
+            &crate::Error::transport_failure(None, "not sent"),
+        );
 
         assert_eq!(
             futures::executor::block_on(futures::StreamExt::next(&mut stream)),
             None
         );
-        assert_eq!(stream.error(), Some("not sent".to_string()));
+        assert_eq!(
+            stream.error().map(ToString::to_string),
+            Some("not sent".to_string())
+        );
         assert!(!storage.contains("Stream_1".to_string()));
         assert!(storage.contains("Stream_2".to_string()));
         drop(stream);
@@ -249,11 +256,11 @@ mod pending_failure_completion {
         let mut storage = UpdatableActionStorage::new();
         let pending = storage.add_invocation::<i32>("Probe_1".to_string());
 
-        storage.fail_pending("transport replaced");
+        storage.fail_pending(&crate::Error::paused());
 
         assert_eq!(
-            futures::executor::block_on(pending),
-            Err("transport replaced".to_string())
+            futures::executor::block_on(pending).unwrap_err().kind(),
+            crate::ErrorKind::Paused
         );
         assert!(!storage.contains("Probe_1".to_string()));
     }
@@ -266,10 +273,7 @@ mod pending_failure_completion {
         storage.remove("Probe_2".to_string());
 
         let error = futures::executor::block_on(pending).unwrap_err();
-        assert!(
-            error.contains("ended before the server completed it"),
-            "{error}"
-        );
+        assert_eq!(error.kind(), crate::ErrorKind::Canceled, "{error}");
     }
 
     #[test]
@@ -277,7 +281,7 @@ mod pending_failure_completion {
         let mut storage = UpdatableActionStorage::new();
         let mut stream = storage.add_stream::<i32>("Stream_3".to_string(), Box::new(|| {}));
 
-        storage.fail_pending("transport replaced");
+        storage.fail_pending(&crate::Error::paused());
 
         assert_eq!(
             futures::executor::block_on(futures::StreamExt::next(&mut stream)),

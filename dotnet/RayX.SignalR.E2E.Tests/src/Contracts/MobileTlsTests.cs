@@ -95,13 +95,17 @@ public sealed class MobileTlsTests(AspireEnvironment environment)
     string library = await File.ReadAllTextAsync(Path.Combine(environment.RepositoryRoot, "src", "lib.rs"));
     Assert.Contains("pub mod tls", library, StringComparison.Ordinal);
     Assert.Contains("#[cfg(all(target_os = \"android\", feature = \"tls-platform-verifier\"))]", library, StringComparison.Ordinal);
+    string compact = string.Concat(library.Where(character => !char.IsWhiteSpace(character)));
     Assert.Contains(
-      "pubuserustls_platform_verifier::android::{init_with_env,init_with_refs,init_with_runtime,};",
-      string.Concat(library.Where(character => !char.IsWhiteSpace(character))),
+      "pubuserustls_platform_verifier::android::{init_with_refs,init_with_runtime,Runtime};",
+      compact,
       StringComparison.Ordinal);
+    // init_with_env reports the typed rayx_signalr::Error instead of the JNI error.
+    Assert.Contains("pubfninit_with_env(", compact, StringComparison.Ordinal);
+    Assert.Contains("->Result<(),crate::Error>{rustls_platform_verifier::android::init_with_env(env,context)", compact, StringComparison.Ordinal);
 
     // LibraryBuildsForAndroidThroughCargoNdk compiles this module for Android with the default
-    // (platform verifier) features, so the re-exported paths resolve there.
+    // (platform verifier) features, so the re-exported paths and the wrapper resolve there.
   }
 
   /// <summary>Points cargo-ndk at an NDK: <c>ANDROID_NDK_HOME</c>, else the newest under the SDK.</summary>

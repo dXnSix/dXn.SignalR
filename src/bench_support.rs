@@ -12,6 +12,7 @@ use tokio_websockets::Message;
 use crate::{
     communication::{CommunicationClient, CommunicationConnection},
     completer::{ManualFuture, ManualStream},
+    error::Error,
     execution::{ArgumentConfiguration, Storage, UpdatableActionStorage},
     protocol::{
         hub_protocol::MessagePayload,
@@ -212,7 +213,7 @@ pub fn encode_invocation<T: Serialize>(
     invocation.with_invocation_id(invocation_id);
     let mut arguments = ArgumentConfiguration::new(invocation);
     arguments.argument(argument);
-    let invocation = arguments.build_invocation();
+    let invocation = arguments.build_invocation().expect("the argument encodes");
     let (message, tracking) = match protocol {
         Protocol::Json => CommunicationConnection::json_frame(&invocation),
         #[cfg(feature = "messagepack")]
@@ -317,7 +318,7 @@ impl Receiver {
 
 /// An invocation waiting for its Completion.
 pub struct PendingInvocation<T: Unpin> {
-    future: ManualFuture<Result<T, String>>,
+    future: ManualFuture<Result<T, Error>>,
 }
 
 impl<T: Unpin> PendingInvocation<T> {

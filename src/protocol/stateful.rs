@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::negotiate::MessageType;
+use crate::error::Error;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -36,18 +37,20 @@ impl Sequence {
 
 /// Decodes a JSON Ack or Sequence record of the `expected` type into its sequence id. The id is
 /// not validated here: `StatefulMessageBuffer::receive_control` rejects (and records) an id of 0.
-pub(crate) fn decode_json_control(text: &str, expected: MessageType) -> Result<u64, String> {
+pub(crate) fn decode_json_control(text: &str, expected: MessageType) -> Result<u64, Error> {
     // Ack and Sequence share their JSON shape.
     let control = crate::protocol::messages::MessageParser::parse_message::<Ack>(text)?;
     if control.r#type != expected {
-        return Err(format!("Expected {expected:?} control message"));
+        return Err(Error::protocol(format!(
+            "expected a {expected:?} control message"
+        )));
     }
     Ok(control.sequence_id)
 }
 
-pub(crate) fn validate_sequence_id(sequence_id: u64) -> Result<u64, String> {
+pub(crate) fn validate_sequence_id(sequence_id: u64) -> Result<u64, Error> {
     if sequence_id == 0 {
-        Err("SignalR stateful sequence IDs start at 1".to_string())
+        Err(Error::protocol("SignalR stateful sequence ids start at 1"))
     } else {
         Ok(sequence_id)
     }
@@ -57,16 +60,20 @@ pub(crate) fn validate_sequence_id(sequence_id: u64) -> Result<u64, String> {
 pub(crate) fn encode_messagepack_control(
     message_type: MessageType,
     sequence_id: u64,
-) -> Result<Vec<u8>, String> {
+) -> Result<Vec<u8>, Error> {
     validate_sequence_id(sequence_id)?;
     if !matches!(message_type, MessageType::Ack | MessageType::Sequence) {
-        return Err("Only Ack and Sequence are stateful control messages".to_string());
+        return Err(Error::protocol(
+            "only Ack and Sequence are stateful control messages",
+        ));
     }
+    let encoding = |error: rmp::encode::ValueWriteError| {
+        Error::serialization(format!("cannot encode a control message: {error}"))
+    };
     let mut payload = Vec::new();
-    rmp::encode::write_array_len(&mut payload, 2).map_err(|error| error.to_string())?;
-    rmp::encode::write_uint(&mut payload, message_type as u8 as u64)
-        .map_err(|error| error.to_string())?;
-    rmp::encode::write_uint(&mut payload, sequence_id).map_err(|error| error.to_string())?;
+    rmp::encode::write_array_len(&mut payload, 2).map_err(encoding)?;
+    rmp::encode::write_uint(&mut payload, message_type as u8 as u64).map_err(encoding)?;
+    rmp::encode::write_uint(&mut payload, sequence_id).map_err(encoding)?;
     Ok(crate::protocol::msgpack::frame_message(&payload))
 }
 
@@ -77,20 +84,24 @@ pub(crate) fn encode_messagepack_control(
 pub(crate) fn decode_messagepack_control(
     payload: &[u8],
     expected: MessageType,
-) -> Result<u64, String> {
+) -> Result<u64, Error> {
     let items = crate::protocol::msgpack::parse_msgpack_message(payload)?;
     if items.len() != 2 {
-        return Err("Ack and Sequence MessagePack arrays must contain two items".to_string());
+        return Err(Error::protocol(
+            "Ack and Sequence MessagePack arrays must contain two items",
+        ));
     }
     let message_type = items[0]
         .as_u64()
-        .ok_or_else(|| "Stateful control message type is not an integer".to_string())?;
+        .ok_or_else(|| Error::protocol("the stateful control message type is not an integer"))?;
     if message_type != expected as u8 as u64 {
-        return Err(format!("Expected {:?} control message", expected));
+        return Err(Error::protocol(format!(
+            "expected a {expected:?} control message"
+        )));
     }
     items[1]
         .as_u64()
-        .ok_or_else(|| "Stateful sequence ID is not an unsigned integer".to_string())
+        .ok_or_else(|| Error::protocol("the stateful sequence id is not an unsigned integer"))
 }
 
 #[cfg(test)]
@@ -113,7 +124,7 @@ mod stateful_golden_frames {
     #[test]
     fn stateful_rejects_zero_sequence_id() {
         assert!(super::validate_sequence_id(0).is_err());
-        assert_eq!(super::validate_sequence_id(1), Ok(1));
+        assert_eq!(super::validate_sequence_id(1).ok(), Some(1));
     }
 
     #[cfg(feature = "messagepack")]

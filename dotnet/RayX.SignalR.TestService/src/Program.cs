@@ -104,6 +104,18 @@ app.MapPost("/redirect/negotiate", (HttpContext context) => Results.Json(new
     url = $"{context.Request.Scheme}://{context.Request.Host}/test",
     accessToken = "redirect-token"
 }));
+// Accepts a negotiate and never answers; the request is held until the client gives up.
+app.MapPost("/test-hang/negotiate", async (HttpContext context) =>
+{
+    try
+    {
+        await Task.Delay(Timeout.Infinite, context.RequestAborted);
+    }
+    catch(OperationCanceledException)
+    {
+        // The client's connect timeout ended the request.
+    }
+});
 app.MapPost("/e2e/reset", () =>
 {
     TestControls.Reset();
