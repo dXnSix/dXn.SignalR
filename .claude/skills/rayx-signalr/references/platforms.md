@@ -33,9 +33,9 @@ The runtime needs IO and time drivers and must outlive the client. The crate ena
 - `fetch` for negotiate, `WebSocket` for transport; event-driven, no `window` access.
 - Client is `!Send`: one per thread or worker; drive with `wasm_bindgen_futures::spawn_local`.
 - Server must allow the page origin (CORS).
-- Bearer tokens or an access-token factory (sent as `access_token` on the WebSocket); Basic reaches
-  only negotiate over WebSockets (with a warning). Long Polling `fetch` requests carry either in
-  `Authorization`.
+- Bearer tokens or an access-token factory (sent as `access_token` on the WebSocket and the
+  `EventSource` URL); Basic reaches only negotiate there (with a warning). Long Polling and
+  Server-Sent Events `fetch` requests carry either in `Authorization`.
 - Browser TLS; no TLS options.
 - `pause()` always sends a Close, so it ends stateful logical connections.
 - Hidden tabs throttle timers; consider `pause()` on long `visibilitychange` hides.

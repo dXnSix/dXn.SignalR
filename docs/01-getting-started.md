@@ -5,13 +5,13 @@
 `rayx-signalr` speaks the [ASP.NET Core SignalR](https://learn.microsoft.com/aspnet/core/signalr/introduction)
 hub protocol from Rust. One API covers two runtimes:
 
-- **Native** targets (Windows, Linux, macOS, Android, iOS) run on Tokio. Negotiation and Long
-  Polling use hyper HTTP/1.1 requests, WebSockets use `tokio-websockets`, and TLS is rustls.
+- **Native** targets (Windows, Linux, macOS, Android, iOS) run on Tokio. Negotiation, Server-Sent
+  Events and Long Polling use hyper HTTP/1.1 requests, WebSockets use `tokio-websockets`, and TLS is rustls.
 - **Browser** builds (`wasm32-unknown-unknown`) use the browser's `fetch` and `WebSocket`, and the
   browser's own TLS. They run on the main thread, in Web Workers, and in multithreaded (atomics)
   builds.
 
-The transports are WebSockets and Long Polling (see
+The transports are WebSockets, Server-Sent Events and Long Polling (see
 [Transports](02-connecting.md#transports)). The hub protocol is JSON by default, or MessagePack with the
 `messagepack` feature. The client supports request/response invocations, fire-and-forget sends,
 server-to-client streams, server-to-client calls with client results, automatic and manual
@@ -114,7 +114,7 @@ What happens in `connect_with`:
    hub URL is `http://localhost:5000/chat`.
 2. The client posts to `/chat/negotiate?negotiateVersion=1`, follows redirects, and picks the
    first transport the server offers that it can use with the protocol's transfer format
-   (WebSockets, then Long Polling, in the server's order).
+   (WebSockets, Server-Sent Events or Long Polling, in the server's order).
 3. It starts that transport, sends the SignalR handshake, and waits for the answer (15 seconds by
    default).
 4. It returns a connected `SignalRClient`, or an `Err(rayx_signalr::Error)` whose `kind()` says

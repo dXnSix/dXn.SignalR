@@ -69,7 +69,7 @@ let mut client = SignalRClient::connect_with("localhost", "hubs/chat", |c| {
 | `with_access_token_factory(async fn)` | all | none |
 | `skip_negotiation()` | all | negotiate |
 | `with_transports(Transports)` | all | `Transports::all()` |
-| `with_header(name, value)` | all (browser: negotiate and Long Polling) | none |
+| `with_header(name, value)` | all (browser: `fetch` requests only) | none |
 | `with_invocation_headers(hook)` | all | none |
 | `with_maximum_message_size(usize)` | all | unbounded |
 | `with_close_timeout(Duration)` | all | 5 s |
@@ -90,9 +90,9 @@ let mut client = SignalRClient::connect_with("localhost", "hubs/chat", |c| {
 
 | | Native | Browser |
 |---|---|---|
-| Bearer | `Authorization` on negotiate, WebSocket upgrade and Long Polling requests, never on the URL (as .NET outside browsers) | `Authorization` on negotiate and Long Polling, `access_token` on the WebSocket URL |
-| Basic | `Authorization` on negotiate, WebSocket upgrade and Long Polling requests | negotiate and Long Polling; a WebSocket cannot carry it (warning) |
-| `with_access_token_factory(\|\| async { Ok(token) })` | fresh Bearer token on every negotiate and WebSocket upgrade (stateful resumes included); Long Polling keeps the negotiate token until a 401 | fresh token on negotiate (`Authorization`) and every WebSocket (`access_token`); Long Polling keeps the negotiate token (`Authorization`) until a 401 |
+| Bearer | `Authorization` on negotiate, WebSocket upgrade and Long Polling/Server-Sent Events requests, never on the URL (as .NET outside browsers) | `Authorization` on `fetch` requests, `access_token` on the WebSocket and `EventSource` URLs |
+| Basic | `Authorization` on negotiate, WebSocket upgrade and Long Polling/Server-Sent Events requests | `fetch` requests only; a WebSocket or `EventSource` cannot carry it (warning) |
+| `with_access_token_factory(\|\| async { Ok(token) })` | fresh Bearer token on every negotiate and WebSocket upgrade (stateful resumes included); Long Polling/Server-Sent Events keep the negotiate token until a 401 | fresh token on negotiate (`Authorization`) and every WebSocket (`access_token`); Long Polling/Server-Sent Events keep the negotiate token (`Authorization`; `access_token` on the `EventSource` URL) until a 401 |
 
 Basic/Bearer: one mode per connection (last call wins), fixed for the client's lifetime. The
 factory (.NET `AccessTokenProvider`) cannot be combined with them (`Configuration`/
@@ -119,8 +119,16 @@ server must read `access_token` for hub paths (JWT `OnMessageReceived`).
 - `with_transports(Transports)` (default `all()`; combine with `|`): negotiation tries the offered
   transports in the server's order, filtered by the set and the transfer format (Server-Sent Events:
   text only); a failed start falls back to the next with a fresh negotiate; one failure returns its
-  error, several `TransportUnavailable` with `attempts()`. Stateful reconnect only over WebSockets.
-  This release starts WebSockets and Long Polling (Server-Sent Events are listed as skipped).
+  error, several `TransportUnavailable` with `attempts()` (its message names each transport and reason). Stateful reconnect only over WebSockets.
+  All three start on both targets; MessagePack skips Server-Sent Events, and a MessagePack
+  connection restricted to Server-Sent Events alone fails `new` with `Configuration`
+  (`with_transports`).
+- Server-Sent Events (both targets, JSON only): one streaming `GET` (`Accept: text/event-stream`;
+  native parser per the HTML event-stream rules; browsers `EventSource` without automatic
+  reconnection); sends as for Long Polling; closing ends the stream (no `DELETE`); native
+  `Authorization` header (negotiate token, 401 refresh), browsers `access_token` on the stream URL
+  and `Authorization` on `POST`s; open bounded by the connect timeout; keep-alive Pings and server
+  timeout as over WebSockets.
 - Long Polling (both targets, JSON and MessagePack): one `GET` poll at a time (200 frames, 204
   ends, other status/network error drops the transport; 401/403 are `Authentication`); ordered
   `POST` sends, one in flight, queued frames batched; when the send side ends first (stop or a

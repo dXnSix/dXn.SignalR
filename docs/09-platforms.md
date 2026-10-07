@@ -72,9 +72,9 @@ transport, timers are cancellable `gloo-timers` futures, and nothing touches `wi
 - **CORS.** The page and the hub usually have different origins, so the server must allow the
   page's origin (see [Server setup](10-server-setup.md#cors)).
 - **Authentication.** Browsers cannot set WebSocket headers. Bearer tokens go on the WebSocket URL
-  as `access_token`; Basic credentials reach only negotiate over WebSockets. Long Polling requests
-  are `fetch` requests, so they carry Basic or Bearer credentials in the `Authorization` header.
-  Use Bearer tokens in browsers.
+  and the Server-Sent Events stream URL as `access_token`; Basic credentials reach only negotiate
+  there. Long Polling and Server-Sent Events sends are `fetch` requests, so they carry Basic or
+  Bearer credentials in the `Authorization` header. Use Bearer tokens in browsers.
 - **TLS.** The browser's TLS and trust store apply; the TLS features and options do not exist.
 - **Pause.** A browser `pause()` always sends a WebSocket Close, so it ends a stateful logical
   connection (see [Pause with stateful reconnect](06-connection-lifecycle.md#pause-with-stateful-reconnect)).

@@ -61,11 +61,14 @@ rejected Acks, Sequences or messages with the reason. Every record starts with `
 
 ## Limitations
 
-- WebSockets and Long Polling only: no Server-Sent Events yet.
 - No HTTP CONNECT or system proxy support natively.
 - No client-to-server streams.
 - No per-call timeout; no status-change events.
-- Browser Basic auth cannot authenticate a WebSocket (a warning is logged; Long Polling carries it); browser `pause()` ends
+- Browsers use the default `same-origin` credentials mode (no `withCredentials`, as the .NET
+  browser client): no cookies to a hub on another origin.
+- Browser Basic auth goes only on `fetch` requests (negotiate, Long Polling, Server-Sent Events
+  sends); a WebSocket or `EventSource` cannot carry it (a warning is logged); prefer Bearer tokens
+  or an access-token factory. Browser `pause()` ends
   stateful connections.
 - Background apps/tabs fire liveness timers late; use `pause()`/`resume()`.
 - Not proven by tests: the Android platform verifier inside a real app, physical devices, and

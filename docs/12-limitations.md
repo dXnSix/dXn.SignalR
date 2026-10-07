@@ -5,8 +5,11 @@ prove. Each item says what to do instead where there is an alternative.
 
 ## Not implemented
 
-- **Server-Sent Events.** The client starts WebSockets and Long Polling; Server-Sent Events are not
-  implemented yet. Where WebSocket upgrades cannot pass, allow Long Polling on the server.
+- **Browser credentials mode.** Browsers send `fetch` requests (negotiate, Long Polling, Server-Sent
+  Events sends) with the default `same-origin` credentials mode and open `EventSource` without
+  `withCredentials`, as the .NET client's browser `HttpClient` does by default; there is no option
+  to change it, so cookies (for example a load balancer's sticky-session cookie) are not sent to
+  a hub on another origin.
 - **Proxies.** Native clients connect directly; HTTP `CONNECT` proxies and system proxy settings
   are not used. Browsers use the browser's proxy configuration.
 - **Client-to-server streaming.** Hub methods with `IAsyncEnumerable<T>` or `ChannelReader<T>`
@@ -19,9 +22,10 @@ prove. Each item says what to do instead where there is an alternative.
 
 ## Behavior with caveats
 
-- **Browser Basic authentication.** Browsers send Basic credentials only with negotiate, as the
-  .NET client does, and log a warning; a standard ASP.NET Core server does not authenticate the
-  WebSocket from them. Use Bearer tokens or an access-token factory in browsers.
+- **Browser Basic authentication.** Browsers send Basic credentials on every `fetch` request
+  (negotiate, Long Polling, Server-Sent Events sends), as the .NET client does, and log a warning:
+  a WebSocket or an `EventSource` cannot carry them, so a standard ASP.NET Core server does not
+  authenticate those from them. Use Bearer tokens or an access-token factory in browsers.
 - **Browser pause with stateful reconnect.** Browsers always send a WebSocket Close, which ends the
   stateful logical connection; `resume` negotiates a new one.
 - **Backgrounded apps and tabs.** Operating systems and browsers delay timers of background work.
