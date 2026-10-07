@@ -183,11 +183,13 @@ console_log::init_with_level(log::Level::Info).expect("logger");
 
 Levels:
 
-- `error`: protocol or decode problems the client recovered from (an undecodable stream item, a
-  callback target that is not registered).
-- `warn`: unusual but handled situations (a stream cancel that could not be sent).
-- `info`: connection milestones (negotiation, connect, reconnect, close) and completions.
-- `debug`: message-level tracing.
+- `error`: protocol or decode problems the client recovered from (an undecodable message or stream
+  item), with the error kind but not the decoder's text.
+- `warn`: unusual but handled situations (a stream cancel that could not be sent, a callback target
+  that is not registered, a message for an unknown invocation id).
+- `info`: connection milestones (negotiation, connect, reconnect, close).
+- `debug`: message-level tracing by message type, invocation id and callback target.
+- `trace`: the decoder texts of payloads that did not decode, which can quote the payload.
 
 Stateful reconnect logs its sequencing at `debug` under the `rayx_signalr::stateful` target, on
 both targets and without payloads: every tracked outgoing sequence id, every received trackable id
@@ -201,6 +203,7 @@ diagnose a resume:
 RUST_LOG=rayx_signalr::stateful=debug
 ```
 
-`info` and `debug` can include message payloads. Do not enable them in production for hubs that
-carry personal data or secrets. Negotiation errors leave out URL query strings (which can carry
-tokens) and redact credentials from the response excerpts they quote.
+Message payloads, arguments and results never appear in records above `trace`, on both targets.
+`trace` can quote them: do not enable it in production for hubs that carry personal data or
+secrets. Negotiation errors leave out URL query strings (which can carry tokens) and redact
+credentials from the response excerpts they quote.

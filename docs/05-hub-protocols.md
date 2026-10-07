@@ -66,25 +66,30 @@ protocols. Integer keys (`[Key(0)]`, array layout) do not match the map the clie
 
 ### Outbound (client to server)
 
-Each argument passed to `argument(value)` is serialized when it is added: to a JSON value, and with
-the `messagepack` feature also to named MessagePack. The connection's protocol decides which one is
-sent. Client results (`InvocationContext::complete`) are encoded the same way.
+Each argument passed to `argument(value)` is serialized once, when it is added, in the connection's
+protocol: to JSON, or to named MessagePack (`rmp_serde::to_vec_named`). Client results
+(`InvocationContext::complete`) are encoded the same way.
 
 ### Inbound (server to client)
 
 | Value | JSON | MessagePack |
 |---|---|---|
 | `invoke` result, stream item | `serde_json` into `T` | `rmp_serde` into `T`; if that fails, retried once with map keys converted from PascalCase to camelCase |
-| Callback argument (`ctx.argument::<T>`) | `serde_json` into `T` | converted to a JSON value, then `serde_json` into `T` |
+| Callback argument (`ctx.argument::<T>`) | `serde_json` into `T` | like results: `rmp_serde` into `T` from the server's original value, with the same PascalCase retry |
 
-The MessagePack-to-JSON conversion of callback arguments has edge cases:
+MessagePack callback arguments keep the server's encoding, as the .NET binder sees it:
 
-- binary values (`byte[]`) become base64 strings; deserialize them as `String` and decode;
-- extension values, including MessagePack timestamps (`DateTime`), become `null`;
-- map entries with non-string keys are dropped.
+- binary values (`byte[]`) decode into types that accept bytes, such as `serde_bytes::ByteBuf`
+  (a `Vec<u8>` expects an array of numbers);
+- extension values, including MessagePack timestamps (MessagePack-CSharp writes `DateTime` as
+  extension type -1), decode through `rmp_serde`'s extension convention: a newtype struct named
+  `_ExtStruct` around `(i8, ByteBuf)` receives the extension type and its bytes;
+- maps with integer keys (`Dictionary<int, string>`) decode into maps with integer keys, such as
+  `HashMap<i32, String>`.
 
-For values that must survive both protocols, prefer strings (ISO 8601 dates, base64 binary) or
-plain numbers (Unix milliseconds) over `DateTime` and `byte[]`.
+For values that must look the same in both protocols, prefer strings (ISO 8601 dates, base64
+binary) or plain numbers (Unix milliseconds) over `DateTime` and `byte[]`: JSON carries those as
+strings.
 
 ## Void, `null` and `Option`
 

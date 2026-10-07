@@ -35,7 +35,8 @@ pass borrowed or cloned captures (`args.argument(&name)`), not moved ones.
 - `Ok(T)` from the completion result; `Ok(())`/`Option` for `void`/`null`.
 - `Err(Error)`: `Hub` for hub exceptions (`server_message()`; detailed text only with server
   `EnableDetailedErrors`), `Serialization` for argument/result (de)serialization failures, and the
-  connection's error for write and connection failures.
+  connection's error when the message cannot be accepted (not `Connected`, paused, closed) or the
+  connection fails before the completion arrives.
 - Pending invocations always complete; drops and ordinary reconnect fail them with `Transport`,
   `pause` with `Paused`, server and local close with `ConnectionClosed`; only stateful reconnect
   keeps them pending.
@@ -43,9 +44,12 @@ pass borrowed or cloned captures (`args.argument(&name)`), not moved ones.
 
 ## send
 
-Returns once the frame is accepted for writing (not processed). Fails while not `Connected`. With
-stateful reconnect, a full replay buffer makes it wait for server Acks; a single frame larger than
-the buffer fails.
+Returns once the frame is accepted for writing (not written, not processed), like the .NET
+`SendAsync`; it waits while the bounded outbound queue is full. Fails while not `Connected`; a later
+socket error is not reported to it. With stateful reconnect, a full replay buffer makes it wait for
+server Acks (on the connection's runtime) and a single frame larger than the buffer fails. Without
+stateful reconnect, a frame accepted just before `disconnect()`/`pause()` can be dropped unwritten
+(the .NET client's `StopAsync` has the same race); await an `invoke` when delivery must be known.
 
 ## Server streams
 

@@ -23,9 +23,9 @@ the receive loop, and names the invariants that the tests protect.
 | `src/communication/liveness.rs` | Keep-alive, server timeout and handshake validation on caller-supplied timestamps, shared by both targets. |
 | `src/communication/reconnection.rs` | The lifecycle state machine, `ConnectionStatus`, the retry policies, and `FirstAttempt` scheduling. |
 | `src/communication/stateful.rs` | The bounded replay buffer: sequence numbers, Ack trimming, duplicate suppression, transport generations, backpressure. |
-| `src/execution/` | Action storage: pending invocations, streams and callbacks keyed by id or target, behind one `UpdatableAction` trait (`storage_tokio.rs` uses `Arc<Mutex>`, `storage_wasm.rs` `Rc<RefCell>`). |
+| `src/execution/` | Action storage in two namespaces: pending invocations and streams (shared `UpdatableAction`s) by invocation id, and callbacks (`CallbackAction`) by target; `storage_tokio.rs` keeps them in `Arc<Mutex<HashMap>>` maps, `storage_wasm.rs` in `Rc<RefCell<HashMap>>` maps. |
 | `src/completer/` | `ManualFuture` and `ManualStream`: the bridges from incoming messages to caller futures and streams. |
-| `src/protocol/` | Wire types: negotiate, handshake, invocation, completion, stream item, cancel, ping, close, Ack, Sequence, and the MessagePack codec. |
+| `src/protocol/` | Wire types: negotiate, handshake, invocation, completion, cancel, ping, close, Ack, Sequence; `codec.rs` (single-pass inbound decoding and typed outbound messages for both hub protocols) and the MessagePack framing helpers. |
 
 ## The connection pipeline
 
@@ -38,8 +38,8 @@ connect_with(domain, hub, options)
   └─ ConnectionRecipe
        └─ HttpClient::negotiate        negotiate → redirect* → connection data (ws URL, token)
        └─ CommunicationClient::connect WebSocket open → handshake (bounded, validated)
-            ├─ writer task   (native) owns the sink: Pings, stateful tracking, backpressure, Acks first
-            └─ receiver task          parses frames → action storage → futures, streams, callbacks
+            ├─ writer task   (native) owns the sink: Acks first, coalesced frames, Pings
+            └─ receiver task          decodes records once → action storage → futures, streams, callbacks
 ```
 
 Natively, `open` runs negotiate and connect on the connection's runtime (`runtime.spawn(...)`), so
@@ -49,25 +49,72 @@ loop.
 Incoming messages are dispatched by type: completions and stream items by invocation id, invocations
 by target name (callbacks), and Ping/Close/Ack/Sequence by the connection itself.
 
+## The wire codec
+
+Each inbound record is decoded once (`protocol::codec`). JSON frames are split on the `0x1E`
+separator and MessagePack frames on their varint length prefixes, both without copying. One
+envelope decode yields an `InboundMessage` with the message type, the invocation id or target, and
+each payload left undecoded: a borrowed `serde_json` `RawValue`, or the byte range of one
+MessagePack value (read from its markers, without building an `rmpv` tree). Action storage
+dispatches on the decoded id or target, and the awaiting action deserializes the payload once into
+its own type. A callback's `InvocationContext` owns its arguments in their original encoding, so
+`argument::<T>(i)` decodes the server's value directly.
+
+JSON stream items and result completions in the compact shape ASP.NET Core writes
+(`{"type":2,"invocationId":"…","item":…}`, `{"type":3,"invocationId":"…","result":…}`) are recognized
+from their prefix, and the awaiting action decodes its payload together with the record in one
+pass; other shapes take the general envelope decode.
+
+Outbound messages are `OutboundMessage`s: their type is set when they are built, and each argument
+is encoded once, when it is added, in the connection's protocol (MessagePack arguments as named
+maps, copied into the message as encoded). The frame's bytes are shared (`bytes::Bytes`), so the
+stateful replay buffer keeps a sent frame without copying it, and nothing is parsed again to
+classify or track it.
+
+Natively, a send completes once its message is accepted, as the official clients' `SendAsync`
+completes once the message is in the transport's pipe: the caller reserves room in the bounded
+outbound queue, which every handle shares, waits (on the connection's runtime, so any executor can
+await it) while the replay buffer is full with stateful reconnect, then tracks the frame for replay
+and queues it under the replay buffer's lock, so sequence order is queue order. The writer task
+writes each queued frame together with the frames queued behind it as one WebSocket message of at
+most 64 KiB (a frame that would exceed it starts the next message; a larger frame goes alone,
+uncopied), as the official transports send what their pipe holds. A send that was accepted is not
+failed by a later socket error: stateful reconnect replays it, and an ordinary reconnect fails the
+pending invocations instead; without stateful reconnect, frames still queued when the connection is
+stopped are dropped, as with the .NET client's `StopAsync`.
+
+Peer input never panics the client: the protocol modules, negotiation, handshake parsing, the
+stateful buffer, the reconnect lifecycle and the transports (including the browser negotiate) deny `unwrap`, `expect`, `panic!` and unchecked indexing outside
+tests, and property tests feed the record splitters, varint framing, envelope decoders, handshake
+and negotiate parsers arbitrary and corrupted input. A malformed record is an error for that record
+only; the records after it in the same frame still decode.
+
 ## Action storage
 
-Each pending operation is an `UpdatableAction` in a map keyed by string:
+Each pending invocation or stream is an `UpdatableAction`, and each registered callback a
+`CallbackAction`. As in the official .NET client, they live in two namespaces, so a callback target
+never collides with an invocation id: pending work keyed by invocation id, callbacks keyed by
+target. Senders track frames for stateful replay and wait for queue room themselves (see
+[The wire codec](#the-wire-codec)); the writer task only writes.
 
-- `invoke` creates a key `{target}_{n}` and a `ManualFuture<Result<T, Error>>`; the Completion with
-  that id completes it and removes the entry.
+- `invoke` takes the connection's next invocation id (a counter: `"1"`, `"2"`, ...) and creates a
+  `ManualFuture<Result<T, Error>>`; the Completion with that id completes it and removes the entry.
 - `enumerate` creates a `ManualStream<T>` whose drop handler removes the entry and sends one
   `CancelInvocation`; a Completion closes the stream and disarms the handler. When the
   `StreamInvocation` cannot be sent, `fail_action` removes the entry and fails the stream with the
   send error, which also disarms the handler.
-- `register` inserts a **persistent** entry under the target name. Persistent entries survive
-  `fail_pending`, so callbacks outlive reconnects.
+- `register` inserts a callback under the target name. Callbacks survive `fail_pending`, so they
+  outlive reconnects; a Completion never removes one.
 
-`fail_pending(reason)` completes every non-persistent entry with an error. It runs on ordinary drops,
+`fail_pending(reason)` completes every pending invocation and stream with an error. It runs on ordinary drops,
 pause, server close, exhausted reconnects and local close; stateful resumes do not run it.
 
 On both targets, lookups clone the entry and release the map lock (natively) or borrow (in the
 browser) before calling into the action, so a callback can register, unregister or disconnect
-without a deadlock or a `RefCell` double borrow.
+without a deadlock or a `RefCell` double borrow. Pending actions are shared (`&self`) and decode
+their payload before taking any lock (only the completer handoff is locked). Browser callbacks run
+with no borrow held; native callbacks are `Send` but not `Sync`, so each runs under its own private
+mutex that only the receive loop takes and that recovers from a panicking callback.
 
 ## The lifecycle state machine
 

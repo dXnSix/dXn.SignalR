@@ -5,7 +5,7 @@
 | Call | Hub method returns | Client gets | Wire message |
 |---|---|---|---|
 | `invoke::<T>` / `invoke_with_args::<T, _>` | a value or `void` | `Result<T, Error>` after the server completes | `Invocation` with an id |
-| `send` / `send_with_args` | anything (ignored) | `Result<(), Error>` once the message is written | `Invocation` without an id |
+| `send` / `send_with_args` | anything (ignored) | `Result<(), Error>` once the transport accepts the message | `Invocation` without an id |
 | `enumerate::<T>` / `enumerate_with_args::<T, _>` | `IAsyncEnumerable<T>` or `ChannelReader<T>` | `ManualStream<T>` | `StreamInvocation` |
 
 Method names are passed as `String` and must match the server's hub method name. ASP.NET Core
@@ -67,8 +67,8 @@ resolves to:
 - `Err(error)` with `ErrorKind::Hub` when the hub method threw (`server_message()` is the server's
   error text; ASP.NET Core sends details only with `EnableDetailedErrors`), with
   `ErrorKind::Serialization` when an argument does not serialize or the result does not
-  deserialize into `T`, and with the connection's error when the message cannot be written or the
-  connection fails the invocation (see [Errors](11-errors-and-logging.md#calls)).
+  deserialize into `T`, and with the connection's error when the message cannot be accepted (not connected,
+  paused, closed) or the connection fails the invocation (see [Errors](11-errors-and-logging.md#calls)).
 
 Pending invocations always complete. A lost connection or an ordinary reconnect fails them with a
 `Transport` error, `pause` with `Paused`, and a server close or a local disconnect with
@@ -82,7 +82,12 @@ runtime (`tokio::time::timeout` natively, a `gloo-timers` future in the browser)
 ## Sending
 
 `send` writes an invocation without an id. The server runs the method but sends no completion, so
-`send` returns as soon as the message is handed to the transport:
+`send` returns as soon as the transport accepts the message, like the .NET client's `SendAsync`
+(queued for the socket, and with stateful reconnect tracked for replay; it waits only while the
+outbound queue or the replay buffer is full). A socket error after that is not reported to the
+`send`. Without stateful reconnect, a message accepted just before `disconnect()` or `pause()` can
+be dropped unwritten, as with the .NET client's `StopAsync`; when delivery must be confirmed, invoke
+a hub method and await its result:
 
 ```rust
 client.send("Ping".to_string()).await?;

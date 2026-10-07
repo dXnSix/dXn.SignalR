@@ -39,13 +39,14 @@ redacted (no tokens, `Authorization` values, URL credentials). `From<Error> for 
 | callback never fires | wrong (case-sensitive) target, duplicate registration ignored, or `SendAsync` name mismatch |
 | connection stays open after dropping the client | other clones or registered callbacks still hold handles; call `disconnect()`, which stops it for every handle |
 | browser connects but hub is unauthenticated | Basic auth in a browser, or the server does not read `access_token` |
-| MessagePack callback argument `null` or base64 text | timestamps/ext → `null`, `byte[]` → base64; use strings or numbers |
+| MessagePack `byte[]` argument fails to decode as `Vec<u8>` | binary needs a bytes type (`serde_bytes::ByteBuf`); `DateTime` is extension type -1 |
 
 ## Logging
 
 `log` facade, target `rayx_signalr`. Native: `env_logger` with
-`RUST_LOG=rayx_signalr=info` (or `debug` for message tracing). Browser: `console_log`.
-`info`/`debug` can include payloads; avoid them in production for sensitive hubs.
+`RUST_LOG=rayx_signalr=info` (or `debug` for message tracing by type, id and target). Browser:
+`console_log`. Payloads, arguments and results appear only at `trace` (decoder texts of values
+that did not decode); avoid `trace` in production for sensitive hubs.
 
 Stateful reconnect sequencing logs at `debug` on its own target, `rayx_signalr::stateful`, on both
 targets: tracked outgoing ids, received ids with `accepted`/`duplicate`, Acks sent and received,

@@ -58,8 +58,8 @@ let registration = client.register("PriceChanged".to_string(), |ctx| {
 ```
 
 It returns an `ErrorKind::Serialization` error when the call has no arguments, when the index is out
-of range, or when the value does not deserialize into `T`. MessagePack arguments are converted to JSON values before
-deserialization, so the same `T` works on both protocols (see
+of range, or when the value does not deserialize into `T`. MessagePack arguments are decoded from the server's
+original MessagePack values, so binary data, timestamps and integer map keys survive (see
 [Hub protocols](05-hub-protocols.md#how-values-cross-the-wire)).
 
 ## Client results

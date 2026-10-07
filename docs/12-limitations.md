@@ -30,9 +30,9 @@ prove. Each item says what to do instead where there is an alternative.
 - **Backgrounded apps and tabs.** Operating systems and browsers delay timers of background work.
   Keep-alive and server-timeout timers can fire late, and a dead transport is then noticed only after
   a further server timeout. Call `pause()` when going to the background and `resume()` on return.
-- **MessagePack callback arguments.** They are converted through JSON values: binary data becomes
-  base64 text, MessagePack extension values (such as timestamps) become `null`, and non-string map
-  keys are dropped. See [Hub protocols](05-hub-protocols.md#inbound-server-to-client).
+- **MessagePack timestamps.** The client has no date type of its own: a `DateTime` argument or
+  result arrives as MessagePack extension type -1 and decodes through `rmp_serde`'s extension
+  convention. See [Hub protocols](05-hub-protocols.md#inbound-server-to-client).
 
 ## Not covered by tests
 
