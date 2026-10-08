@@ -28,7 +28,7 @@ use futures::{
     StreamExt,
 };
 use gloo_timers::future::TimeoutFuture;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use wasm_bindgen_futures::spawn_local;
 
 use crate::{
@@ -52,8 +52,8 @@ use super::{
     common::{Communication, Sequenced},
     hooks::LifecycleHooks,
     liveness::{
-        close_frame, parse_handshake_response, ping_frame, LivenessAction, LivenessConfig,
-        LivenessTracker,
+        close_frame, parse_handshake_response, ping_frame, suspended_timeout, ClockSource,
+        LivenessAction, LivenessClock, LivenessConfig, LivenessTracker, WakeCheck, LIVENESS_TICK,
     },
     reconnection::{
         ask_policy, AttemptOutcome, ConnectionStatus, FirstAttempt, Lifecycle, LifecycleState,
@@ -102,9 +102,34 @@ fn send_serialized(socket: &BrowserTransport, frame: &SerializedFrame) -> Result
     }
 }
 
-/// Milliseconds on the monotonic `performance.now()` clock, available in windows and workers
-/// alike; liveness deadlines must not move when the wall clock is adjusted.
+/// The browser liveness clock sources: the monotonic `performance.now()`, available in windows
+/// and workers alike, and the wall clock (`Date.now()`).
+struct BrowserClock;
+
+impl ClockSource for BrowserClock {
+    fn monotonic_ms(&self) -> u64 {
+        performance_now_ms()
+    }
+
+    fn wall_ms(&self) -> Option<u64> {
+        Some(js_sys::Date::now().max(0.0) as u64)
+    }
+}
+
+thread_local! {
+    /// The liveness clock of this thread's clients: deadlines do not move when the wall clock is
+    /// adjusted, but device sleep counts.
+    static CLOCK: RefCell<LivenessClock<BrowserClock>> =
+        RefCell::new(LivenessClock::new(BrowserClock));
+}
+
+/// Milliseconds on the liveness clock.
 fn now_ms() -> u64 {
+    CLOCK.with(|clock| clock.borrow_mut().now())
+}
+
+/// Milliseconds on the monotonic `performance.now()` clock (`Date.now()` where it is missing).
+fn performance_now_ms() -> u64 {
     let now = js_sys::Reflect::get(&js_sys::global(), &"performance".into())
         .ok()
         .and_then(|performance| {
@@ -851,14 +876,44 @@ async fn run_receiver(
                     continue;
                 }
                 let next_deadline = ack_due.map_or(next_deadline, |due| due.min(next_deadline));
-                let wait = Duration::from_millis(next_deadline.saturating_sub(now_ms()));
+                // The liveness tick (the .NET client's 1-second timer) finds a wake after a
+                // suspension (a frozen page, a sleeping device) late at once.
+                let now = now_ms();
+                let next_deadline = if inherent_keep_alive {
+                    next_deadline
+                } else {
+                    next_deadline.min(now + LIVENESS_TICK.as_millis() as u64)
+                };
+                let wait = Duration::from_millis(next_deadline.saturating_sub(now));
                 let event = if next_deadline == u64::MAX {
                     events.next().await
                 } else {
                     let timer = std::pin::pin!(sleep(wait));
                     match select(events.next(), timer).await {
                         Either::Left((event, _)) => event,
-                        Either::Right(((), _)) => continue,
+                        Either::Right(((), _)) => {
+                            if inherent_keep_alive {
+                                continue;
+                            }
+                            // Lateness counts from when the wait began.
+                            let check = socket
+                                .liveness
+                                .borrow()
+                                .check_wake(next_deadline.max(now), now_ms());
+                            match check {
+                                WakeCheck::SuspendedDropped { late_ms } => {
+                                    break suspended_timeout(late_ms, server_timeout);
+                                }
+                                WakeCheck::SuspendedPing => {
+                                    debug!("The app was suspended; sending a Ping at once");
+                                    if let Err(error) = socket.send(&ping) {
+                                        break error;
+                                    }
+                                }
+                                WakeCheck::OnTime => {}
+                            }
+                            continue;
+                        }
                     }
                 };
                 match event {

@@ -36,7 +36,8 @@ use crate::{
 use super::{
     hooks::LifecycleHooks,
     liveness::{
-        close_frame, parse_handshake_response, ping_frame, LivenessConfig, LivenessTracker,
+        close_frame, parse_handshake_response, ping_frame, suspended_timeout, ClockSource,
+        LivenessClock, LivenessConfig, LivenessTracker, WakeCheck, LIVENESS_TICK,
     },
     reconnection::{
         ask_policy, AttemptOutcome, AttemptReport, ConnectionStatus, FirstAttempt, LifecycleState,
@@ -105,12 +106,60 @@ impl OpenSocket {
     }
 }
 
+/// The native liveness clock sources: Tokio's monotonic clock (paused with Tokio's test clock)
+/// and the system wall clock.
+struct NativeClock {
+    started: tokio::time::Instant,
+    /// Tests move the wall clock ahead to simulate device sleep (`suspension_` tests).
+    #[cfg(test)]
+    wall_skew: Arc<std::sync::atomic::AtomicU64>,
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The wall-clock skew of clients created on this thread (a current-thread test runtime).
+    static WALL_SKEW: Arc<std::sync::atomic::AtomicU64> = Arc::default();
+}
+
+impl NativeClock {
+    fn new() -> Self {
+        Self {
+            started: tokio::time::Instant::now(),
+            #[cfg(test)]
+            wall_skew: WALL_SKEW.with(Arc::clone),
+        }
+    }
+}
+
+impl ClockSource for NativeClock {
+    fn monotonic_ms(&self) -> u64 {
+        self.started.elapsed().as_millis() as u64
+    }
+
+    fn wall_ms(&self) -> Option<u64> {
+        let wall = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .ok()
+            .map(|since| since.as_millis() as u64);
+        #[cfg(test)]
+        let wall =
+            wall.map(|wall| wall + self.wall_skew.load(std::sync::atomic::Ordering::Acquire));
+        wall
+    }
+}
+
+/// A connection's liveness clock and tracker, read and updated together.
+struct Timeline {
+    clock: LivenessClock<NativeClock>,
+    tracker: LivenessTracker,
+}
+
 /// One physical connection's liveness state, shared by its writer (keep-alive Pings) and its
-/// receiver (server timeout), on a millisecond clock that starts when the connection starts.
+/// receiver (server timeout and suspension checks), on a sleep-inclusive millisecond clock that
+/// starts when the connection starts.
 #[derive(Clone)]
 struct ConnectionLiveness {
-    started: tokio::time::Instant,
-    tracker: Arc<StdMutex<LivenessTracker>>,
+    timeline: Arc<StdMutex<Timeline>>,
     /// The transport keeps itself alive (Long Polling): no keep-alive Pings and no server
     /// timeout, as the .NET client's `IConnectionInherentKeepAliveFeature`.
     inherent_keep_alive: bool,
@@ -118,9 +167,10 @@ struct ConnectionLiveness {
 
 impl ConnectionLiveness {
     fn new(config: &LivenessConfig) -> Self {
+        let mut clock = LivenessClock::new(NativeClock::new());
+        let tracker = LivenessTracker::new(config, clock.now());
         Self {
-            started: tokio::time::Instant::now(),
-            tracker: Arc::new(StdMutex::new(LivenessTracker::new(config, 0))),
+            timeline: Arc::new(StdMutex::new(Timeline { clock, tracker })),
             inherent_keep_alive: false,
         }
     }
@@ -130,38 +180,53 @@ impl ConnectionLiveness {
         self
     }
 
+    fn timeline(&self) -> std::sync::MutexGuard<'_, Timeline> {
+        self.timeline.locked()
+    }
+
+    /// The liveness clock's reading.
     fn now(&self) -> u64 {
-        self.started.elapsed().as_millis() as u64
+        self.timeline().clock.now()
     }
 
+    /// The Tokio instant of `at` on the liveness clock.
     fn instant(&self, at: u64) -> tokio::time::Instant {
-        self.started + Duration::from_millis(at)
-    }
-
-    fn tracker(&self) -> std::sync::MutexGuard<'_, LivenessTracker> {
-        self.tracker.locked()
+        tokio::time::Instant::now() + Duration::from_millis(at.saturating_sub(self.now()))
     }
 
     fn sent(&self) {
-        let now = self.now();
-        self.tracker().on_sent(now);
+        let mut timeline = self.timeline();
+        let now = timeline.clock.now();
+        timeline.tracker.on_sent(now);
     }
 
     fn received(&self) {
-        let now = self.now();
-        self.tracker().on_received(now);
+        let mut timeline = self.timeline();
+        let now = timeline.clock.now();
+        timeline.tracker.on_received(now);
     }
 
     /// When the writer must send a Ping unless another frame goes out first (never over a
     /// transport with inherent keep-alive).
     fn ping_deadline(&self) -> Option<tokio::time::Instant> {
-        (!self.inherent_keep_alive).then(|| self.instant(self.tracker().ping_deadline()))
+        if self.inherent_keep_alive {
+            return None;
+        }
+        let at = self.timeline().tracker.ping_deadline();
+        Some(self.instant(at))
     }
 
-    /// When the receiver treats the transport as dropped unless a frame arrives first (never
-    /// over a transport with inherent keep-alive).
-    fn timeout_deadline(&self) -> Option<tokio::time::Instant> {
-        (!self.inherent_keep_alive).then(|| self.instant(self.tracker().timeout_deadline()))
+    /// When the receiver treats the transport as dropped unless a frame arrives first, on the
+    /// liveness clock (never over a transport with inherent keep-alive).
+    fn timeout_deadline(&self) -> Option<u64> {
+        (!self.inherent_keep_alive).then(|| self.timeline().tracker.timeout_deadline())
+    }
+
+    /// Checks a receive-loop wake scheduled for `scheduled` (see `LivenessTracker::check_wake`).
+    fn check_wake(&self, scheduled: u64) -> WakeCheck {
+        let mut timeline = self.timeline();
+        let now = timeline.clock.now();
+        timeline.tracker.check_wake(scheduled, now)
     }
 }
 
@@ -1290,17 +1355,20 @@ impl CommunicationConnection {
                     Some(message) => Ok(message),
                     None => {
                         let timeout = liveness.timeout_deadline();
-                        // A deferred stateful Ack wakes the loop too (the 1-second cadence).
+                        // A deferred stateful Ack wakes the loop too (the 1-second cadence), and
+                        // so does the liveness tick (the .NET client's 1-second timer), so a
+                        // wake after a suspension is found late at once.
                         let ack = stateful
                             .as_ref()
-                            .and_then(|buffer| buffer.locked().acknowledgement_due())
-                            .map(|at| liveness.instant(at));
-                        let wake = match (ack, timeout) {
-                            (Some(ack), Some(timeout)) => Some(ack.min(timeout)),
-                            (ack, timeout) => ack.or(timeout),
-                        };
+                            .and_then(|buffer| buffer.locked().acknowledgement_due());
+                        let waiting_since = liveness.now();
+                        let tick =
+                            timeout.map(|_| waiting_since + LIVENESS_TICK.as_millis() as u64);
+                        let wake = [ack, timeout, tick].into_iter().flatten().min();
                         let next = match wake {
-                            Some(wake) => tokio::time::timeout_at(wake, stream.next()).await,
+                            Some(wake) => {
+                                tokio::time::timeout_at(liveness.instant(wake), stream.next()).await
+                            }
                             None => Ok(stream.next().await),
                         };
                         match next {
@@ -1312,21 +1380,43 @@ impl CommunicationConnection {
                                     format!("the server closed the {transport} transport"),
                                 );
                             }
-                            Err(_)
-                                if timeout.is_none_or(|timeout| {
-                                    tokio::time::Instant::now() < timeout
-                                }) =>
-                            {
-                                if let Some(buffer) = stateful.as_ref() {
-                                    if let Err(error) =
-                                        Self::flush_ack(buffer, protocol_kind, &writer, &liveness)
-                                    {
-                                        break 'receive error;
-                                    }
-                                }
-                                continue 'receive;
-                            }
                             Err(_) => {
+                                // A wake more than a keep-alive interval late: the app was
+                                // suspended (a stopped process, a sleeping device). Lateness
+                                // counts from when the wait began, so a deadline that was
+                                // already due (a deferred Ack) is not lateness.
+                                let check = match (timeout, wake) {
+                                    (Some(_), Some(wake)) => {
+                                        liveness.check_wake(wake.max(waiting_since))
+                                    }
+                                    _ => WakeCheck::OnTime,
+                                };
+                                match check {
+                                    WakeCheck::SuspendedDropped { late_ms } => {
+                                        break 'receive suspended_timeout(late_ms, server_timeout);
+                                    }
+                                    WakeCheck::SuspendedPing => {
+                                        debug!("The app was suspended; sending a Ping at once");
+                                        let ping = websocket_message(ping_frame(protocol_kind));
+                                        if let Err(error) = writer.send_control(ping) {
+                                            break 'receive error;
+                                        }
+                                    }
+                                    WakeCheck::OnTime => {}
+                                }
+                                if timeout.is_none_or(|timeout| liveness.now() < timeout) {
+                                    if let Some(buffer) = stateful.as_ref() {
+                                        if let Err(error) = Self::flush_ack(
+                                            buffer,
+                                            protocol_kind,
+                                            &writer,
+                                            &liveness,
+                                        ) {
+                                            break 'receive error;
+                                        }
+                                    }
+                                    continue 'receive;
+                                }
                                 error!(
                                     "No message from the server within the server timeout; \
                                      the connection is considered lost"
@@ -3748,5 +3838,139 @@ mod long_polling_liveness {
                 .all(|message| message.as_text() != Some("{\"type\":6}\u{1e}")),
             "no keep-alive Ping over Long Polling"
         );
+    }
+}
+
+#[cfg(test)]
+mod suspension_receive_loop {
+    use std::{
+        sync::{atomic::Ordering, Arc, Mutex},
+        time::Duration,
+    };
+
+    use crate::{
+        client::SignalRClient,
+        communication::loopback_server::{Frame, LoopbackOptions, LoopbackServer},
+        CallbackHandler, ConstantDelayPolicy, ReconnectionConfig, StatefulReconnectConfig,
+    };
+
+    const PING: &str = "{\"type\":6}\u{1e}";
+
+    /// A started client of a loopback server; its clock is this (current-thread) test's.
+    async fn connected(
+        options: LoopbackOptions,
+        configure: impl FnOnce(&mut crate::ConnectionConfiguration),
+    ) -> (LoopbackServer, SignalRClient) {
+        let server = LoopbackServer::start(options).await;
+        let port = i32::from(server.port);
+        let client = SignalRClient::new("127.0.0.1", "hub", |configuration| {
+            configuration.unsecure();
+            configuration.with_port(port);
+            configure(configuration);
+        })
+        .unwrap();
+        client.start().await.unwrap();
+        server.wait_for_connections(1).await;
+        // The initial Ping after the handshake.
+        assert_eq!(server.next_frame().await, Frame::Text(PING.into()));
+        (server, client)
+    }
+
+    /// Simulates device sleep: the wall clock moves ahead while the monotonic clock does not.
+    fn sleep_device(milliseconds: u64) {
+        super::WALL_SKEW.with(|skew| skew.fetch_add(milliseconds, Ordering::AcqRel));
+    }
+
+    /// Every frame the client sends within `wait`.
+    async fn frames_within(server: &LoopbackServer, wait: Duration) -> Vec<Frame> {
+        let mut frames = Vec::new();
+        let deadline = tokio::time::Instant::now() + wait;
+        while let Ok(frame) = tokio::time::timeout_at(deadline, server.next_frame()).await {
+            frames.push(frame);
+        }
+        frames
+    }
+
+    #[tokio::test]
+    async fn suspension_a_wake_after_device_sleep_pings_at_once_and_once() {
+        let (server, client) = connected(LoopbackOptions::default(), |_| {}).await;
+        // Shorter than the server timeout since the last inbound frame (the handshake).
+        sleep_device(20_000);
+        let frames = frames_within(&server, Duration::from_secs(3)).await;
+        assert_eq!(frames, vec![Frame::Text(PING.into())], "one Ping at once");
+        assert_eq!(client.status(), crate::ConnectionStatus::Connected);
+        client.disconnect();
+    }
+
+    #[tokio::test]
+    async fn suspension_a_wake_after_device_sleep_past_the_server_timeout_reconnects_at_once() {
+        let (server, client) = connected(LoopbackOptions::default(), |configuration| {
+            configuration.with_reconnection_policy(ReconnectionConfig {
+                policy: Arc::new(ConstantDelayPolicy::new(Duration::ZERO, Some(5))),
+            });
+        })
+        .await;
+        let reasons = Arc::new(Mutex::new(Vec::new()));
+        let recorded = reasons.clone();
+        let hook = client.on_reconnecting(move |error| {
+            recorded
+                .lock()
+                .unwrap()
+                .push((error.kind(), error.timeout_operation()));
+        });
+        // Ten minutes of device sleep: past the 30-second server timeout.
+        sleep_device(600_000);
+        tokio::time::timeout(Duration::from_secs(3), async {
+            while server.negotiations() < 2 {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("the reconnect runs at once, not after a further server timeout");
+        assert_eq!(
+            reasons.lock().unwrap().first().copied(),
+            Some((
+                crate::ErrorKind::Timeout,
+                Some(crate::TimeoutOperation::ServerTimeout)
+            )),
+            "as .NET, the server timeout"
+        );
+        hook.unregister();
+        client.disconnect();
+    }
+
+    #[tokio::test]
+    async fn suspension_with_a_deferred_ack_sends_one_ping_and_the_ack() {
+        let (server, client) = connected(
+            LoopbackOptions {
+                stateful: true,
+                ..LoopbackOptions::default()
+            },
+            |configuration| {
+                configuration.with_stateful_reconnect(StatefulReconnectConfig::default());
+            },
+        )
+        .await;
+        // The first hub message is acknowledged at once; the second defers its Ack for up to a
+        // second, and the device sleeps meanwhile.
+        for _ in 0..2 {
+            server.send(Frame::Text(
+                "{\"type\":1,\"target\":\"Unregistered\",\"arguments\":[]}\u{1e}".into(),
+            ));
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        sleep_device(20_000);
+        let frames = frames_within(&server, Duration::from_secs(3)).await;
+        let pings = frames
+            .iter()
+            .filter(|frame| **frame == Frame::Text(PING.into()))
+            .count();
+        assert_eq!(pings, 1, "one Ping, not one per loop iteration: {frames:?}");
+        assert!(
+            frames.contains(&Frame::Text("{\"type\":8,\"sequenceId\":2}\u{1e}".into())),
+            "the deferred Ack still goes out: {frames:?}"
+        );
+        assert_eq!(server.resumes(), (0, 0), "the transport was kept");
+        client.disconnect();
     }
 }

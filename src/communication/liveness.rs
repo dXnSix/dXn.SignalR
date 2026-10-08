@@ -1,6 +1,7 @@
-//! Connection liveness shared by both targets: keep-alive Pings, server-timeout detection and
-//! the handshake response check. The scheduler works on caller-supplied millisecond timestamps,
-//! so each target drives it with its own clock and tests drive it deterministically.
+//! Connection liveness shared by both targets: keep-alive Pings, server-timeout detection,
+//! suspension detection and the handshake response check. The scheduler works on caller-supplied
+//! millisecond timestamps from a [`LivenessClock`], so each target drives it with its own clock
+//! sources and tests drive it deterministically.
 
 // Decoding and transport code must not panic on peer input; tests may.
 #![cfg_attr(
@@ -112,6 +113,87 @@ impl LivenessConfig {
     }
 }
 
+/// The clocks a [`LivenessClock`] is built from, in milliseconds.
+pub(crate) trait ClockSource {
+    /// A monotonic reading. It advances while the process is stopped or the page is frozen, but
+    /// may stop while the whole device sleeps (Linux and Android `CLOCK_MONOTONIC`).
+    fn monotonic_ms(&self) -> u64;
+    /// The wall clock, which includes device sleep but can be adjusted; `None` when unavailable.
+    fn wall_ms(&self) -> Option<u64>;
+}
+
+/// A wall clock that moved this much further than the monotonic clock between two readings
+/// counts as time the monotonic clock missed (device sleep); smaller differences are clock
+/// noise and slewing.
+const WALL_CLOCK_JUMP_MS: u64 = 1_000;
+
+/// The liveness clock: milliseconds since the clock was created that never go backwards and
+/// include time the device slept, as the official .NET client's liveness checks on
+/// `DateTime.UtcNow` do. It follows the monotonic clock, and when the wall clock moved more than
+/// a second further between two readings, it adds the difference: the monotonic clock stopped
+/// while the device slept. A wall clock that moved backwards adds nothing.
+#[derive(Debug)]
+pub(crate) struct LivenessClock<S> {
+    source: S,
+    started: u64,
+    monotonic: u64,
+    wall: Option<u64>,
+    /// Sleep the monotonic clock missed.
+    slept: u64,
+}
+
+impl<S: ClockSource> LivenessClock<S> {
+    pub(crate) fn new(source: S) -> Self {
+        let monotonic = source.monotonic_ms();
+        let wall = source.wall_ms();
+        Self {
+            source,
+            started: monotonic,
+            monotonic,
+            wall,
+            slept: 0,
+        }
+    }
+
+    /// The current reading.
+    pub(crate) fn now(&mut self) -> u64 {
+        let monotonic = self.source.monotonic_ms().max(self.monotonic);
+        let wall = self.source.wall_ms();
+        let monotonic_elapsed = monotonic - self.monotonic;
+        if let (Some(wall), Some(previous)) = (wall, self.wall) {
+            let wall_elapsed = wall.saturating_sub(previous);
+            if wall_elapsed > monotonic_elapsed.saturating_add(WALL_CLOCK_JUMP_MS) {
+                self.slept = self.slept.saturating_add(wall_elapsed - monotonic_elapsed);
+            }
+        }
+        self.monotonic = monotonic;
+        if wall.is_some() {
+            self.wall = wall;
+        }
+        (monotonic - self.started).saturating_add(self.slept)
+    }
+}
+
+/// How often the official .NET client checks its liveness timers; the receive loops wake at
+/// least this often, so a wake after a suspension is found late at once.
+pub(crate) const LIVENESS_TICK: Duration = Duration::from_secs(1);
+
+/// What a liveness wake found (`LivenessTracker::check_wake`).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum WakeCheck {
+    /// The wake came on time, or late by less than a keep-alive interval (scheduling jitter).
+    OnTime,
+    /// The wake came more than a keep-alive interval late, so the app was suspended, but a frame
+    /// arrived within the server timeout: send a Ping at once.
+    SuspendedPing,
+    /// The wake came more than a keep-alive interval late and nothing arrived for the server
+    /// timeout: treat the transport as dropped now.
+    SuspendedDropped {
+        /// How long the wake came late.
+        late_ms: u64,
+    },
+}
+
 /// What a connection should do now (the browser's single liveness task polls for it; native
 /// tasks wait on the individual deadlines).
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
@@ -178,6 +260,36 @@ impl LivenessTracker {
     pub(crate) fn timeout_deadline(&self) -> u64 {
         self.last_received.saturating_add(self.server_timeout_ms)
     }
+
+    /// Checks a wake scheduled for `scheduled` that ran at `now` (both on the liveness clock):
+    /// one more than a keep-alive interval late means the app was suspended (a stopped process,
+    /// a frozen page, a sleeping device), so the connection pings at once or, when nothing
+    /// arrived for the server timeout, treats the transport as dropped without waiting a further
+    /// server timeout.
+    pub(crate) fn check_wake(&self, scheduled: u64, now: u64) -> WakeCheck {
+        let late_ms = now.saturating_sub(scheduled);
+        if late_ms <= self.keep_alive_ms {
+            return WakeCheck::OnTime;
+        }
+        if now >= self.timeout_deadline() {
+            WakeCheck::SuspendedDropped { late_ms }
+        } else {
+            WakeCheck::SuspendedPing
+        }
+    }
+}
+
+/// The error of a suspension found at a wake (`WakeCheck::SuspendedDropped`): the server timeout,
+/// as the official .NET client's `OnServerTimeout` reports it when its timer finds the deadline
+/// passed, so the reconnection policy runs at once (a stateful connection is not resumed: the
+/// server ends it after the same silence). Logs how long the app was suspended.
+pub(crate) fn suspended_timeout(late_ms: u64, server_timeout: Duration) -> Error {
+    log::warn!(
+        "The app was suspended for about {} s and nothing arrived from the server for the server \
+         timeout; the connection is considered lost",
+        late_ms / 1_000
+    );
+    Error::timed_out(crate::TimeoutOperation::ServerTimeout, server_timeout)
 }
 
 /// The protocol-specific Ping frame: JSON `{"type":6}` record or MessagePack framed `[6]`.
@@ -241,7 +353,8 @@ mod liveness_tests {
     use std::time::Duration;
 
     use super::{
-        parse_handshake_response, ping_frame, LivenessAction, LivenessConfig, LivenessTracker,
+        parse_handshake_response, ping_frame, ClockSource, LivenessAction, LivenessClock,
+        LivenessConfig, LivenessTracker, WakeCheck,
     };
     use crate::communication::stateful::{is_trackable, SerializedFrame};
     use crate::protocol::{hub_protocol::HubProtocolKind, negotiate::MessageType};
@@ -423,5 +536,150 @@ mod liveness_tests {
     #[test]
     fn liveness_pings_never_enter_the_stateful_replay_buffer() {
         assert!(!is_trackable(MessageType::Ping));
+    }
+
+    /// An injected clock source: the test sets both readings.
+    #[derive(Clone, Default)]
+    struct TestClock(std::rc::Rc<std::cell::Cell<(u64, Option<u64>)>>);
+
+    impl TestClock {
+        fn set(&self, monotonic: u64, wall: Option<u64>) {
+            self.0.set((monotonic, wall));
+        }
+    }
+
+    impl ClockSource for TestClock {
+        fn monotonic_ms(&self) -> u64 {
+            self.0.get().0
+        }
+
+        fn wall_ms(&self) -> Option<u64> {
+            self.0.get().1
+        }
+    }
+
+    fn clock(monotonic: u64, wall: u64) -> (TestClock, LivenessClock<TestClock>) {
+        let source = TestClock::default();
+        source.set(monotonic, Some(wall));
+        let clock = LivenessClock::new(source.clone());
+        (source, clock)
+    }
+
+    #[test]
+    fn suspension_clock_follows_the_monotonic_clock_while_the_device_is_awake() {
+        let (source, mut clock) = clock(500, 1_000_000);
+        assert_eq!(clock.now(), 0);
+        // Wall-clock noise and slewing below a second are ignored, so nothing accumulates.
+        for step in 1..=1_000u64 {
+            source.set(500 + step * 10, Some(1_000_000 + step * 10 + step % 3));
+            assert_eq!(clock.now(), step * 10);
+        }
+    }
+
+    #[test]
+    fn suspension_clock_counts_device_sleep_the_monotonic_clock_missed() {
+        let (source, mut clock) = clock(0, 50_000);
+        source.set(1_000, Some(51_000));
+        assert_eq!(clock.now(), 1_000);
+        // The device slept for ten minutes: the monotonic clock stopped, the wall clock did not.
+        source.set(1_200, Some(651_200));
+        assert_eq!(clock.now(), 601_200);
+        source.set(2_200, Some(652_200));
+        assert_eq!(clock.now(), 602_200);
+    }
+
+    #[test]
+    fn suspension_clock_ignores_a_wall_clock_that_moved_backwards_or_is_missing() {
+        let (source, mut clock) = clock(0, 50_000);
+        source.set(1_000, Some(10_000));
+        assert_eq!(clock.now(), 1_000);
+        // Measured from the adjusted wall clock on.
+        source.set(2_000, Some(11_000));
+        assert_eq!(clock.now(), 2_000);
+        source.set(3_000, None);
+        assert_eq!(clock.now(), 3_000);
+        source.set(4_000, Some(12_000));
+        assert_eq!(clock.now(), 4_000);
+        // A monotonic reading that went backwards never moves the clock back.
+        source.set(3_500, Some(12_500));
+        assert_eq!(clock.now(), 4_000);
+    }
+
+    #[test]
+    fn suspension_wakes_late_by_less_than_a_keep_alive_interval_are_jitter() {
+        let config = LivenessConfig::default();
+        let tracker = LivenessTracker::new(&config, 0);
+        assert_eq!(tracker.check_wake(1_000, 1_000), WakeCheck::OnTime);
+        assert_eq!(tracker.check_wake(1_000, 16_000), WakeCheck::OnTime);
+        assert_eq!(tracker.check_wake(5_000, 1_000), WakeCheck::OnTime);
+        // At the default intervals, a connection ticking every second with up to five seconds
+        // of scheduling delay never reports one.
+        let mut now = 0;
+        for tick in 0..600u64 {
+            let scheduled = now + 1_000;
+            now = scheduled + (tick * 787) % 5_000;
+            assert_eq!(tracker.check_wake(scheduled, now), WakeCheck::OnTime);
+        }
+    }
+
+    #[test]
+    fn suspension_pings_at_once_when_a_frame_arrived_within_the_server_timeout() {
+        let mut tracker = LivenessTracker::new(&LivenessConfig::default(), 0);
+        tracker.on_received(10_000);
+        // Scheduled for 11 s, ran at 30 s: 19 s late, 20 s of silence.
+        assert_eq!(tracker.check_wake(11_000, 30_000), WakeCheck::SuspendedPing);
+    }
+
+    #[test]
+    fn suspension_drops_the_transport_at_once_after_the_server_timeout() {
+        let mut tracker = LivenessTracker::new(&LivenessConfig::default(), 0);
+        tracker.on_received(1_000);
+        // Suspended right after a tick for 40 s: the server timeout (30 s) has passed.
+        assert_eq!(
+            tracker.check_wake(2_000, 42_000),
+            WakeCheck::SuspendedDropped { late_ms: 40_000 }
+        );
+        // Measured on the liveness clock, so device sleep the monotonic clock missed counts.
+        let (source, mut clock) = clock(0, 100_000);
+        let tracker = LivenessTracker::new(&LivenessConfig::default(), clock.now());
+        let scheduled = clock.now() + 1_000;
+        source.set(900, Some(3_700_900));
+        assert!(matches!(
+            tracker.check_wake(scheduled, clock.now()),
+            WakeCheck::SuspendedDropped { .. }
+        ));
+    }
+
+    #[test]
+    fn suspension_drops_the_transport_with_the_server_timeout_as_dotnet() {
+        let error = super::suspended_timeout(40_000, std::time::Duration::from_secs(30));
+        assert_eq!(error.kind(), crate::ErrorKind::Timeout);
+        assert_eq!(
+            error.timeout_operation(),
+            Some(crate::TimeoutOperation::ServerTimeout)
+        );
+        assert!(error.allows_reconnect(), "the reconnection policy runs");
+        assert!(
+            !crate::communication::common::resumes_transparently(&error),
+            "as .NET, a server timeout is not resumed"
+        );
+    }
+
+    #[test]
+    fn suspension_is_measured_from_when_the_wake_was_scheduled() {
+        // A deadline already due when the wait began (a deferred stateful Ack) is not lateness:
+        // the loop measures from the later of the deadline and the time it started waiting.
+        let mut tracker = LivenessTracker::new(&LivenessConfig::default(), 0);
+        tracker.on_received(40_000);
+        let ack_due = 1_000;
+        let waited_from = 41_000;
+        assert_eq!(
+            tracker.check_wake(ack_due.max(waited_from), 41_001),
+            WakeCheck::OnTime
+        );
+        assert_eq!(
+            tracker.check_wake(ack_due, 41_001),
+            WakeCheck::SuspendedPing
+        );
     }
 }

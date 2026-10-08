@@ -263,7 +263,9 @@ impl Error {
         Self::build(inner)
     }
 
-    /// A proxy refused or failed the tunnel: `status` when it answered.
+    /// A proxy refused or failed the tunnel: `status` when it answered (native only; browsers
+    /// use the browser's proxy).
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     pub(crate) fn proxy(status: Option<u16>, message: impl Into<String>) -> Self {
         let mut inner = Inner::new(ErrorKind::Proxy, message.into());
         inner.status = status;
