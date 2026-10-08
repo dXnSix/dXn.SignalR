@@ -92,6 +92,15 @@ Transport hooks (P8, D22), `communication/request_hook.rs`:
   - Browsers: `common::fetch_text` and `browser_http::request_once`, with `Content-Type` before the hook.
 - TLS hook: `TlsSettings.config_hook` -> `PreparedTls`, applied in `TlsContext::config` after `build_config` and outside the slot lock (`get_or_insert`).
 
+HTTP/2 (S13, D14, R14), `communication/http2.rs`:
+
+- `HttpVersion` (`Http1`, `Auto` default, `Http2`); `ConnectionRecipe::http_version()` returns `Http1` whenever integrated authentication is configured (as .NET skips `Http2HttpMessageHandler` with credentials), so `Http2` + credentials lowers silently.
+- ALPN: `TlsContext::config_with_alpn` derives one config per offer from the connection's (hook included) and replaces its `alpn_protocols` (`Auto` = `h2, http/1.1`, `Http2` = `h2`); the HTTP/1.1 WebSocket and `Http1` keep the connection's own offer. Proxy TLS clears ALPN.
+- `negotiate_http::open(endpoint, version, ..) -> Opened::{Http1, Http2}`: h2c prior knowledge for plaintext `Http2`, ALPN check over TLS (`Http2` without `h2` = `Transport` "did not negotiate HTTP/2"); runs through every proxy route.
+- `http2::Pool` (recipe-shared `Arc`) keys senders by (host, port, secure); negotiate, the `Lane`s (`http1_chosen` remembers an HTTP/1.1 choice) and `CommunicationClient::upgrade_http2` (RFC 8441 extended CONNECT, `Http2` only) share it. Cleared by `attempt_once` before every fresh connect (start and reconnect) and by `close_locally`; a stateful resume keeps it.
+- `http2::send` uses `try_send_request`; `SendFailure.retry` only when unsent, `REFUSED_STREAM`, or a remote graceful `GOAWAY` — every caller retries once on a new connection, never a processed request. No keep-alive pings (.NET default off).
+- Proof: the `http2_` unit group (14) and the native/Android `http2` scenario.
+
 ## Backlinks
 
 - Source anchors: [src/communication/common.rs](../../../../../src/communication/common.rs), [src/communication/client_tokio.rs](../../../../../src/communication/client_tokio.rs), [src/communication/client_wasm.rs](../../../../../src/communication/client_wasm.rs).

@@ -37,6 +37,8 @@ HTTP options (P6-P8, D22/D23), all from .NET `HttpConnectionOptions`:
 
 Proxies since S12: `with_proxy` accepts http, https, socks4, socks4a, socks5 and socks5h; `with_os_proxy()` (OS settings only); `with_proxy_auto_config(url)` (feature `proxy-pac`, native except iOS). The default `with_system_proxy` now reads the environment, else the OS.
 
+HTTP versions since S13: native `with_http_version(HttpVersion)`; public `#[non_exhaustive]` `HttpVersion { Http1, Auto (default), Http2 }` re-exported natively. Never a configuration error: integrated credentials lower it to HTTP/1.1.
+
 ## Backlinks
 
 - Source anchors: [src/client/client.rs](../../../../../src/client/client.rs), [src/client/configuration.rs](../../../../../src/client/configuration.rs), [src/lib.rs](../../../../../src/lib.rs), [tests/public_connection_configuration.rs](../../../../../tests/public_connection_configuration.rs), [src/error.rs](../../../../../src/error.rs), [tests/public_error_types.rs](../../../../../tests/public_error_types.rs).

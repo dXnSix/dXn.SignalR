@@ -52,6 +52,8 @@ Since S12 the test proxy also:
 - Runs a TLS listener with the run's server certificate (`TestProxy__CertificatePath`/`KeyPath`; `tlsPort`, `tlsSessions`) for https:// proxies.
 - Routes the alias `rayx-os-proxy.test` to the service for `os-proxy`.
 
+Since S13 the service also listens on `h2c` (HTTP/2 only, plaintext) and `https-http1` (HTTP/1.1 only, TLS) endpoints, pinned by target port (`TestService__Http2OnlyPort`/`Http1OnlyPort`, excluded from `/e2e/listening`); `DescribeRequest` adds `protocol:` and `connection:` (Kestrel connection id). The runner passes `RAYX_SIGNALR_E2E_H2C_URL` and `RAYX_SIGNALR_E2E_HTTP1_TLS_URL`; the `http2` scenario is native-only (browsers pick their version).
+
 The E2E runner's `SystemProxy` sets and restores the emulator's global proxy (its previous value) around `os-proxy` android-app cells, and the Windows WinINet or macOS networksetup proxy only when `HostAllowed()` (`RAYX_SIGNALR_E2E_ALLOW_SYSTEM_CHANGES=1` on Windows or macOS). E2E builds include the `proxy-pac` feature everywhere; `proxy-pac` excludes iOS.
 
 ## Backlinks

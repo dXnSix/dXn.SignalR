@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 38,
+  "revision": 40,
   "title": "Production-grade rayx-signalr: typed errors, all transports, proxies, refreshable auth, suspension-aware liveness, proven TLS paths, reference-class performance, and stretch SOCKS/PAC/OS proxies, HTTP/2 and HTTP/3",
   "validationMode": "sprint",
   "repositories": [
