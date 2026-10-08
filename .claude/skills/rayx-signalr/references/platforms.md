@@ -52,13 +52,16 @@ The runtime needs IO and time drivers and must outlive the client. The crate ena
 
 Pick one:
 
-1. Platform verifier (default feature): add the Maven repo
+1. Platform verifier (default feature; proven inside `tests/android-app`): add the Maven repo
    `https://github.com/rustls/rustls-platform-verifier/raw/maven-archive/android-release-support/maven/`,
-   depend on `rustls:rustls-platform-verifier` at the `rustls-platform-verifier-android` version in
-   `Cargo.lock`, keep `-keep, includedescriptorclasses class org.rustls.platformverifier.** { *; }`,
-   and call `rayx_signalr::tls::android::init_with_env(env, context)` once with the JNI env and an
-   Android `Context` before the first secure connection (`JNI_OnLoad` has no `Context`;
-   `init_with_refs`/`init_with_runtime` are also re-exported).
+   depend on `org.rustls:rustls-platform-verifier` at the `rustls-platform-verifier-android`
+   version in `Cargo.lock` (docs/09 has the Gradle snippet), keep
+   `-keep, includedescriptorclasses class org.rustls.platformverifier.** { *; }`, and call
+   `rayx_signalr::tls::android::init_with_env(env, context)` once with the JNI env (`jni` 0.22) and
+   an Android `Context` before the first secure connection (`JNI_OnLoad` has no `Context`;
+   `init_with_refs`/`init_with_runtime` are also re-exported). It trusts system and user CAs
+   (`AndroidCAStore`), **not** the app's network security config: install a private CA on the
+   device (settings or device policy) or use extra PEM roots.
 2. Bundled roots: feature `tls-webpki-roots` + `use_webpki_roots()`; no JVM, no user/enterprise roots.
 
 Extra PEM roots always use webpki on Android. Emulator → host loopback is `10.0.2.2`. Build with

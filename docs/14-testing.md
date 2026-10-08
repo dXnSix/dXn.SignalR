@@ -69,6 +69,11 @@ and is the single entry point, locally and in GitHub Actions. There are no test 
 - Android cells: the Android SDK (`ANDROID_HOME`) with an NDK, `cargo install cargo-ndk`,
   `rustup target add x86_64-linux-android`, and one running x86_64 emulator
   (`emulator -avd <name>`), or `RAYX_SIGNALR_E2E_ANDROID_SERIAL` naming the device;
+- Android app cells (`android-app`, `android-app-release`): additionally JDK 17 or later
+  (`JAVA_HOME`), platform 36 in the Android SDK, network access for the first Gradle build (the
+  wrapper's Gradle 9.4.1, the Android Gradle plugin and the `rustls-platform-verifier` Maven
+  archive), and an emulator without accounts or other users, because the runner makes the test
+  app device owner;
 - iOS cells (macOS only): Xcode with an iOS simulator runtime and
   `rustup target add aarch64-apple-ios-sim`; `RAYX_SIGNALR_E2E_IOS_DEVICE` picks a simulator by
   name or UDID (default: the newest available iPhone).
@@ -87,18 +92,20 @@ Run end-to-end cells:
 dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
 RAYX_SIGNALR_E2E_TARGETS=chromium,firefox,webkit dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
 RAYX_SIGNALR_E2E_TARGETS=android dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+RAYX_SIGNALR_E2E_TARGETS=android-app,android-app-release RAYX_SIGNALR_E2E_SCENARIOS=tls,connect-negotiate,invoke dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
 RAYX_SIGNALR_E2E_TARGETS=native RAYX_SIGNALR_E2E_PROTOCOLS=json RAYX_SIGNALR_E2E_SCENARIOS=invoke,server-stream dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
 ```
 
 | Variable | Values | Default |
 |---|---|---|
-| `RAYX_SIGNALR_E2E_TARGETS` | `native`, `chromium`, `firefox`, `webkit`, `android`, `ios`, or `all` | `native` |
+| `RAYX_SIGNALR_E2E_TARGETS` | `native`, `chromium`, `firefox`, `webkit`, `android`, `ios`, `android-app`, `android-app-release`, or `all` | `native` |
 | `RAYX_SIGNALR_E2E_PROTOCOLS` | `json`, `messagepack`, or `all` | `all` |
 | `RAYX_SIGNALR_E2E_SCENARIOS` | scenario names, or `all` | `all` |
 | `RAYX_SIGNALR_E2E_ANDROID_SERIAL` | an `adb` device serial | the single running emulator |
 | `RAYX_SIGNALR_E2E_IOS_DEVICE` | a simulator name or UDID | the newest iPhone |
 | `RAYX_SIGNALR_E2E_TRANSPORTS` | `websockets`, `long-polling`, `server-sent-events`, or `all` | `websockets` |
 | `RAYX_SIGNALR_SOAK_SECONDS` | how long `soak-chaos` runs, in seconds (forwarded to every target) | `120` |
+| `RAYX_SIGNALR_E2E_TLS_PROVIDER` | the rustls provider of the native, Android and iOS `e2e` builds: `ring` (the crate's default features) or `aws-lc-rs` (`--no-default-features --features messagepack,tls-platform-verifier,tls-aws-lc-rs`, Android adds `tls-webpki-roots`; built into `target/e2e-aws-lc` and `target/android-e2e-aws-lc`). A missing CMake, NASM or clang is reported as an environment error. | `ring` |
 
 Lists are comma-separated. A selection that matches no cataloged cell fails.
 
@@ -118,6 +125,8 @@ scenarios:
   `reconnect-call-wait`, `request-headers`, `stateful-transparent-resume`,
   `stateful-resume-fallback`; `msgpack-fidelity` everywhere with MessagePack only;
 - native, Android and iOS: `executor-independence`, `proxy`;
+- additionally inside the Android test app (`android-app`, `android-app-release`): `tls`,
+  `connect-negotiate`, `invoke`;
 - native, Chromium, Android and iOS: `suspend-resume`;
 - browsers: `message-burst`, `worker-transport`, `threaded-wasm`, `short-stream-chaining`;
 - native, Chromium and Android: `soak-chaos` and `stateful-resume-stress`.
@@ -169,11 +178,20 @@ answers.
 Each cell runs exactly one scenario: the Rust `e2e` binary with `--exact <scenario>::<protocol>` on
 the host, the Android emulator or the iOS simulator, or Playwright with one exact title. Cells are
 bounded to 60 seconds (`soak-chaos`: `RAYX_SIGNALR_SOAK_SECONDS`, default 120, plus 60 seconds;
-`stateful-resume-stress`: 600 seconds) with process cleanup. On failure a cell writes bounded, token-redacted output
+`stateful-resume-stress`: 600 seconds; `keepalive-idle`, `server-timeout`, `proxy` and
+`suspend-resume`: 120 seconds) with process cleanup. On failure a cell writes bounded, token-redacted output
 plus the Aspire resource logs (and an Android logcat excerpt) to `artifacts-temp/e2e/<cell>.json`.
 
 - Android cells push the binary built by `cargo ndk` to `/data/local/tmp` (removed after the run)
   and reach the service at `10.0.2.2`.
+- Android app cells build the `tests/android-harness` JNI library (it runs the `tests/e2e`
+  scenarios through `tests/e2e-scenarios`, a library crate that compiles the same sources),
+  assemble `tests/android-app` with its Gradle wrapper (`android-app-release`: the minified release
+  APK with the documented keep rule), install it, make it device owner (`dpm set-device-owner`)
+  and run each cell with `am instrument`. The app initializes the platform verifier from its
+  `Context`, installs the run's test CA as a user CA for the scenario and removes it; the `tls`
+  scenario then trusts it without extra roots and rejects the test service's untrusted listener,
+  whose certificate a second CA issued. After the run the device admin and the app are removed.
 - iOS cells run the binary with `xcrun simctl spawn` and shut down a simulator the run booted.
   Because spawned simulator processes are not foreground apps, the runner first runs the binary
   once untimed (`--list`, then one networked scenario), the scenario thread asks for the

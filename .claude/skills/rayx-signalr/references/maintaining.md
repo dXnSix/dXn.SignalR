@@ -63,6 +63,15 @@ dotnet test dotnet/RayX.SignalR.E2E.Tests --filter "Category=WorkflowContract|Ca
   `android` or `ios` cells.
 - `Category=Platform` for dependency-graph, gating, mobile or threaded-build changes;
   `Category=DependencySecurity` (needs `cargo-audit`) for dependency changes.
+- Android app cells (`android-app`, `android-app-release`; `Scenarios/AndroidAppCellRunner.cs`):
+  `tests/android-harness` (cdylib over `tests/e2e-scenarios`, which compiles the `tests/e2e`
+  sources by path; scenario modules in `tests/e2e/main.rs` are `pub(crate)`) is built with
+  `cargo ndk`, `tests/android-app` with its Gradle wrapper (JDK 17+); the app is made device owner
+  to install the run's CA as a user CA, then removed. The app runs `tls`, `connect-negotiate`,
+  `invoke` (`rayx_signalr_e2e_scenarios::run`).
+- TLS provider cells: `RAYX_SIGNALR_E2E_TLS_PROVIDER=aws-lc-rs` builds the native/Android/iOS
+  `e2e` binaries without `ring` (`Scenarios/TlsProvider.cs`, separate `*-aws-lc` target
+  directories); run `tls,connect-negotiate,negotiate-redirect,proxy` with it.
 - Suspension (`suspend-resume`, `Scenario.Suspends`): the scenario prints
   `RAYX_SIGNALR_SUSPEND_READY pid=<pid> seconds=<n>`; `Scenarios/Suspension.cs` suspends that
   process (Windows `NtSuspendProcess`, `kill -STOP`, Android `adb shell kill -STOP`) and always

@@ -115,21 +115,97 @@ not accept views of a `SharedArrayBuffer`. Keep each client on the thread that c
 Android builds natively with the NDK (for example through `cargo ndk`). TLS needs one decision,
 because the default platform verifier reads the Android trust store through the app's JVM:
 
-**Option 1: the platform verifier** (the default `tls-platform-verifier` feature). Follow
-`rustls-platform-verifier`'s Android setup (0.7.x):
+**Option 1: the platform verifier** (the default `tls-platform-verifier` feature). This is the
+setup of the repository's test app (`tests/android-app`), which the `android-app` and
+`android-app-release` end-to-end targets run (`rustls-platform-verifier` 0.7.x):
 
-1. Add its Maven repository to Gradle:
-   `maven { url = "https://github.com/rustls/rustls-platform-verifier/raw/maven-archive/android-release-support/maven/" }`.
-2. Depend on `rustls:rustls-platform-verifier` at the version of the
-   `rustls-platform-verifier-android` crate in your `Cargo.lock` (its documentation shows a Gradle
-   snippet that reads it; a mismatched version can fail at runtime).
-3. Keep its classes from shrinking:
-   `-keep, includedescriptorclasses class org.rustls.platformverifier.** { *; }`.
+1. Add its Maven repository to Gradle (`settings.gradle.kts`):
+
+   ```kotlin
+   dependencyResolutionManagement {
+       repositories {
+           google()
+           mavenCentral()
+           maven {
+               url = uri("https://github.com/rustls/rustls-platform-verifier/raw/maven-archive/android-release-support/maven/")
+           }
+       }
+   }
+   ```
+
+2. Depend on `org.rustls:rustls-platform-verifier` at the version of the
+   `rustls-platform-verifier-android` crate in your `Cargo.lock`; a mismatched version can fail at
+   runtime. The test app reads it from the lockfile (`app/build.gradle.kts`):
+
+   ```kotlin
+   abstract class RustlsVersion : ValueSource<String, RustlsVersion.Params> {
+       interface Params : ValueSourceParameters {
+           val lockFile: RegularFileProperty
+       }
+
+       override fun obtain(): String {
+           val lines = parameters.lockFile.get().asFile.readLines()
+           val name = lines.indexOfFirst { it.trim() == "name = \"rustls-platform-verifier-android\"" }
+           return lines.drop(name + 1)
+               .firstOrNull { name >= 0 && it.trimStart().startsWith("version = ") }
+               ?.substringAfter('"', "")
+               ?.substringBefore('"', "")
+               ?.takeIf { it.isNotEmpty() }
+               ?: error("rustls-platform-verifier-android not found in Cargo.lock")
+       }
+   }
+
+   val rustlsPlatformVerifierVersion = providers.of(RustlsVersion::class.java) {
+       parameters.lockFile.set(rootProject.layout.projectDirectory.file("../Cargo.lock"))
+   }
+
+   dependencies {
+       implementation("org.rustls:rustls-platform-verifier:${rustlsPlatformVerifierVersion.get()}")
+   }
+   ```
+
+3. Keep its classes from shrinking in release builds (`proguard-rules.pro`; the test app's
+   minified release APK proves it):
+
+   ```text
+   -keep, includedescriptorclasses class org.rustls.platformverifier.** { *; }
+   ```
+
 4. Before the first secure connection, call
    `rayx_signalr::tls::android::init_with_env(env, context)` once with the JNI environment and an
    Android `Context`, for example from a native method that your `Application` or `Activity` calls
-   at start-up (`JNI_OnLoad` has no `Context`). `init_with_refs` and `init_with_runtime` are
-   re-exported too.
+   at start-up (`JNI_OnLoad` has no `Context`). The test app does it from a JNI method that its
+   Kotlin code calls with the `Context`:
+
+   ```rust
+   /// `static native void initialize(Context context)` of `com.example.Native`.
+   #[no_mangle]
+   pub extern "system" fn Java_com_example_Native_initialize<'local>(
+       mut unowned: jni::EnvUnowned<'local>,
+       _class: jni::objects::JClass<'local>,
+       context: jni::objects::JObject<'local>,
+   ) {
+       unowned
+           .with_env(|env| -> Result<(), jni::errors::Error> {
+               // `with_env` catches the panic; the policy throws it to Kotlin as a
+               // RuntimeException.
+               if let Err(error) = rayx_signalr::tls::android::init_with_env(env, context) {
+                   panic!("cannot initialize the platform verifier: {error}");
+               }
+               Ok(())
+           })
+           .resolve::<jni::errors::ThrowRuntimeExAndDefault>()
+   }
+   ```
+
+   Use the `jni` version `rayx-signalr` depends on (0.22). `init_with_refs` and
+   `init_with_runtime` are re-exported too.
+
+The platform verifier trusts the device's CA store: the system CAs and user-installed CAs (it
+verifies against Android's `AndroidCAStore`). It does **not** read the app's network security
+config, so a `<trust-anchors>` entry there does not make a private CA trusted. To trust a private
+CA, install it on the device (a user CA from the settings, or a device policy such as an MDM's
+`installCaCert`, which is how the test app trusts its per-run CA), or use extra PEM roots (below).
 
 **Option 2: bundled roots.** Enable `tls-webpki-roots` and call `use_webpki_roots()` on the
 configuration. This needs no JVM, but ignores user-installed and enterprise roots.

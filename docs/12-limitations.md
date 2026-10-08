@@ -30,6 +30,11 @@ prove. Each item says what to do instead where there is an alternative.
   (negotiate, Long Polling, Server-Sent Events sends), as the .NET client does, and log a warning:
   a WebSocket or an `EventSource` cannot carry them, so a standard ASP.NET Core server does not
   authenticate those from them. Use Bearer tokens or an access-token factory in browsers.
+- **Android trust with the platform verifier.** The platform verifier trusts the device's system
+  and user CAs (Android's `AndroidCAStore`), not the app's network security config: a
+  `<trust-anchors>` entry there does not make a private CA trusted. Install the CA on the device
+  (settings or a device policy) or use extra PEM roots, which verify with webpki. See
+  [Android](09-platforms.md#android).
 - **Browser pause with stateful reconnect.** Browsers always send a WebSocket Close, which ends the
   stateful logical connection; `resume` negotiates a new one.
 - **Backgrounded apps and tabs.** Operating systems and browsers delay or stop background work.
@@ -47,13 +52,11 @@ prove. Each item says what to do instead where there is an alternative.
 The end-to-end suite runs every scenario on Windows, Linux and macOS, in Chromium, Firefox and
 WebKit, on an Android x86_64 emulator and on the iOS simulator. These parts are not exercised:
 
-- **The Android platform verifier inside a real app.** The Android cells run as a bare binary
-  through `adb shell`, without an app's JVM, so they verify TLS with webpki. Trust-store
-  verification after `rayx_signalr::tls::android::init_with_env` is only build-checked.
 - **Physical devices.** Emulators and simulators do not cover real radios, Doze mode, or iOS
   background suspension. Android arm64-v8a and the iOS device target are compile-checked only.
-- **`aws-lc-rs`.** The end-to-end cells use the default `ring` provider; `aws-lc-rs` is covered by
-  builds and unit tests.
+  The Android platform verifier runs inside the test app on the emulator (`android-app`,
+  `android-app-release`), and `aws-lc-rs` runs the TLS-dependent scenarios on native and Android
+  (`RAYX_SIGNALR_E2E_TLS_PROVIDER=aws-lc-rs`).
 - **iOS background timing.** Spawned simulator processes are not foreground apps. The iOS runner
   raises the scenario thread's QoS class and warms the simulator up before timed cells.
 - **A once-seen stall, retired.** After a third stateful resume on the Android emulator, one
