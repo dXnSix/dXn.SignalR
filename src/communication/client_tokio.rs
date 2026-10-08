@@ -1668,6 +1668,8 @@ impl Communication for CommunicationClient {
         // Calls made while the start runs wait for its outcome, from the moment it begins.
         let (report, outcome) = AttemptOutcome::new();
         let id = outcome.id();
+        // A proxy auto-config script is loaded again for each start.
+        self._recipe.proxy().begin_connect();
         let generation = {
             let mut state = self._state.lock().await;
             let generation = self._coordinator.start()?;
@@ -2248,7 +2250,7 @@ impl CommunicationClient {
         let port = endpoint.port_u16().unwrap_or(if secure { 443 } else { 80 });
         // Every resolved address is tried and Nagle's algorithm is off (see `connect_tcp`),
         // through the proxy's CONNECT tunnel when one applies; TLS runs inside it.
-        let tcp = super::proxy::connect(recipe.proxy(), secure, host, port)
+        let tcp = super::proxy::connect(recipe.proxy(), recipe.tls(), secure, host, port)
             .await
             .map_err(|error| error.with_transport(TransportKind::WebSockets))?;
         let stream = if secure {

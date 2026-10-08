@@ -1,7 +1,8 @@
-//! Native HTTP proxies, as the .NET client's default `HttpClient`/`ClientWebSocket` proxy: every
+//! Native proxies, as the .NET client's default `HttpClient`/`ClientWebSocket` proxy: every
 //! native connection (negotiate, WebSocket, Long Polling, Server-Sent Events) to a proxied
-//! endpoint opens an HTTP `CONNECT` tunnel through the proxy, then runs TLS with the connection's
-//! own rustls configuration inside it for secure endpoints, so the proxy never sees the traffic.
+//! endpoint opens a tunnel through the proxy (an HTTP `CONNECT`, or a SOCKS handshake, see
+//! `socks`), then runs TLS with the connection's own rustls configuration inside it for secure
+//! endpoints, so the proxy never sees the traffic.
 //! The proxy comes from [`ProxyConfig`]: an explicit URL, none, or the system's (the
 //! `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY` and `NO_PROXY` environment variables, read at connect
 //! time). Credentials in a proxy URL go out as Basic `Proxy-Authorization` and never appear in a
@@ -18,14 +19,103 @@
     )
 )]
 
-use std::{fmt, net::IpAddr};
+use std::{
+    fmt,
+    net::IpAddr,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf},
     net::TcpStream,
 };
 
 use crate::error::Error;
+
+/// A native connection's stream: TCP, directly or through an HTTP or SOCKS proxy's tunnel, or the
+/// TLS session to an HTTPS proxy that carries its tunnel.
+pub(crate) enum Stream {
+    Tcp(TcpStream),
+    #[cfg(rayx_tls)]
+    ProxyTls(Box<tokio_rustls::client::TlsStream<TcpStream>>),
+}
+
+impl fmt::Debug for Stream {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Stream::Tcp(_) => "Stream::Tcp",
+            #[cfg(rayx_tls)]
+            Stream::ProxyTls(_) => "Stream::ProxyTls",
+        })
+    }
+}
+
+impl AsyncRead for Stream {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+        buffer: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        match self.get_mut() {
+            Stream::Tcp(stream) => Pin::new(stream).poll_read(context, buffer),
+            #[cfg(rayx_tls)]
+            Stream::ProxyTls(stream) => Pin::new(stream.as_mut()).poll_read(context, buffer),
+        }
+    }
+}
+
+impl AsyncWrite for Stream {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+        buffer: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
+        match self.get_mut() {
+            Stream::Tcp(stream) => Pin::new(stream).poll_write(context, buffer),
+            #[cfg(rayx_tls)]
+            Stream::ProxyTls(stream) => Pin::new(stream.as_mut()).poll_write(context, buffer),
+        }
+    }
+
+    fn poll_write_vectored(
+        self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+        buffers: &[std::io::IoSlice<'_>],
+    ) -> Poll<std::io::Result<usize>> {
+        match self.get_mut() {
+            Stream::Tcp(stream) => Pin::new(stream).poll_write_vectored(context, buffers),
+            #[cfg(rayx_tls)]
+            Stream::ProxyTls(stream) => {
+                Pin::new(stream.as_mut()).poll_write_vectored(context, buffers)
+            }
+        }
+    }
+
+    fn is_write_vectored(&self) -> bool {
+        match self {
+            Stream::Tcp(stream) => stream.is_write_vectored(),
+            #[cfg(rayx_tls)]
+            Stream::ProxyTls(stream) => stream.is_write_vectored(),
+        }
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        match self.get_mut() {
+            Stream::Tcp(stream) => Pin::new(stream).poll_flush(context),
+            #[cfg(rayx_tls)]
+            Stream::ProxyTls(stream) => Pin::new(stream.as_mut()).poll_flush(context),
+        }
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        match self.get_mut() {
+            Stream::Tcp(stream) => Pin::new(stream).poll_shutdown(context),
+            #[cfg(rayx_tls)]
+            Stream::ProxyTls(stream) => Pin::new(stream.as_mut()).poll_shutdown(context),
+        }
+    }
+}
 
 /// The largest CONNECT response head accepted.
 const RESPONSE_LIMIT: usize = 16 * 1024;
@@ -40,28 +130,123 @@ pub(crate) enum ProxyConfig {
     /// The system's proxy settings, resolved at connect time (`with_system_proxy`, the default).
     #[default]
     System,
+    /// The operating system's settings only (`with_os_proxy`): WinHTTP, CFNetwork, Android's
+    /// `ProxySelector`, or the environment variables where they are the system's settings.
+    Os,
+    /// A proxy auto-config script (`with_proxy_auto_config`).
+    #[cfg(rayx_pac)]
+    AutoConfig(super::pac::PacConfig),
 }
 
-/// An `http://[user:password@]host[:port]` proxy. Its credentials are never shown.
+/// Where a connection goes: directly, or through a proxy.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Route {
+    Direct,
+    Proxy(ProxyUrl),
+}
+
+/// The URL a proxy resolver receives for an endpoint: its scheme, host and port (non-default
+/// only), as `http(s)://host[:port]/`.
+pub(crate) fn target_url(secure: bool, host: &str, port: u16) -> String {
+    let (scheme, default) = if secure { ("https", 443) } else { ("http", 80) };
+    let host = if host.contains(':') {
+        format!("[{host}]")
+    } else {
+        host.to_string()
+    };
+    if port == default {
+        format!("{scheme}://{host}/")
+    } else {
+        format!("{scheme}://{host}:{port}/")
+    }
+}
+
+impl ProxyConfig {
+    /// Starts a connect (`start`): an auto-config script is loaded again.
+    pub(crate) fn begin_connect(&self) {
+        #[cfg(rayx_pac)]
+        if let ProxyConfig::AutoConfig(pac) = self {
+            pac.begin_connect();
+        }
+    }
+}
+
+/// The kinds of proxy, by URL scheme, as .NET's `HttpEnvironmentProxy` accepts them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ProxyScheme {
+    /// `http://`: an HTTP `CONNECT` tunnel.
+    Http,
+    /// `https://`: an HTTP `CONNECT` tunnel inside TLS to the proxy (.NET 8 and later).
+    Https,
+    /// `socks4://`: the destination resolved locally to IPv4.
+    Socks4,
+    /// `socks4a://`: the destination resolved by the proxy.
+    Socks4a,
+    /// `socks5://`: domain names resolved by the proxy, as .NET.
+    Socks5,
+    /// `socks5h://`: the same as `socks5://`.
+    Socks5h,
+}
+
+impl ProxyScheme {
+    fn parse(scheme: &str) -> Option<Self> {
+        Some(match scheme.to_ascii_lowercase().as_str() {
+            "http" => ProxyScheme::Http,
+            "https" => ProxyScheme::Https,
+            "socks4" => ProxyScheme::Socks4,
+            "socks4a" => ProxyScheme::Socks4a,
+            "socks5" => ProxyScheme::Socks5,
+            "socks5h" => ProxyScheme::Socks5h,
+            _ => return None,
+        })
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            ProxyScheme::Http => "http",
+            ProxyScheme::Https => "https",
+            ProxyScheme::Socks4 => "socks4",
+            ProxyScheme::Socks4a => "socks4a",
+            ProxyScheme::Socks5 => "socks5",
+            ProxyScheme::Socks5h => "socks5h",
+        }
+    }
+
+    fn default_port(self) -> u16 {
+        match self {
+            ProxyScheme::Http => 80,
+            ProxyScheme::Https => 443,
+            _ => 1080,
+        }
+    }
+}
+
+/// A `scheme://[user:password@]host[:port]` proxy (`http`, `socks4`, `socks4a`, `socks5`,
+/// `socks5h`). Its credentials are never shown.
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct ProxyUrl {
+    scheme: ProxyScheme,
     host: String,
     port: u16,
     credentials: Option<(String, String)>,
 }
 
 impl ProxyUrl {
-    /// Parses a proxy URL; a missing scheme means `http`, a missing port 80. The error never
-    /// repeats the URL, which can carry credentials.
+    /// Parses a proxy URL; a missing scheme means `http`, a missing port 80 (1080 for SOCKS). The
+    /// error never repeats the URL, which can carry credentials.
     pub(crate) fn parse(url: &str) -> Result<Self, Error> {
         let invalid = |reason: &str| {
             Error::configuration("with_proxy", format!("the proxy URL is invalid: {reason}"))
         };
         let url = url.trim();
-        let rest = match url.split_once("://") {
-            Some((scheme, rest)) if scheme.eq_ignore_ascii_case("http") => rest,
-            Some(_) => return Err(invalid("only http:// proxies are supported")),
-            None => url,
+        let (scheme, rest) = match url.split_once("://") {
+            Some((scheme, rest)) => (
+                ProxyScheme::parse(scheme).ok_or_else(|| {
+                    invalid("the scheme is not http, https, socks4, socks4a, socks5 or socks5h")
+                })?,
+                rest,
+            ),
+            None => (ProxyScheme::Http, url),
         };
         // Path, query and fragment carry nothing for a proxy.
         let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
@@ -94,7 +279,7 @@ impl ProxyUrl {
                 .ok()
                 .filter(|port| *port != 0)
                 .ok_or_else(|| invalid("the port is not a number from 1 to 65535"))?,
-            None => 80,
+            None => scheme.default_port(),
         };
         let credentials = match userinfo {
             Some(userinfo) => {
@@ -104,10 +289,22 @@ impl ProxyUrl {
             None => None,
         };
         Ok(Self {
+            scheme,
             host: host.to_string(),
             port,
             credentials,
         })
+    }
+
+    pub(crate) fn scheme(&self) -> ProxyScheme {
+        self.scheme
+    }
+
+    /// The URL's user name and password, if any.
+    pub(crate) fn credentials(&self) -> Option<(&str, &str)> {
+        self.credentials
+            .as_ref()
+            .map(|(user, password)| (user.as_str(), password.as_str()))
     }
 
     pub(crate) fn host(&self) -> &str {
@@ -137,14 +334,19 @@ impl fmt::Display for ProxyUrl {
         } else {
             ""
         };
+        let scheme = self.scheme.name();
         if self.host.contains(':') {
             write!(
                 formatter,
-                "http://{credentials}[{}]:{}",
+                "{scheme}://{credentials}[{}]:{}",
                 self.host, self.port
             )
         } else {
-            write!(formatter, "http://{credentials}{}:{}", self.host, self.port)
+            write!(
+                formatter,
+                "{scheme}://{credentials}{}:{}",
+                self.host, self.port
+            )
         }
     }
 }
@@ -180,6 +382,25 @@ fn percent_decode(value: &str) -> String {
     String::from_utf8_lossy(&decoded).into_owned()
 }
 
+/// Whether the environment names a proxy (`http_proxy`, `https_proxy` or `all_proxy`, in either
+/// case, usable), so the system proxy is the environment's, as .NET's `HttpEnvironmentProxy`
+/// takes precedence over the operating system's settings.
+pub(crate) fn environment_configured(environment: impl Fn(&str) -> Option<String>) -> bool {
+    let gateway = environment("GATEWAY_INTERFACE").is_some();
+    [
+        "http_proxy",
+        "HTTP_PROXY",
+        "https_proxy",
+        "HTTPS_PROXY",
+        "all_proxy",
+        "ALL_PROXY",
+    ]
+    .into_iter()
+    .filter(|name| !(gateway && *name == "HTTP_PROXY"))
+    .filter_map(&environment)
+    .any(|value| !value.trim().is_empty() && ProxyUrl::parse(&value).is_ok())
+}
+
 /// The proxy a connection to `host:port` uses under `config`, reading the environment through
 /// `environment` for [`ProxyConfig::System`] as the .NET client's `HttpEnvironmentProxy` does:
 /// `http_proxy`, then `HTTP_PROXY` (ignored when `GATEWAY_INTERFACE` is set, so a CGI request's
@@ -196,6 +417,10 @@ pub(crate) fn resolve(
 ) -> Option<ProxyUrl> {
     match config {
         ProxyConfig::Disabled => None,
+        // Routes come from the script or the system (`routes`).
+        #[cfg(rayx_pac)]
+        ProxyConfig::AutoConfig(_) => None,
+        ProxyConfig::Os => None,
         ProxyConfig::Explicit(proxy) => Some(proxy.clone()),
         ProxyConfig::System => {
             let usable = |name: &str| {
@@ -206,9 +431,7 @@ pub(crate) fn resolve(
                 match ProxyUrl::parse(&value) {
                     Ok(proxy) => Some(proxy),
                     Err(_) => {
-                        log::warn!(
-                            "{name} is not an http:// proxy URL this client can use; it is skipped"
-                        );
+                        log::warn!("{name} is not a proxy URL this client can use; it is skipped");
                         None
                     }
                 }
@@ -376,15 +599,22 @@ pub(crate) fn check_response(head: &[u8], proxy: &ProxyUrl) -> Result<(), Refusa
     }
 }
 
-/// Opens a CONNECT tunnel to `host:port` through `proxy`. As the .NET client, credentials go out
-/// only when the proxy asks for them: after a 407 that offers the Basic scheme the request is
-/// sent again, on a new connection, with Basic `Proxy-Authorization`.
-pub(crate) async fn tunnel(proxy: &ProxyUrl, host: &str, port: u16) -> Result<TcpStream, Error> {
+/// Opens a CONNECT tunnel to `host:port` through `proxy`, inside TLS to the proxy for an
+/// `https://` proxy (with the connection's TLS configuration `tls`). As the .NET client,
+/// credentials go out only when the proxy asks for them: after a 407 that offers the Basic scheme
+/// the request is sent again, on a new connection, with Basic `Proxy-Authorization`.
+pub(crate) async fn tunnel(
+    proxy: &ProxyUrl,
+    tls: &super::tls::TlsContext,
+    host: &str,
+    port: u16,
+    first: Option<TcpStream>,
+) -> Result<Stream, Error> {
     log::debug!("Connecting to {host}:{port} through the proxy {proxy}");
-    match tunnel_once(proxy, host, port, false).await {
+    match tunnel_once(proxy, tls, host, port, false, first).await {
         Ok(stream) => Ok(stream),
         Err(Refusal::Challenge { basic: true }) if proxy.credentials.is_some() => {
-            match tunnel_once(proxy, host, port, true).await {
+            match tunnel_once(proxy, tls, host, port, true, None).await {
                 Ok(stream) => Ok(stream),
                 Err(Refusal::Challenge { .. }) => Err(Error::proxy(
                     Some(407),
@@ -417,18 +647,21 @@ pub(crate) async fn tunnel(proxy: &ProxyUrl, host: &str, port: u16) -> Result<Tc
 /// One CONNECT exchange on a new connection to the proxy.
 async fn tunnel_once(
     proxy: &ProxyUrl,
+    tls: &super::tls::TlsContext,
     host: &str,
     port: u16,
     authorize: bool,
-) -> Result<TcpStream, Refusal> {
-    let mut stream = super::negotiate_http::connect_tcp(proxy.host(), proxy.port())
-        .await
-        .map_err(|error| {
-            Refusal::Failed(Error::proxy(
-                None,
-                format!("cannot connect to the proxy {proxy}: {error}"),
-            ))
-        })?;
+    connection: Option<TcpStream>,
+) -> Result<Stream, Refusal> {
+    let tcp = match connection {
+        Some(tcp) => tcp,
+        None => connect_proxy(proxy).await.map_err(Refusal::Failed)?,
+    };
+    let mut stream = if proxy.scheme() == ProxyScheme::Https {
+        proxy_tls(proxy, tls, tcp).await.map_err(Refusal::Failed)?
+    } else {
+        Stream::Tcp(tcp)
+    };
     let failed = |error: std::io::Error| {
         Refusal::Failed(
             Error::proxy(
@@ -492,16 +725,140 @@ async fn read_head<S: tokio::io::AsyncRead + Unpin>(
 }
 
 /// Opens the TCP stream of a connection to `host:port`: directly, or through the proxy `config`
-/// resolves for it. TLS for a secure endpoint follows inside the returned stream.
+/// resolves for it; an auto-config script's routes are tried in order, and the last failure is
+/// reported. TLS for a secure endpoint follows inside the returned stream (`tls` also loads an
+/// `https` auto-config script).
 pub(crate) async fn connect(
     config: &ProxyConfig,
+    tls: &super::tls::TlsContext,
     secure: bool,
     host: &str,
     port: u16,
-) -> Result<TcpStream, Error> {
-    match resolve(config, secure, host, port, |name| std::env::var(name).ok()) {
-        Some(proxy) => tunnel(&proxy, host, port).await,
-        None => super::negotiate_http::connect_tcp(host, port).await,
+) -> Result<Stream, Error> {
+    // As .NET, the next route is tried only when a route cannot be reached; a proxy that was
+    // reached decides, so its refusal (a 407, a denied target) is the connection's error.
+    let mut failure = None;
+    for route in routes(config, tls, secure, host, port).await? {
+        match &route {
+            Route::Direct => match super::negotiate_http::connect_tcp(host, port).await {
+                Ok(stream) => return Ok(Stream::Tcp(stream)),
+                Err(error) => failure = Some(error),
+            },
+            Route::Proxy(proxy) => match connect_proxy(proxy).await {
+                Ok(tcp) => return through(proxy, tls, host, port, tcp).await,
+                Err(error) => failure = Some(error),
+            },
+        }
+        log::debug!("The proxy route {route:?} cannot be reached; trying the next one");
+    }
+    Err(failure.unwrap_or_else(|| Error::proxy(None, "no proxy route to try")))
+}
+
+/// A TCP connection to `proxy`, or the proxy error that it cannot be reached.
+async fn connect_proxy(proxy: &ProxyUrl) -> Result<TcpStream, Error> {
+    super::negotiate_http::connect_tcp(proxy.host(), proxy.port())
+        .await
+        .map_err(|error| {
+            Error::proxy(
+                None,
+                format!("cannot connect to the proxy {proxy}: {error}"),
+            )
+        })
+}
+
+/// The routes a connection to `host:port` tries, in order, under `config`: the system proxy is
+/// the environment's when it names one, else the operating system's (as .NET's default proxy).
+pub(crate) async fn routes(
+    config: &ProxyConfig,
+    tls: &super::tls::TlsContext,
+    secure: bool,
+    host: &str,
+    port: u16,
+) -> Result<Vec<Route>, Error> {
+    #[cfg(not(rayx_pac))]
+    let _ = tls;
+    let environment = |name: &str| std::env::var(name).ok();
+    let from_environment = || {
+        vec![
+            match resolve(&ProxyConfig::System, secure, host, port, environment) {
+                Some(proxy) => Route::Proxy(proxy),
+                None => Route::Direct,
+            },
+        ]
+    };
+    match config {
+        #[cfg(rayx_pac)]
+        ProxyConfig::AutoConfig(pac) => pac.routes(tls, secure, host, port).await,
+        ProxyConfig::System if environment_configured(environment) => Ok(from_environment()),
+        ProxyConfig::System | ProxyConfig::Os => match super::os_proxy::platform() {
+            Some(reader) => Ok(super::os_proxy::routes(reader, secure, host, port).await),
+            None => Ok(from_environment()),
+        },
+        ProxyConfig::Disabled | ProxyConfig::Explicit(_) => {
+            Ok(vec![
+                match resolve(config, secure, host, port, environment) {
+                    Some(proxy) => Route::Proxy(proxy),
+                    None => Route::Direct,
+                },
+            ])
+        }
+    }
+}
+
+/// A tunnel to `host:port` through `proxy`.
+/// A tunnel to `host:port` through `proxy`, starting on `tcp`, a connection to it.
+async fn through(
+    proxy: &ProxyUrl,
+    tls: &super::tls::TlsContext,
+    host: &str,
+    port: u16,
+    tcp: TcpStream,
+) -> Result<Stream, Error> {
+    match proxy.scheme() {
+        ProxyScheme::Http | ProxyScheme::Https => tunnel(proxy, tls, host, port, Some(tcp)).await,
+        _ => super::socks::tunnel_on(tcp, proxy, host, port)
+            .await
+            .map(Stream::Tcp),
+    }
+}
+
+/// TLS to an `https://` proxy with the connection's TLS configuration (its trust roots and
+/// provider, never an accept-all verifier). A failed handshake, such as a proxy certificate that
+/// does not verify, is a proxy error naming the proxy.
+async fn proxy_tls(
+    proxy: &ProxyUrl,
+    tls: &super::tls::TlsContext,
+    tcp: TcpStream,
+) -> Result<Stream, Error> {
+    #[cfg(rayx_tls)]
+    {
+        // The connection's configuration without ALPN: the proxy speaks HTTP/1.1 `CONNECT`
+        // whatever the endpoint negotiates, as .NET clears the application protocols for it.
+        let mut config = (*tls.config()?).clone();
+        config.alpn_protocols.clear();
+        let name =
+            rustls_pki_types::ServerName::try_from(proxy.host().to_string()).map_err(|error| {
+                Error::configuration(
+                    "with_proxy",
+                    format!("the proxy host is not a valid TLS server name: {error}"),
+                )
+            })?;
+        tokio_rustls::TlsConnector::from(std::sync::Arc::new(config))
+            .connect(name, tcp)
+            .await
+            .map(|stream| Stream::ProxyTls(Box::new(stream)))
+            .map_err(|error| {
+                Error::proxy(
+                    None,
+                    format!("the TLS connection to the proxy {proxy} failed: {error}"),
+                )
+                .with_source(error)
+            })
+    }
+    #[cfg(not(rayx_tls))]
+    {
+        let _ = (proxy, tls, tcp);
+        Err(super::tls::tls_disabled())
     }
 }
 
@@ -559,14 +916,44 @@ mod proxy_tests {
     }
 
     #[test]
+    fn socks_urls_parse_with_their_schemes_and_default_port() {
+        for (url, scheme) in [
+            ("socks4://proxy", super::ProxyScheme::Socks4),
+            ("SOCKS4A://proxy", super::ProxyScheme::Socks4a),
+            ("socks5://proxy", super::ProxyScheme::Socks5),
+            ("socks5h://proxy", super::ProxyScheme::Socks5h),
+        ] {
+            let proxy = ProxyUrl::parse(url).unwrap();
+            assert_eq!((proxy.scheme(), proxy.port()), (scheme, 1080), "{url}");
+        }
+        let proxy = ProxyUrl::parse("socks5h://us%3Aer:s3cret@[::1]:9050").unwrap();
+        assert_eq!(proxy.credentials(), Some(("us:er", "s3cret")));
+        assert_eq!(proxy.to_string(), "socks5h://***@[::1]:9050");
+        assert!(!format!("{proxy:?}").contains("s3cret"));
+        // The environment accepts SOCKS proxies too, as .NET's `HttpEnvironmentProxy`.
+        assert_eq!(
+            resolve(
+                &ProxyConfig::System,
+                true,
+                "hub",
+                443,
+                environment(&[("all_proxy", "socks5://socks:1080")]),
+            )
+            .map(|proxy| proxy.to_string())
+            .as_deref(),
+            Some("socks5://socks:1080")
+        );
+    }
+
+    #[test]
     fn proxy_invalid_urls_fail_without_repeating_them() {
         for url in [
-            "https://user:secret@proxy:443",
+            "gopher://user:secret@proxy:443",
             "http://user:secret@:8080",
             "http://user:secret@proxy:99999",
             "http://user:secret@proxy:0",
             "http://user:secret@[::1",
-            "socks5://user:secret@proxy:1080",
+            "ftp://user:secret@proxy:21",
         ] {
             let error = ProxyUrl::parse(url).unwrap_err();
             assert_eq!(error.kind(), ErrorKind::Configuration, "{url}");
@@ -622,8 +1009,8 @@ mod proxy_tests {
         let empty = [("https_proxy", ""), ("HTTPS_PROXY", "upper:2")];
         assert_eq!(system(&empty, true, "hub", 443).as_deref(), Some("upper:2"));
         let unusable = [
-            ("https_proxy", "socks5://x:1"),
-            ("HTTPS_PROXY", "https://y:2"),
+            ("https_proxy", "ftp://x:1"),
+            ("HTTPS_PROXY", "gopher://y:2"),
             ("all_proxy", "all:3"),
         ];
         assert_eq!(
@@ -631,7 +1018,7 @@ mod proxy_tests {
             Some("all:3")
         );
         assert_eq!(
-            system(&[("HTTPS_PROXY", "socks5://x:1")], true, "hub", 443),
+            system(&[("HTTPS_PROXY", "ftp://x:1")], true, "hub", 443),
             None
         );
         // no_proxy (else NO_PROXY) applies.
@@ -837,7 +1224,15 @@ mod proxy_tests {
     async fn proxy_tunnels_send_credentials_only_after_a_basic_challenge() {
         let (port, mut heads) = local_proxy(vec![CHALLENGE, ESTABLISHED]).await;
         let proxy = ProxyUrl::parse(&format!("http://user:pass@127.0.0.1:{port}")).unwrap();
-        let mut stream = tunnel(&proxy, "hub.example", 443).await.unwrap();
+        let mut stream = tunnel(
+            &proxy,
+            &crate::communication::tls::TlsContext::default(),
+            "hub.example",
+            443,
+            None,
+        )
+        .await
+        .unwrap();
         assert_eq!(
             heads.recv().await.unwrap(),
             "CONNECT hub.example:443 HTTP/1.1\r\nHost: hub.example:443\r\n\r\n",
@@ -857,7 +1252,15 @@ mod proxy_tests {
     async fn proxy_tunnels_without_a_challenge_never_send_credentials() {
         let (port, mut heads) = local_proxy(vec![ESTABLISHED]).await;
         let proxy = ProxyUrl::parse(&format!("http://user:pass@127.0.0.1:{port}")).unwrap();
-        tunnel(&proxy, "hub.example", 443).await.unwrap();
+        tunnel(
+            &proxy,
+            &crate::communication::tls::TlsContext::default(),
+            "hub.example",
+            443,
+            None,
+        )
+        .await
+        .unwrap();
         assert!(!heads.recv().await.unwrap().contains("Proxy-Authorization"));
     }
 
@@ -865,7 +1268,15 @@ mod proxy_tests {
     async fn proxy_refused_credentials_fail_with_407_and_never_show_them() {
         let (port, _heads) = local_proxy(vec![CHALLENGE, CHALLENGE]).await;
         let proxy = ProxyUrl::parse(&format!("http://user:secret@127.0.0.1:{port}")).unwrap();
-        let error = tunnel(&proxy, "hub.example", 443).await.unwrap_err();
+        let error = tunnel(
+            &proxy,
+            &crate::communication::tls::TlsContext::default(),
+            "hub.example",
+            443,
+            None,
+        )
+        .await
+        .unwrap_err();
         assert_eq!(error.kind(), ErrorKind::Proxy);
         assert_eq!(error.status(), Some(407));
         assert!(
@@ -878,7 +1289,15 @@ mod proxy_tests {
         // Without credentials, the challenge is the error at once.
         let (port, _heads) = local_proxy(vec![CHALLENGE]).await;
         let anonymous = ProxyUrl::parse(&format!("http://127.0.0.1:{port}")).unwrap();
-        let error = tunnel(&anonymous, "hub.example", 443).await.unwrap_err();
+        let error = tunnel(
+            &anonymous,
+            &crate::communication::tls::TlsContext::default(),
+            "hub.example",
+            443,
+            None,
+        )
+        .await
+        .unwrap_err();
         assert_eq!(
             (error.kind(), error.status()),
             (ErrorKind::Proxy, Some(407))
@@ -892,7 +1311,15 @@ mod proxy_tests {
         let port = listener.local_addr().unwrap().port();
         drop(listener);
         let proxy = ProxyUrl::parse(&format!("http://user:secret@127.0.0.1:{port}")).unwrap();
-        let error = tunnel(&proxy, "hub.example", 443).await.unwrap_err();
+        let error = tunnel(
+            &proxy,
+            &crate::communication::tls::TlsContext::default(),
+            "hub.example",
+            443,
+            None,
+        )
+        .await
+        .unwrap_err();
         assert_eq!((error.kind(), error.status()), (ErrorKind::Proxy, None));
         assert!(error.is_transient());
         assert!(!error.to_string().contains("secret"), "{error}");
@@ -930,12 +1357,230 @@ mod proxy_tests {
             .unwrap();
         let _entered = runtime.enter();
         let error = crate::SignalRClient::new("localhost", "hub", |configuration| {
-            configuration.with_proxy("https://user:secret@proxy:443");
+            configuration.with_proxy("ftp://user:secret@proxy:21");
         })
         .err()
-        .expect("an https proxy URL is refused");
+        .expect("an ftp proxy URL is refused");
         assert_eq!(error.kind(), ErrorKind::Configuration);
         assert_eq!(error.setting(), Some("with_proxy"));
         assert!(!error.to_string().contains("secret"));
+    }
+}
+
+#[cfg(all(test, rayx_tls))]
+mod https_proxy_tests {
+    use std::sync::Arc;
+
+    use rcgen::{BasicConstraints, CertificateParams, DnType, IsCa, Issuer, KeyPair};
+    use rustls_pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    use super::{resolve, tunnel, ProxyConfig, ProxyScheme, ProxyUrl};
+    use crate::{
+        communication::tls::{crypto_provider, CompiledTls, TlsContext, TlsSettings},
+        ErrorKind,
+    };
+
+    /// A test CA and a `localhost` server certificate it issued: (CA PEM, certificate PEM, key PEM).
+    fn certificates() -> (String, String, String) {
+        let mut params = CertificateParams::new(Vec::<String>::new()).unwrap();
+        params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
+        params
+            .distinguished_name
+            .push(DnType::CommonName, "https_proxy_ test CA");
+        let key = KeyPair::generate().unwrap();
+        let ca = params.self_signed(&key).unwrap().pem();
+        let issuer = Issuer::new(params, key);
+        let server_key = KeyPair::generate().unwrap();
+        let server = CertificateParams::new(vec!["localhost".to_string()])
+            .unwrap()
+            .signed_by(&server_key, &issuer)
+            .unwrap();
+        (ca, server.pem(), server_key.serialize_pem())
+    }
+
+    fn trusting(ca: Option<&str>) -> TlsContext {
+        TlsContext::for_connection(
+            true,
+            &TlsSettings {
+                extra_roots_pem: ca.map(|ca| ca.as_bytes().to_vec()),
+                ..TlsSettings::default()
+            },
+        )
+        .unwrap()
+    }
+
+    /// A context trusting `ca` whose hook offers HTTP/2 through ALPN, as a later endpoint might.
+    fn offering_h2(ca: &str) -> TlsContext {
+        TlsContext::for_connection(
+            true,
+            &TlsSettings {
+                extra_roots_pem: Some(ca.as_bytes().to_vec()),
+                config_hook: Some(crate::communication::tls::TlsConfigHook(Arc::new(
+                    |config: &mut rustls::ClientConfig| {
+                        config.alpn_protocols = vec![b"h2".to_vec()]
+                    },
+                ))),
+                ..TlsSettings::default()
+            },
+        )
+        .unwrap()
+    }
+
+    /// Reads a request head (up to the blank line).
+    async fn head<S: tokio::io::AsyncRead + Unpin>(stream: &mut S) -> String {
+        let mut head = Vec::new();
+        while !head.ends_with(b"\r\n\r\n") {
+            let mut byte = [0u8; 1];
+            if stream.read_exact(&mut byte).await.is_err() {
+                break;
+            }
+            head.push(byte[0]);
+        }
+        String::from_utf8(head).unwrap()
+    }
+
+    /// A TLS proxy on loopback: each connection's CONNECT gets 407 (Basic) without credentials and
+    /// 200 with them; after a 200 it echoes what the tunnel carries. Returns the port and the
+    /// heads it saw.
+    async fn tls_proxy(
+        certificate: String,
+        key: String,
+    ) -> (u16, tokio::sync::mpsc::UnboundedReceiver<String>) {
+        let provider = crypto_provider(CompiledTls::CURRENT.provider().unwrap());
+        let config = rustls::ServerConfig::builder_with_provider(provider)
+            .with_safe_default_protocol_versions()
+            .unwrap()
+            .with_no_client_auth()
+            .with_single_cert(
+                CertificateDer::pem_slice_iter(certificate.as_bytes())
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap(),
+                PrivateKeyDer::from_pem_slice(key.as_bytes()).unwrap(),
+            )
+            .unwrap();
+        // A proxy that would accept HTTP/2: the client must offer no ALPN protocol to it.
+        let mut config = config;
+        config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+        let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(config));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let (seen, heads) = tokio::sync::mpsc::unbounded_channel();
+        tokio::spawn(async move {
+            while let Ok((tcp, _)) = listener.accept().await {
+                let (acceptor, seen) = (acceptor.clone(), seen.clone());
+                tokio::spawn(async move {
+                    let Ok(mut tls) = acceptor.accept(tcp).await else {
+                        return;
+                    };
+                    let alpn = tls.get_ref().1.alpn_protocol().map(<[u8]>::to_vec);
+                    let request = format!("{}alpn: {alpn:?}\r\n", head(&mut tls).await);
+                    let authorized = request.contains("Proxy-Authorization: Basic ");
+                    let _ = seen.send(request);
+                    if !authorized {
+                        let _ = tls
+                            .write_all(b"HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm=\"x\"\r\nContent-Length: 0\r\n\r\n")
+                            .await;
+                        let _ = tls.shutdown().await;
+                        return;
+                    }
+                    tls.write_all(b"HTTP/1.1 200 Connection established\r\n\r\n")
+                        .await
+                        .unwrap();
+                    let mut buffer = [0u8; 5];
+                    if tls.read_exact(&mut buffer).await.is_ok() {
+                        let _ = tls.write_all(&buffer).await;
+                    }
+                });
+            }
+        });
+        (port, heads)
+    }
+
+    #[test]
+    fn https_proxy_urls_parse_with_their_default_port_and_hide_credentials() {
+        let proxy = ProxyUrl::parse("https://user:s3cret@proxy.example").unwrap();
+        assert_eq!(proxy.scheme(), ProxyScheme::Https);
+        assert_eq!((proxy.host(), proxy.port()), ("proxy.example", 443));
+        assert_eq!(proxy.to_string(), "https://***@proxy.example:443");
+        assert!(!format!("{proxy:?}").contains("s3cret"));
+        let explicit = ProxyUrl::parse("HTTPS://[::1]:8443").unwrap();
+        assert_eq!((explicit.host(), explicit.port()), ("::1", 8443));
+    }
+
+    #[test]
+    fn https_proxy_environment_variables_accept_https_proxies() {
+        let environment =
+            |name: &str| (name == "HTTPS_PROXY").then(|| "https://proxy:8443".to_string());
+        let proxy = resolve(&ProxyConfig::System, true, "hub", 443, environment).unwrap();
+        assert_eq!(proxy.to_string(), "https://proxy:8443");
+        assert!(super::environment_configured(environment));
+    }
+
+    #[tokio::test]
+    async fn https_proxy_tunnels_inside_tls_with_the_basic_challenge() {
+        let (ca, certificate, key) = certificates();
+        let (port, mut heads) = tls_proxy(certificate, key).await;
+        let proxy = ProxyUrl::parse(&format!("https://user:pass@localhost:{port}")).unwrap();
+        let mut stream = tunnel(&proxy, &offering_h2(&ca), "hub.example", 443, None)
+            .await
+            .unwrap();
+        // The challenge, then the authorized CONNECT, each inside its own TLS session.
+        let first = heads.recv().await.unwrap();
+        assert!(
+            first.starts_with("CONNECT hub.example:443 HTTP/1.1\r\n"),
+            "{first}"
+        );
+        assert!(!first.contains("Proxy-Authorization"), "{first}");
+        let second = heads.recv().await.unwrap();
+        // base64("user:pass")
+        assert!(
+            second.contains("Proxy-Authorization: Basic dXNlcjpwYXNz\r\n"),
+            "{second}"
+        );
+        // The connection's ALPN list (here `h2`, from a hook) is not offered to the proxy.
+        assert!(second.ends_with("alpn: None\r\n"), "{second}");
+        // The tunnel carries the endpoint's bytes.
+        stream.write_all(b"hello").await.unwrap();
+        let mut echoed = [0u8; 5];
+        stream.read_exact(&mut echoed).await.unwrap();
+        assert_eq!(&echoed, b"hello");
+    }
+
+    #[tokio::test]
+    async fn https_proxy_certificates_must_verify() {
+        let (_, certificate, key) = certificates();
+        let (port, mut heads) = tls_proxy(certificate, key).await;
+        let proxy = ProxyUrl::parse(&format!("https://user:s3cret@localhost:{port}")).unwrap();
+        // The CA is not trusted: the handshake fails and no CONNECT is sent.
+        let error = match tunnel(&proxy, &trusting(None), "hub.example", 443, None).await {
+            Ok(_) => panic!("an unverified proxy certificate was accepted"),
+            Err(error) => error,
+        };
+        assert_eq!(error.kind(), ErrorKind::Proxy, "{error}");
+        assert!(
+            error.to_string().contains(&format!("localhost:{port}")),
+            "{error}"
+        );
+        assert!(!error.to_string().contains("s3cret"), "{error}");
+        assert!(!format!("{error:?}").contains("s3cret"), "{error:?}");
+        assert!(heads.try_recv().is_err(), "nothing was sent to the proxy");
+    }
+
+    #[tokio::test]
+    async fn https_proxy_refusals_keep_the_http_proxy_statuses() {
+        let (ca, certificate, key) = certificates();
+        let (port, _heads) = tls_proxy(certificate, key).await;
+        // No credentials: the 407 is reported, as for http:// proxies.
+        let proxy = ProxyUrl::parse(&format!("https://localhost:{port}")).unwrap();
+        let error = match tunnel(&proxy, &trusting(Some(&ca)), "hub.example", 443, None).await {
+            Ok(_) => panic!("the proxy requires credentials"),
+            Err(error) => error,
+        };
+        assert_eq!(
+            (error.kind(), error.status()),
+            (ErrorKind::Proxy, Some(407))
+        );
+        assert!(!error.is_transient());
     }
 }

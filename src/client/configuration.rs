@@ -1119,12 +1119,15 @@ impl ConnectionConfiguration {
         self
     }
 
-    /// Connects through this HTTP proxy, `http://[user:password@]host[:port]` (port 80 by
-    /// default; user and password may be percent-encoded), instead of the system's proxy
-    /// settings. Every native connection (negotiate, WebSocket, Long Polling, Server-Sent Events)
-    /// opens an HTTP `CONNECT` tunnel through it, with Basic `Proxy-Authorization` when the URL
-    /// carries credentials, and runs TLS inside the tunnel for secure endpoints, so the proxy
-    /// never sees the traffic. Credentials never appear in logs or errors. An invalid URL fails
+    /// Connects through this proxy instead of the system's proxy settings:
+    /// `scheme://[user:password@]host[:port]` (user and password may be percent-encoded) with
+    /// `http` (port 80 by default) or `https` (TLS to the proxy with this connection's TLS
+    /// configuration, port 443), which open an HTTP `CONNECT` tunnel with Basic
+    /// `Proxy-Authorization` when the proxy asks and the URL carries credentials, or `socks4`,
+    /// `socks4a`, `socks5` and `socks5h` (port 1080), as the .NET client accepts them. Every
+    /// native connection (negotiate, WebSocket, Long Polling, Server-Sent Events) tunnels through
+    /// it, and runs TLS inside the tunnel for secure endpoints, so the proxy never sees the
+    /// traffic. Credentials never appear in logs or errors. An invalid URL fails
     /// [`SignalRClient::new`](crate::SignalRClient::new) with
     /// [`ErrorKind::Configuration`](crate::ErrorKind::Configuration) naming `with_proxy`. Native
     /// only: browsers use the browser's proxy settings.
@@ -1135,14 +1138,46 @@ impl ConnectionConfiguration {
         self
     }
 
-    /// Uses the system's proxy settings, the default, as the .NET client's default proxy: the
-    /// `HTTPS_PROXY` (secure endpoints) or `HTTP_PROXY` (plain ones) environment variable, else
-    /// `ALL_PROXY`, read in lower or upper case when each connection is opened, except for the
-    /// hosts `NO_PROXY` lists (curl's rules: host names with their subdomains, IP addresses, CIDR
-    /// ranges, optional ports, `*` for every host). Native only.
+    /// Chooses proxies with the proxy auto-config (PAC) script at `url` (`http`, `https` or
+    /// `file`), as WinHTTP and browsers do: the script is loaded directly (never through a proxy)
+    /// at each [`start`](crate::SignalRClient::start), within the connect timeout, and its
+    /// `FindProxyForURL(url, host)` decides for every native connection which of the `PROXY`,
+    /// `HTTPS`, `SOCKS`, `SOCKS4`, `SOCKS5` and `DIRECT` routes it returns to try, in order. The
+    /// script runs in a sandboxed JavaScript engine (no network or file access beyond the DNS
+    /// lookups of the standard helpers), bounded in time. A URL that is not `http`, `https` or
+    /// `file` fails [`SignalRClient::new`](crate::SignalRClient::new) with
+    /// [`ErrorKind::Configuration`](crate::ErrorKind::Configuration) naming
+    /// `with_proxy_auto_config`; a script that cannot be loaded or fails, and a connection no
+    /// route reaches, fail with [`ErrorKind::Proxy`](crate::ErrorKind::Proxy). Native only, with
+    /// the `proxy-pac` feature.
+    #[cfg(rayx_pac)]
+    pub fn with_proxy_auto_config(&mut self, url: impl AsRef<str>) -> &ConnectionConfiguration {
+        self._proxy = crate::communication::pac::PacConfig::new(url.as_ref())
+            .map(crate::communication::proxy::ProxyConfig::AutoConfig);
+        self
+    }
+
+    /// Uses the system's proxy settings, the default, as the .NET client's default proxy, read
+    /// when each connection is opened. When a proxy environment variable names a proxy, the
+    /// environment decides: the `HTTPS_PROXY` (secure endpoints) or `HTTP_PROXY` (plain ones)
+    /// variable, else `ALL_PROXY`, in lower or upper case, except for the hosts `NO_PROXY` lists
+    /// (curl's rules: host names with their subdomains, IP addresses, CIDR ranges, optional ports,
+    /// `*` for every host). Otherwise the operating system's settings decide, as
+    /// [`with_os_proxy`](Self::with_os_proxy) reads them. Native only.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn with_system_proxy(&mut self) -> &ConnectionConfiguration {
         self._proxy = Ok(crate::communication::proxy::ProxyConfig::System);
+        self
+    }
+
+    /// Uses the operating system's proxy settings only, ignoring the proxy environment variables:
+    /// on Windows the current user's WinHTTP settings (with auto-detection and auto-config
+    /// scripts), on macOS and iOS CFNetwork's system settings, on Android `java.net.ProxySelector`
+    /// (after `tls::android::init_with_env`), and elsewhere, where they are the system's settings,
+    /// the environment variables. Loopback hosts are never proxied on Windows. Native only.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_os_proxy(&mut self) -> &ConnectionConfiguration {
+        self._proxy = Ok(crate::communication::proxy::ProxyConfig::Os);
         self
     }
 

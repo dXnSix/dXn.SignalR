@@ -31,6 +31,9 @@ tls-ring = ["rustls?/ring", "_rustls"]
 tls-aws-lc-rs = ["rustls?/aws_lc_rs", "_rustls"]
 # Internal: rustls plumbing shared by the TLS features.
 _rustls = ["dep:rustls", "dep:tokio-rustls", "dep:rustls-pki-types", "tokio-websockets/rustls-bring-your-own-connector"]
+# Proxy auto-config (`with_proxy_auto_config`): PAC scripts run in the pure-Rust Boa JavaScript
+# engine (no C toolchain), bounded and without network or file access.
+proxy-pac = ["dep:boa_engine"]
 # Unstable, for the crate's own benchmarks only: exposes the hidden `bench_support` module over the
 # internal codec and action storage. Never enable it in applications; it changes no behavior.
 bench-internals = []
@@ -80,9 +83,19 @@ sha2 = "0.10"
 getrandom = "0.3"
 sha1_smol = "1"
 
+# Proxy auto-config's JavaScript engine; not on iOS, where its `time` dependency (`num_threads`)
+# does not build (the `rayx_pac` cfg in build.rs).
+[target.'cfg(not(any(target_arch = "wasm32", target_os = "ios")))'.dependencies]
+boa_engine = { version = "0.22", default-features = false, optional = true }
+
 # Integrated Windows authentication (Negotiate/NTLM through SSPI).
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security_Authentication_Identity", "Win32_Security_Credentials", "Win32_System_Rpc"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Networking_WinHttp", "Win32_Networking_WinSock", "Win32_Security_Authentication_Identity", "Win32_Security_Credentials", "Win32_System_Rpc"] }
+
+# The system proxy settings (CFNetwork) on Apple targets.
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+core-foundation = "0.10"
+core-foundation-sys = "0.8"
 
 [target.'cfg(target_os = "android")'.dependencies]
 # Names the JNI types of `tls::android::init_with_env` (the platform verifier's jni version).

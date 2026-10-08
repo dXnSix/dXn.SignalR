@@ -34,9 +34,16 @@ pub(crate) mod integrated_auth;
 #[cfg(not(target_arch = "wasm32"))]
 mod long_polling_tokio;
 #[cfg(not(target_arch = "wasm32"))]
+pub(crate) mod os_proxy;
+#[cfg(not(target_arch = "wasm32"))]
+#[cfg(rayx_pac)]
+pub(crate) mod pac;
+#[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod proxy;
 #[cfg(not(target_arch = "wasm32"))]
 mod server_sent_events_tokio;
+#[cfg(not(target_arch = "wasm32"))]
+mod socks;
 #[cfg(not(target_arch = "wasm32"))]
 mod transport_tokio;
 

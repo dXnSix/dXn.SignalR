@@ -53,7 +53,8 @@ pub mod tls {
     pub mod android {
         pub use rustls_platform_verifier::android::{init_with_refs, init_with_runtime, Runtime};
 
-        /// Initializes the platform verifier from a JNI environment and an Android `Context`.
+        /// Initializes the platform verifier from a JNI environment and an Android `Context`, and
+        /// keeps the Java VM for the system proxy settings (`java.net.ProxySelector`).
         ///
         /// # Errors
         ///
@@ -63,6 +64,14 @@ pub mod tls {
             env: &mut jni::Env<'_>,
             context: jni::objects::JObject<'_>,
         ) -> Result<(), crate::Error> {
+            // The operating system's proxy settings come from `java.net.ProxySelector`.
+            match env.get_java_vm() {
+                Ok(vm) => crate::communication::os_proxy::java::set_java_vm(vm),
+                Err(error) => log::warn!(
+                    "the Java VM is not available; the system proxy settings fall back to the \
+                     environment variables: {error}"
+                ),
+            }
             rustls_platform_verifier::android::init_with_env(env, context).map_err(|error| {
                 crate::Error::tls(format!(
                     "cannot initialize the Android platform verifier: {error}"

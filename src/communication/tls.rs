@@ -396,7 +396,7 @@ pub(crate) fn parse_certificates(
 }
 
 #[cfg(rayx_tls)]
-fn crypto_provider(kind: ProviderKind) -> Arc<rustls::crypto::CryptoProvider> {
+pub(crate) fn crypto_provider(kind: ProviderKind) -> Arc<rustls::crypto::CryptoProvider> {
     match kind {
         #[cfg(feature = "tls-aws-lc-rs")]
         ProviderKind::AwsLcRs => Arc::new(rustls::crypto::aws_lc_rs::default_provider()),

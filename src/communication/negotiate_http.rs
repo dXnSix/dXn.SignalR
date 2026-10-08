@@ -231,6 +231,7 @@ where
 {
     let tcp = super::proxy::connect(
         endpoint.proxy,
+        endpoint.tls,
         endpoint.secure,
         endpoint.host,
         endpoint.port,
@@ -282,7 +283,7 @@ where
 
 /// The RFC 5929 `tls-server-end-point` channel binding of a TLS connection.
 #[cfg(rayx_tls)]
-fn channel_binding(stream: &tokio_rustls::client::TlsStream<TcpStream>) -> Option<Vec<u8>> {
+fn channel_binding<S>(stream: &tokio_rustls::client::TlsStream<S>) -> Option<Vec<u8>> {
     let certificate = stream.get_ref().1.peer_certificates()?.first()?;
     Some(super::integrated_auth::tls_server_end_point(
         certificate.as_ref(),
@@ -290,7 +291,7 @@ fn channel_binding(stream: &tokio_rustls::client::TlsStream<TcpStream>) -> Optio
 }
 
 #[cfg(not(rayx_tls))]
-fn channel_binding(_stream: &TcpStream) -> Option<Vec<u8>> {
+fn channel_binding<S>(_stream: &S) -> Option<Vec<u8>> {
     None
 }
 
@@ -334,11 +335,14 @@ pub(crate) async fn connect_tcp(host: &str, port: u16) -> Result<TcpStream, Erro
 }
 
 #[cfg(rayx_tls)]
-pub(crate) async fn tls_stream(
+pub(crate) async fn tls_stream<S>(
     tls: &TlsContext,
     host: &str,
-    tcp: TcpStream,
-) -> Result<tokio_rustls::client::TlsStream<TcpStream>, Error> {
+    tcp: S,
+) -> Result<tokio_rustls::client::TlsStream<S>, Error>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
     let name = rustls_pki_types::ServerName::try_from(host.to_string()).map_err(|error| {
         Error::configuration("domain", format!("invalid TLS server name {host}: {error}"))
     })?;
@@ -351,11 +355,7 @@ pub(crate) async fn tls_stream(
 }
 
 #[cfg(not(rayx_tls))]
-pub(crate) async fn tls_stream(
-    _tls: &TlsContext,
-    _host: &str,
-    _tcp: TcpStream,
-) -> Result<TcpStream, Error> {
+pub(crate) async fn tls_stream<S>(_tls: &TlsContext, _host: &str, _tcp: S) -> Result<S, Error> {
     Err(super::tls::tls_disabled())
 }
 

@@ -24,7 +24,6 @@ use futures::{
     stream::{SplitSink, SplitStream},
     Sink, Stream, StreamExt,
 };
-use tokio::net::TcpStream;
 use tokio_websockets::{MaybeTlsStream, Message, WebSocketStream};
 
 use super::transport::TransportKind;
@@ -39,7 +38,7 @@ pub(crate) type WebSocket = WebSocketStream<WebSocketIo>;
 // indirection to every read and write.
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum WebSocketIo {
-    Direct(MaybeTlsStream<TcpStream>),
+    Direct(MaybeTlsStream<super::proxy::Stream>),
     Upgraded(hyper_util::rt::TokioIo<hyper::upgrade::Upgraded>),
 }
 
