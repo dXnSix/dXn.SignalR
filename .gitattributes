@@ -30,3 +30,7 @@
 
 build.sh eol=lf
 .gitignore text eol=lf
+
+# The test app's Gradle wrapper: the shell launcher must keep LF, the Windows one CRLF.
+tests/android-app/gradlew text eol=lf
+tests/android-app/gradlew.bat text eol=crlf
