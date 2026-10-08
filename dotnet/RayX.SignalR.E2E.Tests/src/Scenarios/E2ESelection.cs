@@ -122,7 +122,15 @@ public sealed record E2ESelection(
   /// <param name="windowsHost">Whether the host runs Windows (Windows-only scenarios need it).</param>
   /// <param name="hostSystemChanges">Whether the host may change its own proxy settings (native system-proxy cells need it).</param>
   /// <returns>The cells.</returns>
-  public IReadOnlyList<E2ECell> Cells(bool windowsHost, bool hostSystemChanges)
+  public IReadOnlyList<E2ECell> Cells(bool windowsHost, bool hostSystemChanges) =>
+    Cells(windowsHost, hostSystemChanges, AppHost.QuicSupport.IsSupported);
+
+  /// <summary>Gets the selected cells for a host with the given capabilities.</summary>
+  /// <param name="windowsHost">Whether the host runs Windows (Windows-only scenarios need it).</param>
+  /// <param name="hostSystemChanges">Whether the host may change its own proxy settings (native system-proxy cells need it).</param>
+  /// <param name="quicHost">Whether the host serves HTTP/3 (HTTP/3 scenarios need it).</param>
+  /// <returns>The cells.</returns>
+  public IReadOnlyList<E2ECell> Cells(bool windowsHost, bool hostSystemChanges, bool quicHost)
   {
     List<E2ECell> cells = [];
     foreach(string transport in Transports)
@@ -138,6 +146,7 @@ public sealed record E2ESelection(
                && scenario.Protocols.Contains(protocol)
                && scenario.Supports(transport, protocol)
                && (windowsHost || !scenario.WindowsHostOnly)
+               && (quicHost || !scenario.QuicHostOnly)
                && (hostSystemChanges || !scenario.SystemProxy || target != ScenarioCatalog.NativeTarget))
             {
               cells.Add(new E2ECell(ScenarioCatalog.Target(target), protocol, scenario, transport));

@@ -42,6 +42,8 @@ if (builder.Configuration["TestTls:CertificatePath"] is { } certificatePath
 // defaults (HTTP/1.1 and HTTP/2 over TLS).
 int? http2OnlyPort = builder.Configuration.GetValue<int?>("TestService:Http2OnlyPort");
 int? http1OnlyPort = builder.Configuration.GetValue<int?>("TestService:Http1OnlyPort");
+// The `http3` scenario's endpoint: HTTP/1.1, HTTP/2 and HTTP/3 (QUIC) over TLS.
+int? http3Port = builder.Configuration.GetValue<int?>("TestService:Http3Port");
 builder.WebHost.ConfigureKestrel(kestrel => kestrel.ConfigureEndpointDefaults(listen =>
 {
     int? port = (listen.EndPoint as System.Net.IPEndPoint)?.Port;
@@ -52,6 +54,10 @@ builder.WebHost.ConfigureKestrel(kestrel => kestrel.ConfigureEndpointDefaults(li
     else if (port is not null && port == http1OnlyPort)
     {
         listen.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1;
+    }
+    else if (port is not null && port == http3Port)
+    {
+        listen.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2AndHttp3;
     }
 }));
 
@@ -209,7 +215,8 @@ app.MapGet("/e2e/listening", (Microsoft.AspNetCore.Hosting.Server.IServer server
         .Select(address => new Uri(address.Replace("://*", "://localhost", StringComparison.Ordinal)
             .Replace("://+", "://localhost", StringComparison.Ordinal)))
         // The protocol-pinned endpoints are not the http/https ones the test proxy routes to.
-        .Where(address => address.Port != http2OnlyPort && address.Port != http1OnlyPort)
+        .Where(address => address.Port != http2OnlyPort && address.Port != http1OnlyPort
+            && address.Port != http3Port)
         .GroupBy(address => address.Scheme)
         .ToDictionary(group => group.Key, group => group.First().Port));
 });

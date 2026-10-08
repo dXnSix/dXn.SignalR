@@ -60,6 +60,15 @@ public sealed record Scenario(string Name, IReadOnlySet<string> Targets)
   public bool WindowsHostOnly => WindowsHostOnlyReason is not null;
 
   /// <summary>
+  /// Gets why the scenario's cells need a host that serves HTTP/3 (msquic), when they do;
+  /// elsewhere (macOS) they are not selected.
+  /// </summary>
+  public string? QuicHostOnlyReason { get; init; }
+
+  /// <summary>Gets whether the scenario's cells need a host that serves HTTP/3.</summary>
+  public bool QuicHostOnly => QuicHostOnlyReason is not null;
+
+  /// <summary>
   /// Gets whether the runner points the system proxy at the test proxy around the scenario's cells
   /// (<c>SystemProxy</c>): the Android app's emulator always, and the host only where it may
   /// change its settings (<c>SystemProxy.HostAllowed</c>); native cells are selected only there.
@@ -195,6 +204,16 @@ public static class ScenarioCatalog
     new("proxy-socks", Set(_nativeTargets)) { Limit = TimeSpan.FromSeconds(120) },
     // HTTP/2 over TLS and h2c, and HTTP/1.1 fallback; browsers choose the HTTP version themselves.
     new("http2", Set(_nativeTargets)) { Limit = TimeSpan.FromSeconds(120) },
+    // Experimental HTTP/3 (the `http3` feature) on hosts whose Kestrel serves it.
+    new("http3", Set([_native, _android]))
+    {
+      Limit = TimeSpan.FromSeconds(120),
+      QuicHostOnlyReason = AppHost.QuicSupport.Reason,
+      Exclusions = new Dictionary<string, string>
+      {
+        [_ios] = "iOS cells run on macOS hosts, whose Kestrel cannot serve HTTP/3 (macOS has no msquic)",
+      },
+    },
     // HTTPS proxies: the test proxy behind TLS, with the same reasons and bound.
     new("proxy-https", Set(_nativeTargets)) { Limit = TimeSpan.FromSeconds(120) },
     // Proxy auto-config scripts the test proxy serves, with the same reasons and bound.

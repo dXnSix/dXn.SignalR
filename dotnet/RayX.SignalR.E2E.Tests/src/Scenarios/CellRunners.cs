@@ -31,7 +31,7 @@ public static partial class CellExecution
   /// <c>--all-features</c> would select <c>aws-lc-rs</c> and leave the default provider without
   /// a real handshake.
   /// </summary>
-  public static readonly string[] E2EFeatures = ["--features", "messagepack,proxy-pac"];
+  public static readonly string[] E2EFeatures = ["--features", "messagepack,proxy-pac,http3"];
 
   /// <summary>The hard bound for one cell's process (soak scenarios: see <see cref="Scenario.Bound"/>).</summary>
   public static readonly TimeSpan CellTimeout = TimeSpan.FromSeconds(60);
@@ -67,6 +67,10 @@ public static partial class CellExecution
     variables["RAYX_SIGNALR_E2E_TLS_URL"] = Origin(environment.TlsServiceUrl);
     variables["RAYX_SIGNALR_E2E_H2C_URL"] = Origin(environment.H2cServiceUrl);
     variables["RAYX_SIGNALR_E2E_HTTP1_TLS_URL"] = Origin(environment.Http1TlsServiceUrl);
+    if(environment.Http3ServiceUrl is { } http3)
+    {
+      variables["RAYX_SIGNALR_E2E_HTTP3_URL"] = Origin(http3);
+    }
     variables["RAYX_SIGNALR_E2E_TLS_CA_PEM_BASE64"] =
       Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(environment.TlsCaPem));
     variables["RAYX_SIGNALR_E2E_UNTRUSTED_TLS_URL"] = Origin(environment.UntrustedTlsUrl);

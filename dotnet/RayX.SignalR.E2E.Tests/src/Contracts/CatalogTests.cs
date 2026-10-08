@@ -26,8 +26,10 @@ public sealed partial class CatalogTests(AspireEnvironment environment)
     bool HostRuns(Scenario scenario) =>
       (OperatingSystem.IsWindows() || !scenario.WindowsHostOnly)
       && (SystemProxy.HostAllowed() || !scenario.SystemProxy);
-    int expected = ScenarioCatalog.Scenarios.Sum(
-      scenario => (scenario.Targets.Count - (scenario.Targets.Contains("native") && !HostRuns(scenario) ? 1 : 0)) * scenario.Protocols.Count);
+    // HTTP/3 scenarios need a host whose Kestrel serves HTTP/3.
+    int expected = ScenarioCatalog.Scenarios
+      .Where(scenario => AppHost.QuicSupport.IsSupported || !scenario.QuicHostOnly)
+      .Sum(scenario => (scenario.Targets.Count - (scenario.Targets.Contains("native") && !HostRuns(scenario) ? 1 : 0)) * scenario.Protocols.Count);
     Assert.Equal(expected, all.Cells().Count);
   }
 

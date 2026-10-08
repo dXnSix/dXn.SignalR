@@ -76,6 +76,12 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
   public Uri Http1TlsServiceUrl => App.GetEndpoint(ServiceResource, "https-http1");
 
   /// <summary>
+  /// Gets the SignalR test service's HTTPS endpoint that also serves HTTP/3 (QUIC), on hosts with
+  /// msquic (<see cref="QuicSupport"/>); <see langword="null"/> elsewhere.
+  /// </summary>
+  public Uri? Http3ServiceUrl => QuicSupport.IsSupported ? App.GetEndpoint(ServiceResource, "http3") : null;
+
+  /// <summary>
   /// Gets the directory of this run's generated TLS certificates and key: outside
   /// <c>artifacts-temp/e2e</c>, which CI uploads on failure, and deleted when the run stops.
   /// </summary>

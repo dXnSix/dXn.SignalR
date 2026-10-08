@@ -7,6 +7,9 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 pub(crate) mod http2;
+// Experimental HTTP/3 needs the `http3` feature (the runner builds it).
+#[cfg(feature = "http3")]
+pub(crate) mod http3;
 pub(crate) mod support;
 
 pub(crate) mod authentication;

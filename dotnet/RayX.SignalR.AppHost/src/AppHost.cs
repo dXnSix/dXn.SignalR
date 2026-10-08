@@ -31,6 +31,14 @@ IResourceBuilder<ProjectResource> service = builder
 service
   .WithEnvironment("TestService__Http2OnlyPort", service.GetEndpoint("h2c").Property(EndpointProperty.TargetPort))
   .WithEnvironment("TestService__Http1OnlyPort", service.GetEndpoint("https-http1").Property(EndpointProperty.TargetPort));
+// HTTP/3 (QUIC over UDP) for the `http3` scenario where the host has msquic. Aspire's endpoint
+// proxy forwards TCP only, so Kestrel binds this endpoint's (dynamically allocated) port itself.
+if(QuicSupport.IsSupported)
+{
+  service
+    .WithHttpsEndpoint(name: "http3", isProxied: false)
+    .WithEnvironment("TestService__Http3Port", service.GetEndpoint("http3").Property(EndpointProperty.TargetPort));
+}
 
 // The test-only HTTP CONNECT proxy of the `proxy` scenario: tunnels need the run's credentials
 // (the test runner passes the password as a secret parameter), and `denied.invalid:80` is on its
