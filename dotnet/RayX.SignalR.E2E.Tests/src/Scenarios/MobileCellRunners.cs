@@ -52,8 +52,7 @@ public static class E2EBinaryBuilds
       ProcessResult result = await ProcessRunner.RunAsync(build, TimeSpan.FromMinutes(30), cancellationToken);
       if(!result.Succeeded)
       {
-        throw new InvalidOperationException(
-          $"{build.Display} failed with exit code {result.ExitCode}:\n{Redaction.SafeTail(NativeE2EBinary.CompilerErrors(result.StandardOutput) + result.StandardError)}");
+        throw NativeE2EBinary.BuildFailure(build, result);
       }
 
       string executable = NativeE2EBinary.ParseExecutable(result.StandardOutput);
@@ -114,17 +113,12 @@ public sealed class AndroidCellRunner : ICellRunner
   public const string RustTarget = "x86_64-linux-android";
 
   /// <summary>
-  /// The cargo target directory used only for the Android <c>e2e</c> binary (relative to the
-  /// repository root), so no other build can leave a newer <c>e2e-*</c> executable there. CI
-  /// pre-builds into the same directory.
+  /// The cargo target directory used only for the Android <c>e2e</c> binary with the <c>ring</c>
+  /// provider (relative to the repository root), so no other build can leave a newer <c>e2e-*</c>
+  /// executable there. CI pre-builds into the same directory; <c>aws-lc-rs</c> builds into
+  /// <c>target/android-e2e-aws-lc</c> (<see cref="TlsProvider.TargetDirectory"/>).
   /// </summary>
   public const string TargetDirectory = "target/android-e2e";
-
-  /// <summary>
-  /// The Android <c>e2e</c> binary's features: the default TLS stack plus MessagePack and the
-  /// bundled roots the untrusted-certificate case needs without an app's JVM.
-  /// </summary>
-  public static readonly string[] AndroidFeatures = ["--features", "messagepack,tls-webpki-roots"];
 
   /// <summary>The device process name of the pushed binary; a timed-out cell is killed by it.</summary>
   public const string DeviceProcessName = "e2e";
@@ -132,18 +126,19 @@ public sealed class AndroidCellRunner : ICellRunner
   /// <summary>The device command that stops a timed-out scenario binary.</summary>
   public const string KillCommand = "pkill -x " + DeviceProcessName;
 
-  /// <summary>The cargo command that builds the Android <c>e2e</c> binary.</summary>
+  /// <summary>The cargo command that builds the Android <c>e2e</c> binary with a TLS provider.</summary>
   /// <param name="repositoryRoot">The repository root.</param>
+  /// <param name="provider">The TLS provider (<see cref="TlsProvider"/>; <c>ring</c> by default).</param>
   /// <returns>The command.</returns>
-  public static ProcessCommand BuildCommand(string repositoryRoot) =>
+  public static ProcessCommand BuildCommand(string repositoryRoot, string provider = TlsProvider.Ring) =>
     new(
       "cargo",
-      ["ndk", "-t", "x86_64", "-P", "24", "test", "--test", "e2e", .. AndroidFeatures, "--no-run"],
+      ["ndk", "-t", "x86_64", "-P", "24", "test", "--test", "e2e", .. TlsProvider.AndroidFeatures(provider), "--no-run"],
       repositoryRoot)
     {
       Environment = new Dictionary<string, string>(StringComparer.Ordinal)
       {
-        ["CARGO_TARGET_DIR"] = Path.Combine(repositoryRoot, TargetDirectory)
+        ["CARGO_TARGET_DIR"] = Path.Combine(repositoryRoot, TlsProvider.TargetDirectory(TargetDirectory, provider))
       }
     };
 
@@ -157,15 +152,16 @@ public sealed class AndroidCellRunner : ICellRunner
   /// <returns>The executable path on the host.</returns>
   public static async Task<string> BuildAsync(string repositoryRoot, CancellationToken cancellationToken)
   {
-    ProcessCommand build = BuildCommand(repositoryRoot);
+    string provider = TlsProvider.Current;
+    ProcessCommand build = BuildCommand(repositoryRoot, provider);
     ProcessResult result = await ProcessRunner.RunAsync(build, TimeSpan.FromMinutes(30), cancellationToken);
     if(!result.Succeeded)
     {
-      throw new InvalidOperationException(
-        $"{build.Display} failed with exit code {result.ExitCode}:\n{Redaction.SafeTail(result.StandardError)}");
+      throw NativeE2EBinary.BuildFailure(build, result);
     }
 
-    return NewestTestExecutable(Path.Combine(repositoryRoot, TargetDirectory, RustTarget, "debug", "deps"));
+    return NewestTestExecutable(
+      Path.Combine(repositoryRoot, TlsProvider.TargetDirectory(TargetDirectory, provider), RustTarget, "debug", "deps"));
   }
 
   /// <summary>Finds the newest <c>e2e-&lt;hash&gt;</c> executable (no extension) in a deps directory.</summary>
@@ -370,14 +366,18 @@ public sealed class IosCellRunner : ICellRunner
   static bool _booted;
   static string? _warmedUp;
 
-  /// <summary>The cargo command that builds the simulator <c>e2e</c> binary.</summary>
+  /// <summary>The cargo command that builds the simulator <c>e2e</c> binary with a TLS provider.</summary>
   /// <param name="repositoryRoot">The repository root.</param>
+  /// <param name="provider">The TLS provider (<see cref="TlsProvider"/>; <c>ring</c> by default).</param>
   /// <returns>The command.</returns>
-  public static ProcessCommand BuildCommand(string repositoryRoot) =>
+  public static ProcessCommand BuildCommand(string repositoryRoot, string provider = TlsProvider.Ring) =>
     new(
       "cargo",
-      ["test", "--test", "e2e", .. CellExecution.E2EFeatures, "--target", RustTarget, "--no-run", "--message-format=json"],
-      repositoryRoot);
+      ["test", "--test", "e2e", .. TlsProvider.HostFeatures(provider), "--target", RustTarget, "--no-run", "--message-format=json"],
+      repositoryRoot)
+    {
+      Environment = TlsProvider.TargetEnvironment(repositoryRoot, "target", provider)
+    };
 
   /// <summary>Picks the simulator from <c>xcrun simctl list devices available --json</c>.</summary>
   /// <param name="configured">A configured name or UDID, if any.</param>
@@ -435,7 +435,9 @@ public sealed class IosCellRunner : ICellRunner
     }
 
     string device = await PrepareAsync(environment.RepositoryRoot, cancellationToken);
-    string executable = await E2EBinaryBuilds.BuildAsync(BuildCommand(environment.RepositoryRoot), cancellationToken);
+    string executable = await E2EBinaryBuilds.BuildAsync(
+      BuildCommand(environment.RepositoryRoot, TlsProvider.Current),
+      cancellationToken);
     await WarmUpAsync(device, executable, environment, cell, cancellationToken);
     Dictionary<string, string> variables = ChildVariables(CellExecution.ScenarioVariables(environment, cell));
     ProcessCommand command = new(

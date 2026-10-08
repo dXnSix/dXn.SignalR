@@ -204,4 +204,6 @@ async fn scenario(protocol: Protocol) {
     clear_proxy_variables();
 }
 
-crate::protocol_tests!("proxy");
+// A dozen tunnelled connections take most of a minute on an emulator; the catalog bounds the
+// cell at 120 seconds.
+crate::protocol_tests!("proxy", std::time::Duration::from_secs(110));
