@@ -170,10 +170,11 @@ public sealed class AndroidAppRunnerTests
     string[] app = ["android-app", "android-app-release"];
     foreach(string target in app)
     {
-      // The debug app also proves the system proxy (java.net.ProxySelector through JNI).
+      // The debug app also proves the system proxy (java.net.ProxySelector through JNI); both
+      // prove the typed errors.
       string[] expected = target == "android-app"
-        ? ["connect-negotiate", "invoke", "os-proxy", "tls"]
-        : ["connect-negotiate", "invoke", "tls"];
+        ? ["connect-negotiate", "error-kinds", "invoke", "os-proxy", "tls"]
+        : ["connect-negotiate", "error-kinds", "invoke", "tls"];
       Assert.Equal(TargetKind.Native, ScenarioCatalog.Target(target).Kind);
       Assert.Equal(
         expected,

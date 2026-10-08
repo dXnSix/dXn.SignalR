@@ -18,7 +18,7 @@ const TOKEN: &str = "error-kinds-secret-token";
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const MARGIN: Duration = Duration::from_secs(2);
 
-async fn scenario(protocol: Protocol) {
+pub(crate) async fn scenario(protocol: Protocol) {
     let mut errors = vec![hub_failure(protocol).await];
     errors.extend(rejected_credentials(protocol).await);
     errors.push(unknown_hub(protocol).await);
@@ -208,16 +208,24 @@ async fn invoke_after_disconnect(protocol: Protocol) -> Error {
 }
 
 /// An untrusted certificate: `Tls`. Browsers report it as a failed request, so only native
-/// targets prove it.
+/// targets prove it. Inside the Android test app the platform trusts the run's CA, so the
+/// certificate is the second CA's, as in the `tls` scenario.
 async fn untrusted_certificate(protocol: Protocol) -> Error {
-    let endpoint = support::parse_endpoint(&support::required_variable("RAYX_SIGNALR_E2E_TLS_URL"));
+    let platform_trust = crate::tls::platform_trust();
+    let endpoint = support::parse_endpoint(&support::required_variable(if platform_trust {
+        "RAYX_SIGNALR_E2E_UNTRUSTED_TLS_URL"
+    } else {
+        "RAYX_SIGNALR_E2E_TLS_URL"
+    }));
     let error = SignalRClient::connect_with(&endpoint.host, "test-tls", |configuration| {
         endpoint.apply(configuration);
         support::apply_protocol(configuration, protocol);
         configuration.authenticate_bearer(TOKEN.to_string());
         // As in the `tls` scenario: an `adb shell` binary has no JVM for the platform verifier.
         #[cfg(target_os = "android")]
-        configuration.use_webpki_roots();
+        if !platform_trust {
+            configuration.use_webpki_roots();
+        }
     })
     .await
     .err()

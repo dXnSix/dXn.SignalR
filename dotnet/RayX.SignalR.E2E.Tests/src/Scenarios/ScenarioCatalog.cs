@@ -271,7 +271,8 @@ public static class ScenarioCatalog
     Baseline("pause-resume"),
     Everywhere("pause-resume-stateful"),
     Everywhere("unsent-stream"),
-    Everywhere("error-kinds"),
+    // The typed errors also inside the Android test app, so every e2e job proves them.
+    Everywhere("error-kinds") with { Targets = Set([.. _nativeTargets, .. _browsers, .. _appTargets]) },
     Everywhere("disconnect-every-handle"),
     Everywhere("msgpack-fidelity") with { Protocols = ["messagepack"] },
     Everywhere("callback-dispatch"),

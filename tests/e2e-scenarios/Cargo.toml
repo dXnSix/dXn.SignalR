@@ -12,6 +12,8 @@ path = "src/lib.rs"
 
 [features]
 messagepack = ["rayx-signalr/messagepack"]
+# The `http3` scenario's module (the app does not run it).
+http3 = ["rayx-signalr/http3"]
 
 [dependencies]
 # The TLS verifier and provider are the harness's choice.

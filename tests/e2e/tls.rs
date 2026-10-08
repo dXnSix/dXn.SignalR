@@ -18,7 +18,7 @@ use crate::support::{self, Protocol};
 
 /// Whether the client runs inside the Android test app, trusting the run's CA through the
 /// platform (the device's user CA store) instead of an extra root.
-fn platform_trust() -> bool {
+pub(crate) fn platform_trust() -> bool {
     std::env::var("RAYX_SIGNALR_E2E_TLS_PLATFORM_TRUST").is_ok_and(|value| value == "1")
 }
 
