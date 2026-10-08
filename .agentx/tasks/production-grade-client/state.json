@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 255,
+  "revision": 259,
   "planRevision": 41,
   "specHashes": {
     "requirements": "0336059f67a37c0c7dc2906bea9d3dd4ab161bbc7a2c1697826ac153d99b1ca5",
@@ -232,13 +232,23 @@
       ]
     },
     "S15.T1": {
-      "status": "pending"
+      "status": "implemented",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S15.T2": {
-      "status": "pending"
+      "status": "implemented",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S15.T3": {
-      "status": "pending"
+      "status": "blocked",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ],
+      "blockerMarkdown": "The user chose (2026-10-08) not to push feat/production-grade-client yet. R11.C2 needs the branch on GitHub. The workflows run on PRs and pushes to master, and perf.yml can be dispatched only once it is on master. Resume when the user pushes or authorizes a push and a draft PR."
     },
     "S2.T5": {
       "status": "done",
@@ -11803,7 +11813,7 @@
       ]
     }
   ],
-  "handoffMarkdown": "HTTP/3 service endpoint and scenario (R15.C2).\n- AppHost QuicSupport (QuicListener.IsSupported on Windows/Linux/macOS; Reason). When supported: an http3 HTTPS endpoint with isProxied: false and TestService__Http3Port. TestService pins Http1AndHttp2AndHttp3 on it and excludes it from /e2e/listening.\n- AspireEnvironment.Http3ServiceUrl (null without QUIC); CellRunners passes RAYX_SIGNALR_E2E_HTTP3_URL. Scenario.QuicHostOnlyReason; E2ESelection.Cells(windowsHost, hostSystemChanges, quicHost). Catalog http3 on native and android (limit 120 s), iOS excluded with the macOS reason. CatalogTests count is QUIC-aware.\n- E2E features now include http3 (CellRunners.E2EFeatures, TlsProvider, contract expectations); the workflow strings are left to S15.\n- tests/e2e/http3.rs (cfg feature http3):\n  - Http3 with LP, all transports (WebSockets skipped) and SSE (json): negotiate and transport are HTTP/3.\n  - WebSockets alone: TransportUnavailable naming RFC 9220.\n  - Http3Preferred: HTTP/3 against the http3 endpoint; falls back to HTTP/2 against the TCP-only https endpoint.\n- Results: native http3 2/2 and Android http3 2/2 pass; contracts 115 pass; LP/SSE invoke, ordinary-reconnect, large-payload, http2 and tls regressions pass.\n- Docs: 02 Experimental HTTP/3 section, 01 and README feature rows, 12 limitations, 14 endpoint/scenario/features, skill.",
+  "handoffMarkdown": "Documentation, memory and consumers (R11.C3).\n- docs/13 Measured performance: full-scale perf on 2026-10-08 (Windows 11 x64, 16 CPUs, .NET 10.0.0, rustc 1.92.0; report artifacts-temp/perf/20261008-075414-10580.json, all 8 rows passed). Invoke p50 1.03-1.06x, send 0.92x, stream 1.95-2.35x, fan-in 1.36-1.40x.\n- README highlights now cover transports, proxies, performance, HTTP/3 and the connect timeout.\n- docs/12 adds Kerberos and OS-proxy hosts to not-covered; docs/14 CI checks list every job; the skill's maintaining reference lists the transports, soak and system-change selectors, host gates and the Performance category; docs/09 matrix.\n- CI tls-aws-lc scenarios aligned with the skill: tls, connect-negotiate, negotiate-redirect, proxy, error-kinds.\n- Library fix found while validating consumers on Rust 1.99 (GameX): ntlm.rs was dead code on Windows (42 warnings). It is now cfg(any(not(windows), test)), and random moved to integrated_auth.\n- Consumers (not pushed; hand over to the user):\n  - RayX worktree D:/Work/projects/RayX/RayX.signalr-consumer, branch feat/rayx-signalr-production-grade-client from master, commit 03b8f6eb: SignalRService returns rayx_signalr::Error, plus the lock. rayx_devkit check, clippy -D warnings and signalr tests pass.\n  - RayX.GameX worktree D:/Work/projects/RayX/RayX.GameX.signalr-consumer, same branch name from master, commit 0418b7e0: remote_source maps the connect error to its text. gamex_sbk_services check passes and its tests are 40/40. GameX master's own clippy already fails in gamex_sbk_abstractions (unrelated); its stale Cargo.lock was left unchanged.\n- Memory: repository-governance/quality-gates state.",
   "protectedPaths": {
     "rayx-signalr": {
       ".agentx/tasks/resilient-reconnect-and-production-gates/**": "a4110a3f5f2c68d64ddf8fbedb70479c98f46dde78b064b5b3ac826772db49a6",
