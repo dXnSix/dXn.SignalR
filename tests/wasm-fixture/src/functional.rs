@@ -1004,7 +1004,9 @@ impl DisconnectionHandler for RecordingHandler {
 }
 
 async fn handled_once(handler: &RecordingHandler) -> Result<Notification, String> {
-    eventually("the handler's reconnect result", 10_000.0, || {
+    // Long Polling in WebKit on a loaded runner can take more than 10 s to reconnect; the
+    // handler logs how long it took.
+    eventually("the handler's reconnect result", 30_000.0, || {
         let handler = handler.clone();
         async move {
             match handler.0.borrow().as_slice() {
