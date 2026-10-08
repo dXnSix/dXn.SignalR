@@ -41,8 +41,8 @@ use it from any UI, a game loop, a service, or a test.
   environment variables, WinHTTP, CFNetwork or Android's `ProxySelector`, including auto-config
   scripts. Explicit HTTP, HTTPS and SOCKS4/5 proxies (`with_proxy`), PAC files
   (`with_proxy_auto_config`) and `without_proxy()` override it.
-- **Fast.** In the same run, server streams are about 2× and fan-in about 1.4× the official .NET
-  client's throughput, with the same invoke latency
+- **Fast.** Measured against the official .NET client in the same run: server streams run at 1.5–2.6×
+  its throughput and fan-in at about 1.4×, while invoke latency and send throughput are on par
   ([measured performance](docs/13-architecture.md#measured-performance)).
 - **Runtime-independent native futures.** Each connection runs on its own Tokio runtime, and its
   futures can be awaited from any executor.

@@ -199,33 +199,39 @@ socket's `CLOSED` state (browser), bounded by the close timeout.
 The `Performance` category ([Testing](14-testing.md#performance)) runs each workload against the
 official .NET client (`Microsoft.AspNetCore.SignalR.Client` 10) in the same Aspire run. Both
 clients use release builds and identical warm-ups, and each figure is the median of three
-alternating rounds. The scheduled `perf / compare` job publishes the same report as its
-`perf-report` artifact.
+alternating rounds. `ReferenceClientBudget` then checks the R2.C4 budgets on those figures:
 
-Full scale (`RAYX_SIGNALR_PERF_SCALE=full`), 2026-10-08. The environment was Windows 11
-(10.0.26300), x64 with 16 logical processors, .NET 10.0.0 and rustc 1.92.0. The client, the
-service and the .NET reference ran on one machine.
+- latency at most 1.10× the .NET client's;
+- throughput at least 0.95× the .NET client's.
+
+The scheduled `perf / compare` job runs both and publishes the report as its `perf-report`
+artifact.
+
+The budget-checked run below is at full scale (`RAYX_SIGNALR_PERF_SCALE=full`), on 2026-10-08. It
+ran on Windows 11 (10.0.26300), x64 with 16 logical processors, .NET 10.0.0 and rustc 1.92.0. The
+client, the service and the .NET reference shared the machine. Every budget held.
 
 | Workload | Protocol | Rust client | .NET client | Ratio |
 |---|---|---|---|---|
-| Invoke latency, p50 | JSON | 164.5 µs | 168.8 µs | 1.03× faster |
-| Invoke latency, p50 | MessagePack | 262.7 µs | 278.9 µs | 1.06× faster |
-| Send throughput | JSON | 609,736 sends/s | 661,661 sends/s | 0.92× |
-| Send throughput | MessagePack | 652,681 sends/s | 712,528 sends/s | 0.92× |
-| Server stream | JSON | 802,662 items/s | 412,073 items/s | 1.95× |
-| Server stream | MessagePack | 1,085,969 items/s | 462,864 items/s | 2.35× |
-| Fan-in (8 clients) | JSON | 42,159 calls/s | 30,908 calls/s | 1.36× |
-| Fan-in (8 clients) | MessagePack | 42,008 calls/s | 30,042 calls/s | 1.40× |
+| Invoke latency, p50 / p99 | JSON | 159.6 / 194.8 µs | 163.4 / 200.1 µs | 0.98× / 0.97× the latency |
+| Invoke latency, p50 / p99 | MessagePack | 158.6 / 192.1 µs | 164.0 / 198.0 µs | 0.97× / 0.97× the latency |
+| Send throughput | JSON | 690,585 sends/s | 700,756 sends/s | 0.99× |
+| Send throughput | MessagePack | 668,365 sends/s | 385,706 sends/s | 1.73× |
+| Server stream | JSON | 1,056,953 items/s | 411,642 items/s | 2.57× |
+| Server stream | MessagePack | 1,212,761 items/s | 789,110 items/s | 1.54× |
+| Fan-in (8 clients) | JSON | 42,698 calls/s | 30,170 calls/s | 1.42× |
+| Fan-in (8 clients) | MessagePack | 42,717 calls/s | 30,694 calls/s | 1.39× |
 
 How to read the results:
 
 - **Invoke latency** is on par with the .NET client.
-- **Send throughput** is within the budget's tolerance. Each `send` completes once the transport
-  accepts the frame, as `SendAsync` does.
-- **Streaming and fan-in** are where the single-pass wire codec pays off.
+- **Streaming and fan-in** are consistently faster, because of the single-pass wire codec.
+- **Send throughput** is close to the .NET client's and varies most between runs, because each
+  `send` completes once the transport accepts the frame, as `SendAsync` does. The .NET client's
+  own MessagePack send rate ranged from about 390,000 to 710,000 sends/s across runs. An earlier
+  full run on the same machine measured the Rust client at 0.92× for send throughput.
 
-Run-to-run noise on a shared machine can exceed the small latency margins, so budgets compare
-ratios within one run, never absolute numbers.
+Budgets therefore compare ratios within one run, never absolute numbers.
 
 ## Invariants
 

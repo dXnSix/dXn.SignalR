@@ -156,7 +156,8 @@ scenarios:
   ASP.NET Core Negotiate authentication, with the current account); the catalog selects it only
   on Windows and excludes the other targets with the reason;
 - additionally inside the Android test app (`android-app`, `android-app-release`): `tls`,
-  `connect-negotiate`, `invoke`;
+  `connect-negotiate`, `invoke`, `error-kinds` (its untrusted-certificate case uses the second
+  CA's listener, because the app trusts the run's CA);
 - native, Chromium, Android and iOS: `suspend-resume`;
 - browsers: `message-burst`, `worker-transport`, `threaded-wasm`, `short-stream-chaining`;
 - native, Chromium and Android: `soak-chaos` and `stateful-resume-stress`.

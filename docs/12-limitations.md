@@ -60,16 +60,30 @@ prove. Each item says what to do instead where there is an alternative.
 
 ## Not covered by tests
 
-The end-to-end suite runs every scenario on Windows, Linux and macOS, in Chromium, Firefox and
-WebKit, on an Android x86_64 emulator and on the iOS simulator. These parts are not exercised:
+The end-to-end suite runs the catalog on Windows, Linux and macOS, in Chromium, Firefox and
+WebKit, on an Android x86_64 emulator, inside the Android test app and on the iOS simulator. Some
+scenarios are excluded from some targets, each with its reason ([Testing](14-testing.md)):
+
+- `http3` runs only where Kestrel serves HTTP/3, so not on macOS, iOS or in browsers.
+- `windows-auth` runs on Windows hosts only.
+- The soak and stress scenarios run on native, Chromium and Android.
+
+These parts are not exercised:
 
 - **Physical devices.** Emulators and simulators do not cover real radios, Doze mode, or iOS
   background suspension. Android arm64-v8a and the iOS device target are compile-checked only.
   The Android platform verifier runs inside the test app on the emulator (`android-app`,
-  `android-app-release`), and `aws-lc-rs` runs the TLS-dependent scenarios on native and Android
-  (`RAYX_SIGNALR_E2E_TLS_PROVIDER=aws-lc-rs`).
+  `android-app-release`), and `aws-lc-rs` runs the TLS-dependent scenarios on native, Android and
+  iOS (`RAYX_SIGNALR_E2E_TLS_PROVIDER=aws-lc-rs`).
 - **Kerberos.** The `windows-auth` scenario authenticates the current Windows account with NTLM
   through SSPI. Kerberos needs a domain, which the test host does not have.
+- **NTLMv2 outside Windows.** `with_credentials` outside Windows uses the crate's own NTLMv2.
+  Unit tests prove it with the MS-NLMP test vectors and scripted exchanges, but no end-to-end cell
+  authenticates with it: the `windows-auth` scenario needs a Windows host, which uses SSPI.
+- **HTTP/3 on Apple targets.** The QUIC client is compile-checked for macOS and iOS only, because
+  Kestrel cannot serve HTTP/3 there.
+- **Performance on one host.** The measured comparison with the .NET client comes from one Windows
+  machine; `perf / compare` repeats it on a Linux runner each week.
 - **OS proxy settings on Windows and macOS hosts.** Only the `e2e / os-proxy` CI jobs change
   them, on ephemeral runners. Developer machines run `os-proxy` only inside the Android test app.
 - **iOS background timing.** Spawned simulator processes are not foreground apps. The iOS runner
