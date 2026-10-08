@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 32,
+  "revision": 34,
   "title": "Production-grade rayx-signalr: typed errors, all transports, proxies, refreshable auth, suspension-aware liveness, proven TLS paths, reference-class performance, and stretch SOCKS/PAC/OS proxies, HTTP/2 and HTTP/3",
   "validationMode": "sprint",
   "repositories": [
@@ -5248,6 +5248,42 @@
         "tools-node/**"
       ],
       "timeoutSeconds": 3600
+    },
+    {
+      "id": "p6-static-categories",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R16.C21",
+        "R16.C27"
+      ],
+      "descriptionMarkdown": "The static .NET categories CLAUDE.md requires for P6's catalog (the `cookies` and `client-certificate` scenarios), runner (client-certificate variables and their redaction), test-service and AppHost changes, and the new `rcgen` dev-dependency: WorkflowContract, Repository, Catalog, Toolchain and DependencySecurity (`cargo-audit`).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=WorkflowContract|Category=Repository|Category=Catalog|Category=Toolchain|Category=DependencySecurity"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 80
+      },
+      "inputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "build.rs",
+        "src/**",
+        "tests/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        ".github/**",
+        "tools-node/**"
+      ],
+      "timeoutSeconds": 3600
     }
   ],
   "finalCheckIds": [
@@ -7124,7 +7160,8 @@
           "checkIds": [
             "p6-client-certificates",
             "p6-client-certificate",
-            "p6-client-certificate-android"
+            "p6-client-certificate-android",
+            "p6-static-categories"
           ],
           "sourceRefs": [
             {

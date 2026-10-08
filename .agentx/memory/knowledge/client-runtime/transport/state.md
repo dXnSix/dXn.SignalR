@@ -4,7 +4,7 @@ agentx:
   scope: client-runtime/transport
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-10-08T23:30:00+02:00"
+  updated: "2026-10-09T03:00:00+02:00"
   topics:
     - http
     - websocket
@@ -27,6 +27,15 @@ Shared `HttpClient` posts to SignalR negotiate version 1, selects WebSockets wit
 Proxies (S9, D13, R8): every native connection (negotiate, WebSocket, Long Polling and Server-Sent Events `Lane`s) opens its TCP stream through `communication/proxy.rs::connect(config, secure, host, port)` under the connect timeout. `ProxyConfig` is `System` (default), `Explicit(ProxyUrl)` or `Disabled`. `System` resolves per connection as .NET `HttpEnvironmentProxy`: `https_proxy`/`HTTPS_PROXY` for secure endpoints, `http_proxy`/`HTTP_PROXY` for plain ones (`HTTP_PROXY` is ignored when `GATEWAY_INTERFACE` is set), else `all_proxy`/`ALL_PROXY`. Each value is parsed in turn, and empty or non-`http://` values are skipped with a warning. `no_proxy`/`NO_PROXY` bypasses use curl rules: hosts with subdomains, IPs, CIDR, `host:port` and `*`. A proxied connection opens an HTTP `CONNECT` tunnel, first without credentials. After a 407 that offers Basic, it retries on a fresh connection with Basic `Proxy-Authorization`. The response head is bounded at 16 KiB and bytes after it are an error. TLS with the connection's own rustls config then runs inside the tunnel. Failures are `ErrorKind::Proxy` (`Error::proxy`) with `status()`: 407 and 403 are not transient, while no status, 408, 429 and 5xx are. `ProxyUrl` percent-decodes credentials and redacts them in Display and Debug. Browsers always use the browser's proxy. HTTPS proxies (R13.C4), SOCKS5, PAC and OS proxy settings are S12.
 
 Since S11 `aws-lc-rs` and the Android platform verifier have runtime proof. With `aws-lc-rs` the TLS-dependent scenarios (`tls`, `connect-negotiate`, `negotiate-redirect`, `proxy`) pass on native and Android. The verifier runs after `init_with_env` inside the test app, in a debug and a minified release APK. On Android the platform verifier trusts system and user CAs (`AndroidCAStore`), not the app's network security config.
+
+Cookies and client certificates (P6, D22).
+
+- Cookie jar (`communication/cookies.rs`, native):
+  - The public `CookieJar` (clones share it; `Debug` shows only a count) serves as .NET's `HttpConnectionOptions.Cookies`; by default each configuration has its own (`with_cookie_jar` shares one), cloned into `ConnectionRecipe.cookies`.
+  - It follows an RFC 6265 subset (host-only and `Domain` matching, where a dot-less domain must equal the host; path match; `Secure`; `Max-Age` over `Expires` with a lenient date parser; token names and header-safe values) with the .NET limits of 4096 B, 20 per domain and 300 total.
+  - It is applied by `headers::with_cookies` (after an application `Cookie` header) and stored from every response (`store_response`) on negotiate (including errors), the upgrade (including stateful resumes) and `http_transport` `Lane` requests.
+- Client certificates: `with_client_certificate(chain_pem, key_pem)` maps to `TlsSettings.client_certificate`, parsed at `new` into `PreparedTls`, and `build_config` uses `with_client_auth_cert`. Errors are `Configuration` naming `with_client_certificate` and never echo the key.
+- TLS error classification: `tls::is_tls_failure`/`classify` map rustls errors found in a source chain to `ErrorKind::Tls` (negotiate handshake, send and body, and the upgrade), covering TLS 1.3 refusals reported after the handshake.
 
 ## Backlinks
 

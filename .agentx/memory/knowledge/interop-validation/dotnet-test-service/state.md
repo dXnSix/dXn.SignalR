@@ -4,7 +4,7 @@ agentx:
   scope: interop-validation/dotnet-test-service
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-10-08T23:30:00+02:00"
+  updated: "2026-10-09T03:00:00+02:00"
   topics:
     - aspnet
     - signalr
@@ -33,6 +33,12 @@ Since S9 `RayX.SignalR.TestProxy` (Aspire resource `test-proxy`) is a raw Kestre
 Cells get `RAYX_SIGNALR_E2E_PROXY_URL`/`_CREDENTIALS`. Native cells and performance binaries run with `ProcessCommand.IsolateFromProxy` (no machine proxy variables), and `Redaction` hides `*_CREDENTIALS=` values and URL user info.
 
 Since S11 `TestCertificates` also issues a server certificate from a second, untrusted CA (`untrusted-server.pem/key`). `UntrustedTlsListener`, a test-only raw `SslStream` listener on loopback port 0, serves it; `/e2e/untrusted-tls` waits for the bind and returns `{port}`. The runner passes `RAYX_SIGNALR_E2E_UNTRUSTED_TLS_URL` (`AspireEnvironment.UntrustedTlsUrl`).
+
+Since P6:
+
+- `AffinityCookies` on `/test-affinity`: issues a `RayXAffinity` cookie on negotiate and answers 403 to later requests without an issued one, counting `AffinityRejections`; reset per cell. `TestHub.AffinityCookie` exposes it.
+- HTTPS client certificates: the HTTPS defaults allow client certificates (`ClientCertificateMode.AllowCertificate`, validated by `ClientCertificates.IssuedBy`, a custom-root chain to the test CA with the clientAuth EKU). `/test-mtls` refuses requests without a certificate with 403. `TestHub.ClientCertificateSubject` reports the subject.
+- Certificates: `TestCertificates` issues `client.pem`/`client.key` (CN=RayX.SignalR E2E Client). The AppHost passes `TestTls__CaPath`; the runner passes `RAYX_SIGNALR_E2E_CLIENT_CERT_PEM_BASE64` and `_CLIENT_KEY_PEM_BASE64`, which are redacted.
 
 ## Backlinks
 

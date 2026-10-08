@@ -1,12 +1,12 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 200,
-  "planRevision": 32,
+  "revision": 210,
+  "planRevision": 34,
   "specHashes": {
     "requirements": "16fb407fdfc6b55f8641348271d85ba83477bcf53e0b30690f4e217989c6e9c2",
     "design": "d5dc2f8682b7b0d7dbc938d2393a28e22b0a97a189c3e0220d909f55d209cabf",
-    "plan": "236397e271dea62376bb645ecd51ade44f0c3b42ae97556e950cbb31f42fc5a7"
+    "plan": "d1b67c092b98f5a3bd93d88136c02b165d62f5674b73e4238c27dfbb863e6b29"
   },
   "tasks": {
     "S1.T1": {
@@ -334,10 +334,16 @@
       ]
     },
     "P6.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "P6.T2": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "P7.T1": {
       "status": "pending"
@@ -529,6 +535,15 @@
         }
       },
       "recordedAt": "2026-10-08T02:21:01Z"
+    },
+    "8ca20146bcd2cd0aa261eb542c37f598fbd6386f8cd96d021602fb67b1867c84": {
+      "snapshot": {
+        "specHash": "7a745d293f03487c3422cad43be841faddd24cb0bcc65aef4a81987a693c4c9b",
+        "repositories": {
+          "rayx-signalr": "a0c518aecca271cc7771be622f44989115082663dd90b1639a9f06c41285e2b6"
+        }
+      },
+      "recordedAt": "2026-10-08T02:51:29Z"
     }
   },
   "checkResults": {
@@ -2520,6 +2535,125 @@
       "logPath": "artifacts-temp/agentx/production-grade-client/S11-final-bf39f2e26346.log",
       "logSha256": "f0d55a6144873aad9db237f13533adecb21d24aa1ccb2bcc5d13025116cd3763",
       "inputsHash": "a3a6a4c35327f7eafc2347001a99609abf4d1984557e153e6a6846d5570e6d5f"
+    },
+    "P6/p6-cookie-jar/final": {
+      "checkId": "p6-cookie-jar",
+      "boundaryId": "P6",
+      "phase": "final",
+      "batchId": "8ca20146bcd2cd0aa261eb542c37f598fbd6386f8cd96d021602fb67b1867c84",
+      "definitionHash": "fb1a8706b39a5f6ff824e9c65b75d80449400061db659b3179a755f4848d196d",
+      "basisHash": "eb5e5ffc8a398609f24d9fb09c2133d013361720abe163586349fa1d96cf0fa5",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 12,
+      "durationSeconds": 8.885,
+      "recordedAt": "2026-10-08T02:49:24Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P6-final-969e9b31c0e1.log",
+      "logSha256": "9120556e728bd76e4cc70faa3dbb48e465aef186b8d6051db3afcb3cc0864a91",
+      "inputsHash": "d791bfe7d42c8c1383fd76744942833621e1526a1f34ab230d26b9e6575bb8ce"
+    },
+    "P6/p6-cookies/final": {
+      "checkId": "p6-cookies",
+      "boundaryId": "P6",
+      "phase": "final",
+      "batchId": "8ca20146bcd2cd0aa261eb542c37f598fbd6386f8cd96d021602fb67b1867c84",
+      "definitionHash": "c2501b2cc28a4193e27c3f7b4fdb1416b63ff9705572ffb550ec7f160bed0efa",
+      "basisHash": "01bf5e1a926b654279eb677556326468b84240cda7993ff7ddf64c834e211fe2",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 27.0501,
+      "recordedAt": "2026-10-08T02:49:51Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P6-final-2596bb959f82.log",
+      "logSha256": "1dd21dbc5f3d16c23186fe0bfa198f61695b223e657ab799c31fa669f7abdce0",
+      "inputsHash": "e8b5a0f16986106cede02267f45c10c7bfb880648e0f856335921a9e87679ecb"
+    },
+    "P6/p6-cookies-android/final": {
+      "checkId": "p6-cookies-android",
+      "boundaryId": "P6",
+      "phase": "final",
+      "batchId": "8ca20146bcd2cd0aa261eb542c37f598fbd6386f8cd96d021602fb67b1867c84",
+      "definitionHash": "3c5bb34af12dd0d5cb580873b7890771f8ba23acedec3ac77a381fc9579f0f38",
+      "basisHash": "7f629483fe8a112ad41967d3fac6f0b69d80bb64fc062fa1a89730ca7d190f3a",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 45.5519,
+      "recordedAt": "2026-10-08T02:50:36Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P6-final-cec66cdebea1.log",
+      "logSha256": "7cd6fd941f3f72c3344631b25b661eada40b912d91294ccd7fd93028c70b7e48",
+      "inputsHash": "e8b5a0f16986106cede02267f45c10c7bfb880648e0f856335921a9e87679ecb"
+    },
+    "P6/p6-client-certificates/final": {
+      "checkId": "p6-client-certificates",
+      "boundaryId": "P6",
+      "phase": "final",
+      "batchId": "8ca20146bcd2cd0aa261eb542c37f598fbd6386f8cd96d021602fb67b1867c84",
+      "definitionHash": "f7ba8b85e532d2fecedd3100d0ceae8a8f12898274b526da8aafce50f20f9d97",
+      "basisHash": "decdc176f5c32202d30de4fb148f5083d6e306b828a2fb2e3da2f13ac12f7fe3",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 5,
+      "durationSeconds": 2.3999,
+      "recordedAt": "2026-10-08T02:50:39Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P6-final-caf693721c8f.log",
+      "logSha256": "d14b254bc83685b0a25a4116e085878ad96792a4188c8f8fda9d11419d41532e",
+      "inputsHash": "d791bfe7d42c8c1383fd76744942833621e1526a1f34ab230d26b9e6575bb8ce"
+    },
+    "P6/p6-client-certificate/final": {
+      "checkId": "p6-client-certificate",
+      "boundaryId": "P6",
+      "phase": "final",
+      "batchId": "8ca20146bcd2cd0aa261eb542c37f598fbd6386f8cd96d021602fb67b1867c84",
+      "definitionHash": "833b3a1fdac7312bf455c4237df87cc02901f03740f7894a5b51bef5b70c8c43",
+      "basisHash": "6540a8d4c5c72a1b941eb1bf5da3cece5c35537f39a5a522047279d6e9ea53ec",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 7.3168,
+      "recordedAt": "2026-10-08T02:50:46Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P6-final-8204a3f38c98.log",
+      "logSha256": "cdc6c49355d868574fbbdac123e20e5309eb802bf3f77e307502213fb1c12a5e",
+      "inputsHash": "e8b5a0f16986106cede02267f45c10c7bfb880648e0f856335921a9e87679ecb"
+    },
+    "P6/p6-client-certificate-android/final": {
+      "checkId": "p6-client-certificate-android",
+      "boundaryId": "P6",
+      "phase": "final",
+      "batchId": "8ca20146bcd2cd0aa261eb542c37f598fbd6386f8cd96d021602fb67b1867c84",
+      "definitionHash": "96aeca89fe7c58ed82be82419161c72d13ca755ebf4cdba3398bc20148e7473a",
+      "basisHash": "b594f0e893497c3ae8e920d55b22bdc86cc3ae8b2762b89f91b65617e04b016d",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 15.8668,
+      "recordedAt": "2026-10-08T02:51:02Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P6-final-4635f5cb5877.log",
+      "logSha256": "a99924242526b626432e555558cb92aae6f03e00d293d1ee2cd29cd4f2f039d0",
+      "inputsHash": "e8b5a0f16986106cede02267f45c10c7bfb880648e0f856335921a9e87679ecb"
+    },
+    "P6/p6-static-categories/final": {
+      "checkId": "p6-static-categories",
+      "boundaryId": "P6",
+      "phase": "final",
+      "batchId": "8ca20146bcd2cd0aa261eb542c37f598fbd6386f8cd96d021602fb67b1867c84",
+      "definitionHash": "74d2834e8a84bd8e643e11f0e86daa16c194dc94a8ee44134ab39cec4d1149e9",
+      "basisHash": "992de811d74be0d442b8d104ab066a341c3ca68435527511ffc18321c760ad80",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 87,
+      "durationSeconds": 26.83,
+      "recordedAt": "2026-10-08T02:51:29Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P6-final-dd16ea2e963d.log",
+      "logSha256": "033999c7f60242baa783992ceba51cc5eb90b2404b3c00810ff9d69e8a5c5e51",
+      "inputsHash": "bf2c0d1655f5e569b882e89865d151eb3a5c2bbf77a1c029d9a79d32edef0e56"
     }
   },
   "reviews": {
@@ -6770,6 +6904,157 @@
         "S11-F8"
       ],
       "recordedAt": "2026-10-08T02:21:06Z"
+    },
+    "P6": {
+      "reviewerId": "p6-independent-reviewer-efe9c365",
+      "snapshotId": "8ca20146bcd2cd0aa261eb542c37f598fbd6386f8cd96d021602fb67b1867c84",
+      "criterionIds": [
+        "R16.C21",
+        "R16.C27"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/cookies.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C21"
+          ],
+          "sha256": "ce215d23c97f49cdab8a4711a9cf4ed78506b0a2de9b96a6081809c689b0ae8f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/headers.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C21"
+          ],
+          "sha256": "1874b7ecbe97f12d292df8e2723f232c07199ed21617f2197839f54e383b5380"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C21",
+            "R16.C27"
+          ],
+          "sha256": "36e2d244f4cc8be9b6c0074dddaf81fad496f1132a072c4953f2b1fadd69f68c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C21",
+            "R16.C27"
+          ],
+          "sha256": "27b1b90c4767594677cd0600a268ad13a9247cd1c18256b61953f7062ad222fe"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/http_transport_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C21",
+            "R16.C27"
+          ],
+          "sha256": "080cdb260d68bae4f39300a5d47aa3a9aed8deec5b31ff937f842b4d69fdbba3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C21",
+            "R16.C27"
+          ],
+          "sha256": "421225c13e45b132d8a21c4e3faa4e622a31a24f83cc9639d7bbb65b3ca79cd3"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/tls.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C27"
+          ],
+          "sha256": "505142c39b4e84626151e98deca870d55c2900d3ff0dbcbff2c5cb6b8dc5cf44"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/cookies.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C21"
+          ],
+          "sha256": "ce215d23c97f49cdab8a4711a9cf4ed78506b0a2de9b96a6081809c689b0ae8f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/tls.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C27"
+          ],
+          "sha256": "505142c39b4e84626151e98deca870d55c2900d3ff0dbcbff2c5cb6b8dc5cf44"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/cookies.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C21"
+          ],
+          "sha256": "c31a6f0429caa1bddae4113e2e01fffc3add6c41485b7736f6230279e181e1a2"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/client_certificate.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C27"
+          ],
+          "sha256": "e46c0a82e58c10ce6da791481795ded52a37554a56a43035704961692ca5af04"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/AffinityCookies.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C21"
+          ],
+          "sha256": "32debaa1ff035576f3cc857ea3e7089935bb3e85501e4d258fd9e5150614f02c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/ClientCertificates.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C27"
+          ],
+          "sha256": "f6ba04178656c3b718f193dca630f1bc6360839cb599a34481ac2cd63bf66803"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/Program.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C21",
+            "R16.C27"
+          ],
+          "sha256": "4ab0512eaaccaa02febde618fd23650bbca2de1e08ca4942c7a354048957e546"
+        }
+      ],
+      "summaryMarkdown": "Re-review at revision 208: P6-F1 through P6-F5 are resolved and verified in the source. The focused groups pass locally: `cookie_jar_` 12 and `client_certificates_` 5. The `check --sprint P6` run passed 7/7, including the native and Android `cookies` and `client-certificate` cells.\n\nCookies are stored and sent on negotiate (including redirects and errors), the upgrade, every LP/SSE request, ordinary reconnects and stateful resume. The jar validates names, values and domains as .NET's `CookieContainer` does, never holds a lock across `.await`, and has a value-free `Debug`. Client certificates are parsed and matched to their key before I/O and used by the single per-connection rustls config with unchanged verification. A TLS-level refusal is now `ErrorKind::Tls`. Residual (non-blocking): LP/SSE `Lane` errors are not TLS-classified. Negotiate always precedes those transports, so a TLS-level refusal surfaces there first.",
+      "findingIds": [
+        "P6-F1",
+        "P6-F2",
+        "P6-F3",
+        "P6-F4",
+        "P6-F5"
+      ],
+      "recordedAt": "2026-10-08T02:52:36Z"
     }
   },
   "checkpoints": {
@@ -6900,6 +7185,14 @@
       },
       "reviewHash": "18426d91ea89a756dd4b6da8ea31444864c75940b8fe2b458772b702b3cc1402",
       "recordedAt": "2026-10-08T02:21:07Z"
+    },
+    "P6": {
+      "snapshotId": "8ca20146bcd2cd0aa261eb542c37f598fbd6386f8cd96d021602fb67b1867c84",
+      "commits": {
+        "rayx-signalr": "8b6594d9cb7c935f4ffcfa5ff5e8fb46433fd9bf"
+      },
+      "reviewHash": "53f70b2f294440a97bfc735beea66113c1cbf8b296f57604b9b355fd29ab3dbc",
+      "recordedAt": "2026-10-08T02:52:59Z"
     }
   },
   "findings": [
@@ -9557,9 +9850,105 @@
           "symbol": "ABuildErrorIsNotAnEnvironmentError"
         }
       ]
+    },
+    {
+      "id": "P6-F1",
+      "boundaryId": "P6",
+      "criterionIds": [
+        "R16.C21"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Domain attribute accepts single-label (TLD) domains.** `src/communication/cookies.rs:311-318` accepts any `Domain` that `domain_matches` the request host, so `Set-Cookie: x=1; Domain=com` from `service.example.com` is stored with `domain = \"com\"`, `host_only = false`. The cookie is then sent to every `*.com` host that uses the same jar, which matters because `with_cookie_jar` exists to share a jar between clients.\n\n- **Expected (.NET `Cookie.VerifySetDefaults`, Plain variant):** an explicit domain without an embedded dot is valid only when it equals the host. Otherwise the cookie is rejected.\n- **Observed:** the cookie is accepted.\n\n**Fix:** in the `\"domain\"` arm, after stripping the leading dot, return `None` when the domain has no `.` and is not equal to `origin.host`. Add a `cookie_jar_` case asserting that `Domain=com` from `service.example.com` is ignored and that `Domain=localhost` from `localhost` is kept.\n\n**Resolution (revision 208):** `parse_set_cookie` (`cookies.rs:330-335`) now rejects a dotless `Domain` unless it equals the host; covered by `Domain=com` (ignored) and `Domain=localhost` from localhost (kept) in `cookie_jar_domain_cookies_reach_subdomains_and_foreign_domains_are_ignored`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/cookies.rs"
+        }
+      ]
+    },
+    {
+      "id": "P6-F2",
+      "boundaryId": "P6",
+      "criterionIds": [
+        "R16.C21"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**`CookieJar::set_cookie` stores names and values that cannot go into an HTTP header, which breaks every later request with a misleading error.** `parse_set_cookie` (`src/communication/cookies.rs:285-291`) only trims and checks the size. A seeded cookie with a CR/LF, a control character or non-ASCII text (for example `jar.set_cookie(url, \"a=\\u{e9}\")`) is stored. `cookie_header` then returns it, and:\n\n- negotiate fails in `negotiate_http.rs:103-108` with `Configuration(\"authentication\")`, \"the credentials are not a valid Authorization header value\";\n- the LP/SSE `Lane::build` (`http_transport_tokio.rs:187-192`) fails the same way;\n- the upgrade (`client_tokio.rs:2213-2229`) fails with `Configuration(\"with_header\")`.\n\nThe connection can never succeed until `clear()`, and the error names the wrong setting. Server `Set-Cookie` values are safe, because `HeaderValue::to_str` already restricts them to visible ASCII. The problem is only the public seeding API.\n\n- **Expected (.NET):** `CookieContainer.SetCookies` and `Cookie` reject reserved characters in names and values (`CookieException`), so invalid cookies never reach a request.\n\n**Fix:** in `parse_set_cookie`, ignore a cookie whose name is not an RFC 7230 token or whose value contains characters outside RFC 6265 cookie-octets (or at least anything outside visible ASCII, `;` or `,`). Add a `cookie_jar_` case that seeds such a cookie and asserts it is ignored and `cookie_header` stays a valid `HeaderValue`.\n\n**Resolution (revision 208):** `valid_name` (RFC token) and `valid_value` (printable ASCII and spaces, no `;`) gate `parse_set_cookie`, so invalid seeded cookies are ignored. Space-in-name, CR/LF, control, non-ASCII and separator cases are in `cookie_jar_ignores_malformed_and_oversized_cookies`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/cookies.rs"
+        }
+      ]
+    },
+    {
+      "id": "P6-F3",
+      "boundaryId": "P6",
+      "criterionIds": [
+        "R16.C27"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**A TLS-level client-certificate refusal is documented as `ErrorKind::Tls` but surfaces as a reconnectable `ErrorKind::Transport`.**\n\n- **Documented:** `docs/08-tls.md:105-106` says a server that requires a certificate and gets none refuses \"the TLS handshake (`ErrorKind::Tls`)\". The skill's `references/tls.md:47` says \"or a TLS failure\".\n- **Observed:** with TLS 1.3 (the rustls and Kestrel default), the client's handshake future completes before the server checks the certificate. The server's `certificate_required` alert arrives on the first read, as the unit test itself notes at `src/communication/tls.rs:762`. Negotiate therefore maps it in `negotiate_http.rs:205-208` to `Error::transport_failure` (`ErrorKind::Transport`, `allows_reconnect = Some(true)`). The upgrade path maps it to a transport upgrade failure. The unit test `client_certificates_absent_a_server_that_requires_one_refuses_the_handshake` hides this by mapping the read error to `Error::tls` itself (`tls.rs:758`), and only `is_err()` is asserted.\n\n**Fix (preferred):** when a negotiate, LP/SSE or upgrade I/O error's source chain contains a `rustls::Error::AlertReceived` (for example `CertificateRequired`, `BadCertificate` or `UnknownCA`) or another `rustls::Error`, classify it as `ErrorKind::Tls`. That makes a permanent refusal non-transient, consistent with how an untrusted server certificate is reported. Assert the kind in the unit test through the real negotiate `post` path instead of a hand-mapped read.\n\n**Fix (alternative):** correct docs/08 and the skill's tls.md to state the actual kind.\n\n**Resolution (revision 208):** `tls::is_tls_failure` and `tls::classify` map the negotiate handshake, send and body-read errors, and `upgrade_failed`, to `ErrorKind::Tls` when a `rustls::Error` is in the source chain. `client_certificates_absent_a_server_that_requires_one_refuses_negotiate_with_tls` asserts `ErrorKind::Tls` through the real `negotiate_http::post`. docs/08 and the skill's tls.md describe the TLS 1.3 post-handshake case.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/tls.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/08-tls.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/tls.md"
+        }
+      ]
+    },
+    {
+      "id": "P6-F4",
+      "boundaryId": "P6",
+      "criterionIds": [
+        "R16.C21"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**`with_cookies` was inserted between `validate`'s doc comment and `validate`.** In `src/communication/headers.rs:92-117`, `with_cookies` now carries the two doc lines that describe `validate` (\"Validates an application header before any I/O...\") followed by its own. `validate` (line 117) is left undocumented.\n\n**Fix:** move the two `validate` doc lines back directly above `pub(crate) fn validate`, and keep only the cookie paragraph on `with_cookies`.\n\n**Resolution (revision 208):** The `validate` doc comment is back on `validate` (`headers.rs:115-117`), and `with_cookies` has only its own doc comment.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/headers.rs"
+        }
+      ]
+    },
+    {
+      "id": "P6-F5",
+      "boundaryId": "P6",
+      "criterionIds": [
+        "R16.C21"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**The cookie on a stateful resume is not covered by any test.** For load-balancer affinity, the stateful resume is the case that most needs the cookie: it does not negotiate, so only the affinity cookie routes it back to the server that holds the buffered connection. By inspection the resume works (`resume_to_server` → `start_transport` → `connect_socket` → `open_websocket` adds `recipe.cookies()`, `client_tokio.rs:2205-2212`). However, neither the `cookie_jar_` group (ordinary reconnect only, `cookies.rs:595-656`) nor the `cookies` scenario (ordinary reconnect only) proves it, and R16.C21 names reconnects.\n\n**Fix:** add a `cookie_jar_` loopback case with `LoopbackOptions { stateful: true, negotiate_cookie: Some(..) }` and `with_stateful_reconnect`. Drop the transport and assert that the resume upgrade request carries the jar's cookie and that no second negotiate happened.\n\n**Resolution (revision 208):** `cookie_jar_a_stateful_resume_sends_the_affinity_cookie_without_negotiating` asserts on the loopback server with stateful reconnect that the resume upgrade carries `ARRAffinity=server-1` and that `negotiations() == 1`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/cookies.rs"
+        }
+      ]
     }
   ],
-  "handoffMarkdown": "Docs (R10.C3 as amended). docs/09 Android Option 1 is now the test app's setup: the settings.gradle.kts Maven repository, org.rustls:rustls-platform-verifier with its version read from Cargo.lock (ValueSource copied from app/build.gradle.kts; the docs previously said group 'rustls'), the ProGuard keep rule, and a JNI init example (jni 0.22, compiled for Android). They also state that the verifier trusts system and user CAs (AndroidCAStore), not the network security config. docs/12: an Android trust caveat bullet; the 'not exercised' bullets for the platform verifier and aws-lc-rs are removed. docs/14: app cells (prerequisites, command, targets, how they run). Skill platforms.md and maintaining.md updated. (Replayed after a local git reset lost the agentx state.)",
+  "handoffMarkdown": "Client certificates (R16.C27, D22).\n- API: ConnectionConfiguration::with_client_certificate(chain_pem, key_pem), native only, stored as TlsSettings.client_certificate. ClientCertificatePem's Debug never shows the key.\n- tls.rs: ClientCertificate::parse (CertificateDer::pem_slice_iter, PrivateKeyDer::from_pem_slice) returns Configuration errors naming with_client_certificate, never echoing the key. PreparedTls carries it, and build_config uses with_client_auth_cert (a mismatched key is a Configuration error). for_connection builds the config before any I/O even for plain endpoints when a client cert is set.\n- Unit group client_certificates_ (5): certificates are generated at test time with the new dev-dependency rcgen 0.14 (ring, pem), so no key is committed. It covers a real mutual-TLS handshake against an in-process rustls server requiring client auth (tls_stream), refusal without a cert, invalid PEM, a mismatched key, and SignalRClient::new validation.\n- TestCertificates issues client.pem/key (CN=RayX.SignalR E2E Client, EKU clientAuth) from the test CA. The AppHost passes TestTls__CaPath. The TestService HTTPS defaults use ClientCertificateMode.AllowCertificate plus ClientCertificates.IssuedBy (custom root trust, clientAuth EKU); the CA is loaded with CreateFromPem without a key. UseRequiredClientCertificates refuses /test-mtls requests without a cert with 403. TestHub.ClientCertificateSubject.\n- Runner: variables RAYX_SIGNALR_E2E_CLIENT_CERT_PEM_BASE64 and _CLIENT_KEY_PEM_BASE64 (the app allow-list excludes them). Redaction covers *_KEY_PEM_BASE64=, tested in ProxyIsolationTests.\n- Scenario client-certificate (catalog native targets): over WS, LP and SSE (JSON) with the CA root and the client cert it connects and invokes, and WS sees the subject; without the cert, negotiate is refused with Authentication 403. Results: native and Android client-certificate+tls 8/8; browser tls 6/6 unaffected by AllowCertificate.\n- Docs: docs/08 Client certificates section (example compiled), docs/02 reference row, README, skill tls and setup-and-connection, docs/14 list.",
   "protectedPaths": {
     "rayx-signalr": {
       ".agentx/tasks/resilient-reconnect-and-production-gates/**": "a4110a3f5f2c68d64ddf8fbedb70479c98f46dde78b064b5b3ac826772db49a6",
