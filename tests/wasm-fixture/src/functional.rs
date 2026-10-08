@@ -86,6 +86,7 @@ pub async fn run_functional_scenario(
         "negotiate-timeout" => negotiate_timeout_scenario(messagepack).await,
         "transport-fallback" => transport_fallback(messagepack).await,
         "client-to-server-stream" => client_to_server_stream(messagepack).await,
+        "suspend-resume" => suspend_resume(messagepack).await,
         other => Err(format!("unknown functional scenario {other}")),
     };
     outcome
@@ -3737,5 +3738,190 @@ async fn ordinary_reconnect(messagepack: bool) -> Outcome {
     reconnecting.unregister();
     reconnected.unregister();
     client.disconnect();
+    Ok(())
+}
+
+/// Asks the Playwright spec to freeze the page for `seconds` (a console readiness line; the spec
+/// stops the page's JavaScript through CDP `Debugger.pause`) and returns when the page ran again, on
+/// the `Date.now()` clock: a 50 ms sleep loop sees the pause.
+async fn freeze_page(seconds: u32) -> Result<f64, String> {
+    let gap = f64::from(seconds) * 1_000.0 * 0.75;
+    let ready = js_sys::Date::now();
+    progress(&format!("RAYX_SIGNALR_SUSPEND_READY seconds={seconds}"));
+    let mut last = ready;
+    loop {
+        sleep(50).await;
+        let now = js_sys::Date::now();
+        if now - last >= gap {
+            progress(&format!(
+                "frozen for {seconds} s: resumed {:.1} s after the readiness line",
+                (now - ready) / 1_000.0
+            ));
+            return Ok(now);
+        }
+        if now - ready >= f64::from(seconds + 20) * 1_000.0 {
+            return Err(format!("the page was not frozen for {seconds} s"));
+        }
+        last = now;
+    }
+}
+
+/// `DelayedConnectionIdentity(delay)` in the background, with the `Date.now()` time it ended.
+fn pending_identity_after(
+    client: &SignalRClient,
+    delay: i32,
+) -> oneshot::Receiver<(Result<String, Error>, f64)> {
+    let mut clone = client.clone();
+    spawn(async move {
+        let result = clone
+            .invoke_with_args::<String, _>("DelayedConnectionIdentity".to_string(), |arguments| {
+                arguments.argument(delay);
+            })
+            .await;
+        (result, js_sys::Date::now())
+    })
+}
+
+/// Suspension, as the native scenario: a stateful and an ordinary client (both with a
+/// reconnection policy) each leave an invocation pending while the page is frozen. Frozen for
+/// 20 s (shorter than the service's 30-second client timeout), both keep their connections and
+/// their invocations complete; frozen for 40 s (the server then ends both hub connections),
+/// within 5 s of running again both have failed their pending invocations with a connection
+/// error and reconnected on new connections.
+async fn suspend_resume(messagepack: bool) -> Outcome {
+    use rayx_signalr::StatefulReconnectConfig;
+
+    const RECOVERY_MS: f64 = 5_000.0;
+    let stateful = connect("test-stateful", messagepack, |configuration| {
+        configuration.with_stateful_reconnect(StatefulReconnectConfig::default());
+        configuration.with_reconnection_policy(fast_reconnect());
+    })
+    .await?;
+    let ordinary = connect("test", messagepack, |configuration| {
+        configuration.with_reconnection_policy(fast_reconnect());
+    })
+    .await?;
+    let mut clients = [
+        ("stateful", stateful.clone()),
+        ("ordinary", ordinary.clone()),
+    ];
+    let mut identities = Vec::new();
+    let mut events = Vec::new();
+    let mut hooks = Vec::new();
+    for (_, client) in clients.iter_mut() {
+        identities.push(identity(client).await.map_err(|error| error.to_string())?);
+        let recorded = Rc::new(RefCell::new(Vec::<(&'static str, f64)>::new()));
+        let (reconnecting, reconnected, closed) =
+            (recorded.clone(), recorded.clone(), recorded.clone());
+        hooks.push(unregistering(client.on_reconnecting(move |_| {
+            reconnecting
+                .borrow_mut()
+                .push(("reconnecting", js_sys::Date::now()));
+        })));
+        hooks.push(unregistering(client.on_reconnected(move |_| {
+            reconnected
+                .borrow_mut()
+                .push(("reconnected", js_sys::Date::now()));
+        })));
+        hooks.push(unregistering(client.on_closed(move |_| {
+            closed.borrow_mut().push(("closed", js_sys::Date::now()));
+        })));
+        events.push(recorded);
+    }
+
+    // Shorter than the client timeout: both connections survive.
+    let pending = [
+        pending_identity_after(&stateful, 10_000),
+        pending_identity_after(&ordinary, 10_000),
+    ];
+    sleep(1_000).await;
+    freeze_page(20).await?;
+    for (((name, _), pending), expected) in clients.iter().zip(pending).zip(&identities) {
+        let (result, _) = pending
+            .await
+            .map_err(|_| format!("the {name} invocation was dropped"))?;
+        let id = result.map_err(|error| format!("the {name} invocation failed: {error}"))?;
+        ensure!(&id == expected, "{name}: {id} != {expected}");
+    }
+    // Past the moment the server would have timed the clients out without their Pings.
+    sleep(12_000).await;
+    for (((name, client), expected), recorded) in clients.iter_mut().zip(&identities).zip(&events) {
+        ensure!(
+            client.status() == ConnectionStatus::Connected,
+            "the {name} client is {:?}",
+            client.status()
+        );
+        let id = identity(client).await.map_err(|error| error.to_string())?;
+        ensure!(
+            &id == expected,
+            "the {name} client changed connections: {id}"
+        );
+        ensure!(
+            recorded.borrow().is_empty(),
+            "{name}: {:?}",
+            recorded.borrow()
+        );
+    }
+
+    // Longer than the client timeout: the server ends both hub connections.
+    let pending = [
+        pending_identity_after(&stateful, 120_000),
+        pending_identity_after(&ordinary, 120_000),
+    ];
+    sleep(1_000).await;
+    let resumed_at = freeze_page(40).await?;
+    for ((name, _), pending) in clients.iter().zip(pending) {
+        let (result, failed_at) = pending
+            .await
+            .map_err(|_| format!("the {name} invocation was dropped"))?;
+        let error = match result {
+            Ok(id) => return Err(format!("the {name} invocation completed with {id}")),
+            Err(error) => error,
+        };
+        // The closed socket, a server Close, or the server timeout found by suspension detection.
+        ensure!(
+            matches!(
+                error.kind(),
+                ErrorKind::Transport | ErrorKind::ConnectionClosed
+            ) || error.timeout_operation() == Some(TimeoutOperation::ServerTimeout),
+            "{name}: {error}"
+        );
+        if failed_at - resumed_at > RECOVERY_MS {
+            return Err(format!(
+                "the {name} invocation failed {} ms after resuming",
+                failed_at - resumed_at
+            ));
+        }
+    }
+    for (((name, client), expected), recorded) in clients.iter_mut().zip(&identities).zip(&events) {
+        let reconnected_at = eventually("the reconnect after the long freeze", 15_000.0, || {
+            let recorded = recorded.clone();
+            async move {
+                recorded
+                    .borrow()
+                    .iter()
+                    .find(|(event, _)| *event == "reconnected")
+                    .map(|(_, at)| *at)
+            }
+        })
+        .await?;
+        if reconnected_at - resumed_at > RECOVERY_MS {
+            return Err(format!(
+                "the {name} client reconnected {} ms after resuming",
+                reconnected_at - resumed_at
+            ));
+        }
+        let id = identity(client).await.map_err(|error| error.to_string())?;
+        ensure!(
+            &id != expected,
+            "the {name} client kept its old connection {id}"
+        );
+    }
+
+    for unregister in hooks {
+        unregister();
+    }
+    stateful.disconnect();
+    ordinary.disconnect();
     Ok(())
 }

@@ -50,6 +50,7 @@ mod stateful_resume_fallback;
 mod stateful_resume_stress;
 mod stateful_transparent_resume;
 mod stream_cancellation;
+mod suspend_resume;
 mod tls;
 mod token_factory;
 mod transport_fallback;

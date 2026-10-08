@@ -44,6 +44,12 @@ public sealed record Scenario(string Name, IReadOnlySet<string> Targets)
     || (TransportBaseline
         && !(transport == ScenarioCatalog.ServerSentEvents && protocol == "messagepack"));
 
+  /// <summary>
+  /// Gets whether the runner suspends the scenario process after its readiness line
+  /// (<see cref="Suspension"/>); browsers freeze the page from the Playwright spec.
+  /// </summary>
+  public bool Suspends { get; init; }
+
   /// <summary>Gets a scenario-specific cell bound that replaces the default one.</summary>
   public TimeSpan? Limit { get; init; }
 
@@ -186,6 +192,17 @@ public static class ScenarioCatalog
     Everywhere("negotiate-timeout"),
     Everywhere("transport-fallback"),
     Everywhere("client-to-server-stream"),
+    // The process is suspended (the Chromium page frozen) for 40 s, so the bound is longer.
+    new("suspend-resume", Set([_native, _chromium, _android, _ios]))
+    {
+      Suspends = true,
+      Limit = TimeSpan.FromSeconds(120),
+      Exclusions = new Dictionary<string, string>
+      {
+        [_firefox] = "the page is frozen through CDP (Debugger.pause), which Playwright offers only for Chromium",
+        [_webkit] = "the page is frozen through CDP (Debugger.pause), which Playwright offers only for Chromium"
+      }
+    },
     new("soak-chaos", Set([_native, _chromium, _android]))
     {
       Soak = true,

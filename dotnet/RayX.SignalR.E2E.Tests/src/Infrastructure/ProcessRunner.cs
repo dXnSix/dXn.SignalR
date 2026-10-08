@@ -113,10 +113,27 @@ public static class ProcessRunner
   /// <param name="timeout">The hard bound.</param>
   /// <param name="cancellationToken">Cancels the run and kills the process tree.</param>
   /// <returns>The captured result.</returns>
+  public static Task<ProcessResult> RunAsync(
+    ProcessCommand command,
+    TimeSpan timeout,
+    CancellationToken cancellationToken = default) =>
+    RunAsync(command, timeout, null, cancellationToken);
+
+  /// <summary>
+  /// Runs <paramref name="command"/> as <see cref="RunAsync(ProcessCommand, TimeSpan, CancellationToken)"/>,
+  /// showing each standard output line to <paramref name="outputLine"/> as it arrives (for example
+  /// a readiness line).
+  /// </summary>
+  /// <param name="command">The command.</param>
+  /// <param name="timeout">The hard bound.</param>
+  /// <param name="outputLine">Sees each standard output line as it arrives.</param>
+  /// <param name="cancellationToken">Cancels the run and kills the process tree.</param>
+  /// <returns>The captured result.</returns>
   public static async Task<ProcessResult> RunAsync(
     ProcessCommand command,
     TimeSpan timeout,
-    CancellationToken cancellationToken = default)
+    Action<string>? outputLine,
+    CancellationToken cancellationToken)
   {
     ProcessStartInfo startInfo = StartInfo(command);
 
@@ -127,7 +144,14 @@ public static class ProcessRunner
     StringBuilder error = new();
     TaskCompletionSource outputClosed = new(TaskCreationOptions.RunContinuationsAsynchronously);
     TaskCompletionSource errorClosed = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    process.OutputDataReceived += (_, line) => Append(output, line.Data, outputClosed);
+    process.OutputDataReceived += (_, line) =>
+    {
+      Append(output, line.Data, outputClosed);
+      if(line.Data is not null)
+      {
+        outputLine?.Invoke(line.Data);
+      }
+    };
     process.ErrorDataReceived += (_, line) => Append(error, line.Data, errorClosed);
     if(!process.Start())
     {

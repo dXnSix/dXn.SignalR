@@ -289,7 +289,17 @@ public sealed class NativeCellRunner : ICellRunner
       Environment = CellExecution.ScenarioVariables(environment, cell),
       IsolateFromProxy = true
     };
-    ProcessResult result = await ProcessRunner.RunAsync(command, cell.Scenario.Bound, cancellationToken);
+    SuspensionController? suspension = cell.Scenario.Suspends ? Suspension.Host() : null;
+    ProcessResult result = await ProcessRunner.RunAsync(
+      command,
+      cell.Scenario.Bound,
+      suspension is null ? null : suspension.OnOutputLine,
+      cancellationToken);
+    if(suspension is not null)
+    {
+      result = await suspension.CompleteAsync(result);
+    }
+
     return CellExecution.JudgeLibtest(command, result);
   }
 }
