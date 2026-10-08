@@ -1381,7 +1381,9 @@ mod transport_selection {
             .build()
             .unwrap();
         let _entered = runtime.enter();
+        // Plaintext, so builds without TLS features reach the transport check.
         let error = crate::SignalRClient::new("127.0.0.1", "hub", |configuration| {
+            configuration.unsecure();
             configuration.skip_negotiation();
         })
         .err()
@@ -1390,6 +1392,7 @@ mod transport_selection {
         assert_eq!(error.setting(), Some("skip_negotiation"));
         assert!(
             crate::SignalRClient::new("127.0.0.1", "hub", |configuration| {
+                configuration.unsecure();
                 configuration.skip_negotiation();
                 configuration.with_transports(Transports::WEB_SOCKETS);
             })

@@ -3263,6 +3263,8 @@ mod wire_parity {
             ("Sec-WebSocket-Protocol", "x"),
         ] {
             let error = SignalRClient::new("127.0.0.1", "hub", |configuration| {
+                // Plaintext, so builds without TLS features reach the header check.
+                configuration.unsecure();
                 configuration.with_header(name, value);
             })
             .err()

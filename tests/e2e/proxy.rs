@@ -44,7 +44,8 @@ pub(crate) struct Stats {
     /// SOCKS5 requests, and the address type each named its destination with.
     pub(crate) socks: u64,
     pub(crate) socks_address_types: Vec<u8>,
-    /// PAC scripts served.
+    /// PAC scripts served (read by `proxy-pac`, which iOS does not build).
+    #[cfg_attr(target_os = "ios", allow(dead_code))]
     pub(crate) pac_scripts: u64,
     /// The TLS listener's port (`https://` proxies) and the TLS sessions clients opened with it.
     pub(crate) tls_port: u16,

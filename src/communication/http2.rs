@@ -670,6 +670,7 @@ mod http2_tests {
             let runtime = tokio::runtime::Runtime::new().unwrap();
             let _entered = runtime.enter();
             crate::SignalRClient::new("localhost", "hub", |c| {
+                c.unsecure();
                 c.with_credentials("user", "password", "DOMAIN");
                 c.with_http_version(HttpVersion::Http2);
             })

@@ -269,8 +269,14 @@ pub(crate) fn cf_routes(proxies: &[CfProxy]) -> Vec<OsRoute> {
         .collect()
 }
 
+// The readers that report it: WinHTTP, CFNetwork, and Android's (with the platform verifier's JVM).
 #[cfg_attr(
-    not(any(windows, target_os = "macos", target_os = "ios", target_os = "android")),
+    not(any(
+        windows,
+        target_os = "macos",
+        target_os = "ios",
+        all(target_os = "android", feature = "tls-platform-verifier")
+    )),
     allow(dead_code)
 )]
 fn system_failure(message: impl std::fmt::Display) -> Error {
