@@ -124,7 +124,7 @@ scenarios:
   `restart-after-stop`, `lifecycle-events`, `connection-id`, `graceful-stop`,
   `reconnect-call-wait`, `request-headers`, `stateful-transparent-resume`,
   `stateful-resume-fallback`; `msgpack-fidelity` everywhere with MessagePack only;
-- native, Android and iOS: `executor-independence`, `proxy`;
+- native, Android and iOS: `executor-independence`, `proxy`, `cookies`, `client-certificate`;
 - additionally inside the Android test app (`android-app`, `android-app-release`): `tls`,
   `connect-negotiate`, `invoke`;
 - native, Chromium, Android and iOS: `suspend-resume`;

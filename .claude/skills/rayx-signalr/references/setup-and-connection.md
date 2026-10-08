@@ -75,6 +75,7 @@ let mut client = SignalRClient::connect_with("localhost", "hubs/chat", |c| {
 | `with_close_timeout(Duration)` | all | 5 s |
 | `with_long_polling_timeout(Duration)` | all | 100 s |
 | `with_proxy(url)` / `with_system_proxy()` / `without_proxy()` | native | system proxy |
+| `with_cookie_jar(CookieJar)` | native | a jar per client |
 | `with_messagepack_protocol()` | all, `messagepack` | JSON |
 | `with_keep_alive_interval(Duration)` | all | 15 s |
 | `with_server_timeout(Duration)` | all | 30 s (a value not above keep-alive is logged) |
@@ -85,6 +86,7 @@ let mut client = SignalRClient::connect_with("localhost", "hubs/chat", |c| {
 | `with_stateful_reconnect(StatefulReconnectConfig)` | all | off |
 | `with_runtime_handle(tokio::runtime::Handle)` | native | ambient runtime |
 | `with_additional_root_certificates_pem(impl Into<Vec<u8>>)` | native | none |
+| `with_client_certificate(chain_pem, key_pem)` | native | none |
 | `use_webpki_roots()` | native, `tls-webpki-roots` | platform verifier |
 
 ## Authentication
@@ -124,6 +126,12 @@ server must read `access_token` for hub paths (JWT `OnMessageReceived`).
   All three start on both targets; MessagePack skips Server-Sent Events, and a MessagePack
   connection restricted to Server-Sent Events alone fails `new` with `Configuration`
   (`with_transports`).
+- Cookies (native; browsers manage their own): `CookieJar` as .NET `HttpConnectionOptions.Cookies`;
+  negotiate, upgrade and LP/SSE responses store `Set-Cookie`, every native request sends the
+  matching cookies, across reconnects (affinity cookies). `CookieJar::new()`, `set_cookie(url,
+  header)`, `cookie_header(url)`, `len`/`is_empty`/`clear`; clones share. RFC 6265 subset (host-only
+  and `Domain`, `Path`, `Secure`, `Expires`, `Max-Age`), .NET limits 4096 B / 20 per domain / 300.
+  An application `Cookie` header goes first.
 - Proxies (native; browsers use the browser's): default system proxy as .NET
   `HttpEnvironmentProxy`, read per connection: `https_proxy`/`HTTPS_PROXY` (secure),
   `http_proxy`/`HTTP_PROXY` (plain; `HTTP_PROXY` ignored when `GATEWAY_INTERFACE` is set),

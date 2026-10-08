@@ -325,6 +325,31 @@ status) and 5xx are. Proxy credentials never appear in logs or errors. A proxy U
 `http://[user:password@]host[:port]` fails `new` and `connect` with `ErrorKind::Configuration`
 naming `with_proxy`.
 
+## Cookies
+
+Native clients keep cookies as the .NET client's `HttpConnectionOptions.Cookies`
+(`CookieContainer`): every negotiate response, the WebSocket upgrade and every Long Polling or
+Server-Sent Events response store their `Set-Cookie` headers, and every native request sends the
+cookies that match its URL, across reconnects. A load balancer's affinity cookie (for example
+Azure App Service's `ARRAffinity`) therefore keeps the connection on the server that negotiated
+it. Each client has its own jar; pass a `CookieJar` to share one
+between clients, or keep a clone to read or seed it:
+
+```rust
+let jar = rayx_signalr::CookieJar::new();
+jar.set_cookie("https://hub.example.com/chat", "tenant=blue; Path=/");
+let client = rayx_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
+    c.with_cookie_jar(jar.clone());
+})?;
+// After connecting: jar.cookie_header("https://hub.example.com/chat")
+```
+
+The jar follows RFC 6265 for host-only and `Domain` cookies, `Path`, `Secure` (sent only over
+`https`/`wss` and accepted only from them), `Expires` and `Max-Age`, with the .NET container's
+limits (4096 bytes per cookie, 20 per domain, 300 in all). A `Cookie` header set with
+`with_header` goes first, followed by the jar's cookies. Browsers manage cookies themselves:
+`fetch` and the `WebSocket` send the browser's cookies for the hub's origin.
+
 ## Hub protocol
 
 JSON is the default. With the `messagepack` feature:
@@ -378,6 +403,8 @@ otherwise the runtime `connect` is called from, otherwise `connect` fails before
 | `with_close_timeout(Duration)` | all | 5 s | [Lifecycle](06-connection-lifecycle.md#stopping) |
 | `with_long_polling_timeout(Duration)` | all | 100 s | [Long Polling](#long-polling) |
 | `with_proxy(url)`, `with_system_proxy()`, `without_proxy()` | native | the system proxy | [Proxies](#proxies) |
+| `with_cookie_jar(CookieJar)` | native | a jar per client | [Cookies](#cookies) |
+| `with_client_certificate(chain_pem, key_pem)` | native | none | [TLS](08-tls.md#client-certificates) |
 | `with_reconnection_policy(ReconnectionConfig)` | all | never reconnect | [Reconnection](07-reconnection.md) |
 | `with_disconnection_handler(handler)` | all | none | [Manual reconnection](07-reconnection.md#manual-reconnection) |
 | `with_stateful_reconnect(StatefulReconnectConfig)` | all | off | [Stateful reconnect](07-reconnection.md#stateful-reconnect) |

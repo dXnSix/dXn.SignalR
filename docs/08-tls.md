@@ -82,6 +82,30 @@ not replace it, except on Android as shown above.
 For development servers, either pass the development CA's certificate here, or install it in the
 operating system's trust store and keep the platform verifier.
 
+## Client certificates
+
+Present a client certificate to servers that ask for one (mutual TLS), as the .NET client's
+`HttpConnectionOptions.ClientCertificates`, with `with_client_certificate`:
+
+```rust
+let chain = std::fs::read("certs/client.pem")?; // the certificate, then any intermediates
+let key = std::fs::read("certs/client.key")?; // its private key
+let client = rayx_signalr::SignalRClient::connect_with("internal.example.com", "hub", move |c| {
+    c.with_client_certificate(chain.clone(), key.clone());
+})
+.await?;
+```
+
+Every native TLS connection of the client presents it when the server requests a certificate:
+negotiate, the WebSocket, Long Polling and Server-Sent Events, also after reconnects. The chain is
+one or more `CERTIFICATE` blocks with the leaf first; the key is PKCS#8, PKCS#1 or SEC1 PEM.
+Malformed PEM, or a key that does not belong to the certificate, fails `new` and `connect` with
+`ErrorKind::Configuration` naming `with_client_certificate`, before any I/O; errors never contain
+the key. A server that requires a certificate and gets none usually refuses the negotiate request
+(`ErrorKind::Authentication` with status 403 from ASP.NET Core's client-certificate checks) or the
+TLS handshake (`ErrorKind::Tls`, also when, under TLS 1.3, the refusal arrives just after the
+handshake). Browsers choose client certificates from their own store.
+
 ## Redirects to secure endpoints
 
 A plaintext connection can be redirected by negotiation to an `https` endpoint (Azure SignalR

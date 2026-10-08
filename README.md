@@ -34,7 +34,7 @@ use it from any UI, a game loop, a service, or a test.
   keep-alive pings, server timeouts, a bounded handshake, and suspension detection that recovers
   at once when a suspended app or frozen page runs again.
 - **Native TLS with rustls.** No OpenSSL. The platform trust store or bundled roots, `ring` or
-  `aws-lc-rs`, and per-connection private CAs.
+  `aws-lc-rs`, per-connection private CAs, and client certificates (`with_client_certificate`).
 - **Runtime-independent native futures.** Each connection runs on its own Tokio runtime, and its
   futures can be awaited from any executor.
 - **A browser transport for threads.** Event-driven, so it runs on the main thread, in Web Workers
@@ -42,7 +42,8 @@ use it from any UI, a game loop, a service, or a test.
 - **Negotiation and headers as the official clients do it.** Redirects with access tokens (Azure
   SignalR Service), `skip_negotiation()` with `with_transports(Transports::WEB_SOCKETS)` for direct
   WebSocket connections, transport selection (`with_transports`), the official
-  `User-Agent`, application request headers (`with_header`), invocation headers such as W3C
+  `User-Agent`, application request headers (`with_header`), a cookie jar for load-balancer
+  affinity (`with_cookie_jar`, native), invocation headers such as W3C
   `traceparent` (`with_invocation_headers`), and refreshable access tokens
   (`with_access_token_factory`, asked before every negotiate and WebSocket).
 

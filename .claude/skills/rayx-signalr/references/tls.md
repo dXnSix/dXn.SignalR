@@ -39,6 +39,14 @@ rayx-signalr = { git = "...", default-features = false } # plaintext-only native
 | extra roots on Android | webpki over extra roots (+ bundled roots if enabled) |
 | extra roots + `use_webpki_roots()` | bundled + extra roots |
 
+Client certificates (mutual TLS, .NET `HttpConnectionOptions.ClientCertificates`):
+`with_client_certificate(chain_pem, key_pem)` (native): leaf-first `CERTIFICATE` chain plus a
+PKCS#8/PKCS#1/SEC1 key, presented on every native TLS connection (negotiate, WebSocket, LP, SSE,
+reconnects) when the server asks. Bad PEM or a mismatched key fails `new` with
+`Configuration`/`with_client_certificate` before I/O (never echoing the key); a server requiring one
+refuses a client without it (ASP.NET Core: negotiate 403 → `Authentication`, or `Tls`, also for
+a TLS 1.3 refusal read after the handshake).
+
 ```rust
 let ca = std::fs::read("internal-ca.pem").map_err(|e| e.to_string())?;
 let client = SignalRClient::connect_with("internal.example.com", "hub", move |c| {
