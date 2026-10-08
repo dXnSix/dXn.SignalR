@@ -1,12 +1,12 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 176,
-  "planRevision": 25,
+  "revision": 190,
+  "planRevision": 29,
   "specHashes": {
-    "requirements": "301baad898b088983cc76f3e695d1d9345b0ec67d9adb38b5ecbad3f95570709",
-    "design": "a8077634ad8b3ae2469d020c33aeb07eb8bf1dd455f402ef35535a1c3e62a4f1",
-    "plan": "2186f5752b9ffb7eb868277914bf1ca942d74e835e444c3c3c766c1e2999a22c"
+    "requirements": "37870255eb21f54e70ffdbe7f2b279757789abbd741198a130ba4979edc1093a",
+    "design": "9c936115672a8ba6da21f7f470aeef75f385c2bd7d9864a79634c2f4f0919931",
+    "plan": "eb6b71fd63d6366d22b43d32c60e9c447d166500a53ec79cefa00ba9663ab1dd"
   },
   "tasks": {
     "S1.T1": {
@@ -154,13 +154,22 @@
       ]
     },
     "S10.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S10.T2": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S10.T3": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S11.T1": {
       "status": "pending"
@@ -493,6 +502,15 @@
         }
       },
       "recordedAt": "2026-10-07T23:28:38Z"
+    },
+    "310426825283ea5324c445006bcd585b4a6b37d14d3904eb824fe26ddcdae84c": {
+      "snapshot": {
+        "specHash": "b73af0386acc7d3c95b5869d8668524c9432f17dd9bcb71b3b84a70071b7f83a",
+        "repositories": {
+          "rayx-signalr": "e9883e547e5244c2195eb80bb82a7dcd695bfeafbe9c7597a30a81391a3089d9"
+        }
+      },
+      "recordedAt": "2026-10-08T00:59:10Z"
     }
   },
   "checkResults": {
@@ -2348,6 +2366,57 @@
       "logPath": "artifacts-temp/agentx/production-grade-client/S9-final-23a36c009995.log",
       "logSha256": "f626240b6c51cc554bd0299f6faecf1c2493dbdae40c8a64b1a026898eb7146b",
       "inputsHash": "f0837894185b1382dae23a3ed0ca15d4acda8737ed41910060c40087e4776835"
+    },
+    "S10/s10-suspension-unit/final": {
+      "checkId": "s10-suspension-unit",
+      "boundaryId": "S10",
+      "phase": "final",
+      "batchId": "310426825283ea5324c445006bcd585b4a6b37d14d3904eb824fe26ddcdae84c",
+      "definitionHash": "576fb60f66a0597952af26874f051a108787eedea158dc07bf63780d2a025bb9",
+      "basisHash": "5e7a006ea44c6f656b32f513feaa8a8ba0fbad743dfdcb692b7ce8cac867b712",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 11,
+      "durationSeconds": 7.3766,
+      "recordedAt": "2026-10-08T00:50:43Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S10-final-22e4c42ee6ff.log",
+      "logSha256": "564db67c5a11e920d77bce41d2618f3f75eb0f1f931c72b1490a3d9b9f79d2ca",
+      "inputsHash": "2819db8c4d6e2a620f61212c913d9de07948069562182c06fdbae52c1ddef356"
+    },
+    "S10/s10-suspend-native-chromium/final": {
+      "checkId": "s10-suspend-native-chromium",
+      "boundaryId": "S10",
+      "phase": "final",
+      "batchId": "310426825283ea5324c445006bcd585b4a6b37d14d3904eb824fe26ddcdae84c",
+      "definitionHash": "db6eee66ae823c7d24fee844f4f89b7901e8c94b0f1710a280ace7701f97eebb",
+      "basisHash": "11e5150811f5e89208f0290c750a0ded4e8ab04379abbea42850470a650494d9",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 4,
+      "durationSeconds": 325.2293,
+      "recordedAt": "2026-10-08T00:56:08Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S10-final-244ae1cb327f.log",
+      "logSha256": "7de48be1b130754b6baaaeaf448eee05d7d72f4fd221eb4ef41211d2722c8468",
+      "inputsHash": "05261cfff708c6dd6c8664d22deb89ccef218db2ba2929a69119a432cbd16fb1"
+    },
+    "S10/s10-suspend-android/final": {
+      "checkId": "s10-suspend-android",
+      "boundaryId": "S10",
+      "phase": "final",
+      "batchId": "310426825283ea5324c445006bcd585b4a6b37d14d3904eb824fe26ddcdae84c",
+      "definitionHash": "85fa292fe73edec177f064f4a19abda4978c710208ba4b1768acc6761c536964",
+      "basisHash": "12392ca856ec26f82f391af406e996ed37cdca55e366df388bcf0d41dcc75ea0",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 181.9834,
+      "recordedAt": "2026-10-08T00:59:10Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S10-final-8b1e3865eecb.log",
+      "logSha256": "d7a4cd06b0e64537dac2022ff0e2223135f74d87ae48e0af12ba028e407bf927",
+      "inputsHash": "28fdbd62910d191b048efb5c5bdb5508985071167072087ccc936f18b675a4ca"
     }
   },
   "reviews": {
@@ -6170,6 +6239,179 @@
         "S9-F10"
       ],
       "recordedAt": "2026-10-07T23:29:42Z"
+    },
+    "S10": {
+      "reviewerId": "s10-independent-reviewer-opus",
+      "snapshotId": "310426825283ea5324c445006bcd585b4a6b37d14d3904eb824fe26ddcdae84c",
+      "criterionIds": [
+        "R9.C1",
+        "R9.C2",
+        "R9.C3"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/liveness.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R9.C1"
+          ],
+          "sha256": "63e4bdcde6dbde5f868664a8624d14701f31a0525a3ad454d35294debf5a452f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R9.C1"
+          ],
+          "sha256": "819d0ced2f93e220dcddc2563f8aa3c84eff78f537b7ba568f348933db695b8a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R9.C1"
+          ],
+          "sha256": "364091ada35a5a68f7b581db9795ec40ab10e8125061cdad0076ec39bcd83917"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/liveness.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R9.C1"
+          ],
+          "sha256": "63e4bdcde6dbde5f868664a8624d14701f31a0525a3ad454d35294debf5a452f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R9.C1"
+          ],
+          "sha256": "819d0ced2f93e220dcddc2563f8aa3c84eff78f537b7ba568f348933db695b8a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/Suspension.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R9.C2"
+          ],
+          "sha256": "aa73efa11d7b3aaa28d829cc34d67cb33834d4610c6c77ca2527260946996ec2"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/ScenarioCatalog.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R9.C2"
+          ],
+          "sha256": "8113da3ece6b99cbcfc043b77735481b09be73b31ad87b8f5c1d7247ba68ec1a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/CellRunners.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R9.C2"
+          ],
+          "sha256": "85ed77d7c64780374e801f1a44ae4029faf4195e861429bfb338ce826f3303df"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/MobileCellRunners.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R9.C2"
+          ],
+          "sha256": "0a38334fbf82b93f8a5762801a80c170853be0a5587dec4d07e5cd06d0e793a0"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Infrastructure/ProcessRunner.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R9.C2"
+          ],
+          "sha256": "28921fce604eae7c70d88c511c41a3739a7712227a8d4eb3ca51bf9dc852c8f0"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/suspend_resume.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R9.C2"
+          ],
+          "sha256": "ee4558846cb20c9e66f7fa2d53c5d4725cda07d5539814e5ea7fd01b9896afa4"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R9.C2"
+          ],
+          "sha256": "2305102a109de8360595d67beb8dbf5f2a51e44915a215ca3caf01ea62e6ac8d"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tools-node/tests/signalr-suspend.spec.ts",
+          "kind": "test",
+          "criterionIds": [
+            "R9.C2"
+          ],
+          "sha256": "6719a3f5b2cd82c2cd0168b0dbcf58d9e7cd01df39135c491cdd271a2101d747"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/SuspensionTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R9.C2"
+          ],
+          "sha256": "2a62cf1b6053a296933d306b59a37cc42f10e8a9543663e02f00efdb72ac37aa"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/06-connection-lifecycle.md",
+          "kind": "source",
+          "criterionIds": [
+            "R9.C3"
+          ],
+          "sha256": "9aac3b933a4e335113f4596cb703903c1d4aaf9d738214ac268347eeeeecc34b"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/09-platforms.md",
+          "kind": "source",
+          "criterionIds": [
+            "R9.C3"
+          ],
+          "sha256": "0c9989e877c2ad3660a032550cdc76875721623a208830066f84a71ca014f0e2"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/12-limitations.md",
+          "kind": "source",
+          "criterionIds": [
+            "R9.C3"
+          ],
+          "sha256": "e324929dae7f463887a4916c9c333a80e830059e5354a5cfd816a9a4203f11e7"
+        }
+      ],
+      "summaryMarkdown": "Passed at revision 188. All findings are resolved: S10-F1 (stale-deadline lateness and the skipped Ack flush on native), S10-F2 (the deferred-Ack loop test now fails with the F1 fix reverted, confirmed by a mutation run), S10-F3 (`ServerTimeout` parity with .NET `OnServerTimeout`; D9 and R9.C1 amended) and S10-F4 (`Debugger.pause` wording). The clock is monotonic, does not drift, adds missed device sleep and ignores a backwards wall clock. Both receive loops measure lateness from when the wait was scheduled, and a late wake within the server timeout causes no false drop. Long Polling is excluded. No lock or borrow is held across an await. Detection reuses the dropped-transport path with its generation checks. Device-sleep loop tests use a test-only wall skew. The runner suspension controls are test-only and always resume. The catalog bound and the Firefox/WebKit exclusions are recorded, and the docs (06, 09, 12, 14, README, skill) match the behavior.",
+      "findingIds": [
+        "S10-F1",
+        "S10-F2",
+        "S10-F3",
+        "S10-F4"
+      ],
+      "recordedAt": "2026-10-08T01:00:40Z"
     }
   },
   "checkpoints": {
@@ -6284,6 +6526,14 @@
       },
       "reviewHash": "732ca55427d377440931f86baaac55830a87ea05d4a72c44056fe3e5aa6fcea7",
       "recordedAt": "2026-10-07T23:29:48Z"
+    },
+    "S10": {
+      "snapshotId": "310426825283ea5324c445006bcd585b4a6b37d14d3904eb824fe26ddcdae84c",
+      "commits": {
+        "rayx-signalr": "765ebb9ae6dc2fe5b427d9c483283ba9b46c0c75"
+      },
+      "reviewHash": "f57a42d9cf1d482fcf83aa78e32d2ef0ad6cad0eda3366423ef133336d209ae6",
+      "recordedAt": "2026-10-08T01:00:51Z"
     }
   },
   "findings": [
@@ -8673,9 +8923,92 @@
           "symbol": "SignalRClient::start"
         }
       ]
+    },
+    {
+      "id": "S10-F1",
+      "boundaryId": "S10",
+      "criterionIds": [
+        "R9.C1"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**Native receive loop spins and floods Pings after a suspension when a deferred stateful Ack is pending** (`src/communication/client_tokio.rs:1340-1386`).\n\nThe native wake is `min(ack, timeout, tick)` (line 1345) and the lateness check measures `now - wake` (line 1365). A deferred Ack deadline (`acknowledgement_due`) can be in the past when the wait is scheduled: the deadline set before a suspension, or `Some(0)` right after a stateful resume. On `WakeCheck::SuspendedPing` the loop sends a Ping and goes straight to `continue 'receive` (line 1386), skipping `flush_ack`. The next iteration picks the same stale Ack deadline, `instant()` maps it to *now*, the timer fires at once, `check_wake` again reports more than a keep-alive interval late, and another Ping is queued on the unbounded control channel.\n\n**Expected:** one Ping at once, then normal operation with the Ack flushed. **Observed (by inspection):** a hot loop that sends Pings back to back and never sends the Ack. It lasts until a sequenced or Ping frame arrives, or until the silence reaches the server timeout, when `SuspendedDropped` drops a transport that may still be healthy. Trigger: a native stateful connection that receives messages less than 1 s apart (so an Ack is deferred), suspended for more than the keep-alive interval but less than the server timeout, with no inbound data buffered at wake (device sleep or a network gap). The SIGSTOP e2e cells usually read buffered server Pings first, so they do not catch it. The browser loop is not affected: it flushes a due Ack before it schedules the wait.\n\n**Repair:** (a) measure lateness against the time the wait was scheduled for, not a deadline that was already due: record `let scheduled_at = liveness.now()` before the wait and call `liveness.check_wake(wake.max(scheduled_at))`. (b) On `SuspendedPing`, fall through to the normal on-time handling (flush the due Ack, then the timeout check) instead of `continue 'receive`. Add a `suspension_` test that covers it, for example by extracting the wake selection and check into a pure helper: a stale Ack deadline, or one due at 0, is never a late wake, and a late wake with a due Ack still yields the Ack.\n\n**Resolution (revision 186):** fixed. The native loop takes `waiting_since = liveness.now()` when it schedules the wait, calls `check_wake(wake.max(waiting_since))`, and after `SuspendedPing` falls through to the Ack flush and timeout check. The browser loop does the same with `next_deadline.max(now)`. Verified by a mutation run in a scratch copy: with this fix reverted, a strengthened loop test (two hub messages, so the second Ack is deferred) floods Pings, `[Ack 1, Ping, Ping, Ping, ...]`; with the fix it sends one Ping and `Ack 2`. The repo's own regression test does not catch this; see S10-F2.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "CommunicationConnection::run_receiver"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_wasm.rs",
+          "symbol": "run_receiver"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/liveness.rs",
+          "symbol": "suspension_is_measured_from_when_the_wake_was_scheduled"
+        }
+      ]
+    },
+    {
+      "id": "S10-F2",
+      "boundaryId": "S10",
+      "criterionIds": [
+        "R9.C1",
+        "R9.C2"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Loop-level coverage added, but the F1 regression test does not reproduce F1** (`src/communication/client_tokio.rs`, `suspension_receive_loop::suspension_with_a_deferred_ack_sends_one_ping_and_the_ack`).\n\nWhat the repair got right: the `#[cfg(test)]` `WALL_SKEW` (test-only, captured per current-thread test) and the three loop tests are a good design. `suspension_a_wake_after_device_sleep_pings_at_once_and_once` and `..._past_the_server_timeout_reconnects_at_once` prove the tick, the liveness-clock `instant()` conversion and both branches.\n\nThe gap: the deferred-Ack test sends a single hub message. It is the first sequenced message, and `acknowledgement_due` is `Some(0)` for it, so it is acknowledged *at once* while being handled. No Ack is deferred when the device sleeps, and the test passes trivially.\n\n**Evidence:** I copied the working tree to the scratchpad and reverted only the F1 fix (`check_wake(wake)` plus `continue 'receive` after the Ping). All 11 `suspension_` tests still passed. With one change to the test, it failed on the reverted code with a Ping flood (`[Ack{1}, Ping, Ping, Ping, ...]`) and passed on the repaired code (11/11). The change: send a second identical hub message 100 ms after the first (inside the 1 s Ack interval, so its Ack is deferred), then call `sleep_device(20_000)`, and assert `{\"type\":8,\"sequenceId\":2}` instead of `sequenceId 1`.\n\n**Repair:** make that change in `suspension_with_a_deferred_ack_sends_one_ping_and_the_ack`, and fix its comment: the first message is acknowledged at once, and the second defers its Ack.\n\n**Resolution (revision 188):** fixed. The test now sends two identical hub messages 100 ms apart, so the second Ack is deferred, asserts `{\"type\":8,\"sequenceId\":2}`, and its comment is corrected. Mutation check on the current source: with only the F1 fix reverted in a scratch copy, this test fails (10 passed, 1 failed). With the source unchanged, all 11 `suspension_` tests pass.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "symbol": "suspension_receive_loop::suspension_with_a_deferred_ack_sends_one_ping_and_the_ack"
+        }
+      ]
+    },
+    {
+      "id": "S10-F3",
+      "boundaryId": "S10",
+      "criterionIds": [
+        "R9.C1"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Two classifications for the same condition, and a .NET divergence** (`src/communication/liveness.rs:284-297`, `src/communication/client_tokio.rs:1368-1378`, `src/communication/client_wasm.rs:901-910`). When the silence reaches the server timeout, the ordinary deadline path ends the transport with `Error::timed_out(ServerTimeout)`. `resumes_transparently` excludes that error, so the logical connection ends as in .NET. The suspension path reports the same silence as a resumable `ErrorKind::Transport`, so a stateful client first tries a transparent resume. The official client reports a suspension past the server timeout from its 1-second `RunTimerActions` as `OnServerTimeout` (`TimeoutException`), and its hub connection ends without a transport-level resume. Users therefore see a different error kind from .NET in `on_reconnecting`, `on_closed` and pending invocations, and one extra resume round trip that the 30 s `ClientTimeoutInterval` makes almost certain to fail. R9.C1 and D9 currently say \"the reconnect path or stateful resume runs\", so this follows the spec but not the R16 parity rule. **Repair:** either return `Error::timed_out(TimeoutOperation::ServerTimeout, server_timeout)` from `SuspendedDropped`, as .NET does, and update `suspension_drops_the_transport_as_an_ordinary_resumable_loss`, docs/06 (\"`ErrorKind::Transport` ... a stateful connection resumes\") and the skill's lifecycle reference; or record the deliberate deviation and its reason in R9.C1, D9 and docs/06.\n\n**Resolution (revision 186):** fixed. `liveness::suspended_timeout` logs the suspension and returns `Error::timed_out(ServerTimeout, server_timeout)` on both targets, so it is not resumed and the policy runs, as .NET `OnServerTimeout`. This is proven by `suspension_drops_the_transport_with_the_server_timeout_as_dotnet` and the loop test `..._past_the_server_timeout_reconnects_at_once` (reason `Timeout`/`ServerTimeout`, second negotiation within 3 s). D9 (amendment rev 185), docs/06 and the skill lifecycle reference describe it. The e2e and fixture scenarios accept `ServerTimeout`. Amendment rev 187 aligns the R9.C1 wording: the server-timeout error, not resumed, as .NET `OnServerTimeout`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/liveness.rs",
+          "symbol": "suspended_timeout"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/06-connection-lifecycle.md"
+        }
+      ]
+    },
+    {
+      "id": "S10-F4",
+      "boundaryId": "S10",
+      "criterionIds": [
+        "R9.C2"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Stale freeze mechanism in a doc comment and the plan.** `tests/wasm-fixture/src/functional.rs:3744-3746` (`freeze_page`) still says the spec freezes the page through CDP `Page.setWebLifecycleState`. The spec actually uses `Debugger.pause`/`Debugger.resume`, and the amended R9.C2 and D9 say that `Page.setWebLifecycleState` has no effect. The S10.T2 task description in `implementation-plan.json` still lists \"Chromium CDP `Page.setWebLifecycleState`\". **Repair:** change the comment to `Debugger.pause`. Amend the S10.T2 description through `amend` so the plan matches R9.C2 and D9.\n\n**Resolution (revision 186):** fixed. The `freeze_page` comment (functional.rs:3745) and the amended S10.T2 description now name `Debugger.pause`/`Debugger.resume`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "symbol": "freeze_page"
+        }
+      ]
     }
   ],
-  "handoffMarkdown": "Aspire test-proxy (R8.C2). dotnet/RayX.SignalR.TestProxy (in the slnx, referenced by the AppHost): Kestrel ConfigureEndpointDefaults connection middleware handles every connection raw; CONNECT requires Basic rayx:<per-run password> (TestProxy__Password from the runner arg --TestProxy:Password, AspireEnvironment.ProxyPassword) else 407 with Proxy-Authenticate, refuses TestProxy__Deny targets (denied.invalid:80) with 403, maps 10.0.2.2 to loopback, routes tunnels to the service allocated ports to the ports it listens on (service /e2e/listening, looked up once; DCP in between otherwise hides the peer), records tunnel count, refused count and upstream local ports; GET /health, GET /stats. AppHost resource test-proxy with health check; harness waits for it; cells get RAYX_SIGNALR_E2E_PROXY_URL (rewritten for Android) and RAYX_SIGNALR_E2E_PROXY_CREDENTIALS. TestHub.PeerPort. Scenario proxy (catalog native targets; tests/e2e/proxy.rs): plaintext and TLS (test CA) over WebSockets, Long Polling and (JSON) Server-Sent Events each open a tunnel whose port is the service peer; wrong credentials -> Transport error with 407 and no secret; denied target -> 403; system proxy via http_proxy with no_proxy=<service host> bypasses, without it tunnels. Diagnostics: proxy 4/4 on native and Android; contracts incl. Platform 62/62. docs/14 and skill maintaining.",
+  "handoffMarkdown": "Docs (R9.C3): docs/06 Liveness gains 'Suspension detection' (1 s checks, sleep-inclusive clock, late-by-keep-alive rule, Ping vs lost transport, server client timeout ends the hub connection so stateful reconnects, Long Polling) and 'App lifecycle integration' (compiled on_foreground_changed example; iOS sceneDidEnterBackground/sceneDidBecomeActive, Android onStop/onStart, browsers visibilitychange/freeze/resume). docs/09 browser, Android and iOS notes point to it; docs/12 backgrounded-apps limitation rewritten; docs/13 liveness row; docs/14 suspend-resume scenario and runner controls (+ the proxy target line); README lifecycle bullet; skill lifecycle, platforms, maintaining.",
   "protectedPaths": {
     "rayx-signalr": {
       ".agentx/tasks/resilient-reconnect-and-production-gates/**": "a4110a3f5f2c68d64ddf8fbedb70479c98f46dde78b064b5b3ac826772db49a6",

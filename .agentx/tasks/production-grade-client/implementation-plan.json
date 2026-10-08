@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 25,
+  "revision": 29,
   "title": "Production-grade rayx-signalr: typed errors, all transports, proxies, refreshable auth, suspension-aware liveness, proven TLS paths, reference-class performance, and stretch SOCKS/PAC/OS proxies, HTTP/2 and HTTP/3",
   "validationMode": "sprint",
   "repositories": [
@@ -6868,7 +6868,7 @@
         {
           "id": "S10.T2",
           "title": "Suspend-resume scenario and runner controls",
-          "descriptionMarkdown": "Add the readiness line and the `suspend-resume` scenario (native, fixture, Android), runner suspension controls (Windows `NtSuspendProcess` P/Invoke, Unix/iOS `SIGSTOP`/`SIGCONT`, Android `kill -STOP/-CONT`, Chromium CDP `Page.setWebLifecycleState`), the 120 s catalog bound and the Firefox/WebKit exclusion reason.",
+          "descriptionMarkdown": "Add the readiness line and the `suspend-resume` scenario (native, fixture, Android), runner suspension controls (Windows `NtSuspendProcess` P/Invoke, Unix/iOS `SIGSTOP`/`SIGCONT`, Android `kill -STOP/-CONT`, Chromium CDP `Debugger.pause`/`Debugger.resume` (R9.C2 as amended)), the 120 s catalog bound and the Firefox/WebKit exclusion reason.",
           "criterionIds": [
             "R9.C2"
           ],
