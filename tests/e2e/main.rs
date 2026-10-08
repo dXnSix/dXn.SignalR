@@ -6,6 +6,7 @@
 //! `cargo test` (`test = false`) and runs only through `dotnet test`.
 #![cfg(not(target_arch = "wasm32"))]
 
+pub(crate) mod http2;
 pub(crate) mod support;
 
 pub(crate) mod authentication;

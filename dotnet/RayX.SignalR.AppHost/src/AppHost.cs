@@ -18,12 +18,19 @@ IResourceBuilder<ProjectResource> service = builder
     options => options.ExcludeLaunchProfile = true)
   .WithHttpEndpoint(name: "http")
   .WithHttpsEndpoint(name: "https")
+  // HTTP/2 only over plaintext (h2c with prior knowledge) and HTTP/1.1 only over TLS, for the
+  // `http2` scenario; the service pins each one's protocols by its target port.
+  .WithHttpEndpoint(name: "h2c")
+  .WithHttpsEndpoint(name: "https-http1")
   .WithEnvironment("TestTls__CertificatePath", certificates.ServerCertificate)
   .WithEnvironment("TestTls__KeyPath", certificates.ServerKey)
   .WithEnvironment("TestTls__CaPath", certificates.CaCertificate)
   .WithEnvironment("TestTls__UntrustedCertificatePath", certificates.UntrustedServerCertificate)
   .WithEnvironment("TestTls__UntrustedKeyPath", certificates.UntrustedServerKey)
   .WithHttpHealthCheck("/health", endpointName: "http");
+service
+  .WithEnvironment("TestService__Http2OnlyPort", service.GetEndpoint("h2c").Property(EndpointProperty.TargetPort))
+  .WithEnvironment("TestService__Http1OnlyPort", service.GetEndpoint("https-http1").Property(EndpointProperty.TargetPort));
 
 // The test-only HTTP CONNECT proxy of the `proxy` scenario: tunnels need the run's credentials
 // (the test runner passes the password as a secret parameter), and `denied.invalid:80` is on its

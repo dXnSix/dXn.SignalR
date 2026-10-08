@@ -37,6 +37,24 @@ if (builder.Configuration["TestTls:CertificatePath"] is { } certificatePath
         }));
 }
 
+// The `http2` scenario's endpoints: HTTP/2 only (h2c over plaintext) and HTTP/1.1 only (over TLS),
+// identified by the target ports the AppHost allocated; every other endpoint keeps Kestrel's
+// defaults (HTTP/1.1 and HTTP/2 over TLS).
+int? http2OnlyPort = builder.Configuration.GetValue<int?>("TestService:Http2OnlyPort");
+int? http1OnlyPort = builder.Configuration.GetValue<int?>("TestService:Http1OnlyPort");
+builder.WebHost.ConfigureKestrel(kestrel => kestrel.ConfigureEndpointDefaults(listen =>
+{
+    int? port = (listen.EndPoint as System.Net.IPEndPoint)?.Port;
+    if (port is not null && port == http2OnlyPort)
+    {
+        listen.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
+    }
+    else if (port is not null && port == http1OnlyPort)
+    {
+        listen.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1;
+    }
+}));
+
 // A TLS listener whose certificate a second, untrusted CA issued (the `tls` scenario's rejection
 // case in the Android app). It serves nothing after the handshake.
 builder.Services.AddSingleton<UntrustedTlsListener>();
@@ -190,6 +208,8 @@ app.MapGet("/e2e/listening", (Microsoft.AspNetCore.Hosting.Server.IServer server
     return Results.Json(addresses
         .Select(address => new Uri(address.Replace("://*", "://localhost", StringComparison.Ordinal)
             .Replace("://+", "://localhost", StringComparison.Ordinal)))
+        // The protocol-pinned endpoints are not the http/https ones the test proxy routes to.
+        .Where(address => address.Port != http2OnlyPort && address.Port != http1OnlyPort)
         .GroupBy(address => address.Scheme)
         .ToDictionary(group => group.Key, group => group.First().Port));
 });

@@ -69,6 +69,12 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
   /// <summary>Gets the SignalR test service's HTTPS endpoint (served with <see cref="TlsCaPem"/>'s CA).</summary>
   public Uri TlsServiceUrl => App.GetEndpoint(ServiceResource, "https");
 
+  /// <summary>Gets the SignalR test service's HTTP/2-only plaintext (h2c) endpoint.</summary>
+  public Uri H2cServiceUrl => App.GetEndpoint(ServiceResource, "h2c");
+
+  /// <summary>Gets the SignalR test service's HTTP/1.1-only HTTPS endpoint.</summary>
+  public Uri Http1TlsServiceUrl => App.GetEndpoint(ServiceResource, "https-http1");
+
   /// <summary>
   /// Gets the directory of this run's generated TLS certificates and key: outside
   /// <c>artifacts-temp/e2e</c>, which CI uploads on failure, and deleted when the run stops.

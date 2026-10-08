@@ -88,6 +88,9 @@ namespace RayX.SignalR.TestService
 
             lines.Add($"authorization: {(request.Headers.ContainsKey("authorization") ? "present" : "absent")}");
             lines.Add($"access_token: {(request.Query.ContainsKey("access_token") ? "present" : "absent")}");
+            // The HTTP version and the connection the request came on (the http2 scenario).
+            lines.Add($"protocol: {request.Protocol}");
+            lines.Add($"connection: {request.HttpContext.Connection.Id}");
             return [.. lines];
         }
 

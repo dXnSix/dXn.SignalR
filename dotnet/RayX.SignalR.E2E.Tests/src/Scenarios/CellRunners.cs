@@ -65,6 +65,8 @@ public static partial class CellExecution
     Dictionary<string, string> variables = CellVariables(cell);
     variables["RAYX_SIGNALR_E2E_SERVICE_URL"] = Origin(environment.ServiceUrl);
     variables["RAYX_SIGNALR_E2E_TLS_URL"] = Origin(environment.TlsServiceUrl);
+    variables["RAYX_SIGNALR_E2E_H2C_URL"] = Origin(environment.H2cServiceUrl);
+    variables["RAYX_SIGNALR_E2E_HTTP1_TLS_URL"] = Origin(environment.Http1TlsServiceUrl);
     variables["RAYX_SIGNALR_E2E_TLS_CA_PEM_BASE64"] =
       Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(environment.TlsCaPem));
     variables["RAYX_SIGNALR_E2E_UNTRUSTED_TLS_URL"] = Origin(environment.UntrustedTlsUrl);

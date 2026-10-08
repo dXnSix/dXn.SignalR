@@ -193,6 +193,8 @@ public static class ScenarioCatalog
     new("proxy", Set(_nativeTargets)) { Limit = TimeSpan.FromSeconds(120) },
     // The test proxy's SOCKS5 side, with the same reasons and bound.
     new("proxy-socks", Set(_nativeTargets)) { Limit = TimeSpan.FromSeconds(120) },
+    // HTTP/2 over TLS and h2c, and HTTP/1.1 fallback; browsers choose the HTTP version themselves.
+    new("http2", Set(_nativeTargets)) { Limit = TimeSpan.FromSeconds(120) },
     // HTTPS proxies: the test proxy behind TLS, with the same reasons and bound.
     new("proxy-https", Set(_nativeTargets)) { Limit = TimeSpan.FromSeconds(120) },
     // Proxy auto-config scripts the test proxy serves, with the same reasons and bound.
