@@ -30,6 +30,11 @@ prove. Each item says what to do instead where there is an alternative.
   (negotiate, Long Polling, Server-Sent Events sends), as the .NET client does, and log a warning:
   a WebSocket or an `EventSource` cannot carry them, so a standard ASP.NET Core server does not
   authenticate those from them. Use Bearer tokens or an access-token factory in browsers.
+- **Integrated authentication outside Windows.** `with_default_credentials` (the current
+  account) needs Windows SSPI; elsewhere it fails `new` with `ErrorKind::Configuration`, where the
+  .NET client would use the system GSSAPI library. `with_credentials` works everywhere natively,
+  through SSPI on Windows and NTLMv2 elsewhere (no Kerberos outside Windows). Outside Windows, the
+  NTLM target name uses the host as given, not its canonical DNS name.
 - **Android trust with the platform verifier.** The platform verifier trusts the device's system
   and user CAs (Android's `AndroidCAStore`), not the app's network security config: a
   `<trust-anchors>` entry there does not make a private CA trusted. Install the CA on the device

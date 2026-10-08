@@ -44,8 +44,9 @@ use it from any UI, a game loop, a service, or a test.
   WebSocket connections, transport selection (`with_transports`), the official
   `User-Agent`, application request headers (`with_header`), a cookie jar for load-balancer
   affinity (`with_cookie_jar`, native), invocation headers such as W3C
-  `traceparent` (`with_invocation_headers`), and refreshable access tokens
-  (`with_access_token_factory`, asked before every negotiate and WebSocket).
+  `traceparent` (`with_invocation_headers`), refreshable access tokens
+  (`with_access_token_factory`, asked before every negotiate and WebSocket), and integrated Windows
+  authentication (`with_default_credentials`, `with_credentials`, native).
 
 ## Platform support
 

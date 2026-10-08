@@ -67,6 +67,7 @@ let mut client = SignalRClient::connect_with("localhost", "hubs/chat", |c| {
 | `authenticate_bearer(String)` | all | none |
 | `authenticate_basic(String, Option<String>)` | all | none |
 | `with_access_token_factory(async fn)` | all | none |
+| `with_default_credentials()` / `with_credentials(user, password, domain)` | native | none |
 | `skip_negotiation()` | all | negotiate |
 | `with_transports(Transports)` | all | `Transports::all()` |
 | `with_header(name, value)` | all (browser: `fetch` requests only) | none |
@@ -126,6 +127,16 @@ server must read `access_token` for hub paths (JWT `OnMessageReceived`).
   All three start on both targets; MessagePack skips Server-Sent Events, and a MessagePack
   connection restricted to Server-Sent Events alone fails `new` with `Configuration`
   (`with_transports`).
+- Integrated Windows auth (native; .NET `UseDefaultCredentials`/`Credentials`):
+  `with_default_credentials()` (current account, SSPI, Windows only; elsewhere `new` fails with
+  `Configuration`/`with_default_credentials`) or `with_credentials(user, password, domain)` (SSPI on
+  Windows, NTLMv2 elsewhere). First request without credentials; a 401 offering `Negotiate`
+  (preferred) or `NTLM` is answered (negotiate, WebSocket upgrade through hyper, LP/SSE requests)
+  until accepted, on the same connection or a new one after `Connection: close`, each leg with the
+  jar's current cookies; a challenge body over 1 MiB fails (connection not reusable). A rejection, or
+  a Kerberos final token that fails to verify, is `Authentication` 401. SPN `HTTP/<canonical DNS
+  name>` (Windows), integrity required, TLS channel binding (`tls-server-end-point`, Extended
+  Protection). Password never logged.
 - Cookies (native; browsers manage their own): `CookieJar` as .NET `HttpConnectionOptions.Cookies`;
   negotiate, upgrade and LP/SSE responses store `Set-Cookie`, every native request sends the
   matching cookies, across reconnects (affinity cookies). `CookieJar::new()`, `set_cookie(url,

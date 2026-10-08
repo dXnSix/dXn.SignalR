@@ -125,6 +125,9 @@ scenarios:
   `reconnect-call-wait`, `request-headers`, `stateful-transparent-resume`,
   `stateful-resume-fallback`; `msgpack-fidelity` everywhere with MessagePack only;
 - native, Android and iOS: `executor-independence`, `proxy`, `cookies`, `client-certificate`;
+- native on Windows hosts only: `windows-auth` (the test service's `/test-windows` hub behind
+  ASP.NET Core Negotiate authentication, with the current account); the catalog selects it only
+  on Windows and excludes the other targets with the reason;
 - additionally inside the Android test app (`android-app`, `android-app-release`): `tls`,
   `connect-negotiate`, `invoke`;
 - native, Chromium, Android and iOS: `suspend-resume`;

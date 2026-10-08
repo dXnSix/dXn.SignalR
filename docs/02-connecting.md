@@ -121,6 +121,41 @@ reconnect; use `with_access_token_factory` for tokens that expire.
 Negotiation errors name the endpoint without its query string, which may carry tokens; a negotiate
 timeout names only the bound (`negotiate timed out after 2s`).
 
+### Integrated Windows authentication
+
+`with_default_credentials()` authenticates with the current Windows account, and
+`with_credentials(user, password, domain)` with explicit ones, as the .NET client's
+`UseDefaultCredentials` and `Credentials` do:
+
+```rust
+let client = rayx_signalr::SignalRClient::new("intranet.example.com", "chat", |c| {
+    // The signed-in Windows account (Kerberos, or NTLM where Kerberos is unavailable).
+    c.with_default_credentials();
+    // Or explicit credentials: c.with_credentials("user", "password", "CORP");
+})?;
+```
+
+As with `SocketsHttpHandler`, a request goes out without credentials first. When the server answers
+a native negotiate request, WebSocket upgrade, Long Polling or Server-Sent Events request with a
+401 offering `Negotiate` (preferred) or `NTLM`, the client sends it again with the account's tokens
+until the server accepts or rejects them. Each leg reuses the connection, or opens a new one when
+the server sends `Connection: close`, and carries the cookies the earlier legs set. A challenge whose
+body is larger than 1 MiB fails the request, because its connection cannot be reused. A rejection
+fails with `ErrorKind::Authentication` and status 401. When the server's success carries a final
+token (Kerberos mutual authentication), the client verifies it, and a token that does not verify
+fails with 401 as well.
+
+As .NET does, the client names the service `HTTP/<host>`, with the host's canonical DNS name on Windows
+(an IP address as is). It requires integrity protection from the security context, and over TLS it
+binds the tokens to the server's certificate (RFC 5929 `tls-server-end-point`), so servers that
+require Extended Protection accept them. On Windows the client authenticates through SSPI, so
+Negotiate picks Kerberos or NTLM as .NET does. On other native targets, `with_credentials` answers
+with NTLMv2, as .NET's managed NTLM does: signing and key exchange, the target name, the channel
+bindings and the message integrity code. `with_default_credentials`
+there fails `new` with `ErrorKind::Configuration`, because the client has no GSSAPI integration
+(see [Limitations](12-limitations.md)). The password never appears in logs, errors or `Debug`
+output. Browsers use the browser's own integrated authentication and have neither option.
+
 ## Request headers
 
 Every request carries the official clients' headers:
@@ -404,6 +439,7 @@ otherwise the runtime `connect` is called from, otherwise `connect` fails before
 | `with_long_polling_timeout(Duration)` | all | 100 s | [Long Polling](#long-polling) |
 | `with_proxy(url)`, `with_system_proxy()`, `without_proxy()` | native | the system proxy | [Proxies](#proxies) |
 | `with_cookie_jar(CookieJar)` | native | a jar per client | [Cookies](#cookies) |
+| `with_default_credentials()`, `with_credentials(user, password, domain)` | native | none | [Integrated Windows authentication](#integrated-windows-authentication) |
 | `with_client_certificate(chain_pem, key_pem)` | native | none | [TLS](08-tls.md#client-certificates) |
 | `with_reconnection_policy(ReconnectionConfig)` | all | never reconnect | [Reconnection](07-reconnection.md) |
 | `with_disconnection_handler(handler)` | all | none | [Manual reconnection](07-reconnection.md#manual-reconnection) |
