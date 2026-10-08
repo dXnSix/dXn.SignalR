@@ -419,6 +419,9 @@ impl SignalRClient {
             )?;
             recipe.with_tls(tls)
         };
+        // Integrated authentication's provider, refused before any I/O where unavailable.
+        #[cfg(not(target_arch = "wasm32"))]
+        let recipe = recipe.with_integrated(config.integrated_provider()?);
 
         if recipe
             .stateful_reconnect()

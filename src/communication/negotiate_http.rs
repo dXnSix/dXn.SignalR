@@ -12,6 +12,8 @@
     )
 )]
 
+use std::sync::Arc;
+
 use http::{header, Request, Uri};
 use http_body_util::{BodyExt, Empty};
 use hyper::body::Bytes;
@@ -21,7 +23,7 @@ use tokio::{
     net::TcpStream,
 };
 
-use super::tls::TlsContext;
+use super::{integrated_auth::SecurityProvider, tls::TlsContext};
 use crate::error::{Error, TimeoutOperation};
 
 /// POSTs an empty body to `url` within `timeout` (the connection's connect timeout) and returns
@@ -34,11 +36,12 @@ pub(crate) async fn post(
     tls: &TlsContext,
     proxy: &super::proxy::ProxyConfig,
     cookies: &crate::CookieJar,
+    integrated: Option<&Arc<dyn SecurityProvider>>,
     timeout: std::time::Duration,
 ) -> Result<String, Error> {
     tokio::time::timeout(
         timeout,
-        post_unbounded(url, authorization, headers, tls, proxy, cookies),
+        post_unbounded(url, authorization, headers, tls, proxy, cookies, integrated),
     )
     .await
     .map_err(|_| Error::timed_out(TimeoutOperation::Negotiate, timeout))?
@@ -51,6 +54,7 @@ async fn post_unbounded(
     tls: &TlsContext,
     proxy: &super::proxy::ProxyConfig,
     cookies: &crate::CookieJar,
+    integrated: Option<&Arc<dyn SecurityProvider>>,
 ) -> Result<String, Error> {
     let uri: Uri = url.parse().map_err(|error| {
         Error::negotiate(None, format!("the negotiate URL is invalid: {error}"))
@@ -83,37 +87,203 @@ async fn post_unbounded(
 
     // The official clients' headers, composed as the .NET client does (application headers
     // replace defaults; the credentials' Authorization wins).
-    let mut request = Request::post(path)
-        .header(header::HOST, authority.as_str())
-        .header(header::CONTENT_LENGTH, 0);
-    let composed = super::headers::with_cookies(
-        super::headers::compose(
-            &[
-                ("User-Agent", super::headers::user_agent()),
-                ("Accept", "*/*".to_string()),
-            ],
-            headers,
-            authorization,
-        ),
-        cookies.cookie_header(url),
+    let composed = super::headers::compose(
+        &[
+            ("User-Agent", super::headers::user_agent()),
+            ("Accept", "*/*".to_string()),
+        ],
+        headers,
+        authorization,
     );
-    for (name, value) in composed {
-        request = request.header(name.as_str(), value.as_str());
-    }
-    let request = request.body(Empty::<Bytes>::new()).map_err(|_| {
-        Error::configuration(
-            "authentication",
-            "the credentials are not a valid Authorization header value",
-        )
-    })?;
+    // Every leg carries the jar's current cookies; a challenge leg of integrated authentication
+    // carries its token instead of other credentials.
+    let build = |integrated: Option<String>| {
+        let mut request = Request::post(path)
+            .header(header::HOST, authority.as_str())
+            .header(header::CONTENT_LENGTH, 0);
+        let cookie = cookies.cookie_header(url);
+        let mut cookie_sent = false;
+        for (name, value) in &composed {
+            if integrated.is_some() && name.eq_ignore_ascii_case("authorization") {
+                continue;
+            }
+            match (&cookie, name.eq_ignore_ascii_case("cookie")) {
+                (Some(cookie), true) => {
+                    request = request.header(name.as_str(), format!("{value}; {cookie}"));
+                    cookie_sent = true;
+                }
+                _ => request = request.header(name.as_str(), value.as_str()),
+            }
+        }
+        if let (Some(cookie), false) = (cookie, cookie_sent) {
+            request = request.header(header::COOKIE, cookie);
+        }
+        if let Some(integrated) = integrated {
+            request = request.header(header::AUTHORIZATION, integrated);
+        }
+        request.body(Empty::<Bytes>::new()).map_err(|_| {
+            Error::configuration(
+                "authentication",
+                "the credentials are not a valid Authorization header value",
+            )
+        })
+    };
+    // Built once before any I/O, so invalid headers fail first.
+    build(None)?;
 
     // Through the proxy's CONNECT tunnel when one applies; TLS runs inside it.
-    let tcp = super::proxy::connect(proxy, secure, host, port).await?;
-    if secure {
-        send(tls_stream(tls, host, tcp).await?, request, url, cookies).await
-    } else {
-        send(tcp, request, url, cookies).await
+    let open = || {
+        http1::<Empty<Bytes>>(
+            Endpoint {
+                proxy,
+                tls,
+                secure,
+                host,
+                port,
+            },
+            integrated.is_some(),
+            false,
+            |error| {
+                super::tls::classify(
+                    error,
+                    |message| Error::transport_failure(None, message),
+                    "the negotiate HTTP handshake failed",
+                )
+            },
+        )
+    };
+    let mut connection = open().await?;
+    // Integrated-authentication challenges are answered on this connection (or a new one when
+    // the server closes it).
+    let response = super::integrated_auth::send(
+        &mut connection,
+        integrated,
+        host,
+        open,
+        |headers| cookies.store_response(url, headers),
+        build,
+    )
+    .await
+    .map_err(|failure| match failure {
+        super::integrated_auth::ExchangeFailure::Http(error) => super::tls::classify(
+            error,
+            |message| Error::transport_failure(None, message),
+            "the negotiate request failed",
+        ),
+        super::integrated_auth::ExchangeFailure::Connect(error)
+        | super::integrated_auth::ExchangeFailure::Authentication(error) => error,
+    })?;
+    let status = response.status();
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .map_err(|error| {
+            super::tls::classify(
+                error,
+                |message| Error::transport_failure(None, message),
+                "cannot read the negotiate response",
+            )
+        })?
+        .to_bytes();
+    if !status.is_success() {
+        return Err(failure(status, &body));
     }
+    String::from_utf8(body.to_vec()).map_err(|_| {
+        Error::negotiate(
+            Some(status.as_u16()),
+            "the negotiate response is not UTF-8 text",
+        )
+    })
+}
+
+/// Where an HTTP/1.1 connection goes, and through what.
+pub(crate) struct Endpoint<'a> {
+    pub(crate) proxy: &'a super::proxy::ProxyConfig,
+    pub(crate) tls: &'a TlsContext,
+    pub(crate) secure: bool,
+    pub(crate) host: &'a str,
+    pub(crate) port: u16,
+}
+
+/// Opens an HTTP/1.1 connection through the proxy's CONNECT tunnel when one applies, with TLS
+/// inside it for a secure endpoint, and runs it on its own task (with upgrades when `upgrades`).
+/// With `bound`, the connection carries its RFC 5929 channel binding for integrated
+/// authentication. `handshake_error` maps a failed HTTP handshake.
+pub(crate) async fn http1<B>(
+    endpoint: Endpoint<'_>,
+    bound: bool,
+    upgrades: bool,
+    handshake_error: impl FnOnce(hyper::Error) -> Error,
+) -> Result<super::integrated_auth::Connection<B>, Error>
+where
+    B: hyper::body::Body + Send + 'static,
+    B::Data: Send,
+    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
+    let tcp = super::proxy::connect(
+        endpoint.proxy,
+        endpoint.secure,
+        endpoint.host,
+        endpoint.port,
+    )
+    .await?;
+    if endpoint.secure {
+        let stream = tls_stream(endpoint.tls, endpoint.host, tcp).await?;
+        let binding = if bound {
+            channel_binding(&stream)
+        } else {
+            None
+        };
+        let sender = handshake(stream, upgrades, handshake_error).await?;
+        Ok(super::integrated_auth::Connection { sender, binding })
+    } else {
+        let sender = handshake(tcp, upgrades, handshake_error).await?;
+        Ok(super::integrated_auth::Connection {
+            sender,
+            binding: None,
+        })
+    }
+}
+
+async fn handshake<S, B>(
+    stream: S,
+    upgrades: bool,
+    handshake_error: impl FnOnce(hyper::Error) -> Error,
+) -> Result<hyper::client::conn::http1::SendRequest<B>, Error>
+where
+    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    B: hyper::body::Body + Send + 'static,
+    B::Data: Send,
+    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
+    let (sender, connection) = hyper::client::conn::http1::handshake(TokioIo::new(stream))
+        .await
+        .map_err(handshake_error)?;
+    if upgrades {
+        tokio::spawn(async move {
+            let _ = connection.with_upgrades().await;
+        });
+    } else {
+        tokio::spawn(async move {
+            let _ = connection.await;
+        });
+    }
+    Ok(sender)
+}
+
+/// The RFC 5929 `tls-server-end-point` channel binding of a TLS connection.
+#[cfg(rayx_tls)]
+fn channel_binding(stream: &tokio_rustls::client::TlsStream<TcpStream>) -> Option<Vec<u8>> {
+    let certificate = stream.get_ref().1.peer_certificates()?.first()?;
+    Some(super::integrated_auth::tls_server_end_point(
+        certificate.as_ref(),
+    ))
+}
+
+#[cfg(not(rayx_tls))]
+fn channel_binding(_stream: &TcpStream) -> Option<Vec<u8>> {
+    None
 }
 
 /// Opens a TCP connection to the first reachable resolved address, with Nagle's algorithm off:
@@ -179,60 +349,6 @@ pub(crate) async fn tls_stream(
     _tcp: TcpStream,
 ) -> Result<TcpStream, Error> {
     Err(super::tls::tls_disabled())
-}
-
-async fn send<S>(
-    stream: S,
-    request: Request<Empty<Bytes>>,
-    url: &str,
-    cookies: &crate::CookieJar,
-) -> Result<String, Error>
-where
-    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-{
-    let (mut sender, connection) = hyper::client::conn::http1::handshake(TokioIo::new(stream))
-        .await
-        .map_err(|error| {
-            super::tls::classify(
-                error,
-                |message| Error::transport_failure(None, message),
-                "the negotiate HTTP handshake failed",
-            )
-        })?;
-    tokio::spawn(async move {
-        let _ = connection.await;
-    });
-    let response = sender.send_request(request).await.map_err(|error| {
-        super::tls::classify(
-            error,
-            |message| Error::transport_failure(None, message),
-            "the negotiate request failed",
-        )
-    })?;
-    let status = response.status();
-    // Every response's cookies are kept (an affinity cookie may come with a redirect or an error).
-    cookies.store_response(url, response.headers());
-    let body = response
-        .into_body()
-        .collect()
-        .await
-        .map_err(|error| {
-            super::tls::classify(
-                error,
-                |message| Error::transport_failure(None, message),
-                "cannot read the negotiate response",
-            )
-        })?
-        .to_bytes();
-    if !status.is_success() {
-        return Err(failure(status, &body));
-    }
-    String::from_utf8(body.to_vec()).map_err(|_| {
-        Error::negotiate(
-            Some(status.as_u16()),
-            "the negotiate response is not UTF-8 text",
-        )
-    })
 }
 
 #[cfg(test)]
@@ -426,6 +542,7 @@ mod connection_setup_bounds {
             &tls,
             &crate::communication::proxy::ProxyConfig::Disabled,
             &crate::CookieJar::new(),
+            None,
             Duration::from_millis(300),
         )
         .await

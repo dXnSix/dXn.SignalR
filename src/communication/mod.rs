@@ -29,6 +29,8 @@ pub(crate) mod cookies;
 #[cfg(not(target_arch = "wasm32"))]
 mod http_transport_tokio;
 #[cfg(not(target_arch = "wasm32"))]
+pub(crate) mod integrated_auth;
+#[cfg(not(target_arch = "wasm32"))]
 mod long_polling_tokio;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod proxy;

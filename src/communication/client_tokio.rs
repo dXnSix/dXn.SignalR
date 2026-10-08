@@ -50,8 +50,8 @@ use super::{
 use futures::{channel::mpsc, future::Either, SinkExt, StreamExt};
 use http::Uri;
 use log::{debug, error, info};
-use tokio::{net::TcpStream, runtime::Handle, sync::Mutex, task::JoinHandle};
-use tokio_websockets::{ClientBuilder, MaybeTlsStream, Message, WebSocketStream};
+use tokio::{runtime::Handle, sync::Mutex, task::JoinHandle};
+use tokio_websockets::{ClientBuilder, MaybeTlsStream, Message};
 
 trait CommunicationDisconnectionHandler: Send {
     /// The transport ended; `reason` says why and whether the server allowed reconnecting.
@@ -2165,7 +2165,7 @@ impl CommunicationClient {
     async fn connect_socket(
         endpoint: Uri,
         recipe: &ConnectionRecipe,
-    ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, Error> {
+    ) -> Result<super::transport_tokio::WebSocket, Error> {
         Self::connect_socket_within(endpoint, recipe, recipe.liveness().connect_timeout).await
     }
 
@@ -2173,7 +2173,7 @@ impl CommunicationClient {
         endpoint: Uri,
         recipe: &ConnectionRecipe,
         timeout: Duration,
-    ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, Error> {
+    ) -> Result<super::transport_tokio::WebSocket, Error> {
         // Boxed: the TLS, upgrade and token-factory states would otherwise make every future
         // that awaits a connect large enough to overflow small (debug-build) stacks.
         tokio::time::timeout(timeout, Box::pin(Self::open_websocket(endpoint, recipe)))
@@ -2184,7 +2184,7 @@ impl CommunicationClient {
     async fn open_websocket(
         endpoint: Uri,
         recipe: &ConnectionRecipe,
-    ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, Error> {
+    ) -> Result<super::transport_tokio::WebSocket, Error> {
         info!(
             "Connecting to endpoint {}",
             Self::display_endpoint(&endpoint)
@@ -2196,6 +2196,10 @@ impl CommunicationClient {
                 "a header is not valid for the WebSocket upgrade",
             )
         };
+        let authorization = recipe.current_transport_authorization().await?;
+        if let Some(provider) = recipe.integrated() {
+            return Self::upgrade_authenticated(&endpoint, recipe, authorization, provider).await;
+        }
         // No WebSocket message size cap: hub messages are bounded by `with_maximum_message_size`.
         let mut builder =
             ClientBuilder::from_uri(endpoint.clone()).limits(tokio_websockets::Limits::unlimited());
@@ -2206,7 +2210,7 @@ impl CommunicationClient {
             super::headers::compose(
                 &[("User-Agent", super::headers::user_agent())],
                 recipe.headers(),
-                recipe.current_transport_authorization().await?,
+                authorization,
             ),
             recipe.cookies().cookie_header(&endpoint_url),
         );
@@ -2256,7 +2260,7 @@ impl CommunicationClient {
         };
 
         builder
-            .connect_on(stream)
+            .connect_on(super::transport_tokio::WebSocketIo::Direct(stream))
             .await
             .map(|(ws, response)| {
                 recipe
@@ -2265,6 +2269,137 @@ impl CommunicationClient {
                 ws
             })
             .map_err(Self::upgrade_failed)
+    }
+
+    /// The WebSocket upgrade with integrated authentication, as `SocketsHttpHandler` sends it:
+    /// through hyper, so a 401 challenge is answered by sending the upgrade request again on the
+    /// same connection (or a new one when the server closes it), each leg with the jar's current
+    /// cookies; once the server switches protocols and its `Sec-WebSocket-Accept` matches,
+    /// tokio-websockets takes over the upgraded stream.
+    async fn upgrade_authenticated(
+        endpoint: &Uri,
+        recipe: &ConnectionRecipe,
+        authorization: Option<String>,
+        provider: &std::sync::Arc<dyn super::integrated_auth::SecurityProvider>,
+    ) -> Result<super::transport_tokio::WebSocket, Error> {
+        use http::header;
+        use http_body_util::Empty;
+
+        let host = endpoint
+            .host()
+            .ok_or_else(|| Error::negotiate(None, "the WebSocket endpoint has no host"))?
+            .trim_start_matches('[')
+            .trim_end_matches(']');
+        let secure = Some("wss") == endpoint.scheme_str();
+        let port = endpoint.port_u16().unwrap_or(if secure { 443 } else { 80 });
+        let authority = endpoint
+            .authority()
+            .map_or("", |authority| authority.as_str());
+        let path = endpoint.path_and_query().map_or("/", |path| path.as_str());
+        let endpoint_url = endpoint.to_string();
+        let key = websocket_key()?;
+        let composed = super::headers::compose(
+            &[("User-Agent", super::headers::user_agent())],
+            recipe.headers(),
+            authorization,
+        );
+        let build = |integrated: Option<String>| {
+            let mut request = http::Request::get(path)
+                .header(header::HOST, authority)
+                .header(header::CONNECTION, "Upgrade")
+                .header(header::UPGRADE, "websocket")
+                .header(header::SEC_WEBSOCKET_VERSION, "13")
+                .header(header::SEC_WEBSOCKET_KEY, key.as_str());
+            let mut cookie = recipe.cookies().cookie_header(&endpoint_url);
+            for (name, value) in &composed {
+                // A challenge leg carries the integrated token instead of other credentials.
+                if integrated.is_some() && name.eq_ignore_ascii_case("authorization") {
+                    continue;
+                }
+                match cookie.take_if(|_| name.eq_ignore_ascii_case("cookie")) {
+                    Some(cookie) => {
+                        request = request.header(name.as_str(), format!("{value}; {cookie}"));
+                    }
+                    None => request = request.header(name.as_str(), value.as_str()),
+                }
+            }
+            if let Some(cookie) = cookie {
+                request = request.header(header::COOKIE, cookie);
+            }
+            if let Some(integrated) = integrated {
+                request = request.header(header::AUTHORIZATION, integrated);
+            }
+            request.body(Empty::<bytes::Bytes>::new()).map_err(|_| {
+                Error::configuration(
+                    "with_header",
+                    "a header is not valid for the WebSocket upgrade",
+                )
+            })
+        };
+        // Built once before any I/O, so invalid headers fail first.
+        build(None)?;
+        let open = || async {
+            super::negotiate_http::http1::<Empty<bytes::Bytes>>(
+                super::negotiate_http::Endpoint {
+                    proxy: recipe.proxy(),
+                    tls: recipe.tls(),
+                    secure,
+                    host,
+                    port,
+                },
+                true,
+                true,
+                |error| {
+                    super::tls::classify(error, websocket_error, "the WebSocket connection failed")
+                },
+            )
+            .await
+            .map_err(|error| error.with_transport(TransportKind::WebSockets))
+        };
+        let mut connection = open().await?;
+        let response = super::integrated_auth::send(
+            &mut connection,
+            Some(provider),
+            host,
+            open,
+            |headers| recipe.cookies().store_response(&endpoint_url, headers),
+            build,
+        )
+        .await
+        .map_err(|failure| match failure {
+            super::integrated_auth::ExchangeFailure::Http(error) => {
+                super::tls::classify(error, websocket_error, "the WebSocket upgrade failed")
+            }
+            super::integrated_auth::ExchangeFailure::Connect(error)
+            | super::integrated_auth::ExchangeFailure::Authentication(error) => error,
+        })?;
+        let status = response.status();
+        if status != http::StatusCode::SWITCHING_PROTOCOLS {
+            let code = status.as_u16();
+            let message = format!("the server refused the WebSocket upgrade with status {code}");
+            return Err(if matches!(code, 401 | 403) {
+                Error::authentication(Some(code), message)
+            } else {
+                websocket_error(message)
+            });
+        }
+        let accepted = response
+            .headers()
+            .get(header::SEC_WEBSOCKET_ACCEPT)
+            .and_then(|value| value.to_str().ok());
+        if accepted != Some(websocket_accept(&key).as_str()) {
+            return Err(websocket_error(
+                "the server's Sec-WebSocket-Accept does not match the upgrade key".to_string(),
+            ));
+        }
+        let upgraded = hyper::upgrade::on(response).await.map_err(|error| {
+            websocket_error(format!("the WebSocket upgrade failed: {error}")).with_source(error)
+        })?;
+        Ok(ClientBuilder::new()
+            .limits(tokio_websockets::Limits::unlimited())
+            .take_over(super::transport_tokio::WebSocketIo::Upgraded(
+                hyper_util::rt::TokioIo::new(upgraded),
+            )))
     }
 
     /// A failed WebSocket upgrade: an authentication error for 401/403, else a transport error.
@@ -2538,6 +2673,21 @@ pub(crate) fn websocket_message(frame: SerializedFrame) -> Message {
         #[cfg(feature = "messagepack")]
         SerializedFrame::Binary(binary) => Message::binary(binary),
     }
+}
+
+/// A fresh `Sec-WebSocket-Key`: 16 random bytes, base64 (RFC 6455 4.1).
+fn websocket_key() -> Result<String, Error> {
+    use base64::{engine::general_purpose, Engine};
+    Ok(general_purpose::STANDARD.encode(super::integrated_auth::ntlm::random::<16>()?))
+}
+
+/// The `Sec-WebSocket-Accept` a server answers `key` with (RFC 6455 4.2.2).
+fn websocket_accept(key: &str) -> String {
+    use base64::{engine::general_purpose, Engine};
+    let mut digest = sha1_smol::Sha1::new();
+    digest.update(key.as_bytes());
+    digest.update(b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
+    general_purpose::STANDARD.encode(digest.digest().bytes())
 }
 
 /// What the receive loop needs to handle one inbound record.
@@ -3984,5 +4134,24 @@ mod suspension_receive_loop {
         );
         assert_eq!(server.resumes(), (0, 0), "the transport was kept");
         client.disconnect();
+    }
+}
+
+#[cfg(test)]
+mod integrated_auth_upgrade {
+    #[test]
+    fn integrated_auth_upgrade_checks_the_rfc_6455_accept_value() {
+        // RFC 6455 1.3.
+        assert_eq!(
+            super::websocket_accept("dGhlIHNhbXBsZSBub25jZQ=="),
+            "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="
+        );
+        let key = super::websocket_key().unwrap();
+        assert_eq!(key.len(), 24, "16 bytes in base64");
+        assert_ne!(
+            key,
+            super::websocket_key().unwrap(),
+            "a fresh key per upgrade"
+        );
     }
 }

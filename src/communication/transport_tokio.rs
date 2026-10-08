@@ -31,7 +31,75 @@ use super::transport::TransportKind;
 use crate::error::Error;
 
 /// An open WebSocket over the connection's own TCP (and TLS) stream.
-pub(crate) type WebSocket = WebSocketStream<MaybeTlsStream<TcpStream>>;
+pub(crate) type WebSocket = WebSocketStream<WebSocketIo>;
+
+/// The stream under a WebSocket: the connection's own TCP (and TLS) stream, or the stream hyper
+/// upgraded after integrated authentication answered the upgrade's challenges.
+// One per connection, and the direct stream is the common case: boxing it would only add an
+// indirection to every read and write.
+#[allow(clippy::large_enum_variant)]
+pub(crate) enum WebSocketIo {
+    Direct(MaybeTlsStream<TcpStream>),
+    Upgraded(hyper_util::rt::TokioIo<hyper::upgrade::Upgraded>),
+}
+
+impl tokio::io::AsyncRead for WebSocketIo {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+        buffer: &mut tokio::io::ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        match self.get_mut() {
+            WebSocketIo::Direct(stream) => Pin::new(stream).poll_read(context, buffer),
+            WebSocketIo::Upgraded(stream) => Pin::new(stream).poll_read(context, buffer),
+        }
+    }
+}
+
+impl tokio::io::AsyncWrite for WebSocketIo {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+        buffer: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
+        match self.get_mut() {
+            WebSocketIo::Direct(stream) => Pin::new(stream).poll_write(context, buffer),
+            WebSocketIo::Upgraded(stream) => Pin::new(stream).poll_write(context, buffer),
+        }
+    }
+
+    fn poll_write_vectored(
+        self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+        buffers: &[std::io::IoSlice<'_>],
+    ) -> Poll<std::io::Result<usize>> {
+        match self.get_mut() {
+            WebSocketIo::Direct(stream) => Pin::new(stream).poll_write_vectored(context, buffers),
+            WebSocketIo::Upgraded(stream) => Pin::new(stream).poll_write_vectored(context, buffers),
+        }
+    }
+
+    fn is_write_vectored(&self) -> bool {
+        match self {
+            WebSocketIo::Direct(stream) => stream.is_write_vectored(),
+            WebSocketIo::Upgraded(stream) => stream.is_write_vectored(),
+        }
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        match self.get_mut() {
+            WebSocketIo::Direct(stream) => Pin::new(stream).poll_flush(context),
+            WebSocketIo::Upgraded(stream) => Pin::new(stream).poll_flush(context),
+        }
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        match self.get_mut() {
+            WebSocketIo::Direct(stream) => Pin::new(stream).poll_shutdown(context),
+            WebSocketIo::Upgraded(stream) => Pin::new(stream).poll_shutdown(context),
+        }
+    }
+}
 
 fn websocket_error(message: String) -> Error {
     Error::transport_failure(Some(TransportKind::WebSockets), message)

@@ -203,6 +203,7 @@ impl HttpClient {
             recipe.tls(),
             recipe.proxy(),
             recipe.cookies(),
+            recipe.integrated(),
             timeout,
         )
         .await

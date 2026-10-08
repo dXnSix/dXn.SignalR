@@ -797,6 +797,7 @@ mod client_certificates {
             &tls,
             &crate::communication::proxy::ProxyConfig::Disabled,
             &crate::CookieJar::new(),
+            None,
             std::time::Duration::from_secs(10),
         )
         .await

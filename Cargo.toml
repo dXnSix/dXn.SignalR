@@ -68,6 +68,21 @@ tokio-rustls = { version = "0.26.4", default-features = false, optional = true }
 rustls-pki-types = { version = "1.12", features = ["std"], optional = true }
 rustls-platform-verifier = { version = "0.7.1", optional = true }
 webpki-roots = { version = "1.0.8", optional = true }
+# Integrated authentication (`with_credentials` NTLMv2 outside Windows) and the Sec-WebSocket-Accept
+# check of the upgrade it drives through hyper.
+md4 = "0.10"
+md-5 = "0.10"
+hmac = "0.12"
+# NTLM key exchange and the RFC 5929 channel binding of integrated authentication; the OS random
+# source for its keys and challenges.
+rc4 = "0.1"
+sha2 = "0.10"
+getrandom = "0.3"
+sha1_smol = "1"
+
+# Integrated Windows authentication (Negotiate/NTLM through SSPI).
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security_Authentication_Identity", "Win32_Security_Credentials", "Win32_System_Rpc"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 # Names the JNI types of `tls::android::init_with_env` (the platform verifier's jni version).

@@ -90,6 +90,9 @@ pub struct ConnectionConfiguration {
     /// The cookie jar of every native request and upgrade (`with_cookie_jar`).
     #[cfg(not(target_arch = "wasm32"))]
     _cookies: crate::CookieJar,
+    /// Integrated authentication (`with_default_credentials`, `with_credentials`).
+    #[cfg(not(target_arch = "wasm32"))]
+    _integrated: Option<crate::communication::integrated_auth::IntegratedCredentials>,
 }
 
 impl Authentication {
@@ -176,6 +179,10 @@ pub(crate) struct ConnectionRecipe {
     /// The cookies of every native request and upgrade, shared by every connection of the client.
     #[cfg(not(target_arch = "wasm32"))]
     cookies: crate::CookieJar,
+    /// Answers integrated-authentication challenges (`with_default_credentials`,
+    /// `with_credentials`).
+    #[cfg(not(target_arch = "wasm32"))]
+    integrated: Option<std::sync::Arc<dyn crate::communication::integrated_auth::SecurityProvider>>,
     /// The Tokio runtime that owns this connection's I/O, timers and tasks.
     #[cfg(not(target_arch = "wasm32"))]
     runtime: Option<tokio::runtime::Handle>,
@@ -309,6 +316,25 @@ impl ConnectionRecipe {
         &self.cookies
     }
 
+    /// The integrated-authentication provider, when the client has one.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn integrated(
+        &self,
+    ) -> Option<&std::sync::Arc<dyn crate::communication::integrated_auth::SecurityProvider>> {
+        self.integrated.as_ref()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn with_integrated(
+        mut self,
+        provider: Option<
+            std::sync::Arc<dyn crate::communication::integrated_auth::SecurityProvider>,
+        >,
+    ) -> Self {
+        self.integrated = provider;
+        self
+    }
+
     /// The connection's TLS state, shared by negotiate, the WebSocket and reconnects.
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn tls(&self) -> &crate::communication::tls::TlsContext {
@@ -417,6 +443,8 @@ impl ConnectionConfiguration {
             _proxy: Ok(Default::default()),
             #[cfg(not(target_arch = "wasm32"))]
             _cookies: crate::CookieJar::new(),
+            #[cfg(not(target_arch = "wasm32"))]
+            _integrated: None,
         }
     }
 
@@ -901,7 +929,24 @@ impl ConnectionConfiguration {
             proxy: self._proxy.clone().unwrap_or_default(),
             #[cfg(not(target_arch = "wasm32"))]
             cookies: self._cookies.clone(),
+            #[cfg(not(target_arch = "wasm32"))]
+            integrated: None,
         }
+    }
+
+    /// The integrated-authentication provider of `with_default_credentials`/`with_credentials`;
+    /// fails where the credentials are not available (the current account outside Windows).
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn integrated_provider(
+        &self,
+    ) -> Result<
+        Option<std::sync::Arc<dyn crate::communication::integrated_auth::SecurityProvider>>,
+        crate::Error,
+    > {
+        self._integrated
+            .as_ref()
+            .map(crate::communication::integrated_auth::provider)
+            .transpose()
     }
 
     pub(crate) fn liveness(&self) -> LivenessConfig {
@@ -1010,6 +1055,47 @@ impl ConnectionConfiguration {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn with_system_proxy(&mut self) -> &ConnectionConfiguration {
         self._proxy = Ok(crate::communication::proxy::ProxyConfig::System);
+        self
+    }
+
+    /// Authenticates with the current Windows account, as the .NET client's
+    /// `HttpConnectionOptions.UseDefaultCredentials`: when the server answers a native negotiate
+    /// request, WebSocket upgrade, Long Polling or Server-Sent Events request with a 401 offering
+    /// `Negotiate` (Kerberos or NTLM) or `NTLM`, the request is sent again on the same connection
+    /// with the account's tokens until the server accepts or rejects them. Windows only (SSPI):
+    /// elsewhere [`SignalRClient::new`](crate::SignalRClient::new) fails with
+    /// [`ErrorKind::Configuration`](crate::ErrorKind::Configuration) naming
+    /// `with_default_credentials`. Browsers authenticate with the browser's own integrated
+    /// authentication.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_default_credentials(&mut self) -> &ConnectionConfiguration {
+        self._integrated =
+            Some(crate::communication::integrated_auth::IntegratedCredentials::Default);
+        self
+    }
+
+    /// Authenticates with these credentials, as the .NET client's
+    /// `HttpConnectionOptions.Credentials` (`NetworkCredential(user, password, domain)`): the
+    /// same challenge-response as
+    /// [`with_default_credentials`](Self::with_default_credentials), through SSPI on Windows and
+    /// NTLMv2 on other native targets. `domain` may be empty. The password never appears in logs,
+    /// errors or `Debug` output. Native only.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_credentials(
+        &mut self,
+        user: impl Into<String>,
+        password: impl Into<String>,
+        domain: impl Into<String>,
+    ) -> &ConnectionConfiguration {
+        self._integrated = Some(
+            crate::communication::integrated_auth::IntegratedCredentials::Explicit(
+                crate::communication::integrated_auth::Explicit {
+                    user: user.into(),
+                    password: password.into(),
+                    domain: domain.into(),
+                },
+            ),
+        );
         self
     }
 

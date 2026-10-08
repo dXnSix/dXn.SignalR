@@ -23,16 +23,12 @@ use std::{
 use futures::{channel::mpsc as futures_mpsc, StreamExt};
 use http::{header, Method, Request, StatusCode, Uri};
 use http_body_util::{BodyExt, Full};
-use hyper::{
-    body::{Bytes, Incoming},
-    client::conn::http1::SendRequest,
-};
-use hyper_util::rt::TokioIo;
+use hyper::body::{Bytes, Incoming};
 use log::debug;
 use tokio::sync::mpsc;
 use tokio_websockets::Message;
 
-use super::transport::TransportKind;
+use super::{integrated_auth::Connection, transport::TransportKind};
 use crate::{client::ConnectionRecipe, error::Error, platform::LockExt};
 
 /// Frames a send `POST` may wait for while one is in flight.
@@ -117,7 +113,7 @@ pub(crate) struct Lane {
     kind: TransportKind,
     target: Target,
     recipe: ConnectionRecipe,
-    sender: Option<SendRequest<Full<Bytes>>>,
+    connection: Option<Connection<Full<Bytes>>>,
 }
 
 /// A response: its status and body.
@@ -132,7 +128,7 @@ impl Lane {
             kind,
             target,
             recipe,
-            sender: None,
+            connection: None,
         }
     }
 
@@ -140,23 +136,25 @@ impl Lane {
         transport_error(self.kind, message)
     }
 
-    async fn connect(&self) -> Result<SendRequest<Full<Bytes>>, Error> {
+    async fn connect(&self) -> Result<Connection<Full<Bytes>>, Error> {
         // Through the proxy's CONNECT tunnel when one applies; TLS runs inside it.
-        let tcp = super::proxy::connect(
-            self.recipe.proxy(),
-            self.target.secure,
-            self.target.host(),
-            self.target.port(),
+        let kind = self.kind;
+        super::negotiate_http::http1(
+            super::negotiate_http::Endpoint {
+                proxy: self.recipe.proxy(),
+                tls: self.recipe.tls(),
+                secure: self.target.secure,
+                host: self.target.host(),
+                port: self.target.port(),
+            },
+            self.recipe.integrated().is_some(),
+            false,
+            |error| {
+                transport_error(kind, format!("the {kind} HTTP handshake failed: {error}"))
+                    .with_source(error)
+            },
         )
-        .await?;
-        if self.target.secure {
-            let stream =
-                super::negotiate_http::tls_stream(self.recipe.tls(), self.target.host(), tcp)
-                    .await?;
-            handshake(self.kind, stream).await
-        } else {
-            handshake(self.kind, tcp).await
-        }
+        .await
     }
 
     /// The request for this lane's target with the transport's headers.
@@ -203,8 +201,8 @@ impl Lane {
         content_type: Option<&str>,
         authorization: Option<String>,
     ) -> Result<Response, Error> {
-        let reused = match self.sender.take() {
-            Some(sender) if !sender.is_closed() => Some(sender),
+        let reused = match self.connection.take() {
+            Some(connection) if !connection.sender.is_closed() => Some(connection),
             _ => None,
         };
         let retry = reused.is_some();
@@ -231,20 +229,20 @@ impl Lane {
         }
     }
 
-    /// One request on `sender` (a fresh connection when `None`).
+    /// One request on `connection` (a fresh one when `None`).
     async fn exchange(
         &mut self,
-        sender: Option<SendRequest<Full<Bytes>>>,
+        connection: Option<Connection<Full<Bytes>>>,
         method: Method,
         body: Bytes,
         content_type: Option<&str>,
         authorization: Option<String>,
     ) -> Result<Response, ExchangeError> {
-        let mut sender = match sender {
-            Some(sender) => sender,
+        let mut connection = match connection {
+            Some(connection) => connection,
             None => self.connect().await.map_err(ExchangeError::Failed)?,
         };
-        sender.ready().await.map_err(|error| {
+        connection.sender.ready().await.map_err(|error| {
             ExchangeError::Unanswered(
                 self.error(format!("the {} connection failed: {error}", self.kind))
                     .with_source(error),
@@ -253,22 +251,40 @@ impl Lane {
         let headers: Vec<(&str, &str)> = content_type
             .map(|content_type| vec![("Content-Type", content_type)])
             .unwrap_or_default();
-        let request = self
-            .build(method.clone(), body, &headers, authorization)
-            .map_err(ExchangeError::Failed)?;
-        let response = sender.send_request(request).await.map_err(|error| {
-            ExchangeError::Unanswered(
+        // Integrated-authentication challenges are answered on this connection (or a new one when
+        // the server closes it); a challenge leg carries its token instead of the transport's
+        // credentials, and every leg the jar's current cookies.
+        let url = self.target.url();
+        let response = super::integrated_auth::send(
+            &mut connection,
+            self.recipe.integrated(),
+            self.target.host(),
+            || self.connect(),
+            |headers| self.recipe.cookies().store_response(&url, headers),
+            |leg| {
+                self.build(
+                    method.clone(),
+                    body.clone(),
+                    &headers,
+                    leg.or_else(|| authorization.clone()),
+                )
+            },
+        )
+        .await
+        .map_err(|failure| match failure {
+            super::integrated_auth::ExchangeFailure::Http(error) => ExchangeError::Unanswered(
                 self.error(format!(
                     "the {} {method} request failed: {error}",
                     self.kind
                 ))
                 .with_source(error),
-            )
+            ),
+            super::integrated_auth::ExchangeFailure::Connect(error)
+            | super::integrated_auth::ExchangeFailure::Authentication(error) => {
+                ExchangeError::Failed(error)
+            }
         })?;
         let status = response.status();
-        self.recipe
-            .cookies()
-            .store_response(&self.target.url(), response.headers());
         let body = response
             .into_body()
             .collect()
@@ -280,7 +296,7 @@ impl Lane {
                 )
             })?
             .to_bytes();
-        self.sender = Some(sender);
+        self.connection = Some(connection);
         Ok(Response { status, body })
     }
 
@@ -291,20 +307,36 @@ impl Lane {
         headers: &[(&str, &str)],
         authorization: Option<String>,
     ) -> Result<hyper::Response<Incoming>, Error> {
-        let mut sender = self.connect().await?;
-        sender.ready().await.map_err(|error| {
+        let mut connection = self.connect().await?;
+        connection.sender.ready().await.map_err(|error| {
             self.error(format!("the {} connection failed: {error}", self.kind))
                 .with_source(error)
         })?;
-        let request = self.build(Method::GET, Bytes::new(), headers, authorization)?;
-        let response = sender.send_request(request).await.map_err(|error| {
-            self.error(format!("the {} GET request failed: {error}", self.kind))
-                .with_source(error)
+        let url = self.target.url();
+        let response = super::integrated_auth::send(
+            &mut connection,
+            self.recipe.integrated(),
+            self.target.host(),
+            || self.connect(),
+            |headers| self.recipe.cookies().store_response(&url, headers),
+            |leg| {
+                self.build(
+                    Method::GET,
+                    Bytes::new(),
+                    headers,
+                    leg.or_else(|| authorization.clone()),
+                )
+            },
+        )
+        .await
+        .map_err(|failure| match failure {
+            super::integrated_auth::ExchangeFailure::Http(error) => self
+                .error(format!("the {} GET request failed: {error}", self.kind))
+                .with_source(error),
+            super::integrated_auth::ExchangeFailure::Connect(error)
+            | super::integrated_auth::ExchangeFailure::Authentication(error) => error,
         })?;
-        self.recipe
-            .cookies()
-            .store_response(&self.target.url(), response.headers());
-        // The connection task keeps running for the body; `sender` is not reused.
+        // The connection task keeps running for the body; the connection is not reused.
         Ok(response)
     }
 }
@@ -322,22 +354,6 @@ impl ExchangeError {
             ExchangeError::Unanswered(error) | ExchangeError::Failed(error) => error,
         }
     }
-}
-
-async fn handshake<S>(kind: TransportKind, stream: S) -> Result<SendRequest<Full<Bytes>>, Error>
-where
-    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
-{
-    let (sender, connection) = hyper::client::conn::http1::handshake(TokioIo::new(stream))
-        .await
-        .map_err(|error| {
-            transport_error(kind, format!("the {kind} HTTP handshake failed: {error}"))
-                .with_source(error)
-        })?;
-    tokio::spawn(async move {
-        let _ = connection.await;
-    });
-    Ok(sender)
 }
 
 /// The connection's credentials: one `Authorization` value shared by every request of the
