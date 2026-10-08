@@ -85,7 +85,7 @@ dotnet test dotnet/RayX.SignalR.E2E.Tests --filter "Category=WorkflowContract|Ca
   directories); run `tls,connect-negotiate,negotiate-redirect,proxy` with it.
 - Suspension (`suspend-resume`, `Scenario.Suspends`): the scenario prints
   `RAYX_SIGNALR_SUSPEND_READY pid=<pid> seconds=<n>`; `Scenarios/Suspension.cs` suspends that
-  process (Windows `NtSuspendProcess`, `kill -STOP`, Android `adb shell kill -STOP`) and always
+  process (Windows `NtSuspendProcess`, libc `kill(2)` with SIGSTOP/SIGCONT, Android `adb shell kill -STOP`) and always
   resumes it; Chromium pauses the page with CDP `Debugger.pause` (`Page.setWebLifecycleState` is a
   no-op under Playwright).
 - New scenario: add it to `dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/ScenarioCatalog.cs`,
