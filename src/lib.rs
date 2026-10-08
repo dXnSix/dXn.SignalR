@@ -24,6 +24,8 @@ pub use client::{
 };
 #[cfg(not(target_arch = "wasm32"))]
 pub use communication::cookies::CookieJar;
+#[cfg(not(target_arch = "wasm32"))]
+pub use communication::http2::HttpVersion;
 pub use communication::reconnection::{
     ConnectionStatus, ConstantDelayPolicy, DefaultRetryPolicy, DelayListPolicy,
     ExponentialBackoffPolicy, LinearBackoffPolicy, NoReconnectPolicy, ReconnectionConfig,

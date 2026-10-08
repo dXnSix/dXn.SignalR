@@ -114,6 +114,8 @@ pub(crate) struct Lane {
     target: Target,
     recipe: ConnectionRecipe,
     connection: Option<Connection<Full<Bytes>>>,
+    /// The endpoint chose HTTP/1.1 when asked for HTTP/2 (`Auto`): the lane stays on HTTP/1.1.
+    http1_chosen: bool,
 }
 
 /// A response: its status and body.
@@ -129,7 +131,137 @@ impl Lane {
             target,
             recipe,
             connection: None,
+            http1_chosen: false,
         }
+    }
+
+    fn endpoint(&self) -> super::negotiate_http::Endpoint<'_> {
+        super::negotiate_http::Endpoint {
+            proxy: self.recipe.proxy(),
+            tls: self.recipe.tls(),
+            secure: self.target.secure,
+            host: self.target.host(),
+            port: self.target.port(),
+        }
+    }
+
+    /// Whether the connection's HTTP version asks for HTTP/2 to this target.
+    fn wants_http2(&self) -> bool {
+        match self.recipe.http_version() {
+            super::http2::HttpVersion::Http1 => false,
+            super::http2::HttpVersion::Auto => self.target.secure && !self.http1_chosen,
+            super::http2::HttpVersion::Http2 => true,
+        }
+    }
+
+    /// The shared HTTP/2 connection to the target, opened when there is none; `None` when the
+    /// lane uses HTTP/1.1 (an endpoint that chose HTTP/1.1 leaves its new connection to the
+    /// lane).
+    async fn http2(&mut self) -> Result<Option<super::http2::Sender>, Error> {
+        if !self.wants_http2() {
+            return Ok(None);
+        }
+        let (host, port, secure) = (self.target.host(), self.target.port(), self.target.secure);
+        if let Some(sender) = self.recipe.http2().get(host, port, secure) {
+            return Ok(Some(sender));
+        }
+        let kind = self.kind;
+        match super::negotiate_http::open::<Full<Bytes>>(
+            self.endpoint(),
+            self.recipe.http_version(),
+            false,
+            false,
+            |error| {
+                transport_error(kind, format!("the {kind} HTTP handshake failed: {error}"))
+                    .with_source(error)
+            },
+        )
+        .await?
+        {
+            super::negotiate_http::Opened::Http2(sender) => {
+                self.recipe.http2().insert(
+                    self.target.host(),
+                    self.target.port(),
+                    self.target.secure,
+                    sender.clone(),
+                );
+                Ok(Some(sender))
+            }
+            super::negotiate_http::Opened::Http1(connection) => {
+                self.http1_chosen = true;
+                self.connection = Some(connection);
+                Ok(None)
+            }
+        }
+    }
+
+    /// A request on the target's HTTP/2 connection: the prepared `headers` and the jar's
+    /// cookies, with the absolute URL as its `:authority` and `:path`.
+    fn build_http2(
+        &self,
+        method: Method,
+        body: Bytes,
+        headers: &[(String, String)],
+    ) -> Result<Request<Full<Bytes>>, Error> {
+        let url = self.target.url();
+        let mut request = Request::builder().method(method).uri(url.as_str());
+        for (name, value) in
+            super::headers::leg(headers, self.recipe.cookies().cookie_header(&url), None)
+        {
+            request = request.header(name.as_str(), value.as_str());
+        }
+        request.body(Full::new(body)).map_err(|_| {
+            Error::configuration(
+                "authentication",
+                "the credentials are not a valid Authorization header value",
+            )
+        })
+    }
+
+    /// Sends `method` over HTTP/2 when the lane uses it (`None` when it uses HTTP/1.1). A request
+    /// the server never processed goes out once more on a new connection, as .NET retries such
+    /// requests; when the endpoint then chooses HTTP/1.1, the lane continues on HTTP/1.1.
+    async fn exchange_http2(
+        &mut self,
+        method: &Method,
+        body: &Bytes,
+        headers: &[(String, String)],
+    ) -> Result<Option<hyper::Response<Incoming>>, Error> {
+        let mut retried = false;
+        let response = loop {
+            let Some(mut sender) = self.http2().await? else {
+                return Ok(None);
+            };
+            let request = self.build_http2(method.clone(), body.clone(), headers)?;
+            match super::http2::send(&mut sender, request).await {
+                Ok(response) => break response,
+                Err(failure) if failure.retry && !retried => {
+                    debug!(
+                        "The server did not process the {} {method} request on its HTTP/2 \
+                         connection ({}); sending it on another",
+                        self.kind, failure.error
+                    );
+                    retried = true;
+                    self.recipe.http2().remove(
+                        self.target.host(),
+                        self.target.port(),
+                        self.target.secure,
+                    );
+                }
+                Err(failure) => {
+                    return Err(self
+                        .error(format!(
+                            "the {} {method} request failed: {}",
+                            self.kind, failure.error
+                        ))
+                        .with_source(failure.error))
+                }
+            }
+        };
+        self.recipe
+            .cookies()
+            .store_response(&self.target.url(), response.headers());
+        Ok(Some(response))
     }
 
     fn error(&self, message: impl Into<String>) -> Error {
@@ -226,6 +358,19 @@ impl Lane {
             .map(|content_type| vec![("Content-Type", content_type)])
             .unwrap_or_default();
         let headers = self.prepare(&method, &content, authorization);
+        if let Some(response) = self.exchange_http2(&method, &body, &headers).await? {
+            let status = response.status();
+            let body = response
+                .into_body()
+                .collect()
+                .await
+                .map_err(|error| {
+                    self.error(format!("cannot read the {} response: {error}", self.kind))
+                        .with_source(error)
+                })?
+                .to_bytes();
+            return Ok(Response { status, body });
+        }
         let reused = match self.connection.take() {
             Some(connection) if !connection.sender.is_closed() => Some(connection),
             _ => None,
@@ -311,12 +456,22 @@ impl Lane {
     /// Sends a `GET` with `headers` on a fresh connection of its own and returns the response
     /// as soon as its head arrives, for a body that streams (Server-Sent Events).
     pub(crate) async fn open_stream(
-        &self,
+        &mut self,
         headers: &[(&str, &str)],
         authorization: Option<String>,
     ) -> Result<hyper::Response<Incoming>, Error> {
         let headers = self.prepare(&Method::GET, headers, authorization);
-        let mut connection = self.connect().await?;
+        // Over HTTP/2 the stream is one of the shared connection's streams.
+        if let Some(response) = self
+            .exchange_http2(&Method::GET, &Bytes::new(), &headers)
+            .await?
+        {
+            return Ok(response);
+        }
+        let mut connection = match self.connection.take() {
+            Some(connection) => connection,
+            None => self.connect().await?,
+        };
         connection.sender.ready().await.map_err(|error| {
             self.error(format!("the {} connection failed: {error}", self.kind))
                 .with_source(error)

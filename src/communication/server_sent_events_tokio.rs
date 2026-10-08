@@ -173,8 +173,8 @@ pub(crate) async fn start(
 ) -> Result<(FrameSender, FrameReceiver), Error> {
     let target = Target::from_url(url, KIND)?;
     let credentials = Credentials::new(recipe);
-    let stream = Lane::new(KIND, target.clone(), recipe.clone());
-    let response = open(&stream, &credentials).await?;
+    let mut stream = Lane::new(KIND, target.clone(), recipe.clone());
+    let response = open(&mut stream, &credentials).await?;
     let (frames, received) = mpsc::channel(16);
     let (sender, outgoing) = futures_mpsc::channel(SEND_QUEUE);
     let sends = Lane::new(KIND, target, recipe.clone());
@@ -193,7 +193,10 @@ pub(crate) async fn start(
 
 /// Opens the event stream with the connection's credentials, retrying once with a fresh token
 /// after a 401 when an access-token factory provides them.
-async fn open(lane: &Lane, credentials: &Credentials) -> Result<hyper::Response<Incoming>, Error> {
+async fn open(
+    lane: &mut Lane,
+    credentials: &Credentials,
+) -> Result<hyper::Response<Incoming>, Error> {
     const HEADERS: &[(&str, &str)] = &[("Accept", "text/event-stream")];
     let used = credentials.current();
     let mut response = lane.open_stream(HEADERS, used.clone()).await?;

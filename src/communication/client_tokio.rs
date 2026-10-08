@@ -692,6 +692,9 @@ impl ReconnectionContext {
             .await?;
             (socket, None)
         } else {
+            // A fresh connection opens its own HTTP/2 connections, as a new .NET
+            // `HttpConnection` does (a stateful resume keeps them, as .NET's).
+            self.recipe.http2().begin_connect();
             let (socket, fresh) = CommunicationClient::connect_fresh(
                 &self.recipe,
                 self.protocol_kind,
@@ -1668,7 +1671,8 @@ impl Communication for CommunicationClient {
         // Calls made while the start runs wait for its outcome, from the moment it begins.
         let (report, outcome) = AttemptOutcome::new();
         let id = outcome.id();
-        // A proxy auto-config script is loaded again for each start.
+        // A proxy auto-config script is loaded again for each start, as a new .NET
+        // `HttpConnection` does.
         self._recipe.proxy().begin_connect();
         let generation = {
             let mut state = self._state.lock().await;
@@ -1792,6 +1796,8 @@ impl CommunicationClient {
             }
             let mut actions = self._actions.clone();
             actions.fail_pending(&Error::closed_locally());
+            // The attempt's HTTP/2 connections close once their streams end.
+            self._recipe.http2().begin_connect();
             self._hooks.closed(closed);
             previous
         };
@@ -2202,6 +2208,9 @@ impl CommunicationClient {
         if let Some(provider) = recipe.integrated() {
             return Self::upgrade_authenticated(&endpoint, recipe, authorization, provider).await;
         }
+        if recipe.http_version() == crate::HttpVersion::Http2 {
+            return Self::upgrade_http2(&endpoint, recipe, authorization).await;
+        }
         // No WebSocket message size cap: hub messages are bounded by `with_maximum_message_size`.
         let mut builder =
             ClientBuilder::from_uri(endpoint.clone()).limits(tokio_websockets::Limits::unlimited());
@@ -2279,6 +2288,161 @@ impl CommunicationClient {
                 ws
             })
             .map_err(Self::upgrade_failed)
+    }
+
+    /// The WebSocket over HTTP/2 (`with_http_version(Http2)`), as the .NET `ClientWebSocket`
+    /// opens it with `HttpVersion` 2.0: an RFC 8441 extended CONNECT (`:protocol websocket`) on
+    /// the connection's shared HTTP/2 connection to the endpoint, then tokio-websockets takes
+    /// over the stream. A server that does not enable extended CONNECT fails with `Transport`.
+    pub(crate) async fn upgrade_http2(
+        endpoint: &Uri,
+        recipe: &ConnectionRecipe,
+        authorization: Option<String>,
+    ) -> Result<super::transport_tokio::WebSocket, Error> {
+        use http::header;
+
+        let host = endpoint
+            .host()
+            .ok_or_else(|| Error::negotiate(None, "the WebSocket endpoint has no host"))?
+            .trim_start_matches('[')
+            .trim_end_matches(']');
+        let secure = Some("wss") == endpoint.scheme_str();
+        let port = endpoint.port_u16().unwrap_or(if secure { 443 } else { 80 });
+        let authority = endpoint
+            .authority()
+            .map_or("", |authority| authority.as_str());
+        let path = endpoint.path_and_query().map_or("/", |path| path.as_str());
+        let url = format!(
+            "{}://{authority}{path}",
+            if secure { "https" } else { "http" }
+        );
+        let endpoint_url = endpoint.to_string();
+        // As the HTTP/1.1 upgrade: the hook sees the request before the jar's cookies are added.
+        let composed = super::headers::with_cookies(
+            super::request_hook::apply(
+                recipe.request_hook(),
+                Some(TransportKind::WebSockets),
+                "CONNECT",
+                &endpoint_url,
+                super::headers::compose(
+                    &[("User-Agent", super::headers::user_agent())],
+                    recipe.headers(),
+                    authorization,
+                ),
+            ),
+            recipe.cookies().cookie_header(&endpoint_url),
+        );
+        let request = || {
+            let mut request = http::Request::builder()
+                .method(http::Method::CONNECT)
+                .uri(url.as_str())
+                .header(header::SEC_WEBSOCKET_VERSION, "13")
+                .extension(hyper::ext::Protocol::from_static("websocket"));
+            for (name, value) in &composed {
+                request = request.header(name.as_str(), value.as_str());
+            }
+            request
+                .body(super::http2::Body::new(bytes::Bytes::new()))
+                .map_err(|_| {
+                    Error::configuration(
+                        "with_header",
+                        "a header is not valid for the WebSocket upgrade",
+                    )
+                })
+        };
+        // Built once before any I/O, so invalid headers fail first.
+        request()?;
+        // On the attempt's HTTP/2 connection to the endpoint; an upgrade the server never
+        // processed goes out once more on a new connection.
+        let mut retried = false;
+        let response = loop {
+            let mut sender = match recipe.http2().get(host, port, secure) {
+                Some(sender) => sender,
+                None => match super::negotiate_http::open::<super::http2::Body>(
+                    super::negotiate_http::Endpoint {
+                        proxy: recipe.proxy(),
+                        tls: recipe.tls(),
+                        secure,
+                        host,
+                        port,
+                    },
+                    crate::HttpVersion::Http2,
+                    false,
+                    false,
+                    |error| {
+                        super::tls::classify(
+                            error,
+                            websocket_error,
+                            "the WebSocket connection failed",
+                        )
+                    },
+                )
+                .await
+                .map_err(|error| error.with_transport(TransportKind::WebSockets))?
+                {
+                    super::negotiate_http::Opened::Http2(sender) => {
+                        recipe.http2().insert(host, port, secure, sender.clone());
+                        sender
+                    }
+                    super::negotiate_http::Opened::Http1(_) => {
+                        return Err(websocket_error(
+                            "the endpoint did not open HTTP/2, which with_http_version(Http2) \
+                             requires"
+                                .to_string(),
+                        ))
+                    }
+                },
+            };
+            match super::http2::send(&mut sender, request()?).await {
+                Ok(response) => break response,
+                Err(failure) if failure.retry && !retried => {
+                    debug!(
+                        "The server did not process the WebSocket upgrade on its HTTP/2 \
+                         connection ({}); sending it on another",
+                        failure.error
+                    );
+                    retried = true;
+                    recipe.http2().remove(host, port, secure);
+                }
+                Err(failure) if super::http2::extended_connect_refused(&failure.error) => {
+                    return Err(websocket_error(
+                        "the server does not enable WebSockets over HTTP/2 (RFC 8441 extended \
+                         CONNECT), which with_http_version(Http2) requires"
+                            .to_string(),
+                    )
+                    .with_source(failure.error))
+                }
+                Err(failure) => {
+                    return Err(super::tls::classify(
+                        failure.error,
+                        websocket_error,
+                        "the WebSocket upgrade failed",
+                    ))
+                }
+            }
+        };
+        recipe
+            .cookies()
+            .store_response(&endpoint_url, response.headers());
+        let status = response.status();
+        if status != http::StatusCode::OK {
+            let code = status.as_u16();
+            let message =
+                format!("the server refused the WebSocket over HTTP/2 with status {code}");
+            return Err(if matches!(code, 401 | 403) {
+                Error::authentication(Some(code), message)
+            } else {
+                websocket_error(message)
+            });
+        }
+        let upgraded = hyper::upgrade::on(response).await.map_err(|error| {
+            websocket_error(format!("the WebSocket over HTTP/2 failed: {error}")).with_source(error)
+        })?;
+        Ok(ClientBuilder::new()
+            .limits(tokio_websockets::Limits::unlimited())
+            .take_over(super::transport_tokio::WebSocketIo::Upgraded(
+                hyper_util::rt::TokioIo::new(upgraded),
+            )))
     }
 
     /// The WebSocket upgrade with integrated authentication, as `SocketsHttpHandler` sends it:

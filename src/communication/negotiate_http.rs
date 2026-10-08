@@ -35,6 +35,10 @@ pub(crate) struct Options<'a> {
     pub(crate) cookies: &'a crate::CookieJar,
     pub(crate) integrated: Option<&'a Arc<dyn SecurityProvider>>,
     pub(crate) hook: Option<&'a RequestHook>,
+    /// The HTTP version (integrated authentication already folded in) and the HTTP/2 connections
+    /// to share.
+    pub(crate) version: super::http2::HttpVersion,
+    pub(crate) http2: Option<&'a super::http2::Pool>,
 }
 
 impl<'a> Options<'a> {
@@ -47,6 +51,8 @@ impl<'a> Options<'a> {
             cookies: recipe.cookies(),
             integrated: recipe.integrated(),
             hook: recipe.request_hook(),
+            version: recipe.http_version(),
+            http2: Some(recipe.http2()),
         }
     }
 }
@@ -76,6 +82,8 @@ async fn post_unbounded(
         cookies,
         integrated,
         hook,
+        version,
+        http2,
     } = options;
     let uri: Uri = url.parse().map_err(|error| {
         Error::negotiate(None, format!("the negotiate URL is invalid: {error}"))
@@ -139,6 +147,92 @@ async fn post_unbounded(
     // Built once before any I/O, so invalid headers fail first.
     build(None)?;
 
+    let classify = |error: hyper::Error| {
+        super::tls::classify(
+            error,
+            |message| Error::transport_failure(None, message),
+            "the negotiate request failed",
+        )
+    };
+    let endpoint = || Endpoint {
+        proxy,
+        tls,
+        secure,
+        host,
+        port,
+    };
+    let handshake_error = |error: hyper::Error| {
+        super::tls::classify(
+            error,
+            |message| Error::transport_failure(None, message),
+            "the negotiate HTTP handshake failed",
+        )
+    };
+    // Over HTTP/2 the request shares the attempt's HTTP/2 connection to the endpoint; one the
+    // server never processed it on is sent again once on a new connection.
+    let wants_http2 = match version {
+        super::http2::HttpVersion::Http1 => false,
+        super::http2::HttpVersion::Auto => secure,
+        super::http2::HttpVersion::Http2 => true,
+    };
+    let mut first = None;
+    if wants_http2 {
+        let request = || -> Result<Request<super::http2::Body>, Error> {
+            let mut request = Request::post(url).header(header::CONTENT_LENGTH, 0);
+            for (name, value) in super::headers::leg(&composed, cookies.cookie_header(url), None) {
+                request = request.header(name.as_str(), value.as_str());
+            }
+            request
+                .body(super::http2::Body::new(Bytes::new()))
+                .map_err(|_| {
+                    Error::configuration(
+                        "authentication",
+                        "the credentials are not a valid Authorization header value",
+                    )
+                })
+        };
+        let mut retried = false;
+        loop {
+            let pooled = http2.and_then(|pool| pool.get(host, port, secure));
+            let mut sender = match pooled {
+                Some(sender) => sender,
+                None => {
+                    match open::<Empty<Bytes>>(endpoint(), version, false, false, handshake_error)
+                        .await?
+                    {
+                        Opened::Http2(sender) => {
+                            if let Some(pool) = http2 {
+                                pool.insert(host, port, secure, sender.clone());
+                            }
+                            sender
+                        }
+                        // The endpoint chose HTTP/1.1 (`Auto`): the request goes out on this
+                        // connection.
+                        Opened::Http1(connection) => {
+                            first = Some(connection);
+                            break;
+                        }
+                    }
+                }
+            };
+            match super::http2::send(&mut sender, request()?).await {
+                Ok(response) => return read_response(response, url, cookies).await,
+                Err(failure) if failure.retry && !retried => {
+                    log::debug!(
+                        "The server did not process the negotiate request on its HTTP/2 \
+                         connection ({}); sending it on another",
+                        failure.error
+                    );
+                    retried = true;
+                    if let Some(pool) = http2 {
+                        pool.remove(host, port, secure);
+                    }
+                }
+                Err(failure) => return Err(classify(failure.error)),
+            }
+        }
+    }
+
     // Through the proxy's CONNECT tunnel when one applies; TLS runs inside it.
     let open = || {
         http1::<Empty<Bytes>>(
@@ -160,7 +254,10 @@ async fn post_unbounded(
             },
         )
     };
-    let mut connection = open().await?;
+    let mut connection = match first {
+        Some(connection) => connection,
+        None => open().await?,
+    };
     // Integrated-authentication challenges are answered on this connection (or a new one when
     // the server closes it).
     let response = super::integrated_auth::send(
@@ -173,14 +270,25 @@ async fn post_unbounded(
     )
     .await
     .map_err(|failure| match failure {
-        super::integrated_auth::ExchangeFailure::Http(error) => super::tls::classify(
-            error,
-            |message| Error::transport_failure(None, message),
-            "the negotiate request failed",
-        ),
+        super::integrated_auth::ExchangeFailure::Http(error) => classify(error),
         super::integrated_auth::ExchangeFailure::Connect(error)
         | super::integrated_auth::ExchangeFailure::Authentication(error) => error,
     })?;
+    read_body(response).await
+}
+
+/// Keeps a negotiate response's cookies, then reads it ([`read_body`]).
+async fn read_response(
+    response: http::Response<hyper::body::Incoming>,
+    url: &str,
+    cookies: &crate::CookieJar,
+) -> Result<String, Error> {
+    cookies.store_response(url, response.headers());
+    read_body(response).await
+}
+
+/// The text of a negotiate response; non-2xx statuses are errors.
+async fn read_body(response: http::Response<hyper::body::Incoming>) -> Result<String, Error> {
     let status = response.status();
     let body = response
         .into_body()
@@ -343,10 +451,25 @@ pub(crate) async fn tls_stream<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
+    tls_stream_offering(tls, host, tcp, None).await
+}
+
+/// [`tls_stream`] offering the ALPN protocols `alpn` (`None`: the connection's own).
+#[cfg(rayx_tls)]
+pub(crate) async fn tls_stream_offering<S>(
+    tls: &TlsContext,
+    host: &str,
+    tcp: S,
+    alpn: Option<&'static [&'static [u8]]>,
+) -> Result<tokio_rustls::client::TlsStream<S>, Error>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    let config = tls.config_with_alpn(alpn)?;
     let name = rustls_pki_types::ServerName::try_from(host.to_string()).map_err(|error| {
         Error::configuration("domain", format!("invalid TLS server name {host}: {error}"))
     })?;
-    tokio_rustls::TlsConnector::from(tls.config()?)
+    tokio_rustls::TlsConnector::from(config)
         .connect(name, tcp)
         .await
         .map_err(|error| {
@@ -357,6 +480,123 @@ where
 #[cfg(not(rayx_tls))]
 pub(crate) async fn tls_stream<S>(_tls: &TlsContext, _host: &str, _tcp: S) -> Result<S, Error> {
     Err(super::tls::tls_disabled())
+}
+
+/// Whether a TLS handshake failed because the server refused the offered ALPN protocols.
+#[cfg(rayx_tls)]
+fn refused_application_protocol(error: &Error) -> bool {
+    let mut source: Option<&(dyn std::error::Error + 'static)> = Some(error);
+    while let Some(current) = source {
+        let tls = current.downcast_ref::<rustls::Error>().or_else(|| {
+            current
+                .downcast_ref::<std::io::Error>()
+                .and_then(|io| io.get_ref())
+                .and_then(|inner| inner.downcast_ref::<rustls::Error>())
+        });
+        if matches!(
+            tls,
+            Some(rustls::Error::AlertReceived(
+                rustls::AlertDescription::NoApplicationProtocol
+            ))
+        ) {
+            return true;
+        }
+        source = current.source();
+    }
+    false
+}
+
+/// What a new HTTP connection speaks.
+pub(crate) enum Opened<B> {
+    Http1(super::integrated_auth::Connection<B>),
+    Http2(super::http2::Sender),
+}
+
+/// Opens a connection to `endpoint` speaking HTTP/2 when `version` asks for it and the endpoint
+/// agrees (ALPN `h2` over TLS, or h2c with prior knowledge for `Http2` over plaintext), else
+/// HTTP/1.1 as [`http1`] opens it. `Http2` without HTTP/2 fails with `Transport`.
+pub(crate) async fn open<B>(
+    endpoint: Endpoint<'_>,
+    version: super::http2::HttpVersion,
+    bound: bool,
+    upgrades: bool,
+    handshake_error: impl Fn(hyper::Error) -> Error,
+) -> Result<Opened<B>, Error>
+where
+    B: hyper::body::Body + Send + 'static,
+    B::Data: Send,
+    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
+    use super::http2::HttpVersion;
+    let tcp = super::proxy::connect(
+        endpoint.proxy,
+        endpoint.tls,
+        endpoint.secure,
+        endpoint.host,
+        endpoint.port,
+    )
+    .await?;
+    if !endpoint.secure {
+        return if version == HttpVersion::Http2 {
+            super::http2::handshake(tcp, &handshake_error)
+                .await
+                .map(Opened::Http2)
+        } else {
+            Ok(Opened::Http1(super::integrated_auth::Connection {
+                sender: handshake(tcp, upgrades, &handshake_error).await?,
+                binding: None,
+            }))
+        };
+    }
+    #[cfg(rayx_tls)]
+    {
+        let no_http2 = || {
+            Error::transport_failure(
+                None,
+                format!(
+                    "{}:{} did not negotiate HTTP/2 (ALPN h2), which with_http_version(Http2) requires",
+                    endpoint.host, endpoint.port
+                ),
+            )
+        };
+        let stream = tls_stream_offering(
+            endpoint.tls,
+            endpoint.host,
+            tcp,
+            super::http2::alpn(version),
+        )
+        .await
+        .map_err(|error| {
+            // A server without `h2` may refuse an `h2`-only offer outright.
+            if version == HttpVersion::Http2 && refused_application_protocol(&error) {
+                no_http2().with_source(error)
+            } else {
+                error
+            }
+        })?;
+        if stream.get_ref().1.alpn_protocol() == Some(b"h2") {
+            return super::http2::handshake(stream, &handshake_error)
+                .await
+                .map(Opened::Http2);
+        }
+        if version == HttpVersion::Http2 {
+            return Err(no_http2());
+        }
+        let binding = if bound {
+            channel_binding(&stream)
+        } else {
+            None
+        };
+        Ok(Opened::Http1(super::integrated_auth::Connection {
+            sender: handshake(stream, upgrades, &handshake_error).await?,
+            binding,
+        }))
+    }
+    #[cfg(not(rayx_tls))]
+    {
+        let _ = (tcp, version, bound, upgrades);
+        Err(super::tls::tls_disabled())
+    }
 }
 
 #[cfg(test)]
@@ -553,6 +793,8 @@ mod connection_setup_bounds {
                 cookies: &crate::CookieJar::new(),
                 integrated: None,
                 hook: None,
+                version: crate::HttpVersion::Http1,
+                http2: None,
             },
             Duration::from_millis(300),
         )
@@ -626,6 +868,8 @@ mod transport_hooks_negotiate {
                 cookies: &crate::CookieJar::new(),
                 integrated: None,
                 hook: Some(&hook),
+                version: crate::HttpVersion::Http1,
+                http2: None,
             },
             std::time::Duration::from_secs(10),
         )

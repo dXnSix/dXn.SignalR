@@ -93,6 +93,9 @@ pub struct ConnectionConfiguration {
     /// Integrated authentication (`with_default_credentials`, `with_credentials`).
     #[cfg(not(target_arch = "wasm32"))]
     _integrated: Option<crate::communication::integrated_auth::IntegratedCredentials>,
+    /// The HTTP version of native connections (`with_http_version`).
+    #[cfg(not(target_arch = "wasm32"))]
+    _http_version: crate::HttpVersion,
     /// Sees every HTTP request before it is sent (`with_request_hook`).
     _request_hook: Option<crate::communication::request_hook::RequestHook>,
 }
@@ -188,6 +191,12 @@ pub(crate) struct ConnectionRecipe {
     /// The Tokio runtime that owns this connection's I/O, timers and tasks.
     #[cfg(not(target_arch = "wasm32"))]
     runtime: Option<tokio::runtime::Handle>,
+    /// The configured HTTP version (`with_http_version`).
+    #[cfg(not(target_arch = "wasm32"))]
+    http_version: crate::HttpVersion,
+    /// The HTTP/2 connections of this logical connection.
+    #[cfg(not(target_arch = "wasm32"))]
+    http2: crate::communication::http2::Pool,
     /// Sees every HTTP request before it is sent (`with_request_hook`).
     request_hook: Option<crate::communication::request_hook::RequestHook>,
 }
@@ -344,6 +353,24 @@ impl ConnectionRecipe {
         self
     }
 
+    /// The HTTP version of this connection's native requests: the configured one, except that
+    /// integrated authentication, which HTTP/2 cannot carry, keeps them on HTTP/1.1, as the .NET
+    /// client turns HTTP/2 off with credentials.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn http_version(&self) -> crate::HttpVersion {
+        if self.integrated.is_some() {
+            crate::HttpVersion::Http1
+        } else {
+            self.http_version
+        }
+    }
+
+    /// The HTTP/2 connections this logical connection shares.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn http2(&self) -> &crate::communication::http2::Pool {
+        &self.http2
+    }
+
     /// The connection's TLS state, shared by negotiate, the WebSocket and reconnects.
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn tls(&self) -> &crate::communication::tls::TlsContext {
@@ -454,6 +481,8 @@ impl ConnectionConfiguration {
             _cookies: crate::CookieJar::new(),
             #[cfg(not(target_arch = "wasm32"))]
             _integrated: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            _http_version: crate::HttpVersion::default(),
             _request_hook: None,
         }
     }
@@ -694,9 +723,12 @@ impl ConnectionConfiguration {
     /// uses [`rayx_signalr::tls::rustls`](crate::tls::rustls).
     ///
     /// The hook can weaken security: replacing the certificate verifier (`dangerous()`) or the
-    /// protocol versions is the application's explicit choice. The client offers no ALPN
-    /// protocols by default and speaks HTTP/1.1, so a hook that sets `alpn_protocols` must
-    /// include `http/1.1`.
+    /// protocol versions is the application's explicit choice. The ALPN offer of negotiate,
+    /// Long Polling and Server-Sent Events comes from
+    /// [`with_http_version`](Self::with_http_version) and replaces the hook's (as does the
+    /// WebSocket's with `Http2`); the HTTP/1.1 WebSocket handshake and `Http1` requests offer the
+    /// hook's `alpn_protocols` (none by default) and speak HTTP/1.1, so a hook that sets them
+    /// must include `http/1.1`.
     ///
     /// ```no_run
     /// # fn example() -> Result<(), rayx_signalr::Error> {
@@ -1018,6 +1050,10 @@ impl ConnectionConfiguration {
             cookies: self._cookies.clone(),
             #[cfg(not(target_arch = "wasm32"))]
             integrated: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            http_version: self._http_version,
+            #[cfg(not(target_arch = "wasm32"))]
+            http2: Default::default(),
             request_hook: self._request_hook.clone(),
         }
     }
@@ -1167,6 +1203,23 @@ impl ConnectionConfiguration {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn with_system_proxy(&mut self) -> &ConnectionConfiguration {
         self._proxy = Ok(crate::communication::proxy::ProxyConfig::System);
+        self
+    }
+
+    /// Selects the HTTP version of native connections, as the .NET client's HTTP stack chooses
+    /// it. [`HttpVersion::Auto`](crate::HttpVersion::Auto), the default, asks for HTTP/2 over
+    /// TLS through ALPN for negotiate, Long Polling and Server-Sent Events and falls back to
+    /// HTTP/1.1; plaintext endpoints and WebSockets use HTTP/1.1.
+    /// [`HttpVersion::Http2`](crate::HttpVersion::Http2) uses HTTP/2 only, with h2c (prior
+    /// knowledge) for plaintext endpoints and RFC 8441 extended CONNECT for WebSockets; an
+    /// endpoint without it fails with [`ErrorKind::Transport`](crate::ErrorKind::Transport).
+    /// Over HTTP/2 the requests of one connection share one multiplexed connection per endpoint.
+    /// Integrated Windows authentication, which HTTP/2 cannot carry, keeps every request on
+    /// HTTP/1.1 whatever the version, as the .NET client turns HTTP/2 off with credentials.
+    /// Native only: browsers choose the HTTP version themselves.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_http_version(&mut self, version: crate::HttpVersion) -> &ConnectionConfiguration {
+        self._http_version = version;
         self
     }
 

@@ -212,6 +212,10 @@ impl ClientCertificate {
     }
 }
 
+/// A config derived for an ALPN offer.
+#[cfg(rayx_tls)]
+type AlpnConfig = (&'static [&'static [u8]], Arc<rustls::ClientConfig>);
+
 /// The TLS state of one connection. Secure endpoints build the rustls config at `connect`; a
 /// plaintext endpoint builds it on first secure use (a negotiate redirect to an `https` service).
 /// Either way the connection keeps exactly one config for all of its requests and reconnects.
@@ -221,6 +225,9 @@ pub(crate) struct TlsContext {
     prepared: Option<Arc<PreparedTls>>,
     #[cfg(rayx_tls)]
     config: Arc<std::sync::Mutex<Option<Arc<rustls::ClientConfig>>>>,
+    /// The config with other ALPN offers (HTTP/2), derived from `config` on first use.
+    #[cfg(rayx_tls)]
+    alpn: Arc<std::sync::Mutex<Vec<AlpnConfig>>>,
 }
 
 impl TlsContext {
@@ -246,6 +253,7 @@ impl TlsContext {
                     config_hook: settings.config_hook.clone(),
                 })),
                 config: Arc::default(),
+                alpn: Arc::default(),
             };
             // A client certificate is checked against its key before any I/O, also for a
             // plaintext endpoint that may redirect to a secure one.
@@ -303,6 +311,28 @@ impl TlsContext {
         let config = Arc::new(config);
         let mut slot = crate::platform::LockExt::locked(&*self.config);
         Ok(slot.get_or_insert(config).clone())
+    }
+
+    /// The connection's config offering `alpn` (`None`: its own offer), derived once per offer.
+    #[cfg(rayx_tls)]
+    pub(crate) fn config_with_alpn(
+        &self,
+        alpn: Option<&'static [&'static [u8]]>,
+    ) -> Result<Arc<rustls::ClientConfig>, Error> {
+        let Some(alpn) = alpn else {
+            return self.config();
+        };
+        if let Some((_, config)) = crate::platform::LockExt::locked(&*self.alpn)
+            .iter()
+            .find(|(offer, _)| *offer == alpn)
+        {
+            return Ok(config.clone());
+        }
+        let mut config = (*self.config()?).clone();
+        config.alpn_protocols = alpn.iter().map(|protocol| protocol.to_vec()).collect();
+        let config = Arc::new(config);
+        crate::platform::LockExt::locked(&*self.alpn).push((alpn, config.clone()));
+        Ok(config)
     }
 
     /// Whether the connection has built its rustls config yet.
@@ -826,6 +856,8 @@ mod client_certificates {
                 cookies: &crate::CookieJar::new(),
                 integrated: None,
                 hook: None,
+                version: crate::HttpVersion::Http1,
+                http2: None,
             },
             std::time::Duration::from_secs(10),
         )
