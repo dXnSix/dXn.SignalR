@@ -69,8 +69,29 @@ public static partial class Suspension
       : throw new InvalidOperationException($"ntdll returned NTSTATUS 0x{status:X8} for process {pid}.");
   }
 
-  static Task Signal(string signal, int pid) =>
-    Run(new ProcessCommand("kill", [$"-{signal}", pid.ToString(CultureInfo.InvariantCulture)], Directory.GetCurrentDirectory()));
+  /// <summary>Sends <c>SIGSTOP</c> or <c>SIGCONT</c> to <paramref name="pid"/> through libc's <c>kill</c>.</summary>
+  /// <param name="signal"><c>STOP</c> or <c>CONT</c>.</param>
+  /// <param name="pid">The process.</param>
+  /// <returns>A completed task.</returns>
+  static Task Signal(string signal, int pid)
+  {
+    // The signal numbers differ: Darwin STOP 17 and CONT 19, Linux STOP 19 and CONT 18.
+    int number = (signal, OperatingSystem.IsMacOS() || OperatingSystem.IsIOS()) switch
+    {
+      ("STOP", true) => 17,
+      ("CONT", true) => 19,
+      ("STOP", false) => 19,
+      ("CONT", false) => 18,
+      _ => throw new ArgumentException($"Unsupported signal {signal}.", nameof(signal))
+    };
+    if(NativeMethods.Kill(pid, number) != 0)
+    {
+      throw new InvalidOperationException(
+        $"kill({pid}, SIG{signal}) failed with errno {Marshal.GetLastPInvokeError()}.");
+    }
+
+    return Task.CompletedTask;
+  }
 
   static async Task Run(ProcessCommand command)
   {
@@ -85,8 +106,11 @@ public static partial class Suspension
   [GeneratedRegex(@"RAYX_SIGNALR_SUSPEND_READY pid=(\d+) seconds=(\d+)\s*$")]
   private static partial Regex ReadyLine();
 
-  static class NativeMethods
+  static partial class NativeMethods
   {
+    [LibraryImport("libc", EntryPoint = "kill", SetLastError = true)]
+    internal static partial int Kill(int pid, int signal);
+
 #pragma warning disable SYSLIB1054 // Blittable signatures; LibraryImport would need unsafe code in this test project.
     [DllImport("ntdll.dll")]
     internal static extern int NtSuspendProcess(IntPtr processHandle);
@@ -188,7 +212,7 @@ public sealed class SuspensionController(Func<int, Task> suspend, Func<int, Task
   {
     lock(_notes)
     {
-      _notes.Add(note);
+      _notes.Add($"{DateTime.UtcNow:HH:mm:ss.fff} {note}");
     }
   }
 }
