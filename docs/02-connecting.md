@@ -384,7 +384,8 @@ extended-CONNECT WebSocket, share one multiplexed connection per endpoint, as th
 refused stream, or one a graceful `GOAWAY` excluded) is sent once more on a new connection; any
 other failed request is not repeated. With `Http2`, an endpoint that does not negotiate HTTP/2,
 or a server that does not enable extended CONNECT for WebSockets, fails with
-`ErrorKind::Transport`. Integrated Windows authentication cannot run over HTTP/2, so with
+`ErrorKind::Transport`. A server whose TLS answers the ALPN mismatch with a `protocol_version`
+alert instead, such as Kestrel on macOS, fails with `ErrorKind::Tls`. Integrated Windows authentication cannot run over HTTP/2, so with
 `with_default_credentials` or `with_credentials` every request uses HTTP/1.1 whatever the
 version, as the .NET client turns HTTP/2 off with credentials. HTTP/2 also works through
 proxies' tunnels. Browsers choose the HTTP version themselves.

@@ -224,7 +224,17 @@ async fn scenario(protocol: Protocol) {
     .await
     .err()
     .expect("HTTP/2 is unavailable there");
-    assert_eq!(error.kind(), ErrorKind::Transport, "{error}");
+    // Servers refuse the ALPN mismatch with `no_application_protocol` (Transport, "did not
+    // negotiate HTTP/2"); Kestrel on macOS, whose TLS is Apple's, answers `protocol_version`
+    // instead, which the client reports as a TLS failure. iOS cells run against a macOS host.
+    if cfg!(any(target_os = "macos", target_os = "ios")) {
+        assert!(
+            matches!(error.kind(), ErrorKind::Transport | ErrorKind::Tls),
+            "{error}"
+        );
+    } else {
+        assert_eq!(error.kind(), ErrorKind::Transport, "{error}");
+    }
 }
 
 crate::protocol_tests!("http2", std::time::Duration::from_secs(110));
