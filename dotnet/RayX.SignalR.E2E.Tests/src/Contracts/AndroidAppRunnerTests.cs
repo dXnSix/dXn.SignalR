@@ -137,8 +137,9 @@ public sealed class AndroidAppRunnerTests
       ["RUST_LOG"] = "rayx_signalr=info"
     });
     Assert.Equal(
-      ["RAYX_SIGNALR_E2E_SERVICE_URL", "RAYX_SIGNALR_E2E_TLS_CA_PEM_BASE64", "RUST_LOG"],
+      ["RAYX_SIGNALR_E2E_PROXY_URL", "RAYX_SIGNALR_E2E_SERVICE_URL", "RAYX_SIGNALR_E2E_TLS_CA_PEM_BASE64", "RUST_LOG"],
       app.Keys.Order(StringComparer.Ordinal));
+    Assert.DoesNotContain("RAYX_SIGNALR_E2E_PROXY_CREDENTIALS", app.Keys);
   }
 
   [Fact]
@@ -169,9 +170,13 @@ public sealed class AndroidAppRunnerTests
     string[] app = ["android-app", "android-app-release"];
     foreach(string target in app)
     {
+      // The debug app also proves the system proxy (java.net.ProxySelector through JNI).
+      string[] expected = target == "android-app"
+        ? ["connect-negotiate", "invoke", "os-proxy", "tls"]
+        : ["connect-negotiate", "invoke", "tls"];
       Assert.Equal(TargetKind.Native, ScenarioCatalog.Target(target).Kind);
       Assert.Equal(
-        ["connect-negotiate", "invoke", "tls"],
+        expected,
         ScenarioCatalog.Scenarios.Where(scenario => scenario.Targets.Contains(target)).Select(scenario => scenario.Name).Order(StringComparer.Ordinal));
       Assert.IsType<AndroidAppCellRunner>(E2ECellTests.RunnerFor(target));
     }

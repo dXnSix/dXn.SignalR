@@ -116,7 +116,13 @@ public sealed record E2ESelection(
   /// <summary>Gets the selected cells for a host that is, or is not, Windows.</summary>
   /// <param name="windowsHost">Whether the host runs Windows (Windows-only scenarios need it).</param>
   /// <returns>The cells.</returns>
-  public IReadOnlyList<E2ECell> Cells(bool windowsHost)
+  public IReadOnlyList<E2ECell> Cells(bool windowsHost) => Cells(windowsHost, SystemProxy.HostAllowed());
+
+  /// <summary>Gets the selected cells for a host that is, or is not, Windows and may, or may not, change its proxy.</summary>
+  /// <param name="windowsHost">Whether the host runs Windows (Windows-only scenarios need it).</param>
+  /// <param name="hostSystemChanges">Whether the host may change its own proxy settings (native system-proxy cells need it).</param>
+  /// <returns>The cells.</returns>
+  public IReadOnlyList<E2ECell> Cells(bool windowsHost, bool hostSystemChanges)
   {
     List<E2ECell> cells = [];
     foreach(string transport in Transports)
@@ -131,7 +137,8 @@ public sealed record E2ESelection(
             if(scenario.Targets.Contains(target)
                && scenario.Protocols.Contains(protocol)
                && scenario.Supports(transport, protocol)
-               && (windowsHost || !scenario.WindowsHostOnly))
+               && (windowsHost || !scenario.WindowsHostOnly)
+               && (hostSystemChanges || !scenario.SystemProxy || target != ScenarioCatalog.NativeTarget))
             {
               cells.Add(new E2ECell(ScenarioCatalog.Target(target), protocol, scenario, transport));
             }

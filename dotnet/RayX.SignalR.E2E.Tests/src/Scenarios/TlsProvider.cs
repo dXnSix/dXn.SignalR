@@ -45,7 +45,7 @@ public static class TlsProvider
   public static string[] HostFeatures(string provider) =>
     provider == Ring
       ? CellExecution.E2EFeatures
-      : ["--no-default-features", "--features", "messagepack,tls-platform-verifier,tls-aws-lc-rs"];
+      : ["--no-default-features", "--features", "messagepack,proxy-pac,tls-platform-verifier,tls-aws-lc-rs"];
 
   /// <summary>
   /// The cargo feature arguments of the Android <c>e2e</c> binary: as the host's, plus the bundled
@@ -55,8 +55,8 @@ public static class TlsProvider
   /// <returns>The arguments.</returns>
   public static string[] AndroidFeatures(string provider) =>
     provider == Ring
-      ? ["--features", "messagepack,tls-webpki-roots"]
-      : ["--no-default-features", "--features", "messagepack,tls-platform-verifier,tls-aws-lc-rs,tls-webpki-roots"];
+      ? ["--features", "messagepack,proxy-pac,tls-webpki-roots"]
+      : ["--no-default-features", "--features", "messagepack,proxy-pac,tls-platform-verifier,tls-aws-lc-rs,tls-webpki-roots"];
 
   /// <summary>
   /// The target directory of a provider's build: <paramref name="ringDirectory"/> for <c>ring</c>,

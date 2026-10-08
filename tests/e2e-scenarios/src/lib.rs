@@ -13,7 +13,7 @@ use scenarios::*;
 pub use scenarios::support::Protocol;
 
 /// The scenarios the Android app runs (the `android-app` and `android-app-release` targets).
-pub const APP_SCENARIOS: [&str; 3] = ["tls", "connect-negotiate", "invoke"];
+pub const APP_SCENARIOS: [&str; 4] = ["tls", "connect-negotiate", "invoke", "os-proxy"];
 
 /// Runs the app scenario `name` with `protocol`. A failing scenario panics, as in the `e2e`
 /// binary; an unknown name is an error.
@@ -26,6 +26,7 @@ pub async fn run(name: &str, protocol: Protocol) -> Result<(), String> {
         "tls" => scenarios::tls::scenario(protocol).await,
         "connect-negotiate" => scenarios::connect_negotiate::scenario(protocol).await,
         "invoke" => scenarios::invoke::scenario(protocol).await,
+        "os-proxy" => scenarios::os_proxy::scenario(protocol).await,
         other => return Err(format!("unknown app scenario {other}")),
     }
     Ok(())

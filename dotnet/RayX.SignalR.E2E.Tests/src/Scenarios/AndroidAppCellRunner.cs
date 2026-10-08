@@ -50,7 +50,7 @@ public sealed partial class AndroidAppCellRunner(bool release) : ICellRunner
   [
     "RAYX_SIGNALR_E2E_SERVICE_URL", "RAYX_SIGNALR_E2E_TLS_URL", "RAYX_SIGNALR_E2E_TLS_CA_PEM_BASE64",
     "RAYX_SIGNALR_E2E_UNTRUSTED_TLS_URL", "RAYX_SIGNALR_E2E_PROTOCOL", CellExecution.TransportVariable, "RUST_LOG",
-    PlatformTrustVariable
+    PlatformTrustVariable, "RAYX_SIGNALR_E2E_PROXY_URL"
   ];
 
   /// <summary>Keeps the variables the app scenarios read (<see cref="AppVariables"/>).</summary>
@@ -213,7 +213,41 @@ public sealed partial class AndroidAppCellRunner(bool release) : ICellRunner
       AndroidCellRunner.Adb(),
       ["-s", serial, .. InstrumentArguments(cell.Scenario.Name, cell.Protocol, variables)],
       environment.RepositoryRoot);
-    ProcessResult result = await ProcessRunner.RunAsync(command, cell.Scenario.Bound, cancellationToken);
+    ProcessResult result;
+    if(cell.Scenario.SystemProxy)
+    {
+      // The emulator's global HTTP proxy points at the test proxy's credential-free listener for
+      // the cell, and is restored to its previous value whatever the outcome.
+      int port = await SystemProxy.OpenPortAsync(environment.ProxyUrl, cancellationToken);
+      ProcessResult previous = await ProcessRunner.RunAsync(
+        new ProcessCommand(AndroidCellRunner.Adb(), ["-s", serial, .. SystemProxy.AndroidGetArguments], environment.RepositoryRoot),
+        TimeSpan.FromSeconds(30),
+        cancellationToken);
+      if(!previous.Succeeded)
+      {
+        throw new InvalidOperationException($"cannot read the emulator's proxy setting: {Redaction.SafeTail(previous.StandardError)}");
+      }
+
+      try
+      {
+        await ProcessRunner.RunAsync(
+          new ProcessCommand(AndroidCellRunner.Adb(), ["-s", serial, .. SystemProxy.AndroidSetArguments(AndroidCellRunner.HostAlias, port)], environment.RepositoryRoot),
+          TimeSpan.FromSeconds(30),
+          cancellationToken);
+        result = await ProcessRunner.RunAsync(command, cell.Scenario.Bound, cancellationToken);
+      }
+      finally
+      {
+        await ProcessRunner.RunAsync(
+          new ProcessCommand(AndroidCellRunner.Adb(), ["-s", serial, .. SystemProxy.AndroidRestoreArguments(previous.StandardOutput)], environment.RepositoryRoot),
+          TimeSpan.FromSeconds(30),
+          CancellationToken.None);
+      }
+    }
+    else
+    {
+      result = await ProcessRunner.RunAsync(command, cell.Scenario.Bound, cancellationToken);
+    }
     if(result.TimedOut)
     {
       // The instrumentation could not remove the test CA it installed.

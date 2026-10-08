@@ -54,7 +54,7 @@ public sealed class MobileRunnerTests
   {
     Infrastructure.ProcessCommand command = AndroidCellRunner.BuildCommand("/repo");
     Assert.Equal(Path.Combine("/repo", AndroidCellRunner.TargetDirectory), command.Environment["CARGO_TARGET_DIR"]);
-    Assert.Equal(["--features", "messagepack,tls-webpki-roots"], command.Arguments.Skip(8).Take(2));
+    Assert.Equal(["--features", "messagepack,proxy-pac,tls-webpki-roots"], command.Arguments.Skip(8).Take(2));
     Assert.DoesNotContain("--all-features", command.Arguments);
   }
 

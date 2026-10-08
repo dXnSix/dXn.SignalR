@@ -28,10 +28,30 @@ public sealed class ProxyState(
   IReadOnlyDictionary<string, int> servicePorts) : IDisposable
 {
   readonly ConcurrentQueue<int> _tunnelPorts = new();
+  readonly ConcurrentQueue<int> _socksAddressTypes = new();
   readonly SemaphoreSlim _routesGate = new(1, 1);
   IReadOnlyDictionary<int, int>? _routes;
   int _tunnels;
   int _refused;
+  int _socks;
+  int _pacScripts;
+
+  /// <summary>
+  /// Gets or sets the loopback port of the listener that needs no credentials, for the routes of
+  /// PAC scripts (which cannot carry credentials).
+  /// </summary>
+  public int OpenPort { get; set; }
+
+  /// <summary>Records a served PAC script.</summary>
+  public void PacServed() => Interlocked.Increment(ref _pacScripts);
+
+  /// <summary>Gets or sets the loopback port of the TLS listener (<c>https://</c> proxies).</summary>
+  public int TlsPort { get; set; }
+
+  int _tlsSessions;
+
+  /// <summary>Records a TLS session a client opened with the TLS listener.</summary>
+  public void TlsSession() => Interlocked.Increment(ref _tlsSessions);
 
   /// <summary>
   /// Reads <c>TestProxy:User</c>, <c>TestProxy:Password</c>, <c>TestProxy:Deny</c>,
@@ -112,6 +132,21 @@ public sealed class ProxyState(
     return string.Equals(authorization, expected, StringComparison.Ordinal);
   }
 
+  /// <summary>Whether a SOCKS5 user name and password are the required credentials.</summary>
+  /// <param name="name">The user name.</param>
+  /// <param name="secret">The password.</param>
+  /// <returns>Whether the tunnel may open.</returns>
+  public bool Authorized(string name, string secret) =>
+    string.Equals(name, user, StringComparison.Ordinal) && string.Equals(secret, password, StringComparison.Ordinal);
+
+  /// <summary>Records a SOCKS5 request and the address type it named the destination with.</summary>
+  /// <param name="addressType">The SOCKS5 address type (1 IPv4, 3 domain name, 4 IPv6).</param>
+  public void SocksRequested(int addressType)
+  {
+    _socksAddressTypes.Enqueue(addressType);
+    Interlocked.Increment(ref _socks);
+  }
+
   /// <summary>Whether the target is on the deny list.</summary>
   /// <param name="target">The CONNECT target.</param>
   /// <returns>Whether it is refused.</returns>
@@ -134,11 +169,20 @@ public sealed class ProxyState(
   {
     tunnels = Volatile.Read(ref _tunnels),
     refused = Volatile.Read(ref _refused),
-    ports = _tunnelPorts.ToArray()
+    ports = _tunnelPorts.ToArray(),
+    socks = Volatile.Read(ref _socks),
+    socksAddressTypes = _socksAddressTypes.ToArray(),
+    pacScripts = Volatile.Read(ref _pacScripts),
+    openPort = OpenPort,
+    tlsPort = TlsPort,
+    tlsSessions = Volatile.Read(ref _tlsSessions)
   });
 }
 
-/// <summary>Handles one raw connection: a CONNECT tunnel, or a small HTTP request.</summary>
+/// <summary>
+/// Handles one raw connection: a SOCKS5 tunnel (recognized by its first byte), a CONNECT tunnel,
+/// or a small HTTP request.
+/// </summary>
 public static class ProxyConnection
 {
   const int HeadLimit = 16 * 1024;
@@ -147,11 +191,25 @@ public static class ProxyConnection
   /// <param name="connection">The connection.</param>
   /// <param name="state">The proxy state.</param>
   /// <returns>A task that completes with the connection.</returns>
-  public static async Task HandleAsync(ConnectionContext connection, ProxyState state)
+  public static Task HandleAsync(ConnectionContext connection, ProxyState state) =>
+    HandleAsync(connection.Transport.Input, connection.Transport.Output, state, open: false, connection.ConnectionClosed);
+
+  /// <summary>Handles one connection's pipes until it ends.</summary>
+  /// <param name="input">The connection's input.</param>
+  /// <param name="output">The connection's output.</param>
+  /// <param name="state">The proxy state.</param>
+  /// <param name="open">Whether tunnels need no credentials (the PAC routes' listener).</param>
+  /// <param name="closed">Signals the connection's end.</param>
+  /// <returns>A task that completes with the connection.</returns>
+  public static async Task HandleAsync(PipeReader input, PipeWriter output, ProxyState state, bool open, CancellationToken closed)
   {
-    PipeReader input = connection.Transport.Input;
-    PipeWriter output = connection.Transport.Output;
-    string? head = await ReadHeadAsync(input, connection.ConnectionClosed);
+    if(await PeekAsync(input, closed) == Socks5)
+    {
+      await Socks5Async(input, output, state, open, closed);
+      return;
+    }
+
+    string? head = await ReadHeadAsync(input, closed);
     if(head is null)
     {
       return;
@@ -175,7 +233,20 @@ public static class ProxyConnection
         .Where(parts => parts.Length == 2 && parts[0].Trim().Equals("Proxy-Authorization", StringComparison.OrdinalIgnoreCase))
         .Select(parts => parts[1].Trim())
         .FirstOrDefault();
-      await TunnelAsync(target, authorization, input, output, state, connection.ConnectionClosed);
+      await TunnelAsync(target, open ? null : authorization, input, output, state, open, closed);
+      return;
+    }
+
+    if(method == "GET" && target.StartsWith("/proxy.pac", StringComparison.Ordinal))
+    {
+      string host = lines
+        .Skip(1)
+        .Select(line => line.Split(':', 2))
+        .Where(parts => parts.Length == 2 && parts[0].Trim().Equals("Host", StringComparison.OrdinalIgnoreCase))
+        .Select(parts => parts[1].Trim())
+        .FirstOrDefault() ?? "127.0.0.1";
+      state.PacServed();
+      await RespondAsync(output, 200, "OK", PacScript(target, host, state.OpenPort), "application/x-ns-proxy-autoconfig");
       return;
     }
 
@@ -193,15 +264,60 @@ public static class ProxyConnection
     }
   }
 
+  /// <summary>
+  /// A PAC script whose <c>FindProxyForURL</c> routes plain (<c>http</c>) and secure
+  /// (<c>https</c>) endpoints as the query names: <c>proxy</c> (this proxy's credential-free
+  /// listener over HTTP CONNECT), <c>socks5</c> (the same listener over SOCKS5), <c>direct</c>,
+  /// <c>dead</c> (an unreachable proxy, then <c>DIRECT</c>), or <c>throw</c> (the script fails).
+  /// </summary>
+  /// <param name="target">The request target with its query.</param>
+  /// <param name="hostHeader">The Host header the client reached this proxy with.</param>
+  /// <param name="openPort">The credential-free listener's port.</param>
+  /// <returns>The script.</returns>
+  public static string PacScript(string target, string hostHeader, int openPort)
+  {
+    string query = target.Contains('?', StringComparison.Ordinal) ? target[(target.IndexOf('?', StringComparison.Ordinal) + 1)..] : string.Empty;
+    Dictionary<string, string> kinds = query
+      .Split('&', StringSplitOptions.RemoveEmptyEntries)
+      .Select(pair => pair.Split('=', 2))
+      .Where(pair => pair.Length == 2)
+      .ToDictionary(pair => pair[0], pair => pair[1], StringComparer.Ordinal);
+    // The address the client reached this proxy with, as a bracketed IPv6 address or a host.
+    string host = hostHeader.StartsWith('[') ? hostHeader[..(hostHeader.IndexOf(']', StringComparison.Ordinal) + 1)] : hostHeader.Split(':')[0];
+    // The credential-free listener is on the IPv4 loopback: name it so, rather than make every
+    // route try `localhost`'s IPv6 address first.
+    if(host.Equals("localhost", StringComparison.OrdinalIgnoreCase))
+    {
+      host = "127.0.0.1";
+    }
+    string Route(string scheme) => kinds.GetValueOrDefault(scheme, "direct") switch
+    {
+      "proxy" => $"PROXY {host}:{openPort}",
+      "socks5" => $"SOCKS5 {host}:{openPort}",
+      "dead" => $"PROXY {host}:1; DIRECT",
+      _ => "DIRECT"
+    };
+    if(kinds.ContainsValue("throw"))
+    {
+      return "function FindProxyForURL(url, host) { throw new Error('a failing PAC script'); }";
+    }
+
+    return "function FindProxyForURL(url, host) {\n"
+           + $"  if (shExpMatch(url, 'https:*')) {{ return '{Route("https")}'; }}\n"
+           + $"  return '{Route("http")}';\n"
+           + "}\n";
+  }
+
   static async Task TunnelAsync(
     string target,
     string? authorization,
     PipeReader input,
     PipeWriter output,
     ProxyState state,
+    bool open,
     CancellationToken closed)
   {
-    if(!state.Authorized(authorization))
+    if(!open && !state.Authorized(authorization))
     {
       state.Refused();
       await WriteAsync(output, "HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm=\"rayx\"\r\nContent-Length: 0\r\n\r\n");
@@ -222,14 +338,28 @@ public static class ProxyConnection
       return;
     }
 
-    string host = target[..separator].Trim('[', ']');
-    // The Android emulator reaches the host loopback as 10.0.2.2; this proxy runs on the host.
-    if(host == "10.0.2.2")
+    using TcpClient? upstream = await ConnectUpstreamAsync(target[..separator].Trim('[', ']'), port, state, closed);
+    if(upstream is null)
     {
-      host = IPAddress.Loopback.ToString();
+      await RespondAsync(output, 502, "Bad Gateway");
+      return;
     }
 
-    if(host is "localhost" or "127.0.0.1" or "::1")
+    state.Opened(((IPEndPoint)upstream.Client.LocalEndPoint!).Port);
+    await WriteAsync(output, "HTTP/1.1 200 Connection established\r\n\r\n");
+    await RelayAsync(upstream, input, output, closed);
+  }
+
+  /// <summary>
+  /// Connects to the tunnel's destination: the service's loopback ports go to the ports it listens
+  /// on, and the Android emulator's host alias (10.0.2.2) to the loopback.
+  /// </summary>
+  static async Task<TcpClient?> ConnectUpstreamAsync(string host, int port, ProxyState state, CancellationToken closed)
+  {
+    // The Android emulator reaches the host loopback as 10.0.2.2; this proxy runs on the host.
+    // `rayx-os-proxy.test` resolves only here, to the service, so a connection to it proves the
+    // client used this proxy (the os-proxy scenario).
+    if(host is "10.0.2.2" or "localhost" or "127.0.0.1" or "::1" or "rayx-os-proxy.test")
     {
       host = IPAddress.Loopback.ToString();
       try
@@ -238,24 +368,26 @@ public static class ProxyConnection
       }
       catch(Exception exception) when (exception is HttpRequestException or System.Text.Json.JsonException or TaskCanceledException)
       {
-        await RespondAsync(output, 502, "Bad Gateway");
-        return;
+        return null;
       }
     }
 
-    using TcpClient upstream = new();
+    TcpClient upstream = new();
     try
     {
       await upstream.ConnectAsync(host, port, closed);
+      return upstream;
     }
     catch(SocketException)
     {
-      await RespondAsync(output, 502, "Bad Gateway");
-      return;
+      upstream.Dispose();
+      return null;
     }
+  }
 
-    state.Opened(((IPEndPoint)upstream.Client.LocalEndPoint!).Port);
-    await WriteAsync(output, "HTTP/1.1 200 Connection established\r\n\r\n");
+  /// <summary>Relays both directions of an open tunnel until either ends.</summary>
+  static async Task RelayAsync(TcpClient upstream, PipeReader input, PipeWriter output, CancellationToken closed)
+  {
     NetworkStream stream = upstream.GetStream();
     // When either direction ends, the other is canceled and both are awaited before the pipes
     // complete, so nothing writes to a completed pipe.
@@ -276,6 +408,152 @@ public static class ProxyConnection
 
     await output.CompleteAsync();
     await input.CompleteAsync();
+  }
+
+  const byte Socks5 = 5;
+
+  /// <summary>The first byte of the connection, without consuming it (-1 when it ended).</summary>
+  static async Task<int> PeekAsync(PipeReader input, CancellationToken closed)
+  {
+    try
+    {
+      ReadResult result = await input.ReadAsync(closed);
+      int first = result.Buffer.IsEmpty ? -1 : result.Buffer.FirstSpan[0];
+      // Nothing consumed or examined: the next read sees the same bytes at once.
+      input.AdvanceTo(result.Buffer.Start);
+      return first;
+    }
+    catch(OperationCanceledException)
+    {
+      return -1;
+    }
+  }
+
+  /// <summary>Reads exactly <paramref name="count"/> bytes, or <c>null</c> when the connection ends first.</summary>
+  static async Task<byte[]?> ReadExactAsync(PipeReader input, int count, CancellationToken closed)
+  {
+    while(true)
+    {
+      ReadResult result;
+      try
+      {
+        result = await input.ReadAsync(closed);
+      }
+      catch(OperationCanceledException)
+      {
+        return null;
+      }
+
+      if(result.Buffer.Length >= count)
+      {
+        byte[] bytes = result.Buffer.Slice(0, count).ToArray();
+        input.AdvanceTo(result.Buffer.GetPosition(count));
+        return bytes;
+      }
+
+      if(result.IsCompleted)
+      {
+        return null;
+      }
+
+      input.AdvanceTo(result.Buffer.Start, result.Buffer.End);
+    }
+  }
+
+  /// <summary>
+  /// A SOCKS5 tunnel (RFC 1928) that requires the run's credentials (RFC 1929): a request without
+  /// them gets no acceptable method, wrong ones a failed sub-negotiation, and a denied target reply
+  /// 2 (connection not allowed by ruleset); each refusal is counted.
+  /// </summary>
+  static async Task Socks5Async(PipeReader input, PipeWriter output, ProxyState state, bool open, CancellationToken closed)
+  {
+    byte[]? greeting = await ReadExactAsync(input, 2, closed);
+    byte[]? methods = greeting is null ? null : await ReadExactAsync(input, greeting[1], closed);
+    if(methods is null)
+    {
+      return;
+    }
+
+    if(open && methods.Contains((byte)0))
+    {
+      await output.WriteAsync(new byte[] { Socks5, 0 }, closed);
+      await Socks5ConnectAsync(input, output, state, closed);
+      return;
+    }
+
+    if(!methods.Contains((byte)2))
+    {
+      state.Refused();
+      await output.WriteAsync(new byte[] { Socks5, 0xff }, closed);
+      return;
+    }
+
+    await output.WriteAsync(new byte[] { Socks5, 2 }, closed);
+    byte[]? header = await ReadExactAsync(input, 2, closed);
+    byte[]? name = header is null ? null : await ReadExactAsync(input, header[1], closed);
+    byte[]? secretLength = name is null ? null : await ReadExactAsync(input, 1, closed);
+    byte[]? secret = secretLength is null ? null : await ReadExactAsync(input, secretLength[0], closed);
+    if(secret is null)
+    {
+      return;
+    }
+
+    if(!state.Authorized(Encoding.UTF8.GetString(name!), Encoding.UTF8.GetString(secret)))
+    {
+      state.Refused();
+      await output.WriteAsync(new byte[] { 1, 1 }, closed);
+      return;
+    }
+
+    await output.WriteAsync(new byte[] { 1, 0 }, closed);
+    await Socks5ConnectAsync(input, output, state, closed);
+  }
+
+  /// <summary>The SOCKS5 CONNECT request after authentication, and the tunnel it opens.</summary>
+  static async Task Socks5ConnectAsync(PipeReader input, PipeWriter output, ProxyState state, CancellationToken closed)
+  {
+    byte[]? request = await ReadExactAsync(input, 4, closed);
+    if(request is null)
+    {
+      return;
+    }
+
+    string? host = request[3] switch
+    {
+      1 => (await ReadExactAsync(input, 4, closed)) is { } v4 ? new IPAddress(v4).ToString() : null,
+      4 => (await ReadExactAsync(input, 16, closed)) is { } v6 ? new IPAddress(v6).ToString() : null,
+      3 => (await ReadExactAsync(input, 1, closed)) is { } length && (await ReadExactAsync(input, length[0], closed)) is { } domain
+        ? Encoding.ASCII.GetString(domain)
+        : null,
+      _ => null
+    };
+    byte[]? portBytes = host is null ? null : await ReadExactAsync(input, 2, closed);
+    if(portBytes is null)
+    {
+      await output.WriteAsync(new byte[] { Socks5, 8, 0, 1, 0, 0, 0, 0, 0, 0 }, closed);
+      return;
+    }
+
+    int port = (portBytes[0] << 8) | portBytes[1];
+    state.SocksRequested(request[3]);
+    string target = host!.Contains(':', StringComparison.Ordinal) ? $"[{host}]:{port}" : $"{host}:{port}";
+    if(state.Denied(target))
+    {
+      state.Refused();
+      await output.WriteAsync(new byte[] { Socks5, 2, 0, 1, 0, 0, 0, 0, 0, 0 }, closed);
+      return;
+    }
+
+    using TcpClient? upstream = await ConnectUpstreamAsync(host, port, state, closed);
+    if(upstream is null)
+    {
+      await output.WriteAsync(new byte[] { Socks5, 5, 0, 1, 0, 0, 0, 0, 0, 0 }, closed);
+      return;
+    }
+
+    state.Opened(((IPEndPoint)upstream.Client.LocalEndPoint!).Port);
+    await output.WriteAsync(new byte[] { Socks5, 0, 0, 1, 0, 0, 0, 0, 0, 0 }, closed);
+    await RelayAsync(upstream, input, output, closed);
   }
 
   static async Task<string?> ReadHeadAsync(PipeReader input, CancellationToken closed)

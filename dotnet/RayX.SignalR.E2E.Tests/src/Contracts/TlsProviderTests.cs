@@ -32,10 +32,10 @@ public sealed class TlsProviderTests
   public void AwsLcRsBuildsWithoutRingIntoItsOwnTargetDirectories()
   {
     Assert.Equal(
-      ["--no-default-features", "--features", "messagepack,tls-platform-verifier,tls-aws-lc-rs"],
+      ["--no-default-features", "--features", "messagepack,proxy-pac,tls-platform-verifier,tls-aws-lc-rs"],
       TlsProvider.HostFeatures(TlsProvider.AwsLcRs));
     Assert.Equal(
-      ["--no-default-features", "--features", "messagepack,tls-platform-verifier,tls-aws-lc-rs,tls-webpki-roots"],
+      ["--no-default-features", "--features", "messagepack,proxy-pac,tls-platform-verifier,tls-aws-lc-rs,tls-webpki-roots"],
       TlsProvider.AndroidFeatures(TlsProvider.AwsLcRs));
 
     Infrastructure.ProcessCommand host = NativeE2EBinary.BuildCommand("/repo", TlsProvider.AwsLcRs);

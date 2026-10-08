@@ -24,7 +24,7 @@ const PROXY_VARIABLES: [&str; 9] = [
 
 /// Clears every proxy variable (the cell runs one test per process, so the environment is this
 /// scenario's).
-fn clear_proxy_variables() {
+pub(crate) fn clear_proxy_variables() {
     for name in PROXY_VARIABLES {
         std::env::remove_var(name);
     }
@@ -36,13 +36,22 @@ use crate::support::{self, Protocol, ServiceEndpoint};
 
 /// The proxy's counters (`GET /stats`).
 #[derive(Debug, Deserialize)]
-struct Stats {
-    tunnels: u64,
-    refused: u64,
-    ports: Vec<u16>,
+#[serde(rename_all = "camelCase")]
+pub(crate) struct Stats {
+    pub(crate) tunnels: u64,
+    pub(crate) refused: u64,
+    pub(crate) ports: Vec<u16>,
+    /// SOCKS5 requests, and the address type each named its destination with.
+    pub(crate) socks: u64,
+    pub(crate) socks_address_types: Vec<u8>,
+    /// PAC scripts served.
+    pub(crate) pac_scripts: u64,
+    /// The TLS listener's port (`https://` proxies) and the TLS sessions clients opened with it.
+    pub(crate) tls_port: u16,
+    pub(crate) tls_sessions: u64,
 }
 
-fn proxy_endpoint() -> ServiceEndpoint {
+pub(crate) fn proxy_endpoint() -> ServiceEndpoint {
     support::parse_endpoint(&support::required_variable("RAYX_SIGNALR_E2E_PROXY_URL"))
 }
 
@@ -53,12 +62,12 @@ fn proxy_url(credentials: &str) -> String {
     format!("http://{credentials}@{}:{port}", proxy.host)
 }
 
-fn credentials() -> String {
+pub(crate) fn credentials() -> String {
     support::required_variable("RAYX_SIGNALR_E2E_PROXY_CREDENTIALS")
 }
 
 /// Reads the proxy's counters with a direct request.
-async fn stats() -> Stats {
+pub(crate) async fn stats() -> Stats {
     let proxy = proxy_endpoint();
     let port = proxy.port.expect("the proxy URL has a port");
     let port = u16::try_from(port).expect("a TCP port");

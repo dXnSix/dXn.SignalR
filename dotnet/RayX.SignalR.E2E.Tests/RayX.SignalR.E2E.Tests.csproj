@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
+        <!-- The source-generated WinINet interop of the os-proxy runner (Scenarios/SystemProxy.cs). -->
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <TargetFramework>net10.0</TargetFramework>
         <RootNamespace>RayX.SignalR.E2E.Tests</RootNamespace>
         <IsPackable>false</IsPackable>

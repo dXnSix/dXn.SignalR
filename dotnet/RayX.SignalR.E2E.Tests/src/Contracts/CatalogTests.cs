@@ -21,7 +21,13 @@ public sealed partial class CatalogTests(AspireEnvironment environment)
     E2ESelection all = E2ESelection.Parse("all", "ALL", " all ");
     Assert.Equal(ScenarioCatalog.Targets.Select(target => target.Name), all.Targets);
     Assert.True(all.RequiresBrowserFixture);
-    int expected = ScenarioCatalog.Scenarios.Sum(scenario => scenario.Targets.Count * scenario.Protocols.Count);
+    // Host-gated native cells: Windows-only scenarios, and system-proxy scenarios where the host
+    // may not change its settings.
+    bool HostRuns(Scenario scenario) =>
+      (OperatingSystem.IsWindows() || !scenario.WindowsHostOnly)
+      && (SystemProxy.HostAllowed() || !scenario.SystemProxy);
+    int expected = ScenarioCatalog.Scenarios.Sum(
+      scenario => (scenario.Targets.Count - (scenario.Targets.Contains("native") && !HostRuns(scenario) ? 1 : 0)) * scenario.Protocols.Count);
     Assert.Equal(expected, all.Cells().Count);
   }
 
@@ -125,6 +131,33 @@ public sealed partial class CatalogTests(AspireEnvironment environment)
     Assert.All(ScenarioCatalog.Scenarios.Where(scenario => scenario.WindowsHostOnly),
                scenario => Assert.False(string.IsNullOrWhiteSpace(scenario.WindowsHostOnlyReason)));
     Assert.Equal(["native"], ScenarioCatalog.Scenario("windows-auth").Targets);
+  }
+
+  [Fact]
+  [Trait("Category", "Catalog")]
+  public void SystemProxyCellsChangeOnlyEmulatorsOrOptedInHosts()
+  {
+    E2ESelection selection = E2ESelection.Parse("native,android-app", "all", "os-proxy");
+    Assert.All(selection.Cells(windowsHost: true, hostSystemChanges: false), cell => Assert.Equal("android-app", cell.Target.Name));
+    Assert.Contains(selection.Cells(windowsHost: true, hostSystemChanges: true), cell => cell.Target.Name == "native");
+    Assert.True(ScenarioCatalog.Scenario("os-proxy").SystemProxy);
+    Assert.False(SystemProxy.HostAllowed(null, windows: true, macOs: false));
+    Assert.False(SystemProxy.HostAllowed("1", windows: false, macOs: false), "Linux reads only the environment");
+    Assert.True(SystemProxy.HostAllowed("1", windows: true, macOs: false));
+    Assert.True(SystemProxy.HostAllowed("1", windows: false, macOs: true));
+    Assert.Equal(["shell", "settings", "put", "global", "http_proxy", "10.0.2.2:6100"], SystemProxy.AndroidSetArguments("10.0.2.2", 6100));
+    Assert.Equal(["shell", "settings", "get", "global", "http_proxy"], SystemProxy.AndroidGetArguments);
+    Assert.Equal(["shell", "settings", "put", "global", "http_proxy", ":0"], SystemProxy.AndroidRestoreArguments("null\n"));
+    Assert.Equal(["shell", "settings", "put", "global", "http_proxy", "corp:3128"], SystemProxy.AndroidRestoreArguments("corp:3128\r\n"));
+    Assert.Equal((true, "corp", "8080"), SystemProxy.MacWebProxy("Enabled: Yes\nServer: corp\nPort: 8080\nAuthenticated Proxy Enabled: 0\n"));
+    Assert.Equal(
+      [["-setwebproxy", "Wi-Fi", "corp", "8080"], ["-setwebproxystate", "Wi-Fi", "on"]],
+      SystemProxy.MacRestoreArguments("Wi-Fi", (true, "corp", "8080")));
+    Assert.Equal([["-setwebproxystate", "Wi-Fi", "off"]], SystemProxy.MacRestoreArguments("Wi-Fi", (false, "", "0")));
+    Assert.Equal(["Wi-Fi", "Thunderbolt Bridge"], SystemProxy.MacServices("An asterisk (*) denotes that a network service is disabled.\nWi-Fi\n*USB LAN\nThunderbolt Bridge\n"));
+    Assert.Equal([["-setwebproxy", "Wi-Fi", "127.0.0.1", "6100"], ["-setwebproxystate", "Wi-Fi", "on"]], SystemProxy.MacSetArguments("Wi-Fi", 6100));
+    Assert.True(SystemProxy.MacWebProxyEnabled("Enabled: Yes\nServer: a\nPort: 1\n"));
+    Assert.False(SystemProxy.MacWebProxyEnabled("Enabled: No\n"));
   }
 
   [GeneratedRegex(@"(?m)^(?<name>[a-z0-9_]+::[a-z0-9_]+): test\s*$")]

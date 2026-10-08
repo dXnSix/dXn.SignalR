@@ -34,9 +34,15 @@ pub(crate) mod msgpack_fidelity;
 pub(crate) mod negotiate_redirect;
 pub(crate) mod negotiate_timeout;
 pub(crate) mod ordinary_reconnect;
+pub(crate) mod os_proxy;
 pub(crate) mod pause_resume;
 pub(crate) mod pause_resume_stateful;
 pub(crate) mod proxy;
+pub(crate) mod proxy_https;
+// Proxy auto-config does not build for iOS (see build.rs).
+#[cfg(not(target_os = "ios"))]
+pub(crate) mod proxy_pac;
+pub(crate) mod proxy_socks;
 pub(crate) mod reconnect_call_wait;
 pub(crate) mod reconnect_exhaustion;
 pub(crate) mod request_headers;

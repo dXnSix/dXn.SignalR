@@ -59,6 +59,13 @@ public sealed record Scenario(string Name, IReadOnlySet<string> Targets)
   /// <summary>Gets whether the scenario's cells need a Windows host.</summary>
   public bool WindowsHostOnly => WindowsHostOnlyReason is not null;
 
+  /// <summary>
+  /// Gets whether the runner points the system proxy at the test proxy around the scenario's cells
+  /// (<c>SystemProxy</c>): the Android app's emulator always, and the host only where it may
+  /// change its settings (<c>SystemProxy.HostAllowed</c>); native cells are selected only there.
+  /// </summary>
+  public bool SystemProxy { get; init; }
+
   /// <summary>Gets a scenario-specific cell bound that replaces the default one.</summary>
   public TimeSpan? Limit { get; init; }
 
@@ -98,6 +105,9 @@ public sealed record Scenario(string Name, IReadOnlySet<string> Targets)
 public static class ScenarioCatalog
 {
   const string _native = "native";
+
+  /// <summary>The desktop host target.</summary>
+  public const string NativeTarget = _native;
   const string _chromium = "chromium";
   const string _firefox = "firefox";
   const string _webkit = "webkit";
@@ -181,10 +191,38 @@ public static class ScenarioCatalog
     // Browsers use the browser's proxy settings: the crate has no proxy API there. A dozen
     // tunnelled connections take most of a minute on an emulator, so the bound is longer.
     new("proxy", Set(_nativeTargets)) { Limit = TimeSpan.FromSeconds(120) },
+    // The test proxy's SOCKS5 side, with the same reasons and bound.
+    new("proxy-socks", Set(_nativeTargets)) { Limit = TimeSpan.FromSeconds(120) },
+    // HTTPS proxies: the test proxy behind TLS, with the same reasons and bound.
+    new("proxy-https", Set(_nativeTargets)) { Limit = TimeSpan.FromSeconds(120) },
+    // Proxy auto-config scripts the test proxy serves, with the same reasons and bound.
+    new("proxy-pac", Set([_native, _android]))
+    {
+      Limit = TimeSpan.FromSeconds(120),
+      Exclusions = new Dictionary<string, string>
+      {
+        [_ios] = "proxy auto-config is not built for iOS: the Boa engine's time dependency (num_threads) does not compile there"
+      }
+    },
     // Browsers manage cookies themselves: the crate has no cookie API there.
     new("cookies", Set(_nativeTargets)),
     // Browsers choose client certificates from their own store: the crate has no API there.
     new("client-certificate", Set(_nativeTargets)),
+    // The operating system's proxy settings: the emulator's global proxy in the Android app, and
+    // the host's user proxy only on CI runners that opt in to system changes.
+    new("os-proxy", Set([_native, _androidApp]))
+    {
+      SystemProxy = true,
+      Exclusions = new Dictionary<string, string>
+      {
+        [_android] = "the adb-shell binary has no Java VM for java.net.ProxySelector; the Android app runs the scenario",
+        [_androidAppRelease] = "the debug app proves the ProxySelector path; release cells prove TLS only",
+        [_ios] = "the simulator's proxy is the host's system setting, which a run may not change",
+        [_chromium] = "browsers use the browser's proxy settings",
+        [_firefox] = "browsers use the browser's proxy settings",
+        [_webkit] = "browsers use the browser's proxy settings"
+      }
+    },
     // The current Windows account through SSPI, on Windows hosts only.
     new("windows-auth", Set(_native))
     {

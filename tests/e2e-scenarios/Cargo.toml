@@ -15,7 +15,8 @@ messagepack = ["rayx-signalr/messagepack"]
 
 [dependencies]
 # The TLS verifier and provider are the harness's choice.
-rayx-signalr = { path = "../..", default-features = false }
+# `proxy-pac` for the `proxy-pac` scenario.
+rayx-signalr = { path = "../..", default-features = false, features = ["proxy-pac"] }
 base64 = "0.22.1"
 bytes = "1.7"
 env_logger = "0.11"

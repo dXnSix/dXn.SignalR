@@ -102,7 +102,9 @@ public sealed class MobileTlsTests(AspireEnvironment environment)
       StringComparison.Ordinal);
     // init_with_env reports the typed rayx_signalr::Error instead of the JNI error.
     Assert.Contains("pubfninit_with_env(", compact, StringComparison.Ordinal);
-    Assert.Contains("->Result<(),crate::Error>{rustls_platform_verifier::android::init_with_env(env,context)", compact, StringComparison.Ordinal);
+    Assert.Contains("rustls_platform_verifier::android::init_with_env(env,context).map_err(", compact, StringComparison.Ordinal);
+    // It also keeps the Java VM for the system proxy settings (java.net.ProxySelector).
+    Assert.Contains("crate::communication::os_proxy::java::set_java_vm(vm)", compact, StringComparison.Ordinal);
 
     // LibraryBuildsForAndroidThroughCargoNdk compiles this module for Android with the default
     // (platform verifier) features, so the re-exported paths and the wrapper resolve there.

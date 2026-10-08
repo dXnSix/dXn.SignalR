@@ -17,7 +17,7 @@ tls-aws-lc-rs = ["rayx-signalr/tls-aws-lc-rs"]
 
 [dependencies]
 # The platform verifier only: the device trusts the run's CA as a user CA, which the app installs.
-rayx-signalr = { path = "../..", default-features = false, features = ["messagepack", "tls-platform-verifier"] }
+rayx-signalr = { path = "../..", default-features = false, features = ["messagepack", "proxy-pac", "tls-platform-verifier"] }
 rayx-signalr-e2e-scenarios = { path = "../e2e-scenarios", features = ["messagepack"] }
 jni = { version = "0.22", default-features = false }
 # The client's and the scenario's log in logcat (tag `rayx-signalr`), which a failing cell's

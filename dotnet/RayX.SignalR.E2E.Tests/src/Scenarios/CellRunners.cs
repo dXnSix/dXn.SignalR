@@ -31,7 +31,7 @@ public static partial class CellExecution
   /// <c>--all-features</c> would select <c>aws-lc-rs</c> and leave the default provider without
   /// a real handshake.
   /// </summary>
-  public static readonly string[] E2EFeatures = ["--features", "messagepack"];
+  public static readonly string[] E2EFeatures = ["--features", "messagepack,proxy-pac"];
 
   /// <summary>The hard bound for one cell's process (soak scenarios: see <see cref="Scenario.Bound"/>).</summary>
   public static readonly TimeSpan CellTimeout = TimeSpan.FromSeconds(60);
@@ -323,6 +323,13 @@ public sealed class NativeCellRunner : ICellRunner
       Environment = CellExecution.ScenarioVariables(environment, cell),
       IsolateFromProxy = true
     };
+    // The host's proxy points at the test proxy for a system-proxy cell, which is selected only
+    // where the host may change its settings (`SystemProxy.HostAllowed`), and is restored after it.
+    await using IAsyncDisposable? systemProxy = cell.Scenario.SystemProxy
+      ? await SystemProxy.ApplyToHostAsync(
+        await SystemProxy.OpenPortAsync(environment.ProxyUrl, cancellationToken),
+        environment.RepositoryRoot)
+      : null;
     SuspensionController? suspension = cell.Scenario.Suspends ? Suspension.Host() : null;
     ProcessResult result = await ProcessRunner.RunAsync(
       command,

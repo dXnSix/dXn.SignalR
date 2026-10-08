@@ -37,6 +37,9 @@ builder
   .WithEnvironment("TestProxy__User", "rayx")
   .WithEnvironment("TestProxy__Password", proxyPassword)
   .WithEnvironment("TestProxy__Deny", "denied.invalid:80")
+  // The run's test certificate for the TLS listener of `https://` proxies (proxy-https).
+  .WithEnvironment("TestProxy__CertificatePath", certificates.ServerCertificate)
+  .WithEnvironment("TestProxy__KeyPath", certificates.ServerKey)
   // Tunnels to the service's allocated ports go straight to the ports it listens on (which it
   // reports at /e2e/listening), past Aspire's own endpoint proxy, so the service sees this proxy's
   // tunnels as its peers.
