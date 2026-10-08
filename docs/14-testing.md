@@ -41,7 +41,11 @@ Service-dependent tests run only through .NET Aspire. The AppHost
   service sets by the target ports the AppHost passes (`TestService__Http2OnlyPort`,
   `TestService__Http1OnlyPort`). Cells receive them as `RAYX_SIGNALR_E2E_H2C_URL` and
   `RAYX_SIGNALR_E2E_HTTP1_TLS_URL`. Described requests (`NegotiateRequest`, `TransportRequest`)
-  include their `protocol` and `connection` id;
+  include their `protocol` and `connection` id. On hosts with msquic (`QuicSupport`: Windows 11 or
+  Server 2022, Linux with `libmsquic`), an `http3` HTTPS endpoint also serves HTTP/3
+  (`TestService__Http3Port`, `HttpProtocols.Http1AndHttp2AndHttp3`). Aspire's endpoint proxy
+  forwards only TCP, so this endpoint is not proxied and Kestrel binds its dynamically allocated
+  port itself. Cells receive it as `RAYX_SIGNALR_E2E_HTTP3_URL`;
 - `wasm-bindgen-cli`: the fixture's exact `wasm-bindgen` CLI, installed under
   `artifacts-temp/tools/wasm-bindgen/<version>` (a machine-wide CLI is never used);
 - `wasm-fixture-build` and `wasm-fixture-bindgen`: the browser fixture build;
@@ -117,7 +121,7 @@ RAYX_SIGNALR_E2E_TARGETS=native RAYX_SIGNALR_E2E_PROTOCOLS=json RAYX_SIGNALR_E2E
 | `RAYX_SIGNALR_E2E_IOS_DEVICE` | a simulator name or UDID | the newest iPhone |
 | `RAYX_SIGNALR_E2E_TRANSPORTS` | `websockets`, `long-polling`, `server-sent-events`, or `all` | `websockets` |
 | `RAYX_SIGNALR_SOAK_SECONDS` | how long `soak-chaos` runs, in seconds (forwarded to every target) | `120` |
-| `RAYX_SIGNALR_E2E_TLS_PROVIDER` | the rustls provider of the native, Android and iOS `e2e` builds: `ring` (the crate's default features) or `aws-lc-rs` (`--no-default-features --features messagepack,proxy-pac,tls-platform-verifier,tls-aws-lc-rs`, Android adds `tls-webpki-roots`; built into `target/e2e-aws-lc` and `target/android-e2e-aws-lc`). A missing CMake, NASM or clang is reported as an environment error. | `ring` |
+| `RAYX_SIGNALR_E2E_TLS_PROVIDER` | the rustls provider of the native, Android and iOS `e2e` builds: `ring` (the crate's default features) or `aws-lc-rs` (`--no-default-features --features messagepack,proxy-pac,http3,tls-platform-verifier,tls-aws-lc-rs`, Android adds `tls-webpki-roots`; built into `target/e2e-aws-lc` and `target/android-e2e-aws-lc`). A missing CMake, NASM or clang is reported as an environment error. | `ring` |
 
 Lists are comma-separated. A selection that matches no cataloged cell fails.
 
@@ -145,6 +149,9 @@ scenarios:
   `rayx-os-proxy.test`, which only the test proxy resolves (to the service);
 - native, Android and iOS: `executor-independence`, `http2`, `proxy`, `proxy-socks`, `proxy-https`, `proxy-pac` (not iOS), `cookies`,
   `client-certificate`;
+- native and Android on hosts with msquic: `http3`. The catalog selects it only where
+  `QuicSupport` holds, and excludes iOS because macOS has no msquic. Android reaches the QUIC
+  endpoint over UDP through `10.0.2.2`;
 - native on Windows hosts only: `windows-auth` (the test service's `/test-windows` hub behind
   ASP.NET Core Negotiate authentication, with the current account); the catalog selects it only
   on Windows and excludes the other targets with the reason;
@@ -222,7 +229,7 @@ plus the Aspire resource logs (and an Android logcat excerpt) to `artifacts-temp
   when `simctl spawn` itself does not exit. Such events are recorded in
   `artifacts-temp/e2e/runner-notes.log`.
 - Rust cells run with `--nocapture` and `RUST_LOG=rayx_signalr=info`. The end-to-end binaries use
-  the default TLS features plus `messagepack` and `proxy-pac`; the Android binary adds
+  the default TLS features plus `messagepack`, `proxy-pac` and `http3`; the Android binary adds
   `tls-webpki-roots` and verifies with webpki.
 
 ### Adding a scenario

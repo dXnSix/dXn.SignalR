@@ -10,6 +10,10 @@ prove. Each item says what to do instead where there is an alternative.
   `withCredentials`, as the .NET client's browser `HttpClient` does by default; there is no option
   to change it, so cookies (for example a load balancer's sticky-session cookie) are not sent to
   a hub on another origin.
+- **HTTP/3 is experimental.** It needs the `http3` feature. WebSockets never run over HTTP/3,
+  because servers such as Kestrel do not bootstrap them (RFC 9220). QUIC never goes through
+  proxies. A host's addresses are tried one after another, so an unreachable first address costs
+  its QUIC handshake timeout. There is no 0-RTT. The .NET SignalR client has no HTTP/3 at all.
 - **`with_proxy_auto_config` on iOS.** The `proxy-pac` feature is not built for iOS (the Boa
   engine's `time` dependency does not compile there), so an explicit script is unavailable there.
   The system's own auto-config scripts still work: CFNetwork runs them.

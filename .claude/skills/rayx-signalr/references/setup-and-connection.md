@@ -131,6 +131,11 @@ server must read `access_token` for hub paths (JWT `OnMessageReceived`).
   extended CONNECT; unavailable = `Transport`). One multiplexed HTTP/2 connection per endpoint
   per connect attempt (start/reconnect; a stateful resume keeps it). Integrated credentials
   force HTTP/1.1 whatever the version (as .NET). Only requests HTTP/2 never processed are retried.
+- Experimental HTTP/3 (feature `http3`, native with TLS, beyond .NET): `Http3` runs negotiate, LP
+  and SSE over QUIC with the connection's rustls config (ALPN `h3`), one QUIC connection per
+  endpoint per attempt. WebSockets are skipped (Kestrel has no RFC 9220), so WS alone gives
+  `TransportUnavailable`. Plaintext, proxied or unreachable endpoints give `Transport`.
+  `Http3Preferred` gives QUIC half the connect timeout, then uses TCP as `Auto` for the attempt.
 - `with_transports(Transports)` (default `all()`; combine with `|`): negotiation tries the offered
   transports in the server's order, filtered by the set and the transfer format (Server-Sent Events:
   text only); a failed start falls back to the next with a fresh negotiate; one failure returns its

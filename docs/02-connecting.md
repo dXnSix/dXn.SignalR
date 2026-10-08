@@ -368,6 +368,8 @@ Native clients choose the HTTP version as the .NET client does, with `with_http_
 | `Auto` (default) | HTTP/2 over TLS when the server agrees through ALPN (`h2, http/1.1`), else HTTP/1.1; plaintext uses HTTP/1.1 | HTTP/1.1 |
 | `Http1` | HTTP/1.1 | HTTP/1.1 |
 | `Http2` | HTTP/2 only: ALPN `h2` over TLS, h2c with prior knowledge over plaintext | HTTP/2 through RFC 8441 extended CONNECT |
+| `Http3` (feature `http3`, experimental) | HTTP/3 only, over QUIC | unavailable (skipped in transport selection) |
+| `Http3Preferred` (feature `http3`, experimental) | HTTP/3 when QUIC connects within half the connect timeout, else as `Auto` | as `Auto` |
 
 ```rust
 let client = rayx_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
@@ -386,6 +388,35 @@ or a server that does not enable extended CONNECT for WebSockets, fails with
 `with_default_credentials` or `with_credentials` every request uses HTTP/1.1 whatever the
 version, as the .NET client turns HTTP/2 off with credentials. HTTP/2 also works through
 proxies' tunnels. Browsers choose the HTTP version themselves.
+
+#### Experimental HTTP/3
+
+The non-default `http3` feature adds HTTP/3 over QUIC (quinn and h3), which the .NET SignalR client
+does not offer. QUIC uses the connection's own rustls configuration, with its provider, verifier,
+extra roots and `with_tls_config_hook`, offering ALPN `h3`. Certificates are verified as over TCP.
+
+- `HttpVersion::Http3` carries negotiate, Long Polling and Server-Sent Events over HTTP/3. A
+  connect attempt's requests share one QUIC connection per endpoint, which sends keep-alive pings
+  so long polls outlive QUIC's idle timeout.
+- QUIC runs only to secure endpoints reached directly. A plaintext endpoint, an endpoint behind a
+  proxy (proxies carry TCP only), or one QUIC cannot reach fails with `ErrorKind::Transport` (or
+  `ErrorKind::Timeout` when the connect timeout runs out first).
+- WebSockets are unavailable over HTTP/3. Bootstrapping them needs RFC 9220, and ASP.NET Core's
+  Kestrel does not offer it, so transport selection skips WebSockets with that reason. WebSockets
+  alone then fail with `ErrorKind::TransportUnavailable`.
+- `HttpVersion::Http3Preferred` gives QUIC half of the connect timeout. If QUIC fails, the rest of
+  the attempt uses TCP to that endpoint, as `Auto` does. WebSockets always use TCP, as with `Auto`.
+- Integrated Windows authentication keeps HTTP/1.1, as with HTTP/2.
+
+```rust
+// Requires the `http3` feature.
+let client = rayx_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
+    c.with_http_version(rayx_signalr::HttpVersion::Http3Preferred);
+})?;
+```
+
+Kestrel serves HTTP/3 through msquic: on Windows 11 and Windows Server 2022, and on Linux with
+`libmsquic`. Enable it with `HttpProtocols.Http1AndHttp2AndHttp3` on an HTTPS endpoint.
 
 ## Proxies
 

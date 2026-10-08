@@ -83,6 +83,7 @@ rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR", features = ["m
 | `tls-ring` | on | `ring` crypto provider. |
 | `tls-aws-lc-rs` | off | `aws-lc-rs` crypto provider (wins over `ring`). |
 | `proxy-pac` | off | Proxy auto-config scripts (`with_proxy_auto_config`), run in the pure-Rust Boa engine. |
+| `http3` | off | Experimental HTTP/3 over QUIC (`HttpVersion::Http3`, `Http3Preferred`), native with TLS. |
 
 ## A quick tour
 
