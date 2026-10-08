@@ -350,11 +350,28 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
   {
     foreach((string job, string block) in JobBlocks(Workflows()["e2e.yml"]))
     {
-      // A job inherits `all`, or names `error-kinds` in its own selection.
-      Match scenarios = Regex.Match(block, @"RAYX_SIGNALR_E2E_SCENARIOS: (?<names>\S+)");
-      if(scenarios.Success)
+      // The cells the job's own selection resolves to (scenarios default to the workflow's
+      // `all`), on a Windows host that may change its proxy (the widest host): at least one is an
+      // `error-kinds` cell on every target the job runs.
+      string Selected(string variable, string fallback)
       {
-        Assert.Contains("error-kinds", scenarios.Groups["names"].Value.Split(','));
+        Match match = Regex.Match(block, $@"{variable}: (?<value>\S+)");
+        return match.Success ? match.Groups["value"].Value.Trim('"') : fallback;
+      }
+
+      string targets = Selected("RAYX_SIGNALR_E2E_TARGETS", "native");
+      if(targets.Contains("${{", StringComparison.Ordinal))
+      {
+        targets = string.Join(',', Regex.Match(block, @"engine: \[(?<engines>[^\]]+)\]").Groups["engines"].Value.Split(',', StringSplitOptions.TrimEntries));
+      }
+
+      E2ESelection selection = E2ESelection.Parse(targets, "json,messagepack", Selected("RAYX_SIGNALR_E2E_SCENARIOS", "all"), "all");
+      IReadOnlyList<E2ECell> cells = selection.Cells(windowsHost: true, hostSystemChanges: true, quicHost: true);
+      foreach(string target in targets.Split(','))
+      {
+        Assert.True(
+          cells.Any(cell => cell.Target.Name == target && cell.Scenario.Name == "error-kinds"),
+          $"e2e.yml job {job} runs no error-kinds cell on {target}");
       }
     }
   }
@@ -371,11 +388,11 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
               "RAYX_SIGNALR_E2E_TARGETS: android-app,android-app-release",
               @"rustup toolchain install 1\.92\.0 --profile minimal --target x86_64-linux-android",
               @"cargo install cargo-ndk --version 4\.1\.2 --locked",
-              @"JAVA_HOME: \$\{\{ env\.JAVA_HOME_17_X64 \}\}",
+              @"script: JAVA_HOME=\$JAVA_HOME_17_X64 dotnet test",
               @"KERNEL==""kvm""",
               @"uses: reactivecircus/android-emulator-runner@v2",
               @"api-level: 34",
-              @"script: dotnet test dotnet/RayX\.SignalR\.E2E\.Tests --filter Category=E2E"
+              @"dotnet test dotnet/RayX\.SignalR\.E2E\.Tests --filter Category=E2E"
             })
     {
       AssertMatches("e2e.yml job android-app", block, pattern);
@@ -465,7 +482,7 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
               "name: perf / compare",
               "runs-on: ubuntu-latest",
               @"dotnet tool install --global Aspire\.Cli --version 13\.5\.\d+",
-              @"dotnet test dotnet/RayX\.SignalR\.E2E\.Tests --filter Category=Performance",
+              @"dotnet test dotnet/RayX\.SignalR\.E2E\.Tests --filter ""Category=Performance\|Category=ReferenceClientBudget""",
               @"if: always\(\)",
               "path: artifacts-temp/perf",
               "retention-days: 30"

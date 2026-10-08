@@ -11,7 +11,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: perf-${{ github.workflow }}-${{ github.ref }}
+  # Per event, so a dispatch never cancels the scheduled run.
+  group: perf-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -44,8 +45,8 @@ jobs:
             ~/.cargo/git
             target
           key: perf-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
-      - name: Compare the Rust and .NET clients through Aspire
-        run: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=Performance
+      - name: Compare the Rust and .NET clients through Aspire and enforce the budgets
+        run: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter "Category=Performance|Category=ReferenceClientBudget"
       - name: Upload the performance report
         if: always()
         uses: actions/upload-artifact@v7

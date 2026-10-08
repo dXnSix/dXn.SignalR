@@ -14,7 +14,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: e2e-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # Per event, so a push, the nightly run and a dispatch never cancel each other.
+  group: e2e-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -51,9 +52,12 @@ jobs:
       - name: Install libmsquic for the HTTP/3 cells
         if: runner.os == 'Linux'
         run: |
-          curl -sSLo packages-microsoft-prod.deb "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
-          sudo dpkg -i packages-microsoft-prod.deb
-          rm packages-microsoft-prod.deb
+          # The runner image may already list packages.microsoft.com; add it only when it does not.
+          if ! grep -rqs "packages.microsoft.com/ubuntu" /etc/apt/sources.list /etc/apt/sources.list.d; then
+            curl -sSLo packages-microsoft-prod.deb "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
+            sudo dpkg -i packages-microsoft-prod.deb
+            rm packages-microsoft-prod.deb
+          fi
           sudo apt-get update
           sudo apt-get install -y libmsquic
       - uses: actions/cache@v6
@@ -148,9 +152,12 @@ jobs:
         run: rustup toolchain install 1.92.0 --profile minimal --target x86_64-linux-android
       - name: Install libmsquic for the HTTP/3 cells
         run: |
-          curl -sSLo packages-microsoft-prod.deb "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
-          sudo dpkg -i packages-microsoft-prod.deb
-          rm packages-microsoft-prod.deb
+          # The runner image may already list packages.microsoft.com; add it only when it does not.
+          if ! grep -rqs "packages.microsoft.com/ubuntu" /etc/apt/sources.list /etc/apt/sources.list.d; then
+            curl -sSLo packages-microsoft-prod.deb "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
+            sudo dpkg -i packages-microsoft-prod.deb
+            rm packages-microsoft-prod.deb
+          fi
           sudo apt-get update
           sudo apt-get install -y libmsquic
       - uses: actions/cache@v6
@@ -231,8 +238,6 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - name: Run the Android app cells through Aspire on an x86_64 emulator
         uses: reactivecircus/android-emulator-runner@v2
-        env:
-          JAVA_HOME: ${{ env.JAVA_HOME_17_X64 }}
         with:
           api-level: 34
           arch: x86_64
@@ -240,7 +245,8 @@ jobs:
           disk-size: 4096M
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           disable-animations: true
-          script: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+          # The image's JDK 17 for the Gradle build.
+          script: JAVA_HOME=$JAVA_HOME_17_X64 dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
       - name: Upload redacted end-to-end diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
