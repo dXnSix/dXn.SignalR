@@ -46,9 +46,9 @@ use it from any UI, a game loop, a service, or a test.
   affinity (`with_cookie_jar`, native), invocation headers such as W3C
   `traceparent` (`with_invocation_headers`), refreshable access tokens
   (`with_access_token_factory`, asked before every negotiate and WebSocket), integrated Windows
-  authentication (`with_default_credentials`, `with_credentials`, native), and transport hooks for
-  every request (`with_request_hook`) and the rustls configuration (`with_tls_config_hook`,
-  native).
+  authentication (`with_default_credentials`, `with_credentials`, native), HTTP/2 as the .NET
+  client negotiates it (`with_http_version`, native), and transport hooks for every request
+  (`with_request_hook`) and the rustls configuration (`with_tls_config_hook`, native).
 
 ## Platform support
 

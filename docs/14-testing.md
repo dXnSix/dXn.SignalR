@@ -35,8 +35,13 @@ Service-dependent tests run only through .NET Aspire. The AppHost
 (`dotnet/RayX.SignalR.AppHost`, selected by the root `aspire.config.json`) composes:
 
 - `signalr-test-service`: the ASP.NET Core SignalR test service
-  (`dotnet/RayX.SignalR.TestService`) on HTTP and HTTPS, with a CA and server certificate generated
-  per run;
+  (`dotnet/RayX.SignalR.TestService`) on HTTP and HTTPS (HTTP/1.1 and HTTP/2), with a CA and server
+  certificate generated per run, plus two protocol-pinned endpoints for the `http2` scenario: `h2c`
+  (HTTP/2 only over plaintext) and `https-http1` (HTTP/1.1 only over TLS), whose protocols the
+  service sets by the target ports the AppHost passes (`TestService__Http2OnlyPort`,
+  `TestService__Http1OnlyPort`). Cells receive them as `RAYX_SIGNALR_E2E_H2C_URL` and
+  `RAYX_SIGNALR_E2E_HTTP1_TLS_URL`. Described requests (`NegotiateRequest`, `TransportRequest`)
+  include their `protocol` and `connection` id;
 - `wasm-bindgen-cli`: the fixture's exact `wasm-bindgen` CLI, installed under
   `artifacts-temp/tools/wasm-bindgen/<version>` (a machine-wide CLI is never used);
 - `wasm-fixture-build` and `wasm-fixture-bindgen`: the browser fixture build;
@@ -138,7 +143,7 @@ scenarios:
   WinINet settings, or every macOS network service's web proxy with `networksetup`) and restores
   it afterwards; a developer machine's settings never change. The scenario connects to
   `rayx-os-proxy.test`, which only the test proxy resolves (to the service);
-- native, Android and iOS: `executor-independence`, `proxy`, `proxy-socks`, `proxy-https`, `proxy-pac` (not iOS), `cookies`,
+- native, Android and iOS: `executor-independence`, `http2`, `proxy`, `proxy-socks`, `proxy-https`, `proxy-pac` (not iOS), `cookies`,
   `client-certificate`;
 - native on Windows hosts only: `windows-auth` (the test service's `/test-windows` hub behind
   ASP.NET Core Negotiate authentication, with the current account); the catalog selects it only

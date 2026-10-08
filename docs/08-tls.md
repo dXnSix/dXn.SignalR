@@ -127,8 +127,11 @@ let client = rayx_signalr::SignalRClient::new("internal.example.com", "hub", |c|
 
 The hook can weaken security, and doing so is the application's explicit choice. Replacing the
 certificate verifier through `config.dangerous()`, or narrowing the protocol versions, changes what
-the client trusts. The client offers no ALPN protocols by default and speaks HTTP/1.1, so a hook
-that sets `alpn_protocols` must include `http/1.1`.
+the client trusts. The ALPN offer of negotiate, Long Polling and Server-Sent Events comes from
+[`with_http_version`](02-connecting.md#http-versions) and replaces the hook's (`h2, http/1.1` for
+`Auto`, `h2` for `Http2`), as does the WebSocket's with `Http2`. The HTTP/1.1 WebSocket handshake
+and `HttpVersion::Http1` requests offer the hook's `alpn_protocols` (none by default) and speak
+HTTP/1.1, so a hook that sets them must include `http/1.1`.
 
 ## Redirects to secure endpoints
 

@@ -359,6 +359,34 @@ let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
 })?;
 ```
 
+### HTTP versions
+
+Native clients choose the HTTP version as the .NET client does, with `with_http_version`:
+
+| `HttpVersion` | Negotiate, Long Polling, Server-Sent Events | WebSockets |
+|---|---|---|
+| `Auto` (default) | HTTP/2 over TLS when the server agrees through ALPN (`h2, http/1.1`), else HTTP/1.1; plaintext uses HTTP/1.1 | HTTP/1.1 |
+| `Http1` | HTTP/1.1 | HTTP/1.1 |
+| `Http2` | HTTP/2 only: ALPN `h2` over TLS, h2c with prior knowledge over plaintext | HTTP/2 through RFC 8441 extended CONNECT |
+
+```rust
+let client = rayx_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
+    c.with_http_version(rayx_signalr::HttpVersion::Http2);
+})?;
+```
+
+Over HTTP/2, negotiate, Long Polling and the Server-Sent Events stream of one connection, and an
+extended-CONNECT WebSocket, share one multiplexed connection per endpoint, as the .NET client's
+`HttpClient` does; each `start` and each reconnect attempt opens new ones, as a new .NET
+`HttpConnection` does (a stateful resume keeps them). A request the server never processed (a
+refused stream, or one a graceful `GOAWAY` excluded) is sent once more on a new connection; any
+other failed request is not repeated. With `Http2`, an endpoint that does not negotiate HTTP/2,
+or a server that does not enable extended CONNECT for WebSockets, fails with
+`ErrorKind::Transport`. Integrated Windows authentication cannot run over HTTP/2, so with
+`with_default_credentials` or `with_credentials` every request uses HTTP/1.1 whatever the
+version, as the .NET client turns HTTP/2 off with credentials. HTTP/2 also works through
+proxies' tunnels. Browsers choose the HTTP version themselves.
+
 ## Proxies
 
 Native clients use the system's proxy settings by default, as the .NET client's default proxy,
@@ -534,6 +562,7 @@ otherwise the runtime `connect` is called from, otherwise `connect` fails before
 | `with_access_token_factory(async fn)` | all | none | [Access-token factory](#access-token-factory) |
 | `skip_negotiation()` | all | negotiate | [Skipping negotiation](#skipping-negotiation) |
 | `with_transports(Transports)` | all | `Transports::all()` | [Transports](#transports) |
+| `with_http_version(HttpVersion)` | native | `HttpVersion::Auto` | [HTTP versions](#http-versions) |
 | `with_header(name, value)` | all (browsers: `fetch` requests only) | none | [Request headers](#request-headers) |
 | `with_request_hook(Fn(&mut HttpRequest))` | all (browsers: `fetch` requests only) | none | [Request hooks](#request-hooks) |
 | `with_tls_config_hook(Fn(&mut rustls::ClientConfig))` | native, TLS features | none | [TLS](08-tls.md#adjusting-the-rustls-configuration) |

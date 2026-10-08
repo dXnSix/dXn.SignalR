@@ -66,5 +66,7 @@ Android with the platform verifier needs JVM initialization: see [Platforms](pla
 re-exported as `rayx_signalr::tls::rustls`) adjusts each connection's built config once before its
 first use (at `connect`, or on a first redirect to `https`). The result is shared by negotiate,
 transports and reconnects. Replacing the verifier (`dangerous()`) is the application's explicit
-choice. No ALPN is offered by default; a hook that sets `alpn_protocols` must include
+choice. ALPN of negotiate/LP/SSE (and the WebSocket with `Http2`) comes from `with_http_version`
+and replaces the hook's (`Auto` = `h2, http/1.1`, `Http2` = `h2`); the HTTP/1.1 WebSocket and
+`Http1` requests offer the hook's `alpn_protocols` (none by default), which must then include
 `http/1.1`.

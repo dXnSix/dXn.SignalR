@@ -70,6 +70,7 @@ let mut client = SignalRClient::connect_with("localhost", "hubs/chat", |c| {
 | `with_default_credentials()` / `with_credentials(user, password, domain)` | native | none |
 | `skip_negotiation()` | all | negotiate |
 | `with_transports(Transports)` | all | `Transports::all()` |
+| `with_http_version(HttpVersion)` | native | `Auto` |
 | `with_header(name, value)` | all (browser: `fetch` requests only) | none |
 | `with_request_hook(Fn(&mut HttpRequest))` | all (browser: `fetch` requests only) | none |
 | `with_tls_config_hook(Fn(&mut rustls::ClientConfig))` | native, TLS features | none |
@@ -124,6 +125,12 @@ server must read `access_token` for hub paths (JWT `OnMessageReceived`).
   natively, as `access_token` in browsers); as in .NET it needs
   `with_transports(Transports::WEB_SOCKETS)` (else `Configuration`/`skip_negotiation`); the server
   must allow WebSocket-only connections; it disables stateful reconnect with a warning.
+- HTTP versions (native, as .NET): `with_http_version(HttpVersion::Auto)` default = HTTP/2 over TLS
+  via ALPN `h2, http/1.1` for negotiate/LP/SSE (fallback HTTP/1.1; plaintext HTTP/1.1; WebSockets
+  HTTP/1.1); `Http1`; `Http2` = h2 only (h2c prior knowledge on plaintext, WebSockets via RFC 8441
+  extended CONNECT; unavailable = `Transport`). One multiplexed HTTP/2 connection per endpoint
+  per connect attempt (start/reconnect; a stateful resume keeps it). Integrated credentials
+  force HTTP/1.1 whatever the version (as .NET). Only requests HTTP/2 never processed are retried.
 - `with_transports(Transports)` (default `all()`; combine with `|`): negotiation tries the offered
   transports in the server's order, filtered by the set and the transfer format (Server-Sent Events:
   text only); a failed start falls back to the next with a fresh negotiate; one failure returns its
