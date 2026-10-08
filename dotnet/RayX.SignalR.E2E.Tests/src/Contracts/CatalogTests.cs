@@ -112,6 +112,21 @@ public sealed partial class CatalogTests(AspireEnvironment environment)
     }
   }
 
+  [Fact]
+  [Trait("Category", "Catalog")]
+  public void WindowsOnlyScenariosAreSelectedOnlyOnWindowsHosts()
+  {
+    E2ESelection selection = E2ESelection.Parse("native", "all", "windows-auth,invoke");
+    Assert.Contains(selection.Cells(windowsHost: true), cell => cell.Scenario.Name == "windows-auth");
+    Assert.DoesNotContain(selection.Cells(windowsHost: false), cell => cell.Scenario.Name == "windows-auth");
+    Assert.Contains(selection.Cells(windowsHost: false), cell => cell.Scenario.Name == "invoke");
+    Assert.True(ScenarioCatalog.Scenario("windows-auth").WindowsHostOnly);
+    Assert.Contains("Windows", ScenarioCatalog.Scenario("windows-auth").WindowsHostOnlyReason, StringComparison.Ordinal);
+    Assert.All(ScenarioCatalog.Scenarios.Where(scenario => scenario.WindowsHostOnly),
+               scenario => Assert.False(string.IsNullOrWhiteSpace(scenario.WindowsHostOnlyReason)));
+    Assert.Equal(["native"], ScenarioCatalog.Scenario("windows-auth").Targets);
+  }
+
   [GeneratedRegex(@"(?m)^(?<name>[a-z0-9_]+::[a-z0-9_]+): test\s*$")]
   private static partial Regex RustTestLine();
 

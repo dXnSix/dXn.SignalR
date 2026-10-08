@@ -50,6 +50,15 @@ public sealed record Scenario(string Name, IReadOnlySet<string> Targets)
   /// </summary>
   public bool Suspends { get; init; }
 
+  /// <summary>
+  /// Gets why the scenario's native cells need a Windows host, when they do (integrated Windows
+  /// authentication with the current account); elsewhere they are not selected.
+  /// </summary>
+  public string? WindowsHostOnlyReason { get; init; }
+
+  /// <summary>Gets whether the scenario's cells need a Windows host.</summary>
+  public bool WindowsHostOnly => WindowsHostOnlyReason is not null;
+
   /// <summary>Gets a scenario-specific cell bound that replaces the default one.</summary>
   public TimeSpan? Limit { get; init; }
 
@@ -176,6 +185,19 @@ public static class ScenarioCatalog
     new("cookies", Set(_nativeTargets)),
     // Browsers choose client certificates from their own store: the crate has no API there.
     new("client-certificate", Set(_nativeTargets)),
+    // The current Windows account through SSPI, on Windows hosts only.
+    new("windows-auth", Set(_native))
+    {
+      WindowsHostOnlyReason = "the test service authenticates the current Windows account through SSPI, which only a Windows host has",
+      Exclusions = new Dictionary<string, string>
+      {
+        [_android] = "integrated authentication with the current account needs Windows SSPI; Android has no Windows account",
+        [_ios] = "integrated authentication with the current account needs Windows SSPI; iOS has no Windows account",
+        [_chromium] = "browsers authenticate with their own integrated authentication",
+        [_firefox] = "browsers authenticate with their own integrated authentication",
+        [_webkit] = "browsers authenticate with their own integrated authentication"
+      }
+    },
     new("message-burst", Set(_browsers)),
     new("worker-transport", Set(_browsers)),
     new(ThreadedScenario, Set(_browsers)),

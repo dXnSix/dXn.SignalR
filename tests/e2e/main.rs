@@ -57,3 +57,4 @@ pub(crate) mod tls;
 pub(crate) mod token_factory;
 pub(crate) mod transport_fallback;
 pub(crate) mod unsent_stream;
+pub(crate) mod windows_auth;

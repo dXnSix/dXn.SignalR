@@ -111,7 +111,12 @@ public sealed record E2ESelection(
   /// <summary>Expands the selection into the cells the catalog supports.</summary>
   /// <returns>The cells; never empty.</returns>
   /// <exception cref="InvalidOperationException">No catalog cell matches the selection.</exception>
-  public IReadOnlyList<E2ECell> Cells()
+  public IReadOnlyList<E2ECell> Cells() => Cells(OperatingSystem.IsWindows());
+
+  /// <summary>Gets the selected cells for a host that is, or is not, Windows.</summary>
+  /// <param name="windowsHost">Whether the host runs Windows (Windows-only scenarios need it).</param>
+  /// <returns>The cells.</returns>
+  public IReadOnlyList<E2ECell> Cells(bool windowsHost)
   {
     List<E2ECell> cells = [];
     foreach(string transport in Transports)
@@ -125,7 +130,8 @@ public sealed record E2ESelection(
             Scenario scenario = ScenarioCatalog.Scenario(name);
             if(scenario.Targets.Contains(target)
                && scenario.Protocols.Contains(protocol)
-               && scenario.Supports(transport, protocol))
+               && scenario.Supports(transport, protocol)
+               && (windowsHost || !scenario.WindowsHostOnly))
             {
               cells.Add(new E2ECell(ScenarioCatalog.Target(target), protocol, scenario, transport));
             }

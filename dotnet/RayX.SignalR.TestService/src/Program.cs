@@ -48,7 +48,9 @@ builder.Services
     .AddAuthentication(TestAuthenticationHandler.SchemeName)
     .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(TestAuthenticationHandler.SchemeName, null)
     .AddScheme<AuthenticationSchemeOptions, RotatingTokenAuthenticationHandler>(
-        RotatingTokenAuthenticationHandler.SchemeName, null);
+        RotatingTokenAuthenticationHandler.SchemeName, null)
+    // Integrated Windows authentication (Kerberos or NTLM) for /test-windows (WindowsAuthHub).
+    .AddNegotiate();
 builder.Services.AddAuthorization();
 builder.Services.AddSingleton(typeof(HubLifetimeManager<>), typeof(TrackingHubLifetimeManager<>));
 builder.Services
@@ -211,6 +213,7 @@ app.MapHub<TestHub>("/test-tls");
 app.MapHub<TestHub>("/test-direct");
 app.MapHub<TestHub>(AffinityCookies.HubPath);
 app.MapHub<TestHub>(ClientCertificates.HubPath);
+app.MapHub<WindowsAuthHub>("/test-windows");
 app.MapHub<TestHub>("/test-stateful", options => options.AllowStatefulReconnects = true);
 app.MapHub<AuthHub>("/test-auth");
 app.MapHub<TokenHub>("/test-token");
