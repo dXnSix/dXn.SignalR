@@ -78,6 +78,8 @@ let mut client = SignalRClient::connect_with("localhost", "hubs/chat", |c| {
 | `with_close_timeout(Duration)` | all | 5 s |
 | `with_long_polling_timeout(Duration)` | all | 100 s |
 | `with_proxy(url)` / `with_system_proxy()` / `without_proxy()` | native | system proxy |
+| `with_proxy_auto_config(url)` | native, `proxy-pac` feature (not iOS) | none |
+| `with_os_proxy()` | native | (the default also reads the OS) |
 | `with_cookie_jar(CookieJar)` | native | a jar per client |
 | `with_messagepack_protocol()` | all, `messagepack` | JSON |
 | `with_keep_alive_interval(Duration)` | all | 15 s |
@@ -145,16 +147,32 @@ server must read `access_token` for hub paths (JWT `OnMessageReceived`).
   header)`, `cookie_header(url)`, `len`/`is_empty`/`clear`; clones share. RFC 6265 subset (host-only
   and `Domain`, `Path`, `Secure`, `Expires`, `Max-Age`), .NET limits 4096 B / 20 per domain / 300.
   An application `Cookie` header goes first.
-- Proxies (native; browsers use the browser's): default system proxy as .NET
-  `HttpEnvironmentProxy`, read per connection: `https_proxy`/`HTTPS_PROXY` (secure),
+- Proxies (native; browsers use the browser's): default system proxy as .NET, read per
+  connection: the environment when a proxy variable names one, else the OS (Windows WinHTTP
+  current-user incl. auto-detect/PAC, loopback never proxied; macOS/iOS CFNetwork incl. PAC run by CFNetwork; unreadable settings connect directly; Android
+  `java.net.ProxySelector` after `tls::android::init_with_env`; Linux env). `with_os_proxy()` = OS
+  only. Env vars as .NET `HttpEnvironmentProxy`: `https_proxy`/`HTTPS_PROXY` (secure),
   `http_proxy`/`HTTP_PROXY` (plain; `HTTP_PROXY` ignored when `GATEWAY_INTERFACE` is set),
-  `all_proxy`/`ALL_PROXY`; empty or non-`http://` values are skipped; `no_proxy`/`NO_PROXY` with
+  `all_proxy`/`ALL_PROXY`; empty or unsupported values are skipped; `no_proxy`/`NO_PROXY` with
   curl rules (hosts + subdomains, IPs, CIDR, `host:port`, `*`).
-  `with_proxy("http://[user:pass@]host[:port]")` (else `Configuration`/`with_proxy`),
-  `without_proxy()`. Every native connection opens an HTTP `CONNECT` tunnel, TLS runs inside it;
-  Basic credentials only after a 407 offering Basic; failures are `ErrorKind::Proxy` with
-  `status()` (407/403 not transient); credentials are never logged. OS proxy settings, PAC,
-  HTTPS and SOCKS proxies are not supported yet.
+  `with_proxy("scheme://[user:pass@]host[:port]")` with `http`, `https`, `socks4`, `socks4a`,
+  `socks5`, `socks5h` (else `Configuration`/`with_proxy`), `without_proxy()`. Every native
+  connection tunnels (HTTP `CONNECT`, or SOCKS), TLS runs inside it. HTTP: Basic credentials only
+  after a 407 offering Basic. `https://` proxies (port 443): TLS to the proxy with the
+  connection's TLS config (extra roots too), CONNECT inside it; an unverified proxy certificate is
+  `ErrorKind::Proxy`. SOCKS as .NET `SocksHelper`: socks5/socks5h send host names for the proxy
+  to resolve (IP literals as addresses), RFC 1929 user/password; socks4a proxy-side DNS; socks4
+  local IPv4; default port 1080. Failures are `ErrorKind::Proxy` with `status()` (407 refused or
+  missing credentials, 403 denied, both not transient; SOCKS messages name the reply code);
+  credentials are never logged. PAC (`proxy-pac` feature, Boa engine): `with_proxy_auto_config(url)`
+  (`http`/`https`/`file`, else `Configuration`/`with_proxy_auto_config`) loads the script directly
+  once per `start`; `FindProxyForURL(url, host)` (url = `http(s)://host[:port]/`) returns routes
+  tried in order (`PROXY`/`HTTP`, `HTTPS`, `SOCKS`=v4, `SOCKS4`, `SOCKS5`, `DIRECT`; the next
+  route only when one cannot be reached; unusable entries skipped, none usable = DIRECT);
+  standard helpers (DNS once per host per evaluation, 2 s, never past the deadline); sandboxed, 5 s deadline checked between instruction budgets, at
+  most 8 concurrent; load or
+  script failures are `ErrorKind::Proxy`; PAC routes carry no credentials; PAC is not built for
+  iOS.
 - Server-Sent Events (both targets, JSON only): one streaming `GET` (`Accept: text/event-stream`;
   native parser per the HTML event-stream rules; browsers `EventSource` without automatic
   reconnection); sends as for Long Polling; closing ends the stream (no `DELETE`); native

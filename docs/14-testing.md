@@ -40,10 +40,17 @@ Service-dependent tests run only through .NET Aspire. The AppHost
 - `wasm-bindgen-cli`: the fixture's exact `wasm-bindgen` CLI, installed under
   `artifacts-temp/tools/wasm-bindgen/<version>` (a machine-wide CLI is never used);
 - `wasm-fixture-build` and `wasm-fixture-bindgen`: the browser fixture build;
-- `test-proxy`: a test-only HTTP `CONNECT` proxy (`dotnet/RayX.SignalR.TestProxy`) for the
-  `proxy` scenario. It requires the run's credentials (user `rayx`, a password the test runner
-  generates per run), refuses `denied.invalid:80`, counts its tunnels, and answers `GET /stats`
-  with the counters and the local ports of its tunnels. Tunnels to the service's allocated ports
+- `test-proxy`: a test-only HTTP `CONNECT` and SOCKS5 proxy (`dotnet/RayX.SignalR.TestProxy`)
+  for the `proxy`, `proxy-socks` and `proxy-pac` scenarios; a connection whose first byte is 5 is
+  a SOCKS5 greeting. The same proxy also listens behind TLS with the run's test certificate on a
+  dynamic loopback port (`tlsPort`, counting `tlsSessions`) for `https://` proxies
+  (`proxy-https`). `GET /proxy.pac?http=<route>&https=<route>` serves a PAC script routing
+  plain and secure endpoints as `proxy` (HTTP `CONNECT`), `socks5`, `direct`, `dead` (an
+  unreachable proxy, then `DIRECT`) or `throw`, over a second, credential-free listener on a
+  dynamic loopback port (PAC routes cannot carry credentials). It requires the run's credentials (user `rayx`, a password the test runner generates
+  per run; RFC 1929 for SOCKS5), refuses `denied.invalid:80` (403, or SOCKS reply 2), counts its
+  tunnels and SOCKS requests, and answers `GET /stats` with the counters, the local ports of its
+  tunnels and the address types of the SOCKS requests. Tunnels to the service's allocated ports
   go straight to the ports the service listens on (it reports them at `/e2e/listening`), past
   Aspire's own endpoint proxy, so the service sees the tunnel as its peer (hub method `PeerPort`).
   Cells receive `RAYX_SIGNALR_E2E_PROXY_URL` and `RAYX_SIGNALR_E2E_PROXY_CREDENTIALS`. Native
@@ -105,7 +112,7 @@ RAYX_SIGNALR_E2E_TARGETS=native RAYX_SIGNALR_E2E_PROTOCOLS=json RAYX_SIGNALR_E2E
 | `RAYX_SIGNALR_E2E_IOS_DEVICE` | a simulator name or UDID | the newest iPhone |
 | `RAYX_SIGNALR_E2E_TRANSPORTS` | `websockets`, `long-polling`, `server-sent-events`, or `all` | `websockets` |
 | `RAYX_SIGNALR_SOAK_SECONDS` | how long `soak-chaos` runs, in seconds (forwarded to every target) | `120` |
-| `RAYX_SIGNALR_E2E_TLS_PROVIDER` | the rustls provider of the native, Android and iOS `e2e` builds: `ring` (the crate's default features) or `aws-lc-rs` (`--no-default-features --features messagepack,tls-platform-verifier,tls-aws-lc-rs`, Android adds `tls-webpki-roots`; built into `target/e2e-aws-lc` and `target/android-e2e-aws-lc`). A missing CMake, NASM or clang is reported as an environment error. | `ring` |
+| `RAYX_SIGNALR_E2E_TLS_PROVIDER` | the rustls provider of the native, Android and iOS `e2e` builds: `ring` (the crate's default features) or `aws-lc-rs` (`--no-default-features --features messagepack,proxy-pac,tls-platform-verifier,tls-aws-lc-rs`, Android adds `tls-webpki-roots`; built into `target/e2e-aws-lc` and `target/android-e2e-aws-lc`). A missing CMake, NASM or clang is reported as an environment error. | `ring` |
 
 Lists are comma-separated. A selection that matches no cataloged cell fails.
 
@@ -124,7 +131,15 @@ scenarios:
   `restart-after-stop`, `lifecycle-events`, `connection-id`, `graceful-stop`,
   `reconnect-call-wait`, `request-headers`, `stateful-transparent-resume`,
   `stateful-resume-fallback`; `msgpack-fidelity` everywhere with MessagePack only;
-- native, Android and iOS: `executor-independence`, `proxy`, `cookies`, `client-certificate`;
+- the Android app (`android-app`) and, on CI runners that opt in with
+  `RAYX_SIGNALR_E2E_ALLOW_SYSTEM_CHANGES=1` on Windows and macOS, native: `os-proxy`. The runner
+  points the system proxy at the test proxy's credential-free listener around each cell (the
+  emulator's global HTTP proxy with `adb shell settings put global http_proxy`, the Windows user's
+  WinINet settings, or every macOS network service's web proxy with `networksetup`) and restores
+  it afterwards; a developer machine's settings never change. The scenario connects to
+  `rayx-os-proxy.test`, which only the test proxy resolves (to the service);
+- native, Android and iOS: `executor-independence`, `proxy`, `proxy-socks`, `proxy-https`, `proxy-pac` (not iOS), `cookies`,
+  `client-certificate`;
 - native on Windows hosts only: `windows-auth` (the test service's `/test-windows` hub behind
   ASP.NET Core Negotiate authentication, with the current account); the catalog selects it only
   on Windows and excludes the other targets with the reason;
@@ -202,8 +217,8 @@ plus the Aspire resource logs (and an Android logcat excerpt) to `artifacts-temp
   when `simctl spawn` itself does not exit. Such events are recorded in
   `artifacts-temp/e2e/runner-notes.log`.
 - Rust cells run with `--nocapture` and `RUST_LOG=rayx_signalr=info`. The end-to-end binaries use
-  the default TLS features plus `messagepack`; the Android binary adds `tls-webpki-roots` and
-  verifies with webpki.
+  the default TLS features plus `messagepack` and `proxy-pac`; the Android binary adds
+  `tls-webpki-roots` and verifies with webpki.
 
 ### Adding a scenario
 

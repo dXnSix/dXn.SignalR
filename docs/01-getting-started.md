@@ -55,6 +55,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 | `tls-webpki-roots` | off | Bundles Mozilla's root certificates; select them with `use_webpki_roots()`. |
 | `tls-ring` | on | Uses `ring` as the rustls crypto provider. |
 | `tls-aws-lc-rs` | off | Uses `aws-lc-rs` as the crypto provider; wins over `tls-ring` when both are on. |
+| `proxy-pac` | off | Adds proxy auto-config (`with_proxy_auto_config`): PAC scripts run in the pure-Rust Boa JavaScript engine, so no C toolchain is needed. |
 
 A secure native endpoint (`https`/`wss`) needs one verifier feature and one provider feature. The
 defaults enable one of each. Turning every TLS feature off builds a plaintext-only native client.

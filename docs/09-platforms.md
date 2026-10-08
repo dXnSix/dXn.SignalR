@@ -174,8 +174,9 @@ setup of the repository's test app (`tests/android-app`), which the `android-app
 4. Before the first secure connection, call
    `rayx_signalr::tls::android::init_with_env(env, context)` once with the JNI environment and an
    Android `Context`, for example from a native method that your `Application` or `Activity` calls
-   at start-up (`JNI_OnLoad` has no `Context`). The test app does it from a JNI method that its
-   Kotlin code calls with the `Context`:
+   at start-up (`JNI_OnLoad` has no `Context`). It also keeps the Java VM, so the default system
+   proxy follows the device's proxy (`java.net.ProxySelector`). The test app does it from a JNI
+   method that its Kotlin code calls with the `Context`:
 
    ```rust
    /// `static native void initialize(Context context)` of `com.example.Native`.

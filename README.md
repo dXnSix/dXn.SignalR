@@ -82,6 +82,7 @@ rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR", features = ["m
 | `tls-webpki-roots` | off | Bundled Mozilla roots, selected per connection with `use_webpki_roots()`. |
 | `tls-ring` | on | `ring` crypto provider. |
 | `tls-aws-lc-rs` | off | `aws-lc-rs` crypto provider (wins over `ring`). |
+| `proxy-pac` | off | Proxy auto-config scripts (`with_proxy_auto_config`), run in the pure-Rust Boa engine. |
 
 ## A quick tour
 

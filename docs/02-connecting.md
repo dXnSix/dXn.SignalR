@@ -361,12 +361,28 @@ let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
 
 ## Proxies
 
-Native clients use the system's proxy settings by default, as the .NET client's default proxy
-(`HttpEnvironmentProxy`), read each time a connection is opened: `https_proxy`, then
+Native clients use the system's proxy settings by default, as the .NET client's default proxy,
+read each time a connection is opened. When a proxy environment variable names a proxy, the
+environment decides (`HttpEnvironmentProxy`); otherwise the operating system's settings do:
+
+| Platform | System settings |
+|---|---|
+| Windows | The current user's settings through WinHTTP (manual proxy and bypass list, automatic detection, auto-config script), as .NET's `HttpWindowsProxy`. Loopback hosts are never proxied. |
+| macOS, iOS | CFNetwork's system settings (`CFNetworkCopyProxiesForURL`): HTTP, HTTPS and SOCKS proxies, and auto-config scripts, which CFNetwork runs, as .NET's `MacProxy`. |
+| Android | `java.net.ProxySelector`, which follows the device's proxy, once `tls::android::init_with_env` has stored the Java VM; otherwise the environment variables. |
+| Linux and others | The environment variables. |
+
+`with_os_proxy()` uses the operating system's settings alone, ignoring the environment variables.
+Settings that cannot be read (an account without Internet settings, an unreachable auto-config
+script) connect directly, as .NET does. When the system lists several proxies, the next one is
+tried only when a proxy cannot be reached; a proxy that answers decides, so its refusal (a 407, a
+denied target) is the connection's error.
+The environment variables are read as .NET reads them: `https_proxy`, then
 `HTTPS_PROXY`, for secure endpoints; `http_proxy`, then `HTTP_PROXY`, for plain ones (a CGI
 process, with `GATEWAY_INTERFACE` set, ignores `HTTP_PROXY`, which a request's `Proxy:` header
 could set); `all_proxy`, then `ALL_PROXY`, when neither applies. A variable that is empty or not
-an `http://` proxy URL is skipped (`https://` and `socks` proxies are not supported yet).
+a proxy URL the client supports (`http://`, `https://`, `socks4://`, `socks4a://`, `socks5://`,
+`socks5h://`) is skipped.
 `no_proxy` (else `NO_PROXY`) exempts hosts with curl's rules: host names with their subdomains
 (`example.com`, `.example.com`), IP addresses, CIDR ranges (`10.0.0.0/8`), entries with a port
 (`example.com:8443`), and `*` for every host. Browsers always use the browser's proxy settings and
@@ -376,6 +392,7 @@ have none of these options.
 let client = rayx_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
     // An explicit proxy instead of the system's; credentials are optional.
     c.with_proxy("http://user:password@proxy.example.com:3128");
+    // Or a SOCKS proxy: c.with_proxy("socks5://user:password@proxy.example.com:1080");
     // Or: c.without_proxy(); to connect directly, or c.with_system_proxy(); (the default).
 })?;
 ```
@@ -389,8 +406,66 @@ the tunnel request is sent again with Basic `Proxy-Authorization`. A tunnel that
 connection with `ErrorKind::Proxy`, with `status()` when the proxy answered: 407 (no or refused
 credentials, or no Basic scheme offered) and 403 are not transient, an unreachable proxy (no
 status) and 5xx are. Proxy credentials never appear in logs or errors. A proxy URL other than
-`http://[user:password@]host[:port]` fails `new` and `connect` with `ErrorKind::Configuration`
-naming `with_proxy`.
+`scheme://[user:password@]host[:port]` with one of the schemes above fails `new` and `connect`
+with `ErrorKind::Configuration` naming `with_proxy`.
+
+An `https://` proxy (port 443 by default) is reached over TLS, as the .NET client (since .NET 8)
+does. The client verifies the proxy's certificate with the connection's own TLS configuration (its
+trust roots, `with_additional_root_certificates_pem` included, and its rustls provider; never an
+accept-all verifier). It then sends the `CONNECT` request, with the same 407 and Basic flow, inside
+that TLS session, and runs a secure endpoint's own TLS inside the tunnel. A proxy certificate that
+does not verify fails the connection with `ErrorKind::Proxy` naming the proxy.
+
+### SOCKS proxies
+
+SOCKS proxies work as in the .NET client's `SocksHelper`, for every native connection, with TLS
+inside the tunnel:
+
+| Scheme | Destination | Credentials |
+|---|---|---|
+| `socks5://`, `socks5h://` | a host name goes to the proxy, which resolves it; an IP literal goes as an IPv4 or IPv6 address | user name and password (RFC 1929), offered alongside no authentication when the URL has them |
+| `socks4a://` | resolved by the proxy | the user name as the SOCKS4 user id |
+| `socks4://` | resolved locally to IPv4 (IPv6 destinations are not possible) | the user name as the SOCKS4 user id |
+
+The default port is 1080. A SOCKS failure is `ErrorKind::Proxy`, and its message names the
+proxy's reply code. As with HTTP proxies, refused or missing credentials report status 407 and a
+destination the proxy's ruleset forbids reports 403; neither is transient. A proxy that is
+unreachable, answers something other than SOCKS, or closes the connection mid-reply has no
+status and is transient. The user name and password are at most 255 bytes each.
+
+### Proxy auto-config
+
+With the `proxy-pac` feature, `with_proxy_auto_config(url)` chooses proxies with a proxy
+auto-config (PAC) script, as WinHTTP and browsers do:
+
+```rust
+let client = rayx_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
+    c.with_proxy_auto_config("http://wpad.example.com/proxy.pac");
+})?;
+```
+
+The script comes from an `http`, `https` or `file` URL. It is loaded directly (never through a
+proxy) at each `start`, within the connect timeout, and serves every connection of that start.
+For each native connection, `FindProxyForURL(url, host)` receives the endpoint as
+`http(s)://host[:port]/` and returns routes to try in order: `PROXY` and `HTTP` (an HTTP proxy),
+`HTTPS` (an HTTPS proxy), `SOCKS` (SOCKS4), `SOCKS4`, `SOCKS5` and `DIRECT`. A route that cannot
+be reached passes to the next, and the last failure is reported; a proxy that answers decides.
+Unknown or malformed entries are skipped, and a result without a usable route connects
+directly. The standard helpers are available: `isPlainHostName`, `dnsDomainIs`,
+`localHostOrDomainIs`, `isResolvable`, `isInNet`, `dnsResolve`, `myIpAddress`, `dnsDomainLevels`,
+`shExpMatch`, `weekdayRange`, `dateRange` and `timeRange`.
+
+The script runs in the pure-Rust Boa JavaScript engine on a blocking thread. It has no network or
+file access beyond the DNS lookups of the helpers: each host is resolved at most once per
+evaluation, and a lookup waits at most 2 seconds and never past the deadline (it answers `null`
+then). One evaluation
+is bounded at 5 seconds: the deadline is checked between short instruction budgets, calls
+included, so a runaway script ends with its thread; a single builtin call (such as a regular
+expression) runs to its end before the next check. At most eight evaluations run at once; a
+further one waits for a slot within its deadline. A script that cannot be loaded, has no
+`FindProxyForURL`, throws or runs too long fails the connection with `ErrorKind::Proxy`. A URL that is not `http`, `https` or `file`
+fails `new` with `ErrorKind::Configuration` naming `with_proxy_auto_config`. PAC routes carry no
+credentials, so their proxies must not require authentication.
 
 ## Cookies
 
@@ -471,6 +546,8 @@ otherwise the runtime `connect` is called from, otherwise `connect` fails before
 | `with_connect_timeout(Duration)` | all | 120 s | [Lifecycle](06-connection-lifecycle.md#liveness) |
 | `with_close_timeout(Duration)` | all | 5 s | [Lifecycle](06-connection-lifecycle.md#stopping) |
 | `with_long_polling_timeout(Duration)` | all | 100 s | [Long Polling](#long-polling) |
+| `with_proxy_auto_config(url)` | native, `proxy-pac` (not iOS) | none | [Proxy auto-config](#proxy-auto-config) |
+| `with_os_proxy()` | native | (the default also reads the operating system's settings) | [Proxies](#proxies) |
 | `with_proxy(url)`, `with_system_proxy()`, `without_proxy()` | native | the system proxy | [Proxies](#proxies) |
 | `with_cookie_jar(CookieJar)` | native | a jar per client | [Cookies](#cookies) |
 | `with_default_credentials()`, `with_credentials(user, password, domain)` | native | none | [Integrated Windows authentication](#integrated-windows-authentication) |

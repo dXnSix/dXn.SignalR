@@ -10,11 +10,13 @@ prove. Each item says what to do instead where there is an alternative.
   `withCredentials`, as the .NET client's browser `HttpClient` does by default; there is no option
   to change it, so cookies (for example a load balancer's sticky-session cookie) are not sent to
   a hub on another origin.
-- **Operating-system proxy settings, HTTPS and SOCKS proxies.** Natively the system proxy comes
-  from the proxy environment variables; the operating system's own proxy settings (and proxy
-  auto-configuration) are not read yet, and only `http://` proxies are supported: an `https://`
-  or `socks` proxy URL in the environment is skipped, and `with_proxy` refuses one. Use
-  `with_proxy` or the environment variables. Browsers use the browser's proxy configuration.
+- **`with_proxy_auto_config` on iOS.** The `proxy-pac` feature is not built for iOS (the Boa
+  engine's `time` dependency does not compile there), so an explicit script is unavailable there.
+  The system's own auto-config scripts still work: CFNetwork runs them.
+- **System proxies on Android need the Java VM.** `java.net.ProxySelector` is read only after
+  `tls::android::init_with_env` (the platform verifier's initialization, which needs the
+  `tls-platform-verifier` feature) has stored the Java VM; before that, and in processes without
+  a Java VM, the environment variables are the system's settings.
 - **Proxy authentication schemes.** Proxies authenticate with Basic only, sent after the proxy's
   407 challenge offers it; Digest, NTLM and Negotiate challenges fail with `ErrorKind::Proxy`
   (407).
