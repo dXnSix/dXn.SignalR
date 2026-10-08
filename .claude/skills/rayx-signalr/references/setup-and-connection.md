@@ -71,6 +71,8 @@ let mut client = SignalRClient::connect_with("localhost", "hubs/chat", |c| {
 | `skip_negotiation()` | all | negotiate |
 | `with_transports(Transports)` | all | `Transports::all()` |
 | `with_header(name, value)` | all (browser: `fetch` requests only) | none |
+| `with_request_hook(Fn(&mut HttpRequest))` | all (browser: `fetch` requests only) | none |
+| `with_tls_config_hook(Fn(&mut rustls::ClientConfig))` | native, TLS features | none |
 | `with_invocation_headers(hook)` | all | none |
 | `with_maximum_message_size(usize)` | all | unbounded |
 | `with_close_timeout(Duration)` | all | 5 s |
@@ -179,3 +181,11 @@ server must read `access_token` for hub paths (JWT `OnMessageReceived`).
   `Authorization` always win. Invalid ones and transport-owned names (`Host`, `Content-Length`,
   `Connection`, `Upgrade`, `Transfer-Encoding`, `TE`, `Trailer`, `Keep-Alive`, `Proxy-Connection`,
   `Sec-WebSocket-*`) fail `new` with `Configuration`/`with_header`.
+- Request hook (.NET `HttpMessageHandlerFactory`/`WebSocketConfiguration`): `with_request_hook(|r|
+  ...)` runs once per logical request (as a .NET handler's `SendAsync`) with defaults,
+  `with_header`, the credentials' `Authorization` and `Content-Type`; cookies and integrated-auth
+  tokens are added after it per leg, and retries keep its changes. Natively negotiate, the upgrade
+  and every LP/SSE request; browsers every `fetch` (never the WebSocket or `EventSource`). `Debug`
+  shows header names only. `HttpRequest`: `transport()` (`None` = negotiate),
+  `method()`, `url()`, `header()`, `headers()`, `set_header()` (validated like `with_header`,
+  `Configuration`/`with_request_hook`), `remove_header()`.

@@ -106,6 +106,30 @@ the key. A server that requires a certificate and gets none usually refuses the 
 TLS handshake (`ErrorKind::Tls`, also when, under TLS 1.3, the refusal arrives just after the
 handshake). Browsers choose client certificates from their own store.
 
+## Adjusting the rustls configuration
+
+`with_tls_config_hook` hands each connection's rustls `ClientConfig` to the application before its
+first use, as the .NET client exposes the TLS options of `SocketsHttpHandler` and `ClientWebSocket`
+through `HttpMessageHandlerFactory` and `WebSocketConfiguration`. The config is the one the client
+built from the features and options above. The hook runs once per connection (at `connect`, or on
+a first redirect to a secure endpoint), and its result serves negotiate, every transport and every
+reconnect of that connection. `rayx_signalr::tls::rustls` re-exports the rustls version the client
+uses:
+
+```rust
+let client = rayx_signalr::SignalRClient::new("internal.example.com", "hub", |c| {
+    c.with_tls_config_hook(|config| {
+        // For example, servers addressed by a name they do not expect in SNI.
+        config.enable_sni = false;
+    });
+})?;
+```
+
+The hook can weaken security, and doing so is the application's explicit choice. Replacing the
+certificate verifier through `config.dangerous()`, or narrowing the protocol versions, changes what
+the client trusts. The client offers no ALPN protocols by default and speaks HTTP/1.1, so a hook
+that sets `alpn_protocols` must include `http/1.1`.
+
 ## Redirects to secure endpoints
 
 A plaintext connection can be redirected by negotiation to an `https` endpoint (Azure SignalR

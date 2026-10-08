@@ -59,3 +59,12 @@ not replace, the verifier (except Android). For development CAs, pass the CA PEM
 OS store.
 
 Android with the platform verifier needs JVM initialization: see [Platforms](platforms.md#android).
+
+## TLS config hook
+
+`with_tls_config_hook(|config: &mut rustls::ClientConfig| ...)` (native, TLS features; rustls
+re-exported as `rayx_signalr::tls::rustls`) adjusts each connection's built config once before its
+first use (at `connect`, or on a first redirect to `https`). The result is shared by negotiate,
+transports and reconnects. Replacing the verifier (`dangerous()`) is the application's explicit
+choice. No ALPN is offered by default; a hook that sets `alpn_protocols` must include
+`http/1.1`.

@@ -190,6 +190,38 @@ let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
 })?;
 ```
 
+### Request hooks
+
+`with_request_hook` gives the application every request before it is sent, as the .NET client's
+`HttpMessageHandlerFactory` (and, for the WebSocket upgrade, `WebSocketConfiguration`) does.
+Natively the hook sees negotiate, the WebSocket upgrade and every Long Polling and Server-Sent
+Events request, every poll included. In browsers it sees every `fetch` (negotiate, Long Polling,
+Server-Sent Events sends), but not the WebSocket or the `EventSource` stream, which carry no
+application headers. As a .NET handler sees one `SendAsync` per request, the hook runs once per
+request, with the defaults, `with_header` values, the credentials' `Authorization` and the body's
+`Content-Type`. The cookie jar's cookies and integrated-authentication tokens are added after it,
+on every leg, and a request retried on a fresh connection keeps the hook's changes, as
+`SocketsHttpHandler` adds and retries them inside the handler chain:
+
+```rust
+let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+    c.with_request_hook(|request| {
+        // `transport()` is `None` for negotiate; `method()` and `url()` name the request.
+        if request.transport().is_none() {
+            let _ = request.set_header("X-Negotiate-Source", "rayx");
+        }
+    });
+})?;
+```
+
+`HttpRequest` reads headers with `header(name)` and `headers()`, and changes them with
+`set_header(name, value)` (replacing a header of the same name) and `remove_header(name)`. As with
+`with_header`, `set_header` refuses invalid names and values and headers the transport owns, with
+`ErrorKind::Configuration` naming `with_request_hook`, and leaves the request unchanged. Its
+`Debug` output shows header names only, never their values, and redacts tokens in the URL. The TLS
+options of native connections have their own hook, `with_tls_config_hook`
+([TLS](08-tls.md#adjusting-the-rustls-configuration)).
+
 ## Negotiation
 
 By default the client negotiates before opening the WebSocket:
@@ -428,6 +460,8 @@ otherwise the runtime `connect` is called from, otherwise `connect` fails before
 | `skip_negotiation()` | all | negotiate | [Skipping negotiation](#skipping-negotiation) |
 | `with_transports(Transports)` | all | `Transports::all()` | [Transports](#transports) |
 | `with_header(name, value)` | all (browsers: `fetch` requests only) | none | [Request headers](#request-headers) |
+| `with_request_hook(Fn(&mut HttpRequest))` | all (browsers: `fetch` requests only) | none | [Request hooks](#request-hooks) |
+| `with_tls_config_hook(Fn(&mut rustls::ClientConfig))` | native, TLS features | none | [TLS](08-tls.md#adjusting-the-rustls-configuration) |
 | `with_invocation_headers(hook)` | all | none | [Calling the hub](03-calling-the-hub.md#invocation-headers) |
 | `with_maximum_message_size(usize)` | all | unbounded | [Hub protocols](05-hub-protocols.md#framing) |
 | `with_messagepack_protocol()` | all, `messagepack` feature | JSON | [Hub protocols](05-hub-protocols.md) |
