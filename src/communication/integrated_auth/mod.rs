@@ -29,6 +29,8 @@
     )
 )]
 
+// Windows authenticates through SSPI; the portable NTLMv2 is built there only for its tests.
+#[cfg(any(not(windows), test))]
 pub(crate) mod ntlm;
 #[cfg(windows)]
 pub(crate) mod sspi;
@@ -139,12 +141,23 @@ impl SecurityProvider for SspiProvider {
     }
 }
 
+/// `N` bytes from the operating system's random source (NTLM keys and challenges, WebSocket keys).
+pub(crate) fn random<const N: usize>() -> Result<[u8; N], Error> {
+    let mut bytes = [0u8; N];
+    getrandom::fill(&mut bytes).map_err(|error| {
+        Error::authentication(None, format!("the system random source failed: {error}"))
+    })?;
+    Ok(bytes)
+}
+
 /// NTLMv2 with explicit credentials (other native targets). Both schemes carry raw NTLM tokens,
 /// which `Negotiate` acceptors take.
+#[cfg(any(not(windows), test))]
 #[cfg_attr(windows, allow(dead_code))]
 #[derive(Debug)]
 struct NtlmProvider(Explicit);
 
+#[cfg(any(not(windows), test))]
 impl SecurityProvider for NtlmProvider {
     fn context(
         &self,

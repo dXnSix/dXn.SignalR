@@ -19,7 +19,7 @@ use hmac::{Hmac, Mac};
 use md4::{Digest, Md4};
 use rc4::{KeyInit, Rc4, StreamCipher};
 
-use super::{Explicit, SecurityContext};
+use super::{random, Explicit, SecurityContext};
 use crate::error::Error;
 
 type HmacMd5 = Hmac<md5::Md5>;
@@ -132,15 +132,6 @@ impl SecurityContext for NtlmContext {
 
 fn failure(message: &str) -> Error {
     Error::authentication(None, format!("NTLM authentication failed: {message}"))
-}
-
-/// `N` bytes from the operating system's random source.
-pub(crate) fn random<const N: usize>() -> Result<[u8; N], Error> {
-    let mut bytes = [0u8; N];
-    getrandom::fill(&mut bytes).map_err(|error| {
-        Error::authentication(None, format!("the system random source failed: {error}"))
-    })?;
-    Ok(bytes)
 }
 
 /// The NEGOTIATE_MESSAGE (MS-NLMP 2.2.1.1), without domain or workstation, with the version.

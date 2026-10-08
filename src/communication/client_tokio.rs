@@ -2861,7 +2861,7 @@ pub(crate) fn websocket_message(frame: SerializedFrame) -> Message {
 /// A fresh `Sec-WebSocket-Key`: 16 random bytes, base64 (RFC 6455 4.1).
 fn websocket_key() -> Result<String, Error> {
     use base64::{engine::general_purpose, Engine};
-    Ok(general_purpose::STANDARD.encode(super::integrated_auth::ntlm::random::<16>()?))
+    Ok(general_purpose::STANDARD.encode(super::integrated_auth::random::<16>()?))
 }
 
 /// The `Sec-WebSocket-Accept` a server answers `key` with (RFC 6455 4.2.2).
