@@ -1,12 +1,12 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 247,
-  "planRevision": 40,
+  "revision": 255,
+  "planRevision": 41,
   "specHashes": {
     "requirements": "0336059f67a37c0c7dc2906bea9d3dd4ab161bbc7a2c1697826ac153d99b1ca5",
-    "design": "e0589cff0cc65e3b12b9fd83bf89950f6bc3892bc2d5a27337ecee3a8c1751e6",
-    "plan": "87273f23ea7a23474f09585b4ee98110fa0ae3a62d9d0f2479754a2375ff7c8b"
+    "design": "f8a89ae75c0cd91eced4df287edecfb51a3a55bf4cdb04eb8e9b172352f1fb27",
+    "plan": "5842b6dda5d3a5c52a105798bb8dc8fbbd3734e1ae3d7a128d71affa38036c15"
   },
   "tasks": {
     "S1.T1": {
@@ -220,10 +220,16 @@
       ]
     },
     "S14.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S14.T2": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S15.T1": {
       "status": "pending"
@@ -604,6 +610,15 @@
         }
       },
       "recordedAt": "2026-10-08T07:06:29Z"
+    },
+    "fbdb5c1b4a95295078f75f2536e588bcedc00ab51c941ee523797e383a7034e1": {
+      "snapshot": {
+        "specHash": "036471b25fd1c23f893af64c93bcae9741a6995500fa855819454c94f3e77409",
+        "repositories": {
+          "rayx-signalr": "f7394e364dca2c750e6a957766ae1856d046c640a063879ce6a2c286fcce7072"
+        }
+      },
+      "recordedAt": "2026-10-08T07:45:39Z"
     }
   },
   "checkResults": {
@@ -3054,6 +3069,57 @@
       "logPath": "artifacts-temp/agentx/production-grade-client/S13-final-91fba25c72d8.log",
       "logSha256": "fe5a05cb44336b4123791ecbae943e9d9df9fbeed68550f3ba236a50e1391de1",
       "inputsHash": "43436fe1873f69f3bfe5f63249b62718e0e20ba035c5e23ee766258cc3223c20"
+    },
+    "S14/s14-http3-unit/final": {
+      "checkId": "s14-http3-unit",
+      "boundaryId": "S14",
+      "phase": "final",
+      "batchId": "fbdb5c1b4a95295078f75f2536e588bcedc00ab51c941ee523797e383a7034e1",
+      "definitionHash": "51b58ec6d5261ca6dc926e18af830d2ff3195d3dc56a72f275a155de6b1d3d22",
+      "basisHash": "b2c8be0b289875de4a6a2a4f9f0466d9bfc3712eccbcef4a46b5159b0c49ad52",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 7,
+      "durationSeconds": 3.5848,
+      "recordedAt": "2026-10-08T07:44:04Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S14-final-a016f9e8925c.log",
+      "logSha256": "c4f70e7e503235f1db07a73bd696740ac49b590c5956425965b96cc51eb4fa16",
+      "inputsHash": "bfb2038510e14cb17a84b3e5064f8a82155ef7554b74036f7c8e31dad3864e06"
+    },
+    "S14/s14-http3-native/final": {
+      "checkId": "s14-http3-native",
+      "boundaryId": "S14",
+      "phase": "final",
+      "batchId": "fbdb5c1b4a95295078f75f2536e588bcedc00ab51c941ee523797e383a7034e1",
+      "definitionHash": "80c67fa67b4862fd4ad613057a0c6d90c979ee84fef7d63d04501ec1671afb9e",
+      "basisHash": "dfb054cfbf5e975c8a9ea95f53a52a495d0e0b21d0ca5f887907e13d08f4e7d0",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 43.6782,
+      "recordedAt": "2026-10-08T07:44:48Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S14-final-b69450ed5d99.log",
+      "logSha256": "b8e1a56d6a12e8adde3d03e74f4edbcb39b667d4fb4e7ae1bbeebce8880b4cb1",
+      "inputsHash": "10391afcad96d5704133fbb8b4fd9d95eb4cbefaad279b771346bb1037f61672"
+    },
+    "S14/s14-http3-android/final": {
+      "checkId": "s14-http3-android",
+      "boundaryId": "S14",
+      "phase": "final",
+      "batchId": "fbdb5c1b4a95295078f75f2536e588bcedc00ab51c941ee523797e383a7034e1",
+      "definitionHash": "dc3518a0174ab60aa4d4131c91cff5c07cace3b43a42dc51ca994cbe67905fb9",
+      "basisHash": "afbd61c571805e947029efe56a358549592b36328f5cd564e1e52f4b706d63b0",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 50.866,
+      "recordedAt": "2026-10-08T07:45:39Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S14-final-5f23182a1f0a.log",
+      "logSha256": "769cb93ad15bf4123e14bf231c651ee962c6c5142130d39bbdc5e5bbd170d00b",
+      "inputsHash": "10391afcad96d5704133fbb8b4fd9d95eb4cbefaad279b771346bb1037f61672"
     }
   },
   "reviews": {
@@ -8018,6 +8084,164 @@
         "S13-F5"
       ],
       "recordedAt": "2026-10-08T07:09:06Z"
+    },
+    "S14": {
+      "reviewerId": "s14-independent-auditor-efe9c365",
+      "snapshotId": "fbdb5c1b4a95295078f75f2536e588bcedc00ab51c941ee523797e383a7034e1",
+      "criterionIds": [
+        "R15.C1",
+        "R15.C2"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/http3.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R15.C1"
+          ],
+          "sha256": "6213d405481a03ba94f3ee237ce634453437e01483bf5962784de1f968d3460e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/http2.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R15.C1"
+          ],
+          "sha256": "4ac7f10c4884216327abc092af2b823acaed640a65a69fd6c38976a00e2f1c1e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R15.C1"
+          ],
+          "sha256": "d2a5af1c31da9f8daebf0838912cce6a851b415eda37929ee735992d43093de5"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/http_transport_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R15.C1"
+          ],
+          "sha256": "d5535b5e0f99913684ea2f624aac62c783778e4e7ffbe745e94f2a34dee3859d"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiation.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R15.C1"
+          ],
+          "sha256": "679437b0f60d1643ebaea1571fb770066dc22e3e361e98b0772f2e002cb35a4a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R15.C1"
+          ],
+          "sha256": "e254215436c038c257ad83e46d5955386db6f5fcc51951a62f8ce0f7a7c40b0d"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "Cargo.toml",
+          "kind": "source",
+          "criterionIds": [
+            "R15.C1"
+          ],
+          "sha256": "6e401f79df3ceea06ab1a04886de2196669cb693dfde1d4eae10389c285576bc"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "build.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R15.C1"
+          ],
+          "sha256": "ae2417434fd75c6f3eb27288aa383f9a2c7cce0329de78ef662cbc08865ff8db"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/http3.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R15.C1"
+          ],
+          "sha256": "6213d405481a03ba94f3ee237ce634453437e01483bf5962784de1f968d3460e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.AppHost/src/AppHost.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R15.C2"
+          ],
+          "sha256": "d592c469c7e527c1432cb26dc2858a6145bbb33ea1a52d2bd80d59dd9446e697"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.AppHost/src/QuicSupport.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R15.C2"
+          ],
+          "sha256": "4a61a092db236cd3789fe754d994ce1680fa1b2a46749f148eb2f552e24eb67f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/Program.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R15.C2"
+          ],
+          "sha256": "b3b45fde75320cc145054cca999ad485ef9dce4772db9acb8106974af138f870"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/ScenarioCatalog.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R15.C2"
+          ],
+          "sha256": "aa5cf828e18c53d6fbc535256b304ebfe206843034e8d85ecf0cd9e8103e13ab"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/E2ESelection.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R15.C2"
+          ],
+          "sha256": "b18670ac4c14586bd8716c209949b58e4cdd2c9dd4d1872430a650c36b654706"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/http3.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R15.C2"
+          ],
+          "sha256": "5c12557bc8548c9b3f248a44add94b36518c023812edc74ca54ccfbdcfe58de9"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/http3.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R15.C2"
+          ],
+          "sha256": "5c12557bc8548c9b3f248a44add94b36518c023812edc74ca54ccfbdcfe58de9"
+        }
+      ],
+      "summaryMarkdown": "**Passed (revision 253).** R15.C1 and R15.C2 hold against source, the `http3_` group and runtime.\n\n- **Security:**\n  - QUIC uses `TlsContext::config_with_alpn(Some(h3))`, so it gets the connection's explicit provider, verifier, extra roots and hook.\n  - Nothing reads rustls' process default.\n  - There is no 0-RTT (the `Connecting` future is awaited), and certificate failures map to `Tls` (`http3_certificates_must_verify`).\n  - Errors carry only the host, the address and the quinn or h3 text. Application and hook headers already exclude connection-specific names (`headers::RESERVED`), so h3 never receives them.\n- **Retry safety:** `retry` is set only when `send_request` fails, before any body or FIN. The headers were then never fully accepted, or the peer refused or is closing. Later errors are never resent.\n- **Locks:** `Pool` takes its `std` mutex synchronously only. Dropping an h3 sender under it runs only h3's non-blocking close and wake.\n- **Feature off:** the default dependency graph has no quinn. `cargo check --lib` (default features) and `--no-default-features --features http3` are clean, and strict `Http3` without TLS is a `Configuration` error.\n- **Evidence:**\n  - `http3_` 7/7 (all features).\n  - Clippy (all targets, e2e, all features) clean.\n  - My own native `http3` e2e run 2/2 (JSON and MessagePack).\n  - The coordinator's Android 2/2 and contracts 115/115.\n- **Non-blocking notes from the first pass:**\n  - Repaired:\n    - the retry rule now has `http3_requests_the_server_took_are_never_sent_twice` (sent once, then a new connection);\n    - the `error.rs` doc placement is fixed;\n    - the RFC 9220 skip message now describes the client, not the server.\n  - Accepted as documented: dropping the pooled h3 connection on failure, and `Http3Preferred` giving QUIC half the connect timeout.",
+      "findingIds": [],
+      "recordedAt": "2026-10-08T07:46:20Z"
     }
   },
   "checkpoints": {
@@ -8188,6 +8412,14 @@
       },
       "reviewHash": "6dbafd11fbde53d73530051d9ab5bfdce5574316c06a9c6d21a8b42394ffadbd",
       "recordedAt": "2026-10-08T07:09:18Z"
+    },
+    "S14": {
+      "snapshotId": "fbdb5c1b4a95295078f75f2536e588bcedc00ab51c941ee523797e383a7034e1",
+      "commits": {
+        "rayx-signalr": "22c5c82bd4b3c1f0c8f650193aa84eb46632a46d"
+      },
+      "reviewHash": "14eb15cc02ab679ac246b32fa468c02292bb205fe709f6ffe0a5313b38a7d6ed",
+      "recordedAt": "2026-10-08T07:46:28Z"
     }
   },
   "findings": [
@@ -11571,7 +11803,7 @@
       ]
     }
   ],
-  "handoffMarkdown": "HTTP/2 service endpoints and scenario (R14.C2, D14).\n- AppHost: the test service gains the Aspire endpoints h2c (http) and https-http1 (https) and passes their target ports as TestService__Http2OnlyPort and TestService__Http1OnlyPort.\n- TestService:\n  - ConfigureEndpointDefaults pins Protocols by port (Http2 for the h2c port, Http1 for the https-http1 port); others keep the Kestrel defaults (HTTP/1.1 and HTTP/2 over TLS).\n  - /e2e/listening excludes the pinned ports, so test-proxy routing is unchanged.\n  - DescribeRequest adds protocol: <Request.Protocol> and connection: <Connection.Id>.\n- E2E runner: AspireEnvironment H2cServiceUrl/Http1TlsServiceUrl; cells get RAYX_SIGNALR_E2E_H2C_URL and RAYX_SIGNALR_E2E_HTTP1_TLS_URL. Catalog http2 on native targets (limit 120 s).\n- Scenario tests/e2e/http2.rs:\n  - Http2 over TLS for WS (extended CONNECT), LP and SSE (json): negotiate and the transport are HTTP/2 on the same connection id.\n  - h2c Http2 WS: HTTP/2/HTTP/2.\n  - Auto on TLS: negotiate HTTP/2, WS HTTP/1.1.\n  - Auto on https-http1 LP: HTTP/1.1 fallback.\n  - Http2 on https-http1: Transport error.\n- Results: native http2 2/2 (plus tls and request-headers regressions) and Android http2 2/2 (plus tls) pass; contracts 115 including DependencySecurity (h2 direct dependency).\n- Docs: docs/14 service endpoints, variables and scenario list.",
+  "handoffMarkdown": "HTTP/3 service endpoint and scenario (R15.C2).\n- AppHost QuicSupport (QuicListener.IsSupported on Windows/Linux/macOS; Reason). When supported: an http3 HTTPS endpoint with isProxied: false and TestService__Http3Port. TestService pins Http1AndHttp2AndHttp3 on it and excludes it from /e2e/listening.\n- AspireEnvironment.Http3ServiceUrl (null without QUIC); CellRunners passes RAYX_SIGNALR_E2E_HTTP3_URL. Scenario.QuicHostOnlyReason; E2ESelection.Cells(windowsHost, hostSystemChanges, quicHost). Catalog http3 on native and android (limit 120 s), iOS excluded with the macOS reason. CatalogTests count is QUIC-aware.\n- E2E features now include http3 (CellRunners.E2EFeatures, TlsProvider, contract expectations); the workflow strings are left to S15.\n- tests/e2e/http3.rs (cfg feature http3):\n  - Http3 with LP, all transports (WebSockets skipped) and SSE (json): negotiate and transport are HTTP/3.\n  - WebSockets alone: TransportUnavailable naming RFC 9220.\n  - Http3Preferred: HTTP/3 against the http3 endpoint; falls back to HTTP/2 against the TCP-only https endpoint.\n- Results: native http3 2/2 and Android http3 2/2 pass; contracts 115 pass; LP/SSE invoke, ordinary-reconnect, large-payload, http2 and tls regressions pass.\n- Docs: 02 Experimental HTTP/3 section, 01 and README feature rows, 12 limitations, 14 endpoint/scenario/features, skill.",
   "protectedPaths": {
     "rayx-signalr": {
       ".agentx/tasks/resilient-reconnect-and-production-gates/**": "a4110a3f5f2c68d64ddf8fbedb70479c98f46dde78b064b5b3ac826772db49a6",

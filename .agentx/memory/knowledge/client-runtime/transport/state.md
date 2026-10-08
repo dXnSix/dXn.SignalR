@@ -101,6 +101,14 @@ HTTP/2 (S13, D14, R14), `communication/http2.rs`:
 - `http2::send` uses `try_send_request`; `SendFailure.retry` only when unsent, `REFUSED_STREAM`, or a remote graceful `GOAWAY` — every caller retries once on a new connection, never a processed request. No keep-alive pings (.NET default off).
 - Proof: the `http2_` unit group (14) and the native/Android `http2` scenario.
 
+Experimental HTTP/3 (S14, D15, R15), `communication/http3.rs`, feature `http3` (`rayx_http3` = `http3` + `rayx_tls`):
+
+- quinn 0.11 (runtime-tokio; crypto from the provider features via `quinn?/rustls-*`), h3 0.0.8, h3-quinn 0.0.10. QUIC config = `TlsContext::config_with_alpn(h3)` (explicit provider, verifier, hook); 15 s keep-alive; crypto transport codes 0x100..0x200 = `Tls`.
+- `http3::connection`: plaintext or first route through a proxy = `Transport` under `Http3`, TCP under `Http3Preferred`; Preferred gives QUIC half the bound, then `Pool::use_tcp` for the attempt. `http2::Pool` also keeps HTTP/3 connections.
+- `http3::exchange` retries once only when `send_request` failed (stream never opened) and forgets the failed connection. Negotiate `post` and `Lane::exchange_http3` (request/open_stream) try it before HTTP/2; streamed bodies are `ResponseBody{Hyper, Http3(Box)}` read with `chunk()`.
+- WebSockets never over HTTP/3: Kestrel 10 advertises no `SETTINGS_ENABLE_CONNECT_PROTOCOL` for HTTP/3 (WebTransport only). `TransportSelection::over_http3` skips them under strict `Http3`; `open_websocket` refuses it. Not a .NET parity feature (the .NET SignalR client pins HTTP/2-or-lower).
+- Proof: `http3_` unit group (7, in-process quinn+h3 server) and the native/Android `http3` scenario.
+
 ## Backlinks
 
 - Source anchors: [src/communication/common.rs](../../../../../src/communication/common.rs), [src/communication/client_tokio.rs](../../../../../src/communication/client_tokio.rs), [src/communication/client_wasm.rs](../../../../../src/communication/client_wasm.rs).

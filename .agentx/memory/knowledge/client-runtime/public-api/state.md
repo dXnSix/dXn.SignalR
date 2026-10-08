@@ -39,6 +39,8 @@ Proxies since S12: `with_proxy` accepts http, https, socks4, socks4a, socks5 and
 
 HTTP versions since S13: native `with_http_version(HttpVersion)`; public `#[non_exhaustive]` `HttpVersion { Http1, Auto (default), Http2 }` re-exported natively. Never a configuration error: integrated credentials lower it to HTTP/1.1.
 
+Since S14, with the non-default `http3` feature: `HttpVersion::Http3` and `Http3Preferred` (experimental; strict `Http3` without TLS features fails `new` with `Configuration`/`with_http_version`).
+
 ## Backlinks
 
 - Source anchors: [src/client/client.rs](../../../../../src/client/client.rs), [src/client/configuration.rs](../../../../../src/client/configuration.rs), [src/lib.rs](../../../../../src/lib.rs), [tests/public_connection_configuration.rs](../../../../../tests/public_connection_configuration.rs), [src/error.rs](../../../../../src/error.rs), [tests/public_error_types.rs](../../../../../tests/public_error_types.rs).
