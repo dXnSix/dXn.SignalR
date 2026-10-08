@@ -194,6 +194,39 @@ socket's `CLOSED` state (browser), bounded by the close timeout.
   server timeout or a protocol violation disposes the buffer and continues as an ordinary drop
   (`connection_ended`).
 
+## Measured performance
+
+The `Performance` category ([Testing](14-testing.md#performance)) runs each workload against the
+official .NET client (`Microsoft.AspNetCore.SignalR.Client` 10) in the same Aspire run. Both
+clients use release builds and identical warm-ups, and each figure is the median of three
+alternating rounds. The scheduled `perf / compare` job publishes the same report as its
+`perf-report` artifact.
+
+Full scale (`RAYX_SIGNALR_PERF_SCALE=full`), 2026-10-08. The environment was Windows 11
+(10.0.26300), x64 with 16 logical processors, .NET 10.0.0 and rustc 1.92.0. The client, the
+service and the .NET reference ran on one machine.
+
+| Workload | Protocol | Rust client | .NET client | Ratio |
+|---|---|---|---|---|
+| Invoke latency, p50 | JSON | 164.5 µs | 168.8 µs | 1.03× faster |
+| Invoke latency, p50 | MessagePack | 262.7 µs | 278.9 µs | 1.06× faster |
+| Send throughput | JSON | 609,736 sends/s | 661,661 sends/s | 0.92× |
+| Send throughput | MessagePack | 652,681 sends/s | 712,528 sends/s | 0.92× |
+| Server stream | JSON | 802,662 items/s | 412,073 items/s | 1.95× |
+| Server stream | MessagePack | 1,085,969 items/s | 462,864 items/s | 2.35× |
+| Fan-in (8 clients) | JSON | 42,159 calls/s | 30,908 calls/s | 1.36× |
+| Fan-in (8 clients) | MessagePack | 42,008 calls/s | 30,042 calls/s | 1.40× |
+
+How to read the results:
+
+- **Invoke latency** is on par with the .NET client.
+- **Send throughput** is within the budget's tolerance. Each `send` completes once the transport
+  accepts the frame, as `SendAsync` does.
+- **Streaming and fan-in** are where the single-pass wire codec pays off.
+
+Run-to-run noise on a shared machine can exceed the small latency margins, so budgets compare
+ratios within one run, never absolute numbers.
+
 ## Invariants
 
 These are protected by unit tests and end-to-end scenarios; keep them when changing the code:

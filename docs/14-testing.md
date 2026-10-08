@@ -317,8 +317,9 @@ CI runs every category except `Orchestration`.
 ## CI checks
 
 The least-privilege workflows (`contents: read`, no secrets) run on pull requests to `master` and
-on pushes to `master`; the end-to-end workflow can also be started manually. They cancel superseded
-pull-request runs and upload bounded, redacted diagnostics only after failures.
+on pushes to `master`; the end-to-end workflow also runs nightly and can be started manually. They
+cancel superseded pull-request runs and upload bounded, redacted diagnostics only after failures.
+The performance workflow (`perf.yml`) runs weekly and on demand only.
 
 Quality checks:
 
@@ -337,10 +338,30 @@ Quality checks:
 
 End-to-end checks:
 
-- `e2e / native (<os>)`
-- `e2e / browser (<engine>)` for `chromium`, `firefox` and `webkit`
-- `e2e / android`
-- `e2e / ios`
+Every end-to-end job runs every transport (`RAYX_SIGNALR_E2E_TRANSPORTS=all`), and every job's
+selection includes the typed-error scenario `error-kinds`:
+
+- `e2e / native (<os>)` runs the whole catalog, including the SOCKS, PAC, HTTPS-proxy, HTTP/2
+  and parity scenarios. `windows-auth` runs on Windows only. `http3` runs on ubuntu, which
+  installs `libmsquic`, and on Windows.
+- `e2e / browser (<engine>)` for `chromium`, `firefox` and `webkit`.
+- `e2e / android` runs on an x86_64 emulator, including `http2` and `http3` (the ubuntu host
+  installs `libmsquic`).
+- `e2e / android-app` runs the debug and minified release test apps (`android-app`,
+  `android-app-release`) on an emulator with JDK 17.
+- `e2e / ios`.
+- `e2e / os-proxy (<os>)` runs on ephemeral Windows and macOS runners that opt in with
+  `RAYX_SIGNALR_E2E_ALLOW_SYSTEM_CHANGES=1`. It is the only job that changes a host's proxy
+  settings.
+- `e2e / tls-aws-lc (native, <os>)`, `e2e / tls-aws-lc (android)` and `e2e / tls-aws-lc (ios)`
+  run `tls`, `connect-negotiate`, `negotiate-redirect` and `proxy` with
+  `RAYX_SIGNALR_E2E_TLS_PROVIDER=aws-lc-rs`.
+- `e2e / soak` runs only nightly and on demand: `soak-chaos` for 900 seconds.
+
+Performance check:
+
+- `perf / compare` runs `RAYX_SIGNALR_PERF_WORKLOADS=all` with `RAYX_SIGNALR_PERF_SCALE=full`,
+  then uploads `artifacts-temp/perf` as the `perf-report` artifact, kept for 30 days.
 
 ## Consumer conformance gates
 

@@ -68,6 +68,10 @@ WebKit, on an Android x86_64 emulator and on the iOS simulator. These parts are 
   The Android platform verifier runs inside the test app on the emulator (`android-app`,
   `android-app-release`), and `aws-lc-rs` runs the TLS-dependent scenarios on native and Android
   (`RAYX_SIGNALR_E2E_TLS_PROVIDER=aws-lc-rs`).
+- **Kerberos.** The `windows-auth` scenario authenticates the current Windows account with NTLM
+  through SSPI. Kerberos needs a domain, which the test host does not have.
+- **OS proxy settings on Windows and macOS hosts.** Only the `e2e / os-proxy` CI jobs change
+  them, on ephemeral runners. Developer machines run `os-proxy` only inside the Android test app.
 - **iOS background timing.** Spawned simulator processes are not foreground apps. The iOS runner
   raises the scenario thread's QoS class and warms the simulator up before timed cells.
 - **A once-seen stall, retired.** After a third stateful resume on the Android emulator, one

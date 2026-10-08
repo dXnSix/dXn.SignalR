@@ -63,6 +63,17 @@ dotnet test dotnet/RayX.SignalR.E2E.Tests --filter "Category=WorkflowContract|Ca
   `android` or `ios` cells.
 - `Category=Platform` for dependency-graph, gating, mobile or threaded-build changes;
   `Category=DependencySecurity` (needs `cargo-audit`) for dependency changes.
+- Selectors besides targets, scenarios and protocols:
+  - `RAYX_SIGNALR_E2E_TRANSPORTS` is `websockets` (default), `long-polling`,
+    `server-sent-events` or `all`, which every CI e2e job uses.
+  - `RAYX_SIGNALR_SOAK_SECONDS` sets the `soak-chaos` length (CI soak: 900).
+  - `RAYX_SIGNALR_E2E_ALLOW_SYSTEM_CHANGES=1` lets native `os-proxy` cells change the host
+    proxy. Only the ephemeral `e2e / os-proxy` runners set it, never developer machines.
+- Host-gated cells: `windows-auth` runs on Windows only. `http3` needs msquic (`QuicSupport`:
+  Windows 11 or Server 2022, Linux with `libmsquic`) and is never selected on macOS or iOS.
+- Performance: `RAYX_SIGNALR_PERF_WORKLOADS=all RAYX_SIGNALR_PERF_SCALE=quick|full dotnet test
+  dotnet/RayX.SignalR.E2E.Tests --filter Category=Performance` compares against the .NET client
+  in one run and writes `artifacts-temp/perf/<run>.json` (CI: `perf.yml` `perf / compare`).
 - Android app cells (`android-app`, `android-app-release`; `Scenarios/AndroidAppCellRunner.cs`):
   `tests/android-harness` (cdylib over `tests/e2e-scenarios`, which compiles the `tests/e2e`
   sources by path; scenario modules in `tests/e2e/main.rs` are `pub(crate)`) is built with

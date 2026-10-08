@@ -5,7 +5,7 @@
 | Target | Status | Proof |
 |---|---|---|
 | Windows, Linux, macOS (Tokio) | Supported | Full end-to-end catalog in CI (`e2e / native (<os>)`) |
-| Android (`aarch64`, `x86_64`) | Supported | Full catalog on an x86_64 emulator (`e2e / android`); arm64-v8a is compile-checked (`quality / android`) |
+| Android (`aarch64`, `x86_64`) | Supported | Full catalog on an x86_64 emulator (`e2e / android`), TLS and proxy cells inside the test app (`e2e / android-app`); arm64-v8a is compile-checked (`quality / android`) |
 | iOS (`aarch64-apple-ios`, simulator) | Supported | Full catalog on the iOS simulator (`e2e / ios`); the device target is compile-checked (`quality / ios`) |
 | Browser, main thread (`wasm32-unknown-unknown`) | Supported | Full catalog in Chromium, Firefox and WebKit (`e2e / browser (<engine>)`) |
 | Browser, Web Worker | Supported | `worker-transport` scenario in every engine |

@@ -35,6 +35,15 @@ use it from any UI, a game loop, a service, or a test.
   at once when a suspended app or frozen page runs again.
 - **Native TLS with rustls.** No OpenSSL. The platform trust store or bundled roots, `ring` or
   `aws-lc-rs`, per-connection private CAs, and client certificates (`with_client_certificate`).
+- **All three transports, chosen as .NET chooses them.** WebSockets, Server-Sent Events and Long
+  Polling on every target, tried in the server's order with fallback (`with_transports`).
+- **Proxies as the .NET client uses them.** Native clients use the system proxy by default: the
+  environment variables, WinHTTP, CFNetwork or Android's `ProxySelector`, including auto-config
+  scripts. Explicit HTTP, HTTPS and SOCKS4/5 proxies (`with_proxy`), PAC files
+  (`with_proxy_auto_config`) and `without_proxy()` override it.
+- **Fast.** In the same run, server streams are about 2× and fan-in about 1.4× the official .NET
+  client's throughput, with the same invoke latency
+  ([measured performance](docs/13-architecture.md#measured-performance)).
 - **Runtime-independent native futures.** Each connection runs on its own Tokio runtime, and its
   futures can be awaited from any executor.
 - **A browser transport for threads.** Event-driven, so it runs on the main thread, in Web Workers
@@ -47,7 +56,9 @@ use it from any UI, a game loop, a service, or a test.
   `traceparent` (`with_invocation_headers`), refreshable access tokens
   (`with_access_token_factory`, asked before every negotiate and WebSocket), integrated Windows
   authentication (`with_default_credentials`, `with_credentials`, native), HTTP/2 as the .NET
-  client negotiates it (`with_http_version`, native), and transport hooks for every request
+  client negotiates it (`with_http_version`, native; experimental HTTP/3 with the `http3`
+  feature), a configurable connect bound (`with_connect_timeout`, 120 s as .NET), and transport
+  hooks for every request
   (`with_request_hook`) and the rustls configuration (`with_tls_config_hook`, native).
 
 ## Platform support
