@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 34,
+  "revision": 36,
   "title": "Production-grade rayx-signalr: typed errors, all transports, proxies, refreshable auth, suspension-aware liveness, proven TLS paths, reference-class performance, and stretch SOCKS/PAC/OS proxies, HTTP/2 and HTTP/3",
   "validationMode": "sprint",
   "repositories": [
@@ -5284,6 +5284,41 @@
         "tools-node/**"
       ],
       "timeoutSeconds": 3600
+    },
+    {
+      "id": "p7-static-categories",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R16.C28"
+      ],
+      "descriptionMarkdown": "The static .NET categories CLAUDE.md requires for P7's dependency changes (Rust `md4`, `md-5`, `hmac`, `sha1_smol`, `windows-sys`; NuGet `Microsoft.AspNetCore.Authentication.Negotiate`), its catalog (`windows-auth`, Windows-host selection) and test-service changes: WorkflowContract, Repository, Catalog, Toolchain and DependencySecurity (`cargo-audit`, vulnerable NuGet packages).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=WorkflowContract|Category=Repository|Category=Catalog|Category=Toolchain|Category=DependencySecurity"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 80
+      },
+      "inputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "build.rs",
+        "src/**",
+        "tests/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        ".github/**",
+        "tools-node/**"
+      ],
+      "timeoutSeconds": 3600
     }
   ],
   "finalCheckIds": [
@@ -7206,7 +7241,8 @@
           "dependsOn": [],
           "checkIds": [
             "p7-integrated-auth",
-            "p7-windows-auth"
+            "p7-windows-auth",
+            "p7-static-categories"
           ],
           "sourceRefs": [
             {

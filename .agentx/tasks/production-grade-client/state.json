@@ -1,12 +1,12 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 210,
-  "planRevision": 34,
+  "revision": 219,
+  "planRevision": 36,
   "specHashes": {
     "requirements": "16fb407fdfc6b55f8641348271d85ba83477bcf53e0b30690f4e217989c6e9c2",
-    "design": "d5dc2f8682b7b0d7dbc938d2393a28e22b0a97a189c3e0220d909f55d209cabf",
-    "plan": "d1b67c092b98f5a3bd93d88136c02b165d62f5674b73e4238c27dfbb863e6b29"
+    "design": "e0589cff0cc65e3b12b9fd83bf89950f6bc3892bc2d5a27337ecee3a8c1751e6",
+    "plan": "24143cbd77528d349680d15cff309fd0f2e41697d3bb2fc1cdf88596b50abb24"
   },
   "tasks": {
     "S1.T1": {
@@ -346,7 +346,10 @@
       ]
     },
     "P7.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "P8.T1": {
       "status": "pending"
@@ -544,6 +547,15 @@
         }
       },
       "recordedAt": "2026-10-08T02:51:29Z"
+    },
+    "5e4859c5f3e51ef294a9b1b76abdb3473414ceb023e2f333614ac49962ff146b": {
+      "snapshot": {
+        "specHash": "68f582a96ff61b2fcb65440de874856a82665be2e1980e6ed240b1f35cdeaa19",
+        "repositories": {
+          "rayx-signalr": "c33431a4cebb074d6fa014806f234c3739ef1523334a514b6ee86c617c0bc940"
+        }
+      },
+      "recordedAt": "2026-10-08T03:40:49Z"
     }
   },
   "checkResults": {
@@ -2654,6 +2666,57 @@
       "logPath": "artifacts-temp/agentx/production-grade-client/P6-final-dd16ea2e963d.log",
       "logSha256": "033999c7f60242baa783992ceba51cc5eb90b2404b3c00810ff9d69e8a5c5e51",
       "inputsHash": "bf2c0d1655f5e569b882e89865d151eb3a5c2bbf77a1c029d9a79d32edef0e56"
+    },
+    "P7/p7-integrated-auth/final": {
+      "checkId": "p7-integrated-auth",
+      "boundaryId": "P7",
+      "phase": "final",
+      "batchId": "5e4859c5f3e51ef294a9b1b76abdb3473414ceb023e2f333614ac49962ff146b",
+      "definitionHash": "7eaddd587309158cf061a7d9570a3648d625f063f437b9b387bd7892e345b930",
+      "basisHash": "64e0ac344b561d7c5c5291dc98f90ba2ad2011599cedc07a81f2b68ca002993c",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 19,
+      "durationSeconds": 0.6311,
+      "recordedAt": "2026-10-08T03:40:12Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P7-final-444040f69543.log",
+      "logSha256": "e61fb38df2a22e6f72455784e4cc93afc68aa968d5b3a603f14951a812ab2ff7",
+      "inputsHash": "9df6b67746a7648ebb5f7a5b66247d165fc3ecb553e3a384aacb742e1b6c4022"
+    },
+    "P7/p7-windows-auth/final": {
+      "checkId": "p7-windows-auth",
+      "boundaryId": "P7",
+      "phase": "final",
+      "batchId": "5e4859c5f3e51ef294a9b1b76abdb3473414ceb023e2f333614ac49962ff146b",
+      "definitionHash": "76109d0e9b97688dd68410fc9200fe302cc28499a1ca22a484fad691d2884afc",
+      "basisHash": "ffe4bec876ef0c476d9f0a3adfa9150e5d8c4956046fbc5fbd6305c70b80a694",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 11.1332,
+      "recordedAt": "2026-10-08T03:40:23Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P7-final-19a0da966cf3.log",
+      "logSha256": "ef6ba9a9590a5da8cc7ce22ac66b2fc832456bc16df867c26478f06504c9581e",
+      "inputsHash": "dfe16605654fa6660c39edf19b7f74d699e7514a0c19053a69d5b88917ed0645"
+    },
+    "P7/p7-static-categories/final": {
+      "checkId": "p7-static-categories",
+      "boundaryId": "P7",
+      "phase": "final",
+      "batchId": "5e4859c5f3e51ef294a9b1b76abdb3473414ceb023e2f333614ac49962ff146b",
+      "definitionHash": "464d3abe1111e3e2b6a21e6781ce014f03ddad8ad42ce14bef350d48a1d18440",
+      "basisHash": "42270454e5ee3371d7410f02e7d805596c4926d814297207cfaad38b58ab06f6",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 88,
+      "durationSeconds": 25.6466,
+      "recordedAt": "2026-10-08T03:40:48Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P7-final-5fec021e16ef.log",
+      "logSha256": "97b53bd08a4a554028fdf5df9d620a4f194b7a853a769fae233b77b52880c53b",
+      "inputsHash": "f0be4e8bc5f18e9b7193dac287a4880ecd34b2f1f423915e0988ce282bb3e290"
     }
   },
   "reviews": {
@@ -7055,6 +7118,146 @@
         "P6-F5"
       ],
       "recordedAt": "2026-10-08T02:52:36Z"
+    },
+    "P7": {
+      "reviewerId": "claude-independent-reviewer-p7-efe9c365",
+      "snapshotId": "5e4859c5f3e51ef294a9b1b76abdb3473414ceb023e2f333614ac49962ff146b",
+      "criterionIds": [
+        "R16.C28"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/integrated_auth/mod.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C28"
+          ],
+          "sha256": "c22693c5534ffac09d64e9d37fc437a47b086298fc0de731939c31069a198d74"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/integrated_auth/sspi.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C28"
+          ],
+          "sha256": "4c389c31c8d22a3d9a9e853f3e637d73140baf5ca77e1fe32b858c6fc8beebb0"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/integrated_auth/ntlm.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C28"
+          ],
+          "sha256": "30d87e524e654cd042a458f1f311575b1f3c0ff642fb8848ab19b648b75aacfd"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C28"
+          ],
+          "sha256": "61024ab4cc8a413ecaf0be8dd99df7e4d360970d882352b34c14565e77123da6"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/http_transport_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C28"
+          ],
+          "sha256": "05bc7540ca85e116694fd8785ecf4cac2dbc5b787421bcebd92b006ae9260b44"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C28"
+          ],
+          "sha256": "dacb1a3f9268e2869029043d8e46119eb939fc45a184bb9eb4d93b65ae949982"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/transport_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C28"
+          ],
+          "sha256": "3cc4e2d16cbd233add0f5149ea1874100c1f69784defaf8ec7a20e77727a79a5"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C28"
+          ],
+          "sha256": "b58db2cac23bdb59624d49a8316a99fc2a527abe650f41c6cd17aeec1baa5b7d"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/WindowsAuthHub.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C28"
+          ],
+          "sha256": "9a27561b7e17e7b07b580976e517098e7d08241edc6b479de4bc931a381c3c1c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/ScenarioCatalog.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C28"
+          ],
+          "sha256": "0357d6c45374f45bd315e8b1d18089521bd6a004305af813853c4fdf1b50d52f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/E2ESelection.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C28"
+          ],
+          "sha256": "28bae2f2ee4b4c19cd15e32f7bf5a9b928690c3d5449440fe50903bd6ec5db15"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/windows_auth.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C28"
+          ],
+          "sha256": "d676a0d304716f1facb563fd307d6c0007b847cf0f099712b823948620ebc44e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/CatalogTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C28"
+          ],
+          "sha256": "325692c67a77181bf4ae24c052c940309416a9d81b285db2dac68139353a8ffb"
+        }
+      ],
+      "summaryMarkdown": "I re-reviewed against snapshot 5e4859c5 (revision 217); only `sspi.rs` changed since the previous review. The focused `integrated_auth_` group re-runs at 19/19 on Windows.\n\nAll findings are resolved:\n- F1: the Kerberos tail is validated, and a failed context returns the 401, as `AuthenticationHelper.NtAuth` does.\n- F2: the SPN uses the canonical host, integrity is required, and the RFC 5929 tls-server-end-point channel binding is sent through SSPI and the managed NTLM (signing, key exchange, version, MsvAvChannelBindings, MsvAvTargetName, MIC under the exported key).\n- F3 and F9: the built-in NTLM and the SSPI explicit identity are each proven against an in-process acceptor (`SEC_E_LOGON_DENIED`).\n- F4: cookies are kept for every leg.\n- F5: a `Connection: close` challenge continues on a new connection, and the drain is capped at 1 MiB.\n- F6: the SSPI buffers are guarded and the calls run on blocking threads.\n- F7: the Windows-host exclusion reason is recorded.\n- F8: the hot paths are tidied.\n\nThe paths without integrated credentials are behaviorally unchanged. R16.C28 is met: the native `windows-auth` scenario passes for JSON and MessagePack over WebSockets, Long Polling and SSE, with a rejected `with_credentials` leg, and the unit and SSPI groups cover the challenge loop, NTLMv2 and the channel binding.\n\nResiduals, documented: outside Windows the SPN is not canonicalized; Kerberos is unproven without a realm; non-Windows hosts have no runtime cell.",
+      "findingIds": [
+        "P7-F1",
+        "P7-F2",
+        "P7-F3",
+        "P7-F4",
+        "P7-F5",
+        "P7-F6",
+        "P7-F7",
+        "P7-F8",
+        "P7-F9"
+      ],
+      "recordedAt": "2026-10-08T03:41:42Z"
     }
   },
   "checkpoints": {
@@ -7193,6 +7396,14 @@
       },
       "reviewHash": "53f70b2f294440a97bfc735beea66113c1cbf8b296f57604b9b355fd29ab3dbc",
       "recordedAt": "2026-10-08T02:52:59Z"
+    },
+    "P7": {
+      "snapshotId": "5e4859c5f3e51ef294a9b1b76abdb3473414ceb023e2f333614ac49962ff146b",
+      "commits": {
+        "rayx-signalr": "bb67b8ff48423ae6237b61d88a5cd48c01d62613"
+      },
+      "reviewHash": "7b2c76f4e370077f19e9d1cf6cce9d4830231de4555d6ee28a78d7fd3d9c95be",
+      "recordedAt": "2026-10-08T03:41:51Z"
     }
   },
   "findings": [
@@ -9946,9 +10157,191 @@
           "path": "src/communication/cookies.rs"
         }
       ]
+    },
+    {
+      "id": "P7-F1",
+      "boundaryId": "P7",
+      "criterionIds": [
+        "R16.C28"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/integrated_auth/mod.rs",
+          "symbol": "integrated_auth_validates_the_servers_final_token"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/integrated_auth/mod.rs",
+          "symbol": "integrated_auth_returns_the_401_on_rejection_or_context_failure"
+        }
+      ],
+      "descriptionMarkdown": "**Resolved.** The Kerberos mutual-auth tail token was not validated, and context failures did not end the loop as .NET does.\n- `send` now passes a non-401 response's scheme token to a final `step`. A failure becomes `Authentication` with status 401; the Lane and the per-request negotiate and upgrade connections drop the connection.\n- A context that cannot start, or a step that fails on a challenge, returns the current 401, as `AuthenticationHelper.NtAuth` breaks on a failed status.\n- Verified in source and by the two new tests."
+    },
+    {
+      "id": "P7-F2",
+      "boundaryId": "P7",
+      "criterionIds": [
+        "R16.C28"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/integrated_auth/sspi.rs",
+          "symbol": "integrated_auth_sspi_binds_the_current_account_to_the_channel"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/integrated_auth/sspi.rs",
+          "symbol": "integrated_auth_sspi_names_the_canonical_host"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/integrated_auth/mod.rs",
+          "symbol": "integrated_auth_binds_to_the_certificate_with_its_signature_hash"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/integrated_auth/ntlm.rs",
+          "symbol": "integrated_auth_ntlm_sends_the_target_name_and_channel_bindings"
+        }
+      ],
+      "descriptionMarkdown": "**Resolved.** The SPN, the protection level and channel binding differed from SocketsHttpHandler.\n- **SPN:** `GetAddrInfoW(AI_CANONNAME)` gives the canonical host, run on a blocking thread. An IP address or a failed lookup keeps the host as given.\n- **Integrity:** `ISC_REQ_INTEGRITY` is requested and `ISC_RET_INTEGRITY` is required on completion.\n- **Channel binding:** an aligned `SEC_CHANNEL_BINDINGS` carrying the RFC 5929 tls-server-end-point binding goes to every ISC call. The hash follows the signature algorithm, and the binding is computed only when integrated credentials are set.\n- **Managed NTLM:** negotiates SIGN, KEY_EXCH and VERSION; sends an RC4-encrypted exported key (MIC under the exported key); adds MsvAvChannelBindings and MsvAvTargetName.\n- **Evidence:** the AUTHENTICATE layout (offsets 60/64/72) and the gss_channel_bindings hash checked out against MS-NLMP. In-process SSPI rejects a mismatched binding with `SEC_E_BAD_BINDINGS`.\n- **Documented residual:** outside Windows the SPN is not canonicalized (docs/12)."
+    },
+    {
+      "id": "P7-F3",
+      "boundaryId": "P7",
+      "criterionIds": [
+        "R16.C28"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/integrated_auth/sspi.rs",
+          "symbol": "integrated_auth_sspi_accepts_well_formed_managed_ntlm_and_denies_wrong_credentials"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/windows_auth.rs"
+        }
+      ],
+      "descriptionMarkdown": "**Resolved.** The built-in NTLMv2 is accepted by a real acceptor: `NtlmContext` against in-process SSPI NTLM ends with `SEC_E_LOGON_DENIED`, not `SEC_E_INVALID_TOKEN`. The SSPI explicit-identity path is proven separately (see P7-F9). The `windows-auth` scenario also exercises `with_credentials` end to end."
+    },
+    {
+      "id": "P7-F4",
+      "boundaryId": "P7",
+      "criterionIds": [
+        "R16.C28"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/integrated_auth/mod.rs",
+          "symbol": "integrated_auth_answers_a_two_leg_challenge_on_one_connection_with_cookies"
+        }
+      ],
+      "descriptionMarkdown": "**Resolved.** `send` calls `observe` (`store_response`) for every response, 401 legs included.\n- `build` recomputes the jar's Cookie header for each leg in negotiate (merged with a user Cookie header), `Lane::build` and the authenticated upgrade.\n- The test shows that a cookie set on the first 401 is sent on both later legs."
+    },
+    {
+      "id": "P7-F5",
+      "boundaryId": "P7",
+      "criterionIds": [
+        "R16.C28"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/integrated_auth/mod.rs",
+          "symbol": "integrated_auth_continues_on_a_new_connection_when_the_server_closes"
+        }
+      ],
+      "descriptionMarkdown": "**Resolved.** A challenge with `Connection: close` continues on a new connection through the `reconnect` factory, as .NET's `CreateHttp11ConnectionAsync` does (negotiate `http1`, `Lane::connect`, and the upgrade's http1 with upgrades).\n- A challenge body over 1 MiB (`Limited`) fails with an Authentication error, matching `DrainResponseAsync`'s 'cannot be reused' failure.\n- Covered by the X-Large case and the close test."
+    },
+    {
+      "id": "P7-F6",
+      "boundaryId": "P7",
+      "criterionIds": [
+        "R16.C28"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/integrated_auth/sspi.rs",
+          "symbol": "ContextBuffer"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/integrated_auth/mod.rs",
+          "symbol": "blocking"
+        }
+      ],
+      "descriptionMarkdown": "**Resolved.**\n- The `ContextBuffer` guard frees the output token on every path, including `CompleteAuthToken` and integrity failures.\n- `unsafe impl Send` is removed; the compiler now proves `Send`.\n- The password copy is wiped with `write_volatile`, and the comment is accurate.\n- `context()` and `step()` run in `spawn_blocking`. A timed-out connect drops the context on the blocking thread once the call returns, so nothing leaks."
+    },
+    {
+      "id": "P7-F7",
+      "boundaryId": "P7",
+      "criterionIds": [
+        "R16.C28"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/CatalogTests.cs",
+          "symbol": "WindowsOnlyScenariosAreSelectedOnlyOnWindowsHosts"
+        }
+      ],
+      "descriptionMarkdown": "**Resolved.** `WindowsHostOnly` is derived from the recorded `WindowsHostOnlyReason`, which is set for `windows-auth` and asserted to be non-empty for every Windows-only scenario."
+    },
+    {
+      "id": "P7-F8",
+      "boundaryId": "P7",
+      "criterionIds": [
+        "R16.C28"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/integrated_auth/ntlm.rs",
+          "symbol": "integrated_auth_ntlm_rejects_malformed_or_unexpected_challenges"
+        }
+      ],
+      "descriptionMarkdown": "**Resolved.**\n- Challenge parsing uses `checked_add`/`try_from` and has an overflow case.\n- The Lane borrows the provider and the host.\n- The upgrade composes and clones headers only on the integrated path.\n- The non-integrated paths compute no binding and behave as before."
+    },
+    {
+      "id": "P7-F9",
+      "boundaryId": "P7",
+      "criterionIds": [
+        "R16.C28"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Resolved.** The explicit-credential SSPI path lacked a meaningful test. `integrated_auth_sspi_answers_with_explicit_credentials` now drives `SspiContext::new(AuthScheme::Ntlm, \"localhost\", Some(&Explicit{nonexistent user}), None)` against the in-process NTLM acceptor.\n- `handshake` unwraps both client steps, so both tokens must be produced.\n- The test asserts `SEC_E_LOGON_DENIED`.\n- If the `SEC_WINNT_AUTH_IDENTITY_W` identity were ignored, SSPI would fall back to the current account and the acceptor would return `SEC_E_OK`. If it were malformed, the client step or the acceptor would fail differently. Either way the test fails, so it now proves the explicit identity is marshaled and used.\n- I re-ran the focused `integrated_auth_` group: 19/19 pass.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/integrated_auth/sspi.rs",
+          "symbol": "integrated_auth_sspi_answers_with_explicit_credentials"
+        }
+      ]
     }
   ],
-  "handoffMarkdown": "Client certificates (R16.C27, D22).\n- API: ConnectionConfiguration::with_client_certificate(chain_pem, key_pem), native only, stored as TlsSettings.client_certificate. ClientCertificatePem's Debug never shows the key.\n- tls.rs: ClientCertificate::parse (CertificateDer::pem_slice_iter, PrivateKeyDer::from_pem_slice) returns Configuration errors naming with_client_certificate, never echoing the key. PreparedTls carries it, and build_config uses with_client_auth_cert (a mismatched key is a Configuration error). for_connection builds the config before any I/O even for plain endpoints when a client cert is set.\n- Unit group client_certificates_ (5): certificates are generated at test time with the new dev-dependency rcgen 0.14 (ring, pem), so no key is committed. It covers a real mutual-TLS handshake against an in-process rustls server requiring client auth (tls_stream), refusal without a cert, invalid PEM, a mismatched key, and SignalRClient::new validation.\n- TestCertificates issues client.pem/key (CN=RayX.SignalR E2E Client, EKU clientAuth) from the test CA. The AppHost passes TestTls__CaPath. The TestService HTTPS defaults use ClientCertificateMode.AllowCertificate plus ClientCertificates.IssuedBy (custom root trust, clientAuth EKU); the CA is loaded with CreateFromPem without a key. UseRequiredClientCertificates refuses /test-mtls requests without a cert with 403. TestHub.ClientCertificateSubject.\n- Runner: variables RAYX_SIGNALR_E2E_CLIENT_CERT_PEM_BASE64 and _CLIENT_KEY_PEM_BASE64 (the app allow-list excludes them). Redaction covers *_KEY_PEM_BASE64=, tested in ProxyIsolationTests.\n- Scenario client-certificate (catalog native targets): over WS, LP and SSE (JSON) with the CA root and the client cert it connects and invokes, and WS sees the subject; without the cert, negotiate is refused with Authentication 403. Results: native and Android client-certificate+tls 8/8; browser tls 6/6 unaffected by AllowCertificate.\n- Docs: docs/08 Client certificates section (example compiled), docs/02 reference row, README, skill tls and setup-and-connection, docs/14 list.",
+  "handoffMarkdown": "Integrated Windows authentication (R16.C28, D23 with the recorded choice).\n- integrated_auth module (src/communication/integrated_auth/):\n  - mod.rs: AuthScheme (Negotiate, NTLM); Explicit (Debug redacts the password); IntegratedCredentials (Default or Explicit); SecurityContext::step and SecurityProvider::context traits; provider() returns SSPI on Windows, NTLM for Explicit elsewhere, and a Configuration error naming with_default_credentials for Default elsewhere; offered() parses WWW-Authenticate.\n  - send(sender, provider, host, build) is the SocketsHttpHandler-style loop: first request without credentials; on a 401 offering Negotiate (preferred) or NTLM, drain the body and resend with Authorization <scheme> <b64 token> on the same connection, up to 8 legs; the final 401 reaches the caller. ExchangeFailure is Http or Authentication.\n  - ntlm.rs: NTLMv2 (negotiate and authenticate messages, MIC and MsvAvFlags when the server sends a timestamp, LMv2 otherwise) over RustCrypto md4, hmac and md-5; random_u64.\n  - sspi.rs (cfg windows): windows-sys 0.61 AcquireCredentialsHandleW (default or SEC_WINNT_AUTH_IDENTITY_W) and InitializeSecurityContextW for HTTP/<host>, with CompleteAuthToken and Drop cleanup; SAFETY comments.\n- Config and wiring:\n  - with_default_credentials() and with_credentials(user, password, domain), native only.\n  - SignalRClient::new resolves the provider (recipe.integrated); errors come before any I/O.\n  - negotiate_http::post takes integrated, and its request is built per leg; http_transport Lane exchange and open_stream go through send().\n  - WebSocket: with integrated credentials the upgrade goes through hyper with_upgrades and send(), then checks Sec-WebSocket-Accept (sha1_smol) and hands over with tokio-websockets ClientBuilder::take_over. transport_tokio::WebSocket is now WebSocketStream<WebSocketIo> (Direct or Upgraded enum).\n- Tests:\n  - Unit group integrated_auth_ (10): MS-NLMP NTLMv2 vectors (NTOWFv2, NTProofStr, SessionBaseKey, LMv2), the negotiate/authenticate flow, MIC, malformed challenges, scheme parsing, a scripted loopback exchange (two legs on one connection, rejection, Bearer not answered, no provider), password redaction, a real SSPI token on Windows, and the RFC 6455 accept vector.\n  - TestService: Microsoft.AspNetCore.Authentication.Negotiate 10.0.12 (10.0.9 has high-severity advisories); AddNegotiate; WindowsAuthHub at /test-windows with [Authorize(Negotiate)], Identity and Echo.\n  - Catalog: windows-auth is native with WindowsHostOnly (E2ESelection.Cells(windowsHost)) and exclusions for android, ios and the browsers; CatalogTests WindowsOnlyScenariosAreSelectedOnlyOnWindowsHosts.\n  - Scenario windows-auth: the hub sees the current account (USERNAME) over WS, LP and SSE (JSON); without credentials, Authentication 401. Native on Windows 2/2.\n  - Contracts including DependencySecurity: 88.\n- Docs: docs/02 Integrated Windows authentication plus reference row (example compiled); docs/12 limitation; docs/14; README; skill setup-and-connection.",
   "protectedPaths": {
     "rayx-signalr": {
       ".agentx/tasks/resilient-reconnect-and-production-gates/**": "a4110a3f5f2c68d64ddf8fbedb70479c98f46dde78b064b5b3ac826772db49a6",

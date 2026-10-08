@@ -37,6 +37,26 @@ Cookies and client certificates (P6, D22).
 - Client certificates: `with_client_certificate(chain_pem, key_pem)` maps to `TlsSettings.client_certificate`, parsed at `new` into `PreparedTls`, and `build_config` uses `with_client_auth_cert`. Errors are `Configuration` naming `with_client_certificate` and never echo the key.
 - TLS error classification: `tls::is_tls_failure`/`classify` map rustls errors found in a source chain to `ErrorKind::Tls` (negotiate handshake, send and body, and the upgrade), covering TLS 1.3 refusals reported after the handshake.
 
+Integrated Windows authentication (P7, D23), `communication/integrated_auth/`:
+
+- API: `with_default_credentials()` and `with_credentials(user, password, domain)` produce `IntegratedCredentials`. `provider()` returns `SspiProvider` on Windows or `NtlmProvider` elsewhere; `Default` outside Windows fails `new` with `Configuration`. The provider is kept as `ConnectionRecipe::integrated`.
+- Connections: one HTTP/1.1 connection helper, `negotiate_http::http1(Endpoint, bound, upgrades, handshake_error)`, serves negotiate, `Lane` (which keeps an `integrated_auth::Connection` holding the sender and its binding) and the authenticated upgrade. It runs through the proxy and TLS and computes the RFC 5929 `tls-server-end-point` binding from the rustls peer certificate when bound.
+- Exchange: `integrated_auth::send(connection, provider, host, reconnect, observe, build)` follows `SocketsHttpHandler` NtAuth:
+  - The first request goes out without credentials. A 401 offering Negotiate (preferred) or NTLM is answered on the same connection after draining the body (up to 1 MiB; larger fails `Authentication` because the connection cannot be reused), or on a `reconnect()` connection after `Connection: close`.
+  - Each leg is rebuilt with the jar's current cookies, and `observe` stores every response's cookies.
+  - A context that cannot start, or a failed step, returns the 401. A final token on success (Kerberos mutual authentication) is validated, and a failure is `Authentication` 401.
+  - `context` and `step` run in `spawn_blocking`.
+- WebSocket upgrade: with a provider, it goes through hyper (`upgrade_authenticated`): the key comes from getrandom, `Sec-WebSocket-Accept` is checked, then `take_over` wraps `WebSocketIo::Upgraded`. Without a provider the tokio-websockets path is unchanged.
+- SSPI (`sspi.rs`): the SPN is `HTTP/<canonical_host>` (GetAddrInfoW with `AI_CANONNAME`; IPs and failed lookups are kept as given). It requests `ISC_REQ_CONNECTION|INTEGRITY` and requires `ISC_RET_INTEGRITY` (.NET `ProtectionLevel.Sign`), passes `SECBUFFER_CHANNEL_BINDINGS` on every call, and frees the output through a guard.
+- Managed NTLMv2 (`ntlm.rs`, as .NET's managed NTLM):
+  - Negotiates SIGN, KEY_EXCH and VERSION (6.1.7600 rev 15) and requires SIGN in the challenge.
+  - Sends an RC4-encrypted random exported key; the MIC uses the exported key when the server sends a timestamp.
+  - Adds MsvAvChannelBindings (MD5 of the gss struct, or Z16) and MsvAvTargetName.
+  - The target name outside Windows is not canonicalized (a documented limitation).
+- Proof:
+  - The `integrated_auth_` unit groups: scripted exchanges, MS-NLMP vectors, and the Windows-only `integrated_auth_sspi` acceptor tests (channel bindings accepted or `SEC_E_BAD_BINDINGS`, managed and explicit-credential NTLM `SEC_E_LOGON_DENIED`).
+  - The native `windows-auth` scenario. Kerberos has no runtime proof (the host has no domain).
+
 ## Backlinks
 
 - Source anchors: [src/communication/common.rs](../../../../../src/communication/common.rs), [src/communication/client_tokio.rs](../../../../../src/communication/client_tokio.rs), [src/communication/client_wasm.rs](../../../../../src/communication/client_wasm.rs).

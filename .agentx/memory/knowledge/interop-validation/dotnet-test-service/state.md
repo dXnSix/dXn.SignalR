@@ -40,6 +40,11 @@ Since P6:
 - HTTPS client certificates: the HTTPS defaults allow client certificates (`ClientCertificateMode.AllowCertificate`, validated by `ClientCertificates.IssuedBy`, a custom-root chain to the test CA with the clientAuth EKU). `/test-mtls` refuses requests without a certificate with 403. `TestHub.ClientCertificateSubject` reports the subject.
 - Certificates: `TestCertificates` issues `client.pem`/`client.key` (CN=RayX.SignalR E2E Client). The AppHost passes `TestTls__CaPath`; the runner passes `RAYX_SIGNALR_E2E_CLIENT_CERT_PEM_BASE64` and `_CLIENT_KEY_PEM_BASE64`, which are redacted.
 
+Since P7:
+
+- `.AddNegotiate()` (`Microsoft.AspNetCore.Authentication.Negotiate` 10.0.12; 10.0.9 had an advisory) protects `WindowsAuthHub` at `/test-windows` (`Identity`, `AuthenticationType`, `Echo`).
+- `Scenario.WindowsHostOnlyReason` (`WindowsHostOnly` is derived from it) makes `E2ESelection.Cells(windowsHost)` select `windows-auth` only on Windows hosts. Its leg with a rejected `with_credentials` uses a non-existent account, so no real account's lockout counter moves.
+
 ## Backlinks
 
 - Source anchors: [Program.cs](../../../../../dotnet/RayX.SignalR.TestService/src/Program.cs), [TestHub.cs](../../../../../dotnet/RayX.SignalR.TestService/src/TestHub.cs), [project](../../../../../dotnet/RayX.SignalR.TestService/RayX.SignalR.TestService.csproj).
