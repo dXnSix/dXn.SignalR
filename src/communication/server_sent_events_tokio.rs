@@ -19,8 +19,6 @@ use std::time::Duration;
 
 use futures::channel::mpsc as futures_mpsc;
 use http::{StatusCode, Uri};
-use http_body_util::BodyExt;
-use hyper::body::Incoming;
 use log::{debug, info};
 use tokio::sync::mpsc;
 use tokio_websockets::Message;
@@ -28,7 +26,7 @@ use tokio_websockets::Message;
 use super::{
     http_transport_tokio::{
         send, status_error, transport_error, Credentials, FrameReceiver, FrameSender, Lane, Polled,
-        Target, SEND_QUEUE,
+        ResponseBody, Target, SEND_QUEUE,
     },
     transport::TransportKind,
 };
@@ -196,7 +194,7 @@ pub(crate) async fn start(
 async fn open(
     lane: &mut Lane,
     credentials: &Credentials,
-) -> Result<hyper::Response<Incoming>, Error> {
+) -> Result<http::Response<ResponseBody>, Error> {
     const HEADERS: &[(&str, &str)] = &[("Accept", "text/event-stream")];
     let used = credentials.current();
     let mut response = lane.open_stream(HEADERS, used.clone()).await?;
@@ -215,7 +213,7 @@ async fn open(
 /// sends end first (the client closed the transport, or a send failed) the stream is closed and a
 /// send failure ends the transport.
 async fn process(
-    body: Incoming,
+    body: ResponseBody,
     parser: EventStreamParser,
     sends: Lane,
     credentials: Credentials,
@@ -251,22 +249,19 @@ enum ReceiveEnd {
 /// Reads the event stream, passing every event's data on as one text frame, until the stream
 /// ends, fails, or the receiver is dropped.
 async fn receive(
-    mut body: Incoming,
+    mut body: ResponseBody,
     mut parser: EventStreamParser,
     frames: &mpsc::Sender<Polled>,
 ) -> ReceiveEnd {
     loop {
-        let next = std::pin::pin!(body.frame());
+        let next = std::pin::pin!(body.chunk());
         let closed = std::pin::pin!(frames.closed());
         let chunk = match futures::future::select(next, closed).await {
             futures::future::Either::Left((chunk, _)) => chunk,
             futures::future::Either::Right(_) => return ReceiveEnd::ReceiverGone,
         };
         let item = match chunk {
-            Some(Ok(frame)) => {
-                let Ok(data) = frame.into_data() else {
-                    continue;
-                };
+            Some(Ok(data)) => {
                 let events = match parser.push(&data) {
                     Ok(events) => events,
                     Err(error) => {
@@ -288,7 +283,7 @@ async fn receive(
                 KIND,
                 format!("the Server-Sent Events stream failed: {error}"),
             )
-            .with_source(error)),
+            .with_boxed_source(error)),
             None => {
                 debug!("The server ended the Server-Sent Events stream");
                 Ok(None)

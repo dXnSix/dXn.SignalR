@@ -285,6 +285,31 @@ pub(crate) struct TransportSelection {
     pub(crate) skipped: Vec<TransportAttempt>,
 }
 
+impl TransportSelection {
+    /// Under strict HTTP/3, skips WebSockets with the reason: no server the client targets
+    /// bootstraps WebSockets over HTTP/3 (RFC 9220; ASP.NET Core 10's Kestrel does not).
+    #[cfg(rayx_http3)]
+    pub(crate) fn over_http3(mut self, version: crate::HttpVersion) -> Self {
+        if version != crate::HttpVersion::Http3 {
+            return self;
+        }
+        let websockets = TransportKind::WebSockets;
+        if let Some(index) = self.candidates.iter().position(|kind| *kind == websockets) {
+            self.candidates.remove(index);
+            self.skipped.push(TransportAttempt::new(
+                websockets,
+                Error::transport_failure(
+                    Some(websockets),
+                    "WebSockets are unavailable over HTTP/3 (with_http_version(Http3)): this \
+                     client does not bootstrap them over HTTP/3 (RFC 9220), which servers such as \
+                     ASP.NET Core do not offer",
+                ),
+            ));
+        }
+        self
+    }
+}
+
 /// Selects the transports to try from the server's offers: those in `configured` that carry
 /// `format` (Server-Sent Events: text only) and that this client can start; unknown transports
 /// are ignored, as the .NET client ignores them.
@@ -420,6 +445,8 @@ fn connection_data(
     let protocol = recipe.protocol();
     let format = protocol.transfer_format();
     let selection = select_transports(response.available_transports(), recipe.transports(), format);
+    #[cfg(rayx_http3)]
+    let selection = selection.over_http3(recipe.http_version());
     if selection.candidates.is_empty() {
         return Err(transports_failed(selection.skipped, Vec::new()));
     }

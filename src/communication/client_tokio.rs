@@ -2211,6 +2211,16 @@ impl CommunicationClient {
         if recipe.http_version() == crate::HttpVersion::Http2 {
             return Self::upgrade_http2(&endpoint, recipe, authorization).await;
         }
+        // Strict HTTP/3 skips WebSockets in transport selection; `skip_negotiation` gets here.
+        #[cfg(feature = "http3")]
+        if recipe.http_version() == crate::HttpVersion::Http3 {
+            return Err(websocket_error(
+                "WebSockets are unavailable over HTTP/3 (with_http_version(Http3)): this client \
+                 does not bootstrap them over HTTP/3 (RFC 9220), which servers such as ASP.NET \
+                 Core do not offer"
+                    .to_string(),
+            ));
+        }
         // No WebSocket message size cap: hub messages are bounded by `with_maximum_message_size`.
         let mut builder =
             ClientBuilder::from_uri(endpoint.clone()).limits(tokio_websockets::Limits::unlimited());

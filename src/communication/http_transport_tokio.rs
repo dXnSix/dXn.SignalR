@@ -118,6 +118,50 @@ pub(crate) struct Lane {
     http1_chosen: bool,
 }
 
+/// The body of a streamed response (Server-Sent Events): hyper's over HTTP/1.1 and HTTP/2, h3's
+/// over HTTP/3.
+pub(crate) enum ResponseBody {
+    Hyper(Incoming),
+    #[cfg(rayx_http3)]
+    Http3(Box<super::http3::Body>),
+}
+
+/// Why reading a response body failed.
+pub(crate) type BodyError = Box<dyn std::error::Error + Send + Sync>;
+
+impl ResponseBody {
+    /// The next data of the body (trailers are skipped); `None` at its end.
+    pub(crate) async fn chunk(&mut self) -> Option<Result<Bytes, BodyError>> {
+        match self {
+            Self::Hyper(body) => loop {
+                match body.frame().await? {
+                    Ok(frame) => {
+                        if let Ok(data) = frame.into_data() {
+                            return Some(Ok(data));
+                        }
+                    }
+                    Err(error) => return Some(Err(Box::new(error))),
+                }
+            },
+            #[cfg(rayx_http3)]
+            Self::Http3(body) => body
+                .chunk()
+                .await
+                .map(|chunk| chunk.map_err(|error| Box::new(error) as BodyError)),
+        }
+    }
+
+    /// The whole body.
+    #[cfg(rayx_http3)]
+    async fn collect(self) -> Result<Bytes, BodyError> {
+        match self {
+            Self::Hyper(body) => Ok(body.collect().await?.to_bytes()),
+            #[cfg(rayx_http3)]
+            Self::Http3(body) => Ok((*body).collect().await?),
+        }
+    }
+}
+
 /// A response: its status and body.
 pub(crate) struct Response {
     pub(crate) status: StatusCode,
@@ -151,6 +195,11 @@ impl Lane {
             super::http2::HttpVersion::Http1 => false,
             super::http2::HttpVersion::Auto => self.target.secure && !self.http1_chosen,
             super::http2::HttpVersion::Http2 => true,
+            // Over TCP (`Http3Preferred` fell back), as `Auto`.
+            #[cfg(feature = "http3")]
+            super::http2::HttpVersion::Http3 | super::http2::HttpVersion::Http3Preferred => {
+                self.target.secure && !self.http1_chosen
+            }
         }
     }
 
@@ -216,6 +265,48 @@ impl Lane {
                 "the credentials are not a valid Authorization header value",
             )
         })
+    }
+
+    /// Sends `method` over HTTP/3 when the connection's version uses it for the target (`None`:
+    /// TCP), keeping the response's cookies.
+    #[cfg(rayx_http3)]
+    async fn exchange_http3(
+        &self,
+        method: &Method,
+        body: &Bytes,
+        headers: &[(String, String)],
+    ) -> Result<Option<http::Response<ResponseBody>>, Error> {
+        let url = self.target.url();
+        let Some((response, body)) = super::http3::exchange(
+            &self.endpoint(),
+            self.recipe.http_version(),
+            Some(self.recipe.http2()),
+            self.recipe.liveness().connect_timeout,
+            || {
+                super::http3::request(
+                    method.clone(),
+                    &url,
+                    &super::headers::leg(headers, self.recipe.cookies().cookie_header(&url), None),
+                    body.len(),
+                )
+            },
+            body,
+            |error| {
+                self.error(format!(
+                    "the {} {method} request failed: {error}",
+                    self.kind
+                ))
+            },
+        )
+        .await
+        .map_err(|error| error.with_transport(self.kind))?
+        else {
+            return Ok(None);
+        };
+        self.recipe
+            .cookies()
+            .store_response(&url, response.headers());
+        Ok(Some(response.map(|()| ResponseBody::Http3(Box::new(body)))))
     }
 
     /// Sends `method` over HTTP/2 when the lane uses it (`None` when it uses HTTP/1.1). A request
@@ -358,6 +449,15 @@ impl Lane {
             .map(|content_type| vec![("Content-Type", content_type)])
             .unwrap_or_default();
         let headers = self.prepare(&method, &content, authorization);
+        #[cfg(rayx_http3)]
+        if let Some(response) = self.exchange_http3(&method, &body, &headers).await? {
+            let status = response.status();
+            let body = response.into_body().collect().await.map_err(|error| {
+                self.error(format!("cannot read the {} response: {error}", self.kind))
+                    .with_boxed_source(error)
+            })?;
+            return Ok(Response { status, body });
+        }
         if let Some(response) = self.exchange_http2(&method, &body, &headers).await? {
             let status = response.status();
             let body = response
@@ -459,14 +559,21 @@ impl Lane {
         &mut self,
         headers: &[(&str, &str)],
         authorization: Option<String>,
-    ) -> Result<hyper::Response<Incoming>, Error> {
+    ) -> Result<http::Response<ResponseBody>, Error> {
         let headers = self.prepare(&Method::GET, headers, authorization);
+        #[cfg(rayx_http3)]
+        if let Some(response) = self
+            .exchange_http3(&Method::GET, &Bytes::new(), &headers)
+            .await?
+        {
+            return Ok(response);
+        }
         // Over HTTP/2 the stream is one of the shared connection's streams.
         if let Some(response) = self
             .exchange_http2(&Method::GET, &Bytes::new(), &headers)
             .await?
         {
-            return Ok(response);
+            return Ok(response.map(ResponseBody::Hyper));
         }
         let mut connection = match self.connection.take() {
             Some(connection) => connection,
@@ -494,7 +601,7 @@ impl Lane {
             | super::integrated_auth::ExchangeFailure::Authentication(error) => error,
         })?;
         // The connection task keeps running for the body; the connection is not reused.
-        Ok(response)
+        Ok(response.map(ResponseBody::Hyper))
     }
 }
 

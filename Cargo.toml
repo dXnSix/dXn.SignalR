@@ -26,14 +26,18 @@ tls-platform-verifier = ["dep:rustls-platform-verifier", "dep:jni", "_rustls"]
 # Verifier: the bundled Mozilla roots (also selectable per connection with `use_webpki_roots`).
 tls-webpki-roots = ["dep:webpki-roots", "_rustls"]
 # Provider: ring (default).
-tls-ring = ["rustls?/ring", "_rustls"]
+tls-ring = ["rustls?/ring", "quinn?/rustls-ring", "_rustls"]
 # Provider: aws-lc-rs (prebuilt NASM); takes precedence over ring when both are enabled.
-tls-aws-lc-rs = ["rustls?/aws_lc_rs", "_rustls"]
+tls-aws-lc-rs = ["rustls?/aws_lc_rs", "quinn?/rustls-aws-lc-rs", "_rustls"]
 # Internal: rustls plumbing shared by the TLS features.
 _rustls = ["dep:rustls", "dep:tokio-rustls", "dep:rustls-pki-types", "tokio-websockets/rustls-bring-your-own-connector"]
 # Proxy auto-config (`with_proxy_auto_config`): PAC scripts run in the pure-Rust Boa JavaScript
 # engine (no C toolchain), bounded and without network or file access.
 proxy-pac = ["dep:boa_engine"]
+# Experimental HTTP/3 (`HttpVersion::Http3`, `Http3Preferred`): QUIC (quinn) with the connection's
+# own rustls configuration and provider, and h3. Native targets with a TLS verifier and provider
+# (the `rayx_http3` cfg in build.rs).
+http3 = ["dep:quinn", "dep:h3", "dep:h3-quinn", "_rustls"]
 # Unstable, for the crate's own benchmarks only: exposes the hidden `bench_support` module over the
 # internal codec and action storage. Never enable it in applications; it changes no behavior.
 bench-internals = []
@@ -84,6 +88,12 @@ rc4 = "0.1"
 sha2 = "0.10"
 getrandom = "0.3"
 sha1_smol = "1"
+
+# HTTP/3 (feature `http3`): QUIC with the connection's rustls configuration; the provider
+# features select quinn's matching crypto.
+quinn = { version = "0.11.12", default-features = false, features = ["runtime-tokio"], optional = true }
+h3 = { version = "0.0.8", optional = true }
+h3-quinn = { version = "0.0.10", default-features = false, optional = true }
 
 # Proxy auto-config's JavaScript engine; not on iOS, where its `time` dependency (`num_threads`)
 # does not build (the `rayx_pac` cfg in build.rs).

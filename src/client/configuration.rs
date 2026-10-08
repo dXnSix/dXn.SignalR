@@ -1294,6 +1294,20 @@ impl ConnectionConfiguration {
         self
     }
 
+    /// Refuses strict HTTP/3 in a build that cannot run QUIC (feature `http3` without a TLS
+    /// verifier and provider feature).
+    pub(crate) fn validate_http_version(&self) -> Result<(), crate::Error> {
+        #[cfg(all(feature = "http3", not(rayx_http3), not(target_arch = "wasm32")))]
+        if self._http_version == crate::HttpVersion::Http3 {
+            return Err(crate::Error::configuration(
+                "with_http_version",
+                "HTTP/3 needs TLS: enable a TLS verifier feature and a TLS provider feature \
+                 with http3",
+            ));
+        }
+        Ok(())
+    }
+
     /// Fails when `with_proxy` was given an invalid URL.
     pub(crate) fn validate_proxy(&self) -> Result<(), crate::Error> {
         #[cfg(not(target_arch = "wasm32"))]

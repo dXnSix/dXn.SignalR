@@ -425,6 +425,15 @@ impl Error {
         self.edit(|inner| inner.cause = Some(Arc::new(source)))
     }
 
+    /// [`with_source`](Self::with_source) for a boxed cause.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn with_boxed_source(
+        self,
+        source: Box<dyn std::error::Error + Send + Sync + 'static>,
+    ) -> Self {
+        self.edit(|inner| inner.cause = Some(Arc::from(source)))
+    }
+
     /// Prefixes the message with the context it occurred in.
     pub(crate) fn context(self, context: impl fmt::Display) -> Self {
         let context = redact(&context.to_string());

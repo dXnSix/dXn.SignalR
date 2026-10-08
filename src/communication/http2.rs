@@ -44,6 +44,18 @@ pub enum HttpVersion {
     /// WebSockets use RFC 8441 extended CONNECT. An endpoint without HTTP/2 fails with
     /// [`ErrorKind::Transport`](crate::ErrorKind::Transport).
     Http2,
+    /// Experimental (feature `http3`): HTTP/3 only, over QUIC with the connection's TLS
+    /// configuration, for negotiate, Long Polling and Server-Sent Events. WebSockets are
+    /// unavailable over HTTP/3 (servers such as ASP.NET Core do not bootstrap them, RFC 9220), so
+    /// transport selection skips them. A plaintext or proxied endpoint, or one QUIC cannot reach,
+    /// fails with [`ErrorKind::Transport`](crate::ErrorKind::Transport).
+    #[cfg(feature = "http3")]
+    Http3,
+    /// Experimental (feature `http3`): HTTP/3 where QUIC connects within half of the connect
+    /// timeout (once per connect attempt and endpoint), else TCP as
+    /// [`Auto`](HttpVersion::Auto); WebSockets use TCP as with `Auto`.
+    #[cfg(feature = "http3")]
+    Http3Preferred,
 }
 
 /// The ALPN protocols a TLS connection offers for `version` (`None`: the connection's own).
@@ -53,6 +65,9 @@ pub(crate) fn alpn(version: HttpVersion) -> Option<&'static [&'static [u8]]> {
         HttpVersion::Http1 => None,
         HttpVersion::Auto => Some(&[b"h2", b"http/1.1"]),
         HttpVersion::Http2 => Some(&[b"h2"]),
+        // Over TCP, HTTP/3 preferences offer what `Auto` offers.
+        #[cfg(feature = "http3")]
+        HttpVersion::Http3 | HttpVersion::Http3Preferred => alpn(HttpVersion::Auto),
     }
 }
 
@@ -71,7 +86,19 @@ type Key = (String, u16, bool);
 /// forgets them, as the .NET client opens a new `HttpConnection` (and `HttpClient`) for each. The
 /// lock is never held across an `.await`.
 #[derive(Clone, Default)]
-pub(crate) struct Pool(Arc<Mutex<HashMap<Key, Sender>>>);
+pub(crate) struct Pool(Arc<Mutex<Connections>>);
+
+/// The connections a [`Pool`] keeps.
+#[derive(Default)]
+struct Connections {
+    http2: HashMap<Key, Sender>,
+    /// HTTP/3 connections by host and port (always secure).
+    #[cfg(rayx_http3)]
+    http3: HashMap<(String, u16), super::http3::Connection>,
+    /// Endpoints `Http3Preferred` reaches over TCP for the rest of the attempt.
+    #[cfg(rayx_http3)]
+    tcp: std::collections::HashSet<(String, u16)>,
+}
 
 impl std::fmt::Debug for Pool {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -83,17 +110,17 @@ impl Pool {
     /// Forgets the connections (each connect attempt opens its own, as a new .NET
     /// `HttpConnection`); their streams in use run to their end.
     pub(crate) fn begin_connect(&self) {
-        self.0.locked().clear();
+        *self.0.locked() = Connections::default();
     }
 
     /// The open connection to `host:port`, if any.
     pub(crate) fn get(&self, host: &str, port: u16, secure: bool) -> Option<Sender> {
         let mut connections = self.0.locked();
         let key = (host.to_string(), port, secure);
-        match connections.get(&key) {
+        match connections.http2.get(&key) {
             Some(sender) if !sender.is_closed() => Some(sender.clone()),
             Some(_) => {
-                connections.remove(&key);
+                connections.http2.remove(&key);
                 None
             }
             None => None,
@@ -104,12 +131,58 @@ impl Pool {
     pub(crate) fn insert(&self, host: &str, port: u16, secure: bool, sender: Sender) {
         self.0
             .locked()
+            .http2
             .insert((host.to_string(), port, secure), sender);
     }
 
     /// Forgets the connection to `host:port` after it failed.
     pub(crate) fn remove(&self, host: &str, port: u16, secure: bool) {
-        self.0.locked().remove(&(host.to_string(), port, secure));
+        self.0
+            .locked()
+            .http2
+            .remove(&(host.to_string(), port, secure));
+    }
+
+    /// The open HTTP/3 connection to `host:port`, if any.
+    #[cfg(rayx_http3)]
+    pub(crate) fn http3(&self, host: &str, port: u16) -> Option<super::http3::Connection> {
+        let mut connections = self.0.locked();
+        let key = (host.to_string(), port);
+        match connections.http3.get(&key) {
+            Some(connection) if !connection.is_closed() => Some(connection.clone()),
+            Some(_) => {
+                connections.http3.remove(&key);
+                None
+            }
+            None => None,
+        }
+    }
+
+    /// Keeps the HTTP/3 `connection` for `host:port`.
+    #[cfg(rayx_http3)]
+    pub(crate) fn insert_http3(&self, host: &str, port: u16, connection: super::http3::Connection) {
+        self.0
+            .locked()
+            .http3
+            .insert((host.to_string(), port), connection);
+    }
+
+    /// Forgets the HTTP/3 connection to `host:port` after it failed.
+    #[cfg(rayx_http3)]
+    pub(crate) fn remove_http3(&self, host: &str, port: u16) {
+        self.0.locked().http3.remove(&(host.to_string(), port));
+    }
+
+    /// Remembers that `host:port` goes over TCP for the rest of the attempt (`Http3Preferred`).
+    #[cfg(rayx_http3)]
+    pub(crate) fn use_tcp(&self, host: &str, port: u16) {
+        self.0.locked().tcp.insert((host.to_string(), port));
+    }
+
+    /// Whether `host:port` goes over TCP for the rest of the attempt.
+    #[cfg(rayx_http3)]
+    pub(crate) fn uses_tcp(&self, host: &str, port: u16) -> bool {
+        self.0.locked().tcp.contains(&(host.to_string(), port))
     }
 }
 

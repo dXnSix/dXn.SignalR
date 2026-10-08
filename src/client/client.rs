@@ -400,6 +400,7 @@ impl SignalRClient {
         config.validate_authentication()?;
         config.validate_transports()?;
         config.validate_proxy()?;
+        config.validate_http_version()?;
         // Every liveness duration is accepted, as the .NET client accepts them; values that
         // cannot work are logged.
         config.liveness().warn();

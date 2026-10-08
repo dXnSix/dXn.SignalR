@@ -9,6 +9,8 @@ pub(crate) mod headers;
 pub(crate) mod hooks;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod http2;
+#[cfg(rayx_http3)]
+pub(crate) mod http3;
 pub(crate) mod liveness;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 pub(crate) mod loopback_server;

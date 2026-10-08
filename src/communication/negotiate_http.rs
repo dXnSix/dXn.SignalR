@@ -65,15 +65,19 @@ pub(crate) async fn post(
     options: Options<'_>,
     timeout: std::time::Duration,
 ) -> Result<String, Error> {
-    tokio::time::timeout(timeout, post_unbounded(url, authorization, options))
-        .await
-        .map_err(|_| Error::timed_out(TimeoutOperation::Negotiate, timeout))?
+    tokio::time::timeout(
+        timeout,
+        post_unbounded(url, authorization, options, timeout),
+    )
+    .await
+    .map_err(|_| Error::timed_out(TimeoutOperation::Negotiate, timeout))?
 }
 
 async fn post_unbounded(
     url: &str,
     authorization: Option<String>,
     options: Options<'_>,
+    #[cfg_attr(not(rayx_http3), allow(unused_variables))] bound: std::time::Duration,
 ) -> Result<String, Error> {
     let Options {
         headers,
@@ -168,12 +172,42 @@ async fn post_unbounded(
             "the negotiate HTTP handshake failed",
         )
     };
+    // Over HTTP/3 (feature `http3`) when the version uses it for the endpoint.
+    #[cfg(rayx_http3)]
+    if let Some((response, body)) = super::http3::exchange(
+        &endpoint(),
+        version,
+        http2,
+        bound,
+        || {
+            super::http3::request(
+                http::Method::POST,
+                url,
+                &super::headers::leg(&composed, cookies.cookie_header(url), None),
+                0,
+            )
+        },
+        &Bytes::new(),
+        |error| Error::transport_failure(None, format!("the negotiate request failed: {error}")),
+    )
+    .await?
+    {
+        cookies.store_response(url, response.headers());
+        let body = body.collect().await.map_err(|error| {
+            Error::transport_failure(None, format!("cannot read the negotiate response: {error}"))
+                .with_source(error)
+        })?;
+        return text(response.status(), body);
+    }
     // Over HTTP/2 the request shares the attempt's HTTP/2 connection to the endpoint; one the
     // server never processed it on is sent again once on a new connection.
     let wants_http2 = match version {
         super::http2::HttpVersion::Http1 => false,
         super::http2::HttpVersion::Auto => secure,
         super::http2::HttpVersion::Http2 => true,
+        // Over TCP (`Http3Preferred` fell back), as `Auto`.
+        #[cfg(feature = "http3")]
+        super::http2::HttpVersion::Http3 | super::http2::HttpVersion::Http3Preferred => secure,
     };
     let mut first = None;
     if wants_http2 {
@@ -302,6 +336,11 @@ async fn read_body(response: http::Response<hyper::body::Incoming>) -> Result<St
             )
         })?
         .to_bytes();
+    text(status, body)
+}
+
+/// The text of a negotiate response with `status` and `body`; non-2xx statuses are errors.
+fn text(status: http::StatusCode, body: Bytes) -> Result<String, Error> {
     if !status.is_success() {
         return Err(failure(status, &body));
     }
