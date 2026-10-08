@@ -38,7 +38,8 @@ The runtime needs IO and time drivers and must outlive the client. The crate ena
   Server-Sent Events `fetch` requests carry either in `Authorization`.
 - Browser TLS; no TLS options.
 - `pause()` always sends a Close, so it ends stateful logical connections.
-- Hidden tabs throttle timers; consider `pause()` on long `visibilitychange` hides.
+- Hidden tabs throttle timers and pages can be frozen; suspension detection recovers once the page
+  runs, and `pause()` on long `visibilitychange` hides and `freeze` avoids the loss.
 - Web Workers: same code inside the worker.
 - Multithreaded WASM: cross-origin isolated page (`Cross-Origin-Opener-Policy: same-origin`,
   `Cross-Origin-Embedder-Policy: require-corp`), nightly with `rust-src`,
@@ -66,5 +67,5 @@ Extra PEM roots always use webpki on Android. Emulator → host loopback is `10.
 ## iOS
 
 Platform verifier uses the iOS trust store. ATS does not govern the client's rustls sockets, but use
-`https`/`wss` in production. Background wakeups are throttled: `pause()` on background, `resume()` on
-foreground. The simulator shares the Mac's loopback.
+`https`/`wss` in production. Background wakeups are throttled and background apps suspended: `pause()` on
+background, `resume()` on foreground; suspension detection recovers apps that did not pause. The simulator shares the Mac's loopback.

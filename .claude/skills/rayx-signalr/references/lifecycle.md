@@ -79,12 +79,24 @@ drop runs the normal reconnect path. Handshake answers are validated (error fiel
 malformed, or a hub message instead of the answer fail). Long Polling has inherent keep-alive: no
 Pings (not even after the handshake) and no server timeout over it, as .NET.
 
+Suspension detection: the receive loop checks liveness at least every second (.NET's timer) on a
+sleep-inclusive clock (monotonic + device sleep from the wall clock); a check more than one
+keep-alive interval late means the app was suspended: Ping at once if a message arrived within the
+server timeout, else the connection is lost at once with the server timeout (`Timeout`/`ServerTimeout`,
+not resumed, policy runs, as .NET `OnServerTimeout`). After the server's
+client timeout (30 s) ASP.NET Core ends the hub connection, so stateful clients reconnect instead
+of resuming.
+
 ## pause / resume
 
 ```rust
 client.pause().await?;   // background
 client.resume().await?;  // foreground
 ```
+
+Lifecycle hooks: iOS `sceneDidEnterBackground` → `pause`, `sceneDidBecomeActive` → `resume`;
+Android `onStop`/`onStart`; browsers `visibilitychange` (hidden for a while) and `freeze` →
+`pause`, visible/`resume` → `resume` (docs/06 "App lifecycle integration").
 
 - `pause(&self)`: ends the transport, stops keep-alive and supersedes any start or reconnect; calls
   fail; ordinary pending work fails with `Paused`; no-op when paused; `ConnectionClosed` when

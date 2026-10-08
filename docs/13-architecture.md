@@ -27,7 +27,7 @@ the receive loop, and names the invariants that the tests protect.
 | `src/communication/http_transport_tokio.rs` | What the native HTTP transports share: the target, one hyper HTTP/1.1 connection per direction over the connection's TCP or rustls stream, the connection's credentials (the negotiate token, refreshed after a 401) and the ordered batched `POST` send loop. |
 | `src/communication/server_sent_events_tokio.rs` | Native Server-Sent Events: the streaming `GET` and its incremental event-stream parser; closing the stream ends the connection. |
 | `src/communication/long_polling_tokio.rs` | Native Long Polling: a poll task and a send task, each with one hyper HTTP/1.1 connection over the connection's TCP or rustls stream; ordered batched `POST` sends; `DELETE` on close; bounded requests. |
-| `src/communication/liveness.rs` | Keep-alive, server timeout and handshake validation on caller-supplied timestamps, shared by both targets. |
+| `src/communication/liveness.rs` | Keep-alive, server timeout, suspension detection and handshake validation on timestamps from a sleep-inclusive `LivenessClock`, shared by both targets. |
 | `src/communication/reconnection.rs` | The lifecycle state machine, `ConnectionStatus`, the retry policies, and `FirstAttempt` scheduling. |
 | `src/communication/stateful.rs` | The bounded replay buffer: sequence numbers, Ack trimming, duplicate suppression, transport generations, backpressure. |
 | `src/execution/` | Action storage in two namespaces: pending invocations and streams (shared `UpdatableAction`s) by invocation id, and callbacks (`CallbackAction`) by target; `storage_tokio.rs` keeps them in `Arc<Mutex<HashMap>>` maps, `storage_wasm.rs` in `Rc<RefCell<HashMap>>` maps. |

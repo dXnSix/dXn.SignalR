@@ -31,7 +31,8 @@ use it from any UI, a game loop, a service, or a test.
 - **The .NET client's lifecycle.** Build with `new`, register callbacks and the `on_closed`,
   `on_reconnecting` and `on_reconnected` hooks, then `start`; `stop` closes gracefully and `start`
   restarts. `connection_id()`, `status()`, and `pause()`/`resume()` for mobile backgrounding,
-  keep-alive pings, server timeouts and a bounded handshake.
+  keep-alive pings, server timeouts, a bounded handshake, and suspension detection that recovers
+  at once when a suspended app or frozen page runs again.
 - **Native TLS with rustls.** No OpenSSL. The platform trust store or bundled roots, `ring` or
   `aws-lc-rs`, and per-connection private CAs.
 - **Runtime-independent native futures.** Each connection runs on its own Tokio runtime, and its

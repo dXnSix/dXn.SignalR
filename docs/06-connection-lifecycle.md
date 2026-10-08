@@ -183,6 +183,31 @@ Long Polling keeps itself alive: over it the client sends no Pings (not even aft
 and runs no server timeout, as the .NET client does, so the keep-alive interval and server timeout
 apply to WebSockets only. See [Long Polling](02-connecting.md#long-polling).
 
+### Suspension detection
+
+An app can be suspended without being paused: the operating system stops or freezes the process,
+the browser freezes the page, or the whole device sleeps. Its timers then fire late, all at once,
+when it runs again. The client checks its liveness timers at least once per second, like the .NET
+client's one-second timer, on a clock that includes the time the device slept (the monotonic clock,
+plus wall-clock time it missed while the device slept, as the .NET client's `DateTime.UtcNow`
+checks). When a check comes more than one keep-alive interval late, the app was suspended:
+
+- if a message arrived within the server timeout, the client sends a `Ping` at once, so the server
+  hears from it before its own client timeout;
+- otherwise the server timeout has passed: the connection counts as lost at once
+  (`ErrorKind::Timeout` with `TimeoutOperation::ServerTimeout`, as the .NET client reports it),
+  instead of after a further server timeout, and the reconnection policy runs. As in the .NET
+  client, a server timeout is not resumed, stateful or not.
+
+A check late by less than a keep-alive interval is ordinary scheduling delay and changes nothing.
+A transport the server closed while the app was suspended also ends as soon as the client reads
+its end. The server ends a connection that stayed silent for its `ClientTimeoutInterval` (30 s by
+default), and ASP.NET Core then ends the hub connection itself, so after a longer suspension a
+stateful connection cannot be resumed: the client reconnects on a new connection (with a
+reconnection policy) and its pending work fails with the connection's error (`ErrorKind::Timeout`
+for the server timeout, `ErrorKind::Transport` when the client first read the closed socket). Long
+Polling runs no liveness timers, so there a poll or send that fails ends the transport.
+
 ## Pausing and resuming
 
 `pause()` and `resume()` let the application control the connection, for example when a mobile app
@@ -229,6 +254,41 @@ ASP.NET Core disposes a stateful connection as soon as the client sends a WebSoc
   resume negotiates a fresh one.
 - **Browser** pause cannot avoid the closing handshake, so it ends the logical connection: pending
   work fails, and `resume` negotiates a fresh stateful connection with a new connection id.
+
+### App lifecycle integration
+
+Suspension detection recovers once the app runs again, but a suspended app cannot receive
+anything, and the server drops it after its client timeout. When the app knows it is going away,
+pause the client, and resume it when the app comes back:
+
+```rust
+/// Call from the platform's lifecycle notifications.
+async fn on_foreground_changed(
+    client: &rayx_signalr::SignalRClient,
+    foreground: bool,
+) -> Result<(), rayx_signalr::Error> {
+    if foreground {
+        client.resume().await
+    } else {
+        client.pause().await
+    }
+}
+```
+
+- **iOS:** pause when the app enters the background (`sceneDidEnterBackground` or
+  `applicationDidEnterBackground`) and resume when it becomes active again (`sceneDidBecomeActive`
+  or `applicationDidBecomeActive`). iOS suspends background apps after a few seconds, so an app
+  that does not pause loses its connection there.
+- **Android:** pause in the activity's (or `ProcessLifecycleOwner`'s) `onStop` and resume in
+  `onStart`, through the native method that drives your client. Doze and app standby defer network
+  access and timers of background apps.
+- **Browsers:** pause on `visibilitychange` when the page has been hidden for a while
+  (`document.visibilityState == "hidden"`) and on the page's `freeze` event, and resume when it is
+  visible again or receives `resume`. Hidden tabs throttle timers, and frozen or discarded pages run
+  nothing. A browser pause ends a stateful connection (above).
+
+Without these calls, suspension detection still recovers as soon as the app runs again, as
+described in [Suspension detection](#suspension-detection).
 
 ## Clones and ownership
 

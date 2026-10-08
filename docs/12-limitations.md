@@ -32,9 +32,12 @@ prove. Each item says what to do instead where there is an alternative.
   authenticate those from them. Use Bearer tokens or an access-token factory in browsers.
 - **Browser pause with stateful reconnect.** Browsers always send a WebSocket Close, which ends the
   stateful logical connection; `resume` negotiates a new one.
-- **Backgrounded apps and tabs.** Operating systems and browsers delay timers of background work.
-  Keep-alive and server-timeout timers can fire late, and a dead transport is then noticed only after
-  a further server timeout. Call `pause()` when going to the background and `resume()` on return.
+- **Backgrounded apps and tabs.** Operating systems and browsers delay or stop background work.
+  Suspension detection pings or ends the transport as soon as the app runs again, but a suspended
+  app receives nothing, and after the server's client timeout (30 s by default) ASP.NET Core ends
+  the hub connection, so even a stateful client reconnects on a new connection. Call `pause()` when
+  going to the background and `resume()` on return (see
+  [App lifecycle integration](06-connection-lifecycle.md#app-lifecycle-integration)).
 - **MessagePack timestamps.** The client has no date type of its own: a `DateTime` argument or
   result arrives as MessagePack extension type -1 and decodes through `rmp_serde`'s extension
   convention. See [Hub protocols](05-hub-protocols.md#inbound-server-to-client).

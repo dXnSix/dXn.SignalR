@@ -117,9 +117,20 @@ scenarios:
   `restart-after-stop`, `lifecycle-events`, `connection-id`, `graceful-stop`,
   `reconnect-call-wait`, `request-headers`, `stateful-transparent-resume`,
   `stateful-resume-fallback`; `msgpack-fidelity` everywhere with MessagePack only;
-- native, Android and iOS: `executor-independence`;
+- native, Android and iOS: `executor-independence`, `proxy`;
+- native, Chromium, Android and iOS: `suspend-resume`;
 - browsers: `message-burst`, `worker-transport`, `threaded-wasm`, `short-stream-chaining`;
 - native, Chromium and Android: `soak-chaos` and `stateful-resume-stress`.
+
+`suspend-resume` asks the runner to suspend the scenario process twice by printing
+`RAYX_SIGNALR_SUSPEND_READY pid=<pid> seconds=<n>`: for 20 s (both a stateful and an ordinary
+client keep their connections) and for 40 s, longer than the service's client timeout (both detect
+the loss, fail their pending invocation and reconnect within 5 s). The test-only controls
+(`Scenarios/Suspension.cs`) use `NtSuspendProcess`/`NtResumeProcess` on Windows, `kill -STOP`/`-CONT`
+on Unix hosts and the iOS simulator, and `adb shell kill -STOP`/`-CONT` on Android. In Chromium the
+spec stops the page's JavaScript through CDP `Debugger.pause`, because Playwright keeps every page
+visible and Chromium's `Page.setWebLifecycleState` freeze has no effect on a visible page; Firefox
+and WebKit are excluded (Playwright offers CDP only for Chromium). The cell bound is 120 s.
 
 `stateful-resume-stress` gives five fresh stateful connections 100 transport aborts each, every
 abort followed by an invocation and a short stream, and fails on any operation slower than 20 s.

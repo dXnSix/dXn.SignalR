@@ -78,9 +78,11 @@ transport, timers are cancellable `gloo-timers` futures, and nothing touches `wi
 - **TLS.** The browser's TLS and trust store apply; the TLS features and options do not exist.
 - **Pause.** A browser `pause()` always sends a WebSocket Close, so it ends a stateful logical
   connection (see [Pause with stateful reconnect](06-connection-lifecycle.md#pause-with-stateful-reconnect)).
-- **Background tabs.** Browsers throttle timers in hidden tabs. Over WebSockets, keep-alive pings
-  and the server timeout can then fire late (Long Polling has neither); consider `pause()` on
-  `visibilitychange` for long-hidden tabs.
+- **Background tabs and frozen pages.** Browsers throttle timers in hidden tabs and freeze or
+  discard pages. Suspension detection notices late timers once the page runs again (see
+  [Suspension detection](06-connection-lifecycle.md#suspension-detection)); pause on
+  `visibilitychange` and `freeze` as in
+  [App lifecycle integration](06-connection-lifecycle.md#app-lifecycle-integration).
 
 ### Web Workers
 
@@ -137,6 +139,11 @@ verifier cannot add roots there.
 
 The emulator reaches the development machine's loopback at `10.0.2.2`.
 
+Android stops and defers background apps (Doze, app standby). Pause the client in `onStop` and
+resume it in `onStart` (see
+[App lifecycle integration](06-connection-lifecycle.md#app-lifecycle-integration)); a stopped or
+sleeping app that did not pause is recovered by suspension detection once it runs again.
+
 ## iOS
 
 The client runs in iOS apps and on the simulator; the platform verifier uses the iOS trust store.
@@ -144,9 +151,11 @@ The client runs in iOS apps and on the simulator; the platform verifier uses the
 - App Transport Security governs Apple's URL loading system, not the client's own rustls sockets.
   Production apps should still use `https`/`wss`; keep plain `http`/`ws` for local development
   (the simulator shares the Mac's loopback).
-- iOS throttles and coalesces wakeups of work that is not in the foreground, so keep-alive and
-  server-timeout timers can fire late in the background. Call `pause()` when the app moves to the
-  background and `resume()` when it returns.
+- iOS throttles and coalesces wakeups of work that is not in the foreground and suspends
+  background apps, so keep-alive and server-timeout timers fire late or not at all. Call `pause()`
+  when the app enters the background and `resume()` when it becomes active (see
+  [App lifecycle integration](06-connection-lifecycle.md#app-lifecycle-integration)); suspension
+  detection recovers an app that did not pause once it runs again.
 
 ## Desktop
 

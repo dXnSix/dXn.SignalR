@@ -63,6 +63,11 @@ dotnet test dotnet/RayX.SignalR.E2E.Tests --filter "Category=WorkflowContract|Ca
   `android` or `ios` cells.
 - `Category=Platform` for dependency-graph, gating, mobile or threaded-build changes;
   `Category=DependencySecurity` (needs `cargo-audit`) for dependency changes.
+- Suspension (`suspend-resume`, `Scenario.Suspends`): the scenario prints
+  `RAYX_SIGNALR_SUSPEND_READY pid=<pid> seconds=<n>`; `Scenarios/Suspension.cs` suspends that
+  process (Windows `NtSuspendProcess`, `kill -STOP`, Android `adb shell kill -STOP`) and always
+  resumes it; Chromium pauses the page with CDP `Debugger.pause` (`Page.setWebLifecycleState` is a
+  no-op under Playwright).
 - New scenario: add it to `dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/ScenarioCatalog.cs`,
   `tests/e2e/<scenario>.rs` (+ `tests/e2e/main.rs`), and the wasm fixture plus Playwright spec
   together; `Category=Catalog` fails on a mismatch.
