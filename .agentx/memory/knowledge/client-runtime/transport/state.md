@@ -57,6 +57,17 @@ Integrated Windows authentication (P7, D23), `communication/integrated_auth/`:
   - The `integrated_auth_` unit groups: scripted exchanges, MS-NLMP vectors, and the Windows-only `integrated_auth_sspi` acceptor tests (channel bindings accepted or `SEC_E_BAD_BINDINGS`, managed and explicit-credential NTLM `SEC_E_LOGON_DENIED`).
   - The native `windows-auth` scenario. Kerberos has no runtime proof (the host has no domain).
 
+Transport hooks (P8, D22), `communication/request_hook.rs`:
+
+- `request_hook::apply` runs the hook once per logical request, as a .NET factory handler sees one `SendAsync`: on composed headers (defaults, `with_header`, the credentials' `Authorization`, plus `Content-Type`).
+- `headers::leg` then adds the jar's cookies and integrated tokens per leg.
+- Call sites:
+  - Native negotiate: `negotiate_http::Options` (`Options::of(recipe)`).
+  - Both upgrade paths.
+  - `Lane::prepare` (`request`/`open_stream`); a retry reuses the prepared headers.
+  - Browsers: `common::fetch_text` and `browser_http::request_once`, with `Content-Type` before the hook.
+- TLS hook: `TlsSettings.config_hook` -> `PreparedTls`, applied in `TlsContext::config` after `build_config` and outside the slot lock (`get_or_insert`).
+
 ## Backlinks
 
 - Source anchors: [src/communication/common.rs](../../../../../src/communication/common.rs), [src/communication/client_tokio.rs](../../../../../src/communication/client_tokio.rs), [src/communication/client_wasm.rs](../../../../../src/communication/client_wasm.rs).

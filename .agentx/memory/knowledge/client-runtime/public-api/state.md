@@ -4,7 +4,7 @@ agentx:
   scope: client-runtime/public-api
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-10-08T18:00:00+02:00"
+  updated: "2026-10-09T12:00:00+02:00"
   topics:
     - SignalRClient
     - configuration
@@ -25,6 +25,15 @@ Read this file before work in this domain or subdomain and update it when the cu
 `ArgumentConfiguration::stream(impl Stream<Item = T>)` (T: Serialize + MaybeSend) adds client-to-server stream arguments (P5); the argument closures of `invoke_with_args`, `send_with_args` and `enumerate_with_args` are `FnOnce` (relaxed from `FnMut`, source-compatible).
 
 Proxies (S9): native-only `ConnectionConfiguration::with_proxy(url)` (`http://[user:pass@]host[:port]`, else `Configuration` naming `with_proxy` from `new`), `with_system_proxy()` (the default) and `without_proxy()`; new `ErrorKind::Proxy` with `status()`.
+
+HTTP options (P6-P8, D22/D23), all from .NET `HttpConnectionOptions`:
+
+- Native: `with_cookie_jar(CookieJar)` (public `CookieJar`, `Cookies`), `with_client_certificate(chain_pem, key_pem)` (`ClientCertificates`), `with_default_credentials()` / `with_credentials(user, password, domain)` (`UseDefaultCredentials` / `Credentials`; the current account outside Windows fails `new` with `Configuration`).
+- Both targets: `with_request_hook(Fn(&mut HttpRequest))` (`HttpMessageHandlerFactory`/`WebSocketConfiguration`).
+  - Public `HttpRequest` offers `transport()` (`None` = negotiate), `method()`, `url()`, `header()`, `headers()`, `set_header()` (validated, `Configuration`/`with_request_hook`) and `remove_header()`. Its `Debug` shows header names only.
+  - The hook runs once per logical request, before cookies and integrated-auth tokens; retries keep its changes.
+  - Browsers: `fetch` only.
+- Native with TLS features: `with_tls_config_hook(Fn(&mut rustls::ClientConfig))`, run once per connection config before it is shared; `rayx_signalr::tls::rustls` re-exports rustls.
 
 ## Backlinks
 

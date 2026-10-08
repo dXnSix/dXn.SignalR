@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 219,
+  "revision": 225,
   "planRevision": 36,
   "specHashes": {
     "requirements": "16fb407fdfc6b55f8641348271d85ba83477bcf53e0b30690f4e217989c6e9c2",
@@ -352,7 +352,10 @@
       ]
     },
     "P8.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S12.T4": {
       "status": "pending"
@@ -556,6 +559,15 @@
         }
       },
       "recordedAt": "2026-10-08T03:40:49Z"
+    },
+    "f0be838107f068c9b3868ab80e1a0a5ce4598129cd6aff964712a3e2c577e1fa": {
+      "snapshot": {
+        "specHash": "68f582a96ff61b2fcb65440de874856a82665be2e1980e6ed240b1f35cdeaa19",
+        "repositories": {
+          "rayx-signalr": "16e6fc7353d72bec9d39b6004f462e7f0144cb8c58d6ede21ced12942c3db069"
+        }
+      },
+      "recordedAt": "2026-10-08T04:02:20Z"
     }
   },
   "checkResults": {
@@ -2717,6 +2729,40 @@
       "logPath": "artifacts-temp/agentx/production-grade-client/P7-final-5fec021e16ef.log",
       "logSha256": "97b53bd08a4a554028fdf5df9d620a4f194b7a853a769fae233b77b52880c53b",
       "inputsHash": "f0be4e8bc5f18e9b7193dac287a4880ecd34b2f1f423915e0988ce282bb3e290"
+    },
+    "P8/p8-transport-hooks/final": {
+      "checkId": "p8-transport-hooks",
+      "boundaryId": "P8",
+      "phase": "final",
+      "batchId": "f0be838107f068c9b3868ab80e1a0a5ce4598129cd6aff964712a3e2c577e1fa",
+      "definitionHash": "a45b4bfd545915aaed1fa536acd1cd995fc4e752c73c6e3385c3d90bd8976308",
+      "basisHash": "2836d034a467e99ab2d0fd4dcfb9061aaa4c2b9a7f311450a242153c70f1f1f5",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 7,
+      "durationSeconds": 5.2614,
+      "recordedAt": "2026-10-08T04:01:47Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P8-final-76f1ac7037cc.log",
+      "logSha256": "c887cc9a1f8de6843398cbd712dc65c90d0523ecd53ed9a573e89a412bd2ab78",
+      "inputsHash": "6e62b504fc4505f4a91db180c38b545857d9b6a3bef7ed733b9bacfe608cf8ba"
+    },
+    "P8/p8-request-headers/final": {
+      "checkId": "p8-request-headers",
+      "boundaryId": "P8",
+      "phase": "final",
+      "batchId": "f0be838107f068c9b3868ab80e1a0a5ce4598129cd6aff964712a3e2c577e1fa",
+      "definitionHash": "6f593c1f48ae667d860d924fe4290b3372c1290555cb11449a2159cf699802f3",
+      "basisHash": "18d0fb54ba78b9528a0c08a5e795ffe3405fb2dbde2ccfea0069bef870987354",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 8,
+      "durationSeconds": 33.0186,
+      "recordedAt": "2026-10-08T04:02:20Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/P8-final-49210418a286.log",
+      "logSha256": "1659fc29cabf3910a5957de2b2ab4719ded10ef1439dc22cc5e1016d39b1d455",
+      "inputsHash": "41f3916e53177f980ce19352b4ba03d4595c3e35e823bf5bc0393c18b3fd17b0"
     }
   },
   "reviews": {
@@ -7258,6 +7304,132 @@
         "P7-F9"
       ],
       "recordedAt": "2026-10-08T03:41:42Z"
+    },
+    "P8": {
+      "reviewerId": "p8-independent-auditor-efe9c365",
+      "snapshotId": "f0be838107f068c9b3868ab80e1a0a5ce4598129cd6aff964712a3e2c577e1fa",
+      "criterionIds": [
+        "R16.C29"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/request_hook.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C29"
+          ],
+          "sha256": "fd5410d6ad9fa3ff914c03201112d630248dacd535052b557d147f6400c843d2"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C29"
+          ],
+          "sha256": "757a326d113702abd922d2cbc2cbb18f7ad51254112862159c3a1ebccb399be8"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/negotiate_http.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C29"
+          ],
+          "sha256": "024dbdaee95de93d45b4a1ff39067e0c5aa995ac08253c71047655f75220e763"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/client_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C29"
+          ],
+          "sha256": "e5e691fc3224cf9f87180c50c610430f91a67ad18edf45c5b72cfa5804899337"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/http_transport_tokio.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C29"
+          ],
+          "sha256": "ea40c60d3fa049869711b6db133f0eac7c833cb20c065cfd50600ca71ac2dd29"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/browser_http.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C29"
+          ],
+          "sha256": "12c472e0dcc50bfe2f1a507b4c2d4186c64a7fb3b104b6e6829d810b7cbf2db4"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/common.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C29"
+          ],
+          "sha256": "b8e9f10010b7029aab3e279f6bbc25c2944a7dcfbd012ac38671c15b21fe8ea2"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/tls.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C29"
+          ],
+          "sha256": "84ff5a0276a1bd6b5372b0b4b18a2105cd0af7612c8b572cd9f1f0498e09cd06"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/lib.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R16.C29"
+          ],
+          "sha256": "d5f2a2e5f5b4229bd39975f37a29f068959fb08693d90b3ca28f08e42e9f411f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/long_polling_tokio.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R16.C29"
+          ],
+          "sha256": "6e3fa93a775b3c6ccfa6f685f40dd7a2cb3b4dd689c1d6e251893c85c180a4bd"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/request_headers.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C29"
+          ],
+          "sha256": "1f605a076fca624a3934fcb27276bb69e84966ffc10c17aa8abf7e8eed1450e6"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R16.C29"
+          ],
+          "sha256": "9c41f4c78d578eaa38228fcd998491796dad085eeaaea69f27230b8350afd7cb"
+        }
+      ],
+      "summaryMarkdown": "R16.C29 is met, and all four P8 findings are resolved. The hook now follows .NET `HttpMessageHandlerFactory` semantics: once per logical request, on the defaults, `with_header` values, the credentials' `Authorization` and the body's `Content-Type`. Cookies and integrated-auth tokens are added after it on every leg via `headers::leg`.\n\n- **Native negotiate:** the hook is applied once to `composed` before the validation build and the legs.\n- **Upgrades:** both paths run the hook before cookies and legs.\n- **Lane:** `prepare` runs the hook once per `request` or `open_stream`; the fresh-connection retry reuses the hooked headers. An access-token 401 refresh issues a new logical request that the hook sees again, as with .NET's outer `AccessTokenHttpMessageHandler`.\n- **Browsers:** negotiate and HTTP transports run the hook with `Content-Type` included.\n\nFocused validation at this snapshot: `transport_hooks_` 7/7, clippy `--all-targets --test e2e --all-features -D warnings`, and the wasm32 lib check. `check --sprint P8` passed (2/2, including the 8-cell request-headers runtime with the new Long Polling leg). Cosmetic nits, not findings: a leftover comment fragment at `negotiate_http.rs:120` says the hook sees the leg result, and the `tests/e2e/request_headers.rs` module doc does not mention the Long Polling leg.",
+      "findingIds": [
+        "P8-F1",
+        "P8-F2",
+        "P8-F3",
+        "P8-F4"
+      ],
+      "recordedAt": "2026-10-08T04:03:51Z"
     }
   },
   "checkpoints": {
@@ -7404,6 +7576,14 @@
       },
       "reviewHash": "7b2c76f4e370077f19e9d1cf6cce9d4830231de4555d6ee28a78d7fd3d9c95be",
       "recordedAt": "2026-10-08T03:41:51Z"
+    },
+    "P8": {
+      "snapshotId": "f0be838107f068c9b3868ab80e1a0a5ce4598129cd6aff964712a3e2c577e1fa",
+      "commits": {
+        "rayx-signalr": "56f205649222facc2d6547481138abab47177908"
+      },
+      "reviewHash": "0f53cc3ad0a5c7b0cb55c1023931e4709943929ad2cc9d3f17a361d54e73ce7d",
+      "recordedAt": "2026-10-08T04:03:57Z"
     }
   },
   "findings": [
@@ -10339,9 +10519,86 @@
           "symbol": "integrated_auth_sspi_answers_with_explicit_credentials"
         }
       ]
+    },
+    {
+      "id": "P8-F1",
+      "boundaryId": "P8",
+      "criterionIds": [
+        "R16.C29"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "Public `HttpRequest` derived `Debug`, printing `Authorization` and `Cookie` values. Resolved: a manual `Debug` prints the transport, the method, the URL through `error::redact`, and header names only. `transport_hooks_debug_never_shows_header_values_or_url_credentials` asserts that the Bearer, cookie and `access_token` values are absent while the header names remain.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/request_hook.rs",
+          "symbol": "transport_hooks_debug_never_shows_header_values_or_url_credentials"
+        }
+      ]
+    },
+    {
+      "id": "P8-F2",
+      "boundaryId": "P8",
+      "criterionIds": [
+        "R16.C29"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "In browsers, `Content-Type` was added after the hook ran, and the browser HTTP-transport hook path had no test. Resolved: `request_once` adds the body's `Content-Type` to the composed headers before `request_hook::apply`, and the later override is removed, matching native `Lane::prepare`. The request-headers scenario now also connects over Long Polling. Native and the wasm fixture assert `TransportRequest` carries `x-hook: LongPolling GET`, so a missing hook call in `request_once` now fails the browser cells.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/wasm-fixture/src/functional.rs",
+          "symbol": "request_headers"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/request_headers.rs",
+          "symbol": "scenario"
+        }
+      ]
+    },
+    {
+      "id": "P8-F3",
+      "boundaryId": "P8",
+      "criterionIds": [
+        "R16.C29"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "The TLS config hook ran under the config-slot mutex. Resolved: `TlsContext::config` locks only to read the slot, then builds the config and runs the hook unlocked. It re-locks to store with `get_or_insert`, so the first stored config wins any race. The read guard is a temporary of the `if let` and drops before the second lock. Secure connections still build once at `for_connection`, before the context is shared. `transport_hooks_adjust_each_connection_config_once_before_use` still passes.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/tls.rs",
+          "symbol": "transport_hooks_adjust_each_connection_config_once_before_use"
+        }
+      ]
+    },
+    {
+      "id": "P8-F4",
+      "boundaryId": "P8",
+      "criterionIds": [
+        "R16.C29"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "The ALPN guidance implied `http/1.1` was already in `alpn_protocols`. Resolved: the `with_tls_config_hook` rustdoc, `docs/08-tls.md` and the skill `references/tls.md` now say the client offers no ALPN by default, and that a hook setting `alpn_protocols` must include `http/1.1`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/08-tls.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/client/configuration.rs",
+          "symbol": "with_tls_config_hook"
+        }
+      ]
     }
   ],
-  "handoffMarkdown": "Integrated Windows authentication (R16.C28, D23 with the recorded choice).\n- integrated_auth module (src/communication/integrated_auth/):\n  - mod.rs: AuthScheme (Negotiate, NTLM); Explicit (Debug redacts the password); IntegratedCredentials (Default or Explicit); SecurityContext::step and SecurityProvider::context traits; provider() returns SSPI on Windows, NTLM for Explicit elsewhere, and a Configuration error naming with_default_credentials for Default elsewhere; offered() parses WWW-Authenticate.\n  - send(sender, provider, host, build) is the SocketsHttpHandler-style loop: first request without credentials; on a 401 offering Negotiate (preferred) or NTLM, drain the body and resend with Authorization <scheme> <b64 token> on the same connection, up to 8 legs; the final 401 reaches the caller. ExchangeFailure is Http or Authentication.\n  - ntlm.rs: NTLMv2 (negotiate and authenticate messages, MIC and MsvAvFlags when the server sends a timestamp, LMv2 otherwise) over RustCrypto md4, hmac and md-5; random_u64.\n  - sspi.rs (cfg windows): windows-sys 0.61 AcquireCredentialsHandleW (default or SEC_WINNT_AUTH_IDENTITY_W) and InitializeSecurityContextW for HTTP/<host>, with CompleteAuthToken and Drop cleanup; SAFETY comments.\n- Config and wiring:\n  - with_default_credentials() and with_credentials(user, password, domain), native only.\n  - SignalRClient::new resolves the provider (recipe.integrated); errors come before any I/O.\n  - negotiate_http::post takes integrated, and its request is built per leg; http_transport Lane exchange and open_stream go through send().\n  - WebSocket: with integrated credentials the upgrade goes through hyper with_upgrades and send(), then checks Sec-WebSocket-Accept (sha1_smol) and hands over with tokio-websockets ClientBuilder::take_over. transport_tokio::WebSocket is now WebSocketStream<WebSocketIo> (Direct or Upgraded enum).\n- Tests:\n  - Unit group integrated_auth_ (10): MS-NLMP NTLMv2 vectors (NTOWFv2, NTProofStr, SessionBaseKey, LMv2), the negotiate/authenticate flow, MIC, malformed challenges, scheme parsing, a scripted loopback exchange (two legs on one connection, rejection, Bearer not answered, no provider), password redaction, a real SSPI token on Windows, and the RFC 6455 accept vector.\n  - TestService: Microsoft.AspNetCore.Authentication.Negotiate 10.0.12 (10.0.9 has high-severity advisories); AddNegotiate; WindowsAuthHub at /test-windows with [Authorize(Negotiate)], Identity and Echo.\n  - Catalog: windows-auth is native with WindowsHostOnly (E2ESelection.Cells(windowsHost)) and exclusions for android, ios and the browsers; CatalogTests WindowsOnlyScenariosAreSelectedOnlyOnWindowsHosts.\n  - Scenario windows-auth: the hub sees the current account (USERNAME) over WS, LP and SSE (JSON); without credentials, Authentication 401. Native on Windows 2/2.\n  - Contracts including DependencySecurity: 88.\n- Docs: docs/02 Integrated Windows authentication plus reference row (example compiled); docs/12 limitation; docs/14; README; skill setup-and-connection.",
+  "handoffMarkdown": "Transport hooks (R16.C29, D22).\n- Request hook (src/communication/request_hook.rs): public HttpRequest (transport() None = negotiate, method(), url(), header(), headers(), set_header() validated by headers::validate_for as Configuration/with_request_hook without echoing the value, remove_header()); RequestHook is Arc Send+Sync natively, Rc in browsers; apply(hook, transport, method, url, headers). with_request_hook on both targets is stored in ConnectionRecipe.request_hook.\n- Applied after defaults, with_header, credentials and cookies:\n  - native negotiate: negotiate_http::post now takes Options{headers, tls, proxy, cookies, integrated, hook} with Options::of(recipe); each leg via headers::leg; the pre-I/O validation build runs without the hook, so the hook runs once per request sent.\n  - both upgrade paths (WebSockets GET, ws(s) URL; integrated legs too).\n  - Lane::build (LP/SSE requests including Content-Type, the DELETE and every poll).\n  - browser negotiate fetch (common::fetch_text) and browser_http request_once; never the browser WebSocket or EventSource.\n- TLS hook: with_tls_config_hook (native, cfg rayx_tls) is stored as TlsSettings.config_hook (TlsConfigHook newtype with Debug) and PreparedTls.config_hook, and is applied in TlsContext::config after build_config, before Arc (once per connection config). rayx_signalr::tls::rustls is re-exported.\n- Tests: transport_hooks_ (5): request view and changes, invalid/owned headers, the negotiate loopback (hook ran once on final headers), the TLS config adjusted once per connection (plaintext only on first secure use), every LP poll and POST (sees Content-Type).\n- request-headers scenario: native hook adds X-Hook to negotiate (negotiate POST) and the upgrade (WebSockets GET); the browser fixture to negotiate only, asserting the WebSocket has none. TestControls describes x-hook. 8/8 cells pass (native, chromium, firefox, webkit x json, messagepack).\n- Docs: docs/02 Request hooks section plus reference rows; docs/08 Adjusting the rustls configuration (the security note on dangerous() and ALPN); README; skill setup-and-connection and tls references; examples compiled.",
   "protectedPaths": {
     "rayx-signalr": {
       ".agentx/tasks/resilient-reconnect-and-production-gates/**": "a4110a3f5f2c68d64ddf8fbedb70479c98f46dde78b064b5b3ac826772db49a6",
