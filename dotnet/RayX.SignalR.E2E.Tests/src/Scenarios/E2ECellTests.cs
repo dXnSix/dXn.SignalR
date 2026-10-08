@@ -21,7 +21,9 @@ public sealed class E2ECellTests(AspireEnvironment environment)
     ["firefox"] = _browser,
     ["webkit"] = _browser,
     ["android"] = new AndroidCellRunner(),
-    ["ios"] = new IosCellRunner()
+    ["ios"] = new IosCellRunner(),
+    ["android-app"] = new AndroidAppCellRunner(release: false),
+    ["android-app-release"] = new AndroidAppCellRunner(release: true)
   };
 
   /// <summary>Gets the runner for a target.</summary>

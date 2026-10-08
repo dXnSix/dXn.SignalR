@@ -67,6 +67,7 @@ public static partial class CellExecution
     variables["RAYX_SIGNALR_E2E_TLS_URL"] = Origin(environment.TlsServiceUrl);
     variables["RAYX_SIGNALR_E2E_TLS_CA_PEM_BASE64"] =
       Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(environment.TlsCaPem));
+    variables["RAYX_SIGNALR_E2E_UNTRUSTED_TLS_URL"] = Origin(environment.UntrustedTlsUrl);
     variables["RAYX_SIGNALR_E2E_PROXY_URL"] = Origin(environment.ProxyUrl);
     variables["RAYX_SIGNALR_E2E_PROXY_CREDENTIALS"] = $"{AspireEnvironment.ProxyUser}:{environment.ProxyPassword}";
     if(environment.FixtureEnabled)
@@ -189,15 +190,11 @@ public static class NativeE2EBinary
         return _executable;
       }
 
-      ProcessCommand build = new(
-        "cargo",
-        ["test", "--test", "e2e", .. CellExecution.E2EFeatures, "--no-run", "--message-format=json"],
-        repositoryRoot);
+      ProcessCommand build = BuildCommand(repositoryRoot, TlsProvider.Current);
       ProcessResult result = await ProcessRunner.RunAsync(build, TimeSpan.FromMinutes(20), cancellationToken);
       if(!result.Succeeded)
       {
-        throw new InvalidOperationException(
-          $"{build.Display} failed with exit code {result.ExitCode}:\n{Redaction.SafeTail(CompilerErrors(result.StandardOutput) + result.StandardError)}");
+        throw BuildFailure(build, result);
       }
 
       _executable = ParseExecutable(result.StandardOutput);
@@ -207,6 +204,39 @@ public static class NativeE2EBinary
     {
       _gate.Release();
     }
+  }
+
+  /// <summary>
+  /// The cargo command that builds the host <c>e2e</c> binary with <paramref name="provider"/>'s
+  /// features, into that provider's target directory.
+  /// </summary>
+  /// <param name="repositoryRoot">The repository root.</param>
+  /// <param name="provider">The TLS provider (<see cref="TlsProvider"/>).</param>
+  /// <returns>The command.</returns>
+  public static ProcessCommand BuildCommand(string repositoryRoot, string provider) =>
+    new(
+      "cargo",
+      ["test", "--test", "e2e", .. TlsProvider.HostFeatures(provider), "--no-run", "--message-format=json"],
+      repositoryRoot)
+    {
+      Environment = TlsProvider.TargetEnvironment(repositoryRoot, "target", provider)
+    };
+
+  /// <summary>
+  /// The error of a failed <c>e2e</c> build: an environment error naming the prerequisites when a
+  /// toolchain is missing (<see cref="TlsProvider.MissingToolchain"/>), else the compiler errors.
+  /// </summary>
+  /// <param name="build">The build command.</param>
+  /// <param name="result">Its result.</param>
+  /// <returns>The exception to throw.</returns>
+  public static InvalidOperationException BuildFailure(ProcessCommand build, ProcessResult result)
+  {
+    string output = Redaction.SafeTail(CompilerErrors(result.StandardOutput) + result.StandardError);
+    string failure = $"{build.Display} failed with exit code {result.ExitCode}:\n{output}";
+    return new InvalidOperationException(
+      TlsProvider.MissingToolchain(result.CombinedOutput) is string environment
+        ? $"{environment}\n{failure}"
+        : failure);
   }
 
   /// <summary>

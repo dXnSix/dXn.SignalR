@@ -1,0 +1,25 @@
+[package]
+name = "rayx-signalr-e2e-scenarios"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# The `tests/e2e` scenarios as a library, so the Android app's harness (`tests/android-harness`)
+# runs the same code as the `e2e` test binary. The sources stay in `tests/e2e`; their generated
+# `#[tokio::test]` functions compile only in the `e2e` test binary.
+[lib]
+path = "src/lib.rs"
+
+[features]
+messagepack = ["rayx-signalr/messagepack"]
+
+[dependencies]
+# The TLS verifier and provider are the harness's choice.
+rayx-signalr = { path = "../..", default-features = false }
+base64 = "0.22.1"
+bytes = "1.7"
+env_logger = "0.11"
+futures = "0.3.32"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread", "time", "io-util"] }

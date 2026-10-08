@@ -16,6 +16,15 @@ public sealed record TestCertificateFiles(string Directory)
 
   /// <summary>Gets the server private key (PKCS#8 PEM).</summary>
   public string ServerKey => Path.Combine(Directory, "server.key");
+
+  /// <summary>
+  /// Gets a server certificate (PEM) for the same names that a second CA issued, which no client
+  /// trusts: the <c>tls</c> scenario's rejection case inside the Android app.
+  /// </summary>
+  public string UntrustedServerCertificate => Path.Combine(Directory, "untrusted-server.pem");
+
+  /// <summary>Gets the untrusted server certificate's private key (PKCS#8 PEM).</summary>
+  public string UntrustedServerKey => Path.Combine(Directory, "untrusted-server.key");
 }
 
 /// <summary>
@@ -25,16 +34,33 @@ public sealed record TestCertificateFiles(string Directory)
 public static class TestCertificates
 {
   /// <summary>Writes a new CA and a server certificate for <c>localhost</c>, the loopback addresses
-  /// and the Android emulator's host alias <c>10.0.2.2</c>.</summary>
+  /// and the Android emulator's host alias <c>10.0.2.2</c>, and a second, untrusted CA's server
+  /// certificate for the same names.</summary>
   /// <param name="directory">The output directory.</param>
   /// <returns>The written files.</returns>
   public static TestCertificateFiles Generate(string directory)
   {
     Directory.CreateDirectory(directory);
+    TestCertificateFiles files = new(directory);
+    (string ca, string server, string key) = Issue("RayX.SignalR E2E Test CA");
+    File.WriteAllText(files.CaCertificate, ca);
+    File.WriteAllText(files.ServerCertificate, server);
+    File.WriteAllText(files.ServerKey, key);
+    (_, string untrustedServer, string untrustedKey) = Issue("RayX.SignalR E2E Untrusted CA");
+    File.WriteAllText(files.UntrustedServerCertificate, untrustedServer);
+    File.WriteAllText(files.UntrustedServerKey, untrustedKey);
+    return files;
+  }
+
+  /// <summary>Creates a CA named <paramref name="authority"/> and a server certificate it issued.</summary>
+  /// <param name="authority">The CA's common name.</param>
+  /// <returns>The CA certificate, the server certificate and the server key, as PEM.</returns>
+  static (string Ca, string Server, string Key) Issue(string authority)
+  {
     DateTimeOffset now = DateTimeOffset.UtcNow;
 
     using ECDsa caKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-    CertificateRequest caRequest = new("CN=RayX.SignalR E2E Test CA", caKey, HashAlgorithmName.SHA256);
+    CertificateRequest caRequest = new($"CN={authority}", caKey, HashAlgorithmName.SHA256);
     caRequest.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, false, 0, true));
     caRequest.CertificateExtensions.Add(
       new X509KeyUsageExtension(X509KeyUsageFlags.KeyCertSign | X509KeyUsageFlags.CrlSign, true));
@@ -59,10 +85,6 @@ public static class TestCertificates
     serial[0] &= 0x7F;
     using X509Certificate2 server = serverRequest.Create(ca, now.AddDays(-1), now.AddDays(6), serial);
 
-    TestCertificateFiles files = new(directory);
-    File.WriteAllText(files.CaCertificate, ca.ExportCertificatePem());
-    File.WriteAllText(files.ServerCertificate, server.ExportCertificatePem());
-    File.WriteAllText(files.ServerKey, serverKey.ExportPkcs8PrivateKeyPem());
-    return files;
+    return (ca.ExportCertificatePem(), server.ExportCertificatePem(), serverKey.ExportPkcs8PrivateKeyPem());
   }
 }

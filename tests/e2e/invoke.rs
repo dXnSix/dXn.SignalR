@@ -17,7 +17,7 @@ struct ComplexEntity {
     note: Option<String>,
 }
 
-async fn scenario(protocol: Protocol) {
+pub(crate) async fn scenario(protocol: Protocol) {
     let mut client = support::connect("test", protocol, |_| {}).await;
 
     let entity = client

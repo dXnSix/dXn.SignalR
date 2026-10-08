@@ -20,6 +20,8 @@ IResourceBuilder<ProjectResource> service = builder
   .WithHttpsEndpoint(name: "https")
   .WithEnvironment("TestTls__CertificatePath", certificates.ServerCertificate)
   .WithEnvironment("TestTls__KeyPath", certificates.ServerKey)
+  .WithEnvironment("TestTls__UntrustedCertificatePath", certificates.UntrustedServerCertificate)
+  .WithEnvironment("TestTls__UntrustedKeyPath", certificates.UntrustedServerKey)
   .WithHttpHealthCheck("/health", endpointName: "http");
 
 // The test-only HTTP CONNECT proxy of the `proxy` scenario: tunnels need the run's credentials

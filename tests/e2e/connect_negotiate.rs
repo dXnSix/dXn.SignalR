@@ -13,7 +13,7 @@ struct TransportDetails {
     transfer_format: String,
 }
 
-async fn scenario(protocol: Protocol) {
+pub(crate) async fn scenario(protocol: Protocol) {
     let mut client = support::connect("test", protocol, |_| {}).await;
     let details = client
         .invoke::<TransportDetails>("TransportDetails".to_string())

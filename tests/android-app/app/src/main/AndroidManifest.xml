@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Test-only: installable with `adb install -t`, and its device admin can be removed with
+         `dpm remove-active-admin`. -->
+    <application
+        android:label="RayX SignalR E2E"
+        android:testOnly="true">
+
+        <receiver
+            android:name=".TestDeviceAdmin"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+    </application>
+
+    <!-- The app instruments itself: `am instrument -w -e scenario <name> -e protocol <protocol>
+         -e environment <base64> dev.rayx.signalr.e2e/.ScenarioInstrumentation`. -->
+    <instrumentation
+        android:name=".ScenarioInstrumentation"
+        android:label="RayX SignalR scenarios"
+        android:targetPackage="dev.rayx.signalr.e2e" />
+</manifest>

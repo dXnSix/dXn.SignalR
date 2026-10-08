@@ -22,6 +22,11 @@ if (builder.Configuration["TestTls:CertificatePath"] is { } certificatePath
         kestrel.ConfigureHttpsDefaults(https => https.ServerCertificate = certificate));
 }
 
+// A TLS listener whose certificate a second, untrusted CA issued (the `tls` scenario's rejection
+// case in the Android app). It serves nothing after the handshake.
+builder.Services.AddSingleton<UntrustedTlsListener>();
+builder.Services.AddHostedService(services => services.GetRequiredService<UntrustedTlsListener>());
+
 builder.Services.AddCors(cors => cors.AddDefaultPolicy(policy =>
     policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
 builder.Services
@@ -165,6 +170,12 @@ app.MapGet("/e2e/listening", (Microsoft.AspNetCore.Hosting.Server.IServer server
         .GroupBy(address => address.Scheme)
         .ToDictionary(group => group.Key, group => group.First().Port));
 });
+
+// The untrusted TLS listener's port (0 when the AppHost provided no untrusted certificate).
+app.MapGet(
+    "/e2e/untrusted-tls",
+    async (UntrustedTlsListener listener, CancellationToken cancellationToken) =>
+        Results.Json(new { port = await listener.PortAsync(cancellationToken) }));
 
 app.MapPost("/e2e/reset", () =>
 {

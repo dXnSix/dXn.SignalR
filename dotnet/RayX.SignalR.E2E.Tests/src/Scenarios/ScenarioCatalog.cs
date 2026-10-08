@@ -94,6 +94,8 @@ public static class ScenarioCatalog
   const string _webkit = "webkit";
   const string _android = "android";
   const string _ios = "ios";
+  const string _androidApp = "android-app";
+  const string _androidAppRelease = "android-app-release";
 
   /// <summary>The scenario that needs the threaded fixture on the isolated endpoint.</summary>
   public const string ThreadedScenario = "threaded-wasm";
@@ -106,7 +108,10 @@ public static class ScenarioCatalog
     new(_firefox, TargetKind.Browser),
     new(_webkit, TargetKind.Browser),
     new(_android, TargetKind.Native),
-    new(_ios, TargetKind.Native)
+    new(_ios, TargetKind.Native),
+    // The shared scenarios inside the test-only Android app (debug, and minified release).
+    new(_androidApp, TargetKind.Native),
+    new(_androidAppRelease, TargetKind.Native)
   ];
 
   /// <summary>Every protocol, in run order.</summary>
@@ -138,15 +143,21 @@ public static class ScenarioCatalog
   /// <summary>Targets that run the Rust <c>e2e</c> binary: the desktop host, the Android emulator and the iOS simulator.</summary>
   static readonly string[] _nativeTargets = [_native, _android, _ios];
 
+  /// <summary>
+  /// The Android app targets: they run the platform verifier through the Android trust store, so
+  /// only the TLS-proving scenarios run there (R10.C2).
+  /// </summary>
+  static readonly string[] _appTargets = [_androidApp, _androidAppRelease];
+
   /// <summary>Playwright engines.</summary>
   static readonly string[] _browsers = [_chromium, _firefox, _webkit];
 
   /// <summary>Every scenario, in run order.</summary>
   public static readonly IReadOnlyList<Scenario> Scenarios =
   [
-    Baseline("connect-negotiate"),
+    Baseline("connect-negotiate") with { Targets = Set([.. _nativeTargets, .. _browsers, .. _appTargets]) },
     Baseline("authentication"),
-    Baseline("invoke"),
+    Baseline("invoke") with { Targets = Set([.. _nativeTargets, .. _browsers, .. _appTargets]) },
     Baseline("send"),
     Baseline("server-stream"),
     Baseline("callbacks"),
@@ -154,12 +165,13 @@ public static class ScenarioCatalog
     Baseline("large-payload"),
     Baseline("server-close"),
     Baseline("reconnect-exhaustion"),
-    Everywhere("tls"),
+    Everywhere("tls") with { Targets = Set([.. _nativeTargets, .. _browsers, .. _appTargets]) },
     Everywhere("negotiate-redirect"),
     Everywhere("skip-negotiation"),
     new("executor-independence", Set(_nativeTargets)),
-    // Browsers use the browser's proxy settings: the crate has no proxy API there.
-    new("proxy", Set(_nativeTargets)),
+    // Browsers use the browser's proxy settings: the crate has no proxy API there. A dozen
+    // tunnelled connections take most of a minute on an emulator, so the bound is longer.
+    new("proxy", Set(_nativeTargets)) { Limit = TimeSpan.FromSeconds(120) },
     new("message-burst", Set(_browsers)),
     new("worker-transport", Set(_browsers)),
     new(ThreadedScenario, Set(_browsers)),

@@ -248,7 +248,7 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
       string job = target.Name switch
       {
         "native" => "native",
-        "android" => "android",
+        "android" or "android-app" or "android-app-release" => "android",
         "ios" => "ios",
         _ => "browser"
       };

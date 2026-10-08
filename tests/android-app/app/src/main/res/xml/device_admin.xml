@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The test-only device admin: as device owner it installs the run's test CA into the device's
+     user CA store, which the platform verifier trusts (the AndroidCAStore keystore). -->
+<device-admin>
+    <uses-policies />
+</device-admin>

@@ -1,0 +1,29 @@
+[package]
+name = "rayx-signalr-android-harness"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# The JNI library of the test-only Android app (`tests/android-app`): it initializes the platform
+# verifier from the app's `Context` and runs the shared `tests/e2e` scenarios in the app process.
+# Built with `cargo ndk` by the Aspire runner only.
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+default = ["tls-ring"]
+tls-ring = ["rayx-signalr/tls-ring"]
+tls-aws-lc-rs = ["rayx-signalr/tls-aws-lc-rs"]
+
+[dependencies]
+# The platform verifier only: the device trusts the run's CA as a user CA, which the app installs.
+rayx-signalr = { path = "../..", default-features = false, features = ["messagepack", "tls-platform-verifier"] }
+rayx-signalr-e2e-scenarios = { path = "../e2e-scenarios", features = ["messagepack"] }
+jni = { version = "0.22", default-features = false }
+# The client's and the scenario's log in logcat (tag `rayx-signalr`), which a failing cell's
+# diagnostics include.
+android_logger = { version = "0.15", default-features = false }
+log = "0.4"
+tokio = { version = "1.49.0", features = ["rt", "time"] }
+
+[workspace]
