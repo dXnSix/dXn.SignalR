@@ -26,17 +26,19 @@ use crate::error::{Error, TimeoutOperation};
 
 /// POSTs an empty body to `url` within `timeout` (the connection's connect timeout) and returns
 /// the response text; non-2xx statuses are errors.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn post(
     url: &str,
     authorization: Option<String>,
     headers: &[(String, String)],
     tls: &TlsContext,
     proxy: &super::proxy::ProxyConfig,
+    cookies: &crate::CookieJar,
     timeout: std::time::Duration,
 ) -> Result<String, Error> {
     tokio::time::timeout(
         timeout,
-        post_unbounded(url, authorization, headers, tls, proxy),
+        post_unbounded(url, authorization, headers, tls, proxy, cookies),
     )
     .await
     .map_err(|_| Error::timed_out(TimeoutOperation::Negotiate, timeout))?
@@ -48,6 +50,7 @@ async fn post_unbounded(
     headers: &[(String, String)],
     tls: &TlsContext,
     proxy: &super::proxy::ProxyConfig,
+    cookies: &crate::CookieJar,
 ) -> Result<String, Error> {
     let uri: Uri = url.parse().map_err(|error| {
         Error::negotiate(None, format!("the negotiate URL is invalid: {error}"))
@@ -83,13 +86,16 @@ async fn post_unbounded(
     let mut request = Request::post(path)
         .header(header::HOST, authority.as_str())
         .header(header::CONTENT_LENGTH, 0);
-    let composed = super::headers::compose(
-        &[
-            ("User-Agent", super::headers::user_agent()),
-            ("Accept", "*/*".to_string()),
-        ],
-        headers,
-        authorization,
+    let composed = super::headers::with_cookies(
+        super::headers::compose(
+            &[
+                ("User-Agent", super::headers::user_agent()),
+                ("Accept", "*/*".to_string()),
+            ],
+            headers,
+            authorization,
+        ),
+        cookies.cookie_header(url),
     );
     for (name, value) in composed {
         request = request.header(name.as_str(), value.as_str());
@@ -104,9 +110,9 @@ async fn post_unbounded(
     // Through the proxy's CONNECT tunnel when one applies; TLS runs inside it.
     let tcp = super::proxy::connect(proxy, secure, host, port).await?;
     if secure {
-        send(tls_stream(tls, host, tcp).await?, request).await
+        send(tls_stream(tls, host, tcp).await?, request, url, cookies).await
     } else {
-        send(tcp, request).await
+        send(tcp, request, url, cookies).await
     }
 }
 
@@ -175,34 +181,47 @@ pub(crate) async fn tls_stream(
     Err(super::tls::tls_disabled())
 }
 
-async fn send<S>(stream: S, request: Request<Empty<Bytes>>) -> Result<String, Error>
+async fn send<S>(
+    stream: S,
+    request: Request<Empty<Bytes>>,
+    url: &str,
+    cookies: &crate::CookieJar,
+) -> Result<String, Error>
 where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     let (mut sender, connection) = hyper::client::conn::http1::handshake(TokioIo::new(stream))
         .await
         .map_err(|error| {
-            Error::transport_failure(
-                None,
-                format!("the negotiate HTTP handshake failed: {error}"),
+            super::tls::classify(
+                error,
+                |message| Error::transport_failure(None, message),
+                "the negotiate HTTP handshake failed",
             )
-            .with_source(error)
         })?;
     tokio::spawn(async move {
         let _ = connection.await;
     });
     let response = sender.send_request(request).await.map_err(|error| {
-        Error::transport_failure(None, format!("the negotiate request failed: {error}"))
-            .with_source(error)
+        super::tls::classify(
+            error,
+            |message| Error::transport_failure(None, message),
+            "the negotiate request failed",
+        )
     })?;
     let status = response.status();
+    // Every response's cookies are kept (an affinity cookie may come with a redirect or an error).
+    cookies.store_response(url, response.headers());
     let body = response
         .into_body()
         .collect()
         .await
         .map_err(|error| {
-            Error::transport_failure(None, format!("cannot read the negotiate response: {error}"))
-                .with_source(error)
+            super::tls::classify(
+                error,
+                |message| Error::transport_failure(None, message),
+                "cannot read the negotiate response",
+            )
         })?
         .to_bytes();
     if !status.is_success() {
@@ -406,6 +425,7 @@ mod connection_setup_bounds {
             &[],
             &tls,
             &crate::communication::proxy::ProxyConfig::Disabled,
+            &crate::CookieJar::new(),
             Duration::from_millis(300),
         )
         .await

@@ -89,6 +89,29 @@ pub(crate) fn compose(
     headers
 }
 
+/// Adds the cookie jar's cookies to composed headers: after an application `Cookie` header, as
+/// the .NET `HttpClientHandler` appends its container's cookies.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn with_cookies(
+    mut headers: Vec<(String, String)>,
+    cookies: Option<String>,
+) -> Vec<(String, String)> {
+    let Some(cookies) = cookies else {
+        return headers;
+    };
+    match headers
+        .iter_mut()
+        .find(|(name, _)| name.eq_ignore_ascii_case("cookie"))
+    {
+        Some((_, value)) => {
+            value.push_str("; ");
+            value.push_str(&cookies);
+        }
+        None => headers.push(("Cookie".to_string(), cookies)),
+    }
+    headers
+}
+
 /// Validates an application header before any I/O: a token name the transport does not own, and
 /// a value of visible ASCII, spaces and tabs (no line breaks), as `http::HeaderValue` accepts.
 pub(crate) fn validate(name: &str, value: &str) -> Result<(), Error> {

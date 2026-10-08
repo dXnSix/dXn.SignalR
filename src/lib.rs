@@ -22,6 +22,8 @@ pub use client::{
     CallbackArguments, ConnectionConfiguration, DisconnectionHandler, InvocationContext,
     ReconnectionHandler, SignalRClient, WeakSignalRClient,
 };
+#[cfg(not(target_arch = "wasm32"))]
+pub use communication::cookies::CookieJar;
 pub use communication::reconnection::{
     ConnectionStatus, ConstantDelayPolicy, DefaultRetryPolicy, DelayListPolicy,
     ExponentialBackoffPolicy, LinearBackoffPolicy, NoReconnectPolicy, ReconnectionConfig,

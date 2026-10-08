@@ -25,6 +25,8 @@ mod client_wasm;
 #[cfg(not(target_arch = "wasm32"))]
 mod client_tokio;
 #[cfg(not(target_arch = "wasm32"))]
+pub(crate) mod cookies;
+#[cfg(not(target_arch = "wasm32"))]
 mod http_transport_tokio;
 #[cfg(not(target_arch = "wasm32"))]
 mod long_polling_tokio;

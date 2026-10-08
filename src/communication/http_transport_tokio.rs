@@ -94,6 +94,16 @@ impl Target {
             .trim_end_matches(']')
     }
 
+    /// The full URL, which cookies are matched against.
+    pub(crate) fn url(&self) -> String {
+        format!(
+            "{}://{}{}",
+            if self.secure { "https" } else { "http" },
+            self.authority,
+            self.path_and_query
+        )
+    }
+
     pub(crate) fn port(&self) -> u16 {
         self.authority
             .port_u16()
@@ -164,10 +174,13 @@ impl Lane {
         for (name, value) in headers {
             request = request.header(*name, *value);
         }
-        for (name, value) in super::headers::compose(
-            &[("User-Agent", super::headers::user_agent())],
-            self.recipe.headers(),
-            authorization,
+        for (name, value) in super::headers::with_cookies(
+            super::headers::compose(
+                &[("User-Agent", super::headers::user_agent())],
+                self.recipe.headers(),
+                authorization,
+            ),
+            self.recipe.cookies().cookie_header(&self.target.url()),
         ) {
             request = request.header(name.as_str(), value.as_str());
         }
@@ -253,6 +266,9 @@ impl Lane {
             )
         })?;
         let status = response.status();
+        self.recipe
+            .cookies()
+            .store_response(&self.target.url(), response.headers());
         let body = response
             .into_body()
             .collect()
@@ -285,6 +301,9 @@ impl Lane {
             self.error(format!("the {} GET request failed: {error}", self.kind))
                 .with_source(error)
         })?;
+        self.recipe
+            .cookies()
+            .store_response(&self.target.url(), response.headers());
         // The connection task keeps running for the body; `sender` is not reused.
         Ok(response)
     }

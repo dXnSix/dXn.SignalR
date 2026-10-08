@@ -80,6 +80,8 @@ tokio-websockets = { version = "0.13.3", default-features = false, features = ["
 env_logger = "0.11"
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
 proptest = { version = "1.5", default-features = false, features = ["std"] }
+# Test certificates generated at test time (the `client_certificates_` group); no key is committed.
+rcgen = { version = "0.14", default-features = false, features = ["crypto", "pem", "ring"] }
 
 # Black-box end-to-end scenarios; run only through the Aspire runner (`dotnet test`).
 [[test]]

@@ -2201,10 +2201,14 @@ impl CommunicationClient {
             ClientBuilder::from_uri(endpoint.clone()).limits(tokio_websockets::Limits::unlimited());
         // Composed as for negotiate; native clients authenticate the upgrade with the same
         // Authorization header.
-        let composed = super::headers::compose(
-            &[("User-Agent", super::headers::user_agent())],
-            recipe.headers(),
-            recipe.current_transport_authorization().await?,
+        let endpoint_url = endpoint.to_string();
+        let composed = super::headers::with_cookies(
+            super::headers::compose(
+                &[("User-Agent", super::headers::user_agent())],
+                recipe.headers(),
+                recipe.current_transport_authorization().await?,
+            ),
+            recipe.cookies().cookie_header(&endpoint_url),
         );
         for (name, value) in composed {
             let invalid = || {
@@ -2254,7 +2258,12 @@ impl CommunicationClient {
         builder
             .connect_on(stream)
             .await
-            .map(|(ws, _)| ws)
+            .map(|(ws, response)| {
+                recipe
+                    .cookies()
+                    .store_response(&endpoint_url, response.headers());
+                ws
+            })
             .map_err(Self::upgrade_failed)
     }
 
@@ -2275,6 +2284,9 @@ impl CommunicationClient {
                     "the server refused the WebSocket upgrade with status {status}"
                 ))
             }
+            _ if super::tls::is_tls_failure(&error) => Error::tls(format!(
+                "the WebSocket upgrade failed: the TLS connection failed: {error}"
+            )),
             _ => websocket_error(format!("the WebSocket upgrade failed: {error}")),
         }
         .with_source(error)

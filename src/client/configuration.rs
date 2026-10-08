@@ -87,6 +87,9 @@ pub struct ConnectionConfiguration {
     /// The proxy of native connections, or the error of an invalid `with_proxy` URL.
     #[cfg(not(target_arch = "wasm32"))]
     _proxy: Result<crate::communication::proxy::ProxyConfig, crate::Error>,
+    /// The cookie jar of every native request and upgrade (`with_cookie_jar`).
+    #[cfg(not(target_arch = "wasm32"))]
+    _cookies: crate::CookieJar,
 }
 
 impl Authentication {
@@ -170,6 +173,9 @@ pub(crate) struct ConnectionRecipe {
     /// The proxy of every native connection.
     #[cfg(not(target_arch = "wasm32"))]
     proxy: crate::communication::proxy::ProxyConfig,
+    /// The cookies of every native request and upgrade, shared by every connection of the client.
+    #[cfg(not(target_arch = "wasm32"))]
+    cookies: crate::CookieJar,
     /// The Tokio runtime that owns this connection's I/O, timers and tasks.
     #[cfg(not(target_arch = "wasm32"))]
     runtime: Option<tokio::runtime::Handle>,
@@ -297,6 +303,12 @@ impl ConnectionRecipe {
         &self.proxy
     }
 
+    /// The client's cookie jar.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn cookies(&self) -> &crate::CookieJar {
+        &self.cookies
+    }
+
     /// The connection's TLS state, shared by negotiate, the WebSocket and reconnects.
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn tls(&self) -> &crate::communication::tls::TlsContext {
@@ -403,6 +415,8 @@ impl ConnectionConfiguration {
             _runtime: None,
             #[cfg(not(target_arch = "wasm32"))]
             _proxy: Ok(Default::default()),
+            #[cfg(not(target_arch = "wasm32"))]
+            _cookies: crate::CookieJar::new(),
         }
     }
 
@@ -885,6 +899,8 @@ impl ConnectionConfiguration {
             runtime: None,
             #[cfg(not(target_arch = "wasm32"))]
             proxy: self._proxy.clone().unwrap_or_default(),
+            #[cfg(not(target_arch = "wasm32"))]
+            cookies: self._cookies.clone(),
         }
     }
 
@@ -940,6 +956,28 @@ impl ConnectionConfiguration {
         self
     }
 
+    /// Presents this client certificate whenever a server asks for one, as the .NET client's
+    /// `HttpConnectionOptions.ClientCertificates`: on every native negotiate, WebSocket, Long
+    /// Polling and Server-Sent Events TLS connection. `chain_pem` holds the certificate and any
+    /// intermediates (`CERTIFICATE` blocks, the leaf first); `key_pem` its private key (PKCS#8,
+    /// PKCS#1 or SEC1 PEM). Invalid PEM or a key that does not match the certificate makes
+    /// [`SignalRClient::new`](crate::SignalRClient::new) fail with
+    /// [`ErrorKind::Configuration`](crate::ErrorKind::Configuration) naming
+    /// `with_client_certificate`; errors never contain the key. Native only: browsers choose
+    /// client certificates from their own store.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_client_certificate(
+        &mut self,
+        chain_pem: impl Into<Vec<u8>>,
+        key_pem: impl Into<Vec<u8>>,
+    ) -> &ConnectionConfiguration {
+        self._tls.client_certificate = Some(crate::communication::tls::ClientCertificatePem {
+            chain: chain_pem.into(),
+            key: key_pem.into(),
+        });
+        self
+    }
+
     /// Verifies secure endpoints of this connection against the bundled Mozilla roots instead of
     /// the operating system's trust store. Requires the `tls-webpki-roots` feature. Native only.
     #[cfg(not(target_arch = "wasm32"))]
@@ -972,6 +1010,18 @@ impl ConnectionConfiguration {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn with_system_proxy(&mut self) -> &ConnectionConfiguration {
         self._proxy = Ok(crate::communication::proxy::ProxyConfig::System);
+        self
+    }
+
+    /// Uses `jar` for this client's cookies instead of a jar of its own, as the .NET client's
+    /// `HttpConnectionOptions.Cookies`. Every native negotiate request, WebSocket upgrade and
+    /// Long Polling or Server-Sent Events request stores the `Set-Cookie` headers it receives and
+    /// sends the cookies that match its URL, across reconnects, so a load balancer's affinity
+    /// cookie keeps the connection on one server. Share a jar between clients, or keep a clone to
+    /// read or seed it. Native only: browsers manage cookies themselves.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_cookie_jar(&mut self, jar: crate::CookieJar) -> &ConnectionConfiguration {
+        self._cookies = jar;
         self
     }
 

@@ -42,6 +42,8 @@ pub(crate) struct LoopbackOptions {
     /// The first negotiate of each pair answers with a redirect to this server's `/redirected`
     /// path carrying this access token (as Azure SignalR Service redirects).
     pub(crate) redirect_token: Option<&'static str>,
+    /// A `Set-Cookie` header value every negotiate response carries (an affinity cookie).
+    pub(crate) negotiate_cookie: Option<&'static str>,
 }
 
 /// One WebSocket frame a client sent.
@@ -353,9 +355,13 @@ async fn negotiate(mut stream: TcpStream, state: &Arc<Mutex<State>>, options: Lo
          \"negotiateVersion\":1,\"availableTransports\":[{{\"transport\":\"WebSockets\",\
          \"transferFormats\":[\"Text\",\"Binary\"]}}]{stateful}}}"
     );
+    let cookie = options
+        .negotiate_cookie
+        .map(|cookie| format!("Set-Cookie: {cookie}\r\n"))
+        .unwrap_or_default();
     let response = format!(
         "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\
-         Connection: close\r\n\r\n{body}",
+         {cookie}Connection: close\r\n\r\n{body}",
         body.len()
     );
     let _ = stream.write_all(response.as_bytes()).await;
