@@ -20,6 +20,7 @@ IResourceBuilder<ProjectResource> service = builder
   .WithHttpsEndpoint(name: "https")
   .WithEnvironment("TestTls__CertificatePath", certificates.ServerCertificate)
   .WithEnvironment("TestTls__KeyPath", certificates.ServerKey)
+  .WithEnvironment("TestTls__CaPath", certificates.CaCertificate)
   .WithEnvironment("TestTls__UntrustedCertificatePath", certificates.UntrustedServerCertificate)
   .WithEnvironment("TestTls__UntrustedKeyPath", certificates.UntrustedServerKey)
   .WithHttpHealthCheck("/health", endpointName: "http");

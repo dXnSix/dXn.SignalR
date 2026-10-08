@@ -68,6 +68,10 @@ public static partial class CellExecution
     variables["RAYX_SIGNALR_E2E_TLS_CA_PEM_BASE64"] =
       Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(environment.TlsCaPem));
     variables["RAYX_SIGNALR_E2E_UNTRUSTED_TLS_URL"] = Origin(environment.UntrustedTlsUrl);
+    variables["RAYX_SIGNALR_E2E_CLIENT_CERT_PEM_BASE64"] =
+      Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(environment.ClientCertificatePem));
+    variables["RAYX_SIGNALR_E2E_CLIENT_KEY_PEM_BASE64"] =
+      Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(environment.ClientKeyPem));
     variables["RAYX_SIGNALR_E2E_PROXY_URL"] = Origin(environment.ProxyUrl);
     variables["RAYX_SIGNALR_E2E_PROXY_CREDENTIALS"] = $"{AspireEnvironment.ProxyUser}:{environment.ProxyPassword}";
     if(environment.FixtureEnabled)

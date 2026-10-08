@@ -54,6 +54,7 @@ public sealed class ProxyIsolationTests
   [InlineData("env RAYX_SIGNALR_E2E_PROXY_CREDENTIALS='rayx:0123abcd' ./e2e")]
   [InlineData("RAYX_SIGNALR_E2E_PROXY_CREDENTIALS=rayx:0123abcd")]
   [InlineData("connecting through http://rayx:0123abcd@127.0.0.1:3128")]
+  [InlineData("env RAYX_SIGNALR_E2E_CLIENT_KEY_PEM_BASE64='0123abcd' ./e2e")]
   public void DiagnosticsNeverShowProxyCredentials(string diagnostic)
   {
     string redacted = Redaction.Redact(diagnostic);

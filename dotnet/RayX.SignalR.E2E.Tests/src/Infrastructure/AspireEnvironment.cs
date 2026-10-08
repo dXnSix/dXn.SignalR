@@ -88,6 +88,12 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
 
   Uri? _untrustedTlsUrl;
 
+  /// <summary>Gets the PEM of the client certificate the test CA issued (the <c>/test-mtls</c> hub).</summary>
+  public string ClientCertificatePem => File.ReadAllText(new TestCertificateFiles(TlsDirectory).ClientCertificate);
+
+  /// <summary>Gets the client certificate's private key (PEM); diagnostics redact it.</summary>
+  public string ClientKeyPem => File.ReadAllText(new TestCertificateFiles(TlsDirectory).ClientKey);
+
   /// <summary>Gets the PEM of the CA that issued the HTTPS endpoint's certificate.</summary>
   public string TlsCaPem => File.ReadAllText(new TestCertificateFiles(TlsDirectory).CaCertificate);
 

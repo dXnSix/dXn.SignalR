@@ -41,6 +41,17 @@ namespace RayX.SignalR.TestService
         /// <summary>The remote port of the request that carries this connection (a proxy's tunnel port when proxied).</summary>
         public int PeerPort() => Context.GetHttpContext()?.Connection.RemotePort ?? 0;
 
+        /// <summary>The affinity cookie the transport request carried (see AffinityCookies).</summary>
+        public string AffinityCookie() =>
+            Context.GetHttpContext()?.Request.Cookies[AffinityCookies.Name] ?? string.Empty;
+
+        /// <summary>The subject of the client certificate the transport's TLS connection presented.</summary>
+        public string ClientCertificateSubject() =>
+            Context.GetHttpContext()?.Connection.ClientCertificate?.Subject ?? string.Empty;
+
+        /// <summary>How many /test-affinity requests arrived without an issued affinity cookie.</summary>
+        public int AffinityRejections() => AffinityCookies.Rejections;
+
         /// <summary>The access token the transport request carried (Bearer header, else access_token query).</summary>
         public string AccessTokenProbe()
         {

@@ -172,6 +172,10 @@ public static class ScenarioCatalog
     // Browsers use the browser's proxy settings: the crate has no proxy API there. A dozen
     // tunnelled connections take most of a minute on an emulator, so the bound is longer.
     new("proxy", Set(_nativeTargets)) { Limit = TimeSpan.FromSeconds(120) },
+    // Browsers manage cookies themselves: the crate has no cookie API there.
+    new("cookies", Set(_nativeTargets)),
+    // Browsers choose client certificates from their own store: the crate has no API there.
+    new("client-certificate", Set(_nativeTargets)),
     new("message-burst", Set(_browsers)),
     new("worker-transport", Set(_browsers)),
     new(ThreadedScenario, Set(_browsers)),

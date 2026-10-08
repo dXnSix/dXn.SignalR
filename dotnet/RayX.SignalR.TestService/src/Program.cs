@@ -18,8 +18,23 @@ if (builder.Configuration["TestTls:CertificatePath"] is { } certificatePath
     using var pem = X509Certificate2.CreateFromPemFile(certificatePath, keyPath);
     // Re-import through PKCS#12 so SslStream can use the key on every platform.
     var certificate = X509CertificateLoader.LoadPkcs12(pem.Export(X509ContentType.Pkcs12), null);
+    // Clients may present a certificate the run's CA issued (the /test-mtls hub requires one, see
+    // ClientCertificates); a client without one connects as before.
+    // The CA certificate only: its key stays with the AppHost.
+    var trustedAuthority = builder.Configuration["TestTls:CaPath"] is { } caPath
+        ? X509Certificate2.CreateFromPem(File.ReadAllText(caPath))
+        : null;
     builder.WebHost.ConfigureKestrel(kestrel =>
-        kestrel.ConfigureHttpsDefaults(https => https.ServerCertificate = certificate));
+        kestrel.ConfigureHttpsDefaults(https =>
+        {
+            https.ServerCertificate = certificate;
+            if (trustedAuthority is not null)
+            {
+                https.ClientCertificateMode = Microsoft.AspNetCore.Server.Kestrel.Https.ClientCertificateMode.AllowCertificate;
+                https.ClientCertificateValidation = (client, _, _) =>
+                    ClientCertificates.IssuedBy(client, trustedAuthority);
+            }
+        }));
 }
 
 // A TLS listener whose certificate a second, untrusted CA issued (the `tls` scenario's rejection
@@ -82,6 +97,12 @@ app.Use(async (context, next) =>
 
 // Track Long Polling polls so a test can sever them (see TransportFaults.Sever).
 app.UseLongPollingFaults();
+
+// Load-balancer affinity on /test-affinity (see AffinityCookies).
+app.UseAffinityCookies();
+
+// Client certificates required on /test-mtls (see ClientCertificates).
+app.UseRequiredClientCertificates();
 
 // Answer a stateful resume the test asked to reject (see TestHub.AbortPhysicalTransportAndRejectResume).
 app.Use(async (context, next) =>
@@ -181,12 +202,15 @@ app.MapPost("/e2e/reset", () =>
 {
     TestControls.Reset();
     TransportFaults.Reset();
+    AffinityCookies.Reset();
     return Results.Ok(new { status = "reset" });
 });
 app.MapHub<TestHub>("/test");
 app.MapHub<TestHub>("/test-exhaust");
 app.MapHub<TestHub>("/test-tls");
 app.MapHub<TestHub>("/test-direct");
+app.MapHub<TestHub>(AffinityCookies.HubPath);
+app.MapHub<TestHub>(ClientCertificates.HubPath);
 app.MapHub<TestHub>("/test-stateful", options => options.AllowStatefulReconnects = true);
 app.MapHub<AuthHub>("/test-auth");
 app.MapHub<TokenHub>("/test-token");

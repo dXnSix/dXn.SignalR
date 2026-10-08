@@ -10,7 +10,7 @@ public static partial class Redaction
 
   /// <summary>
   /// Replaces <c>access_token=</c>, JSON <c>"accessToken"</c> (negotiate redirects),
-  /// <c>Authorization</c> and <c>Bearer</c> values, <c>*_CREDENTIALS=</c> values and the
+  /// <c>Authorization</c> and <c>Bearer</c> values, <c>*_CREDENTIALS=</c> and <c>*_KEY_PEM_BASE64=</c> values and the
   /// <c>user:password@</c> of URLs (proxy credentials).
   /// </summary>
   /// <param name="value">The text.</param>
@@ -61,7 +61,7 @@ public static partial class Redaction
   [GeneratedRegex(@"(?i)(bearer\s+)[A-Za-z0-9._~+/=-]+")]
   private static partial Regex BearerToken();
 
-  [GeneratedRegex(@"(?i)(_CREDENTIALS\s*=\s*['""]?)[^'""\s]+")]
+  [GeneratedRegex(@"(?i)((?:_CREDENTIALS|_KEY_PEM_BASE64)\s*=\s*['""]?)[^'""\s]+")]
   private static partial Regex CredentialsVariable();
 
   [GeneratedRegex(@"(?i)([a-z][a-z0-9+.-]*://)[^/\s@:'""]+:[^/\s@'""]+@")]
