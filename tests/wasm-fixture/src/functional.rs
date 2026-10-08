@@ -3299,6 +3299,14 @@ async fn request_headers(messagepack: bool) -> Outcome {
     let mut client = connect("test", messagepack, |configuration| {
         configuration.authenticate_bearer("e2e-token".to_string());
         configuration.with_header("X-Tenant", "blue");
+        // The request hook sees every fetch (negotiate here), not the browser WebSocket.
+        configuration.with_request_hook(|request| {
+            let tag = match request.transport() {
+                Some(transport) => format!("{transport:?} {}", request.method()),
+                None => format!("negotiate {}", request.method()),
+            };
+            let _ = request.set_header("X-Hook", tag);
+        });
     })
     .await?;
 
@@ -3323,6 +3331,10 @@ async fn request_headers(messagepack: bool) -> Outcome {
         "negotiate lacks the application header: {negotiate:?}"
     );
     ensure!(
+        described_value(&negotiate, "x-hook") == Some("negotiate POST"),
+        "negotiate lacks the request hook's header: {negotiate:?}"
+    );
+    ensure!(
         described_value(&negotiate, "authorization") == Some("present"),
         "negotiate lacks Authorization: {negotiate:?}"
     );
@@ -3335,6 +3347,30 @@ async fn request_headers(messagepack: bool) -> Outcome {
     ensure!(
         described_value(&transport, "access_token") == Some("present"),
         "the browser WebSocket URL lacks access_token: {transport:?}"
+    );
+    ensure!(
+        described_value(&transport, "x-hook").is_none(),
+        "a browser WebSocket carries no hook header: {transport:?}"
+    );
+    client.disconnect();
+
+    // Long Polling requests are `fetch` requests: the hook sees them.
+    let mut client = connect("test", messagepack, |configuration| {
+        configuration.with_transports(rayx_signalr::Transports::LONG_POLLING);
+        configuration.with_request_hook(|request| {
+            if let Some(transport) = request.transport() {
+                let _ = request.set_header("X-Hook", format!("{transport:?} {}", request.method()));
+            }
+        });
+    })
+    .await?;
+    let transport = client
+        .invoke::<Vec<String>>("TransportRequest".to_string())
+        .await
+        .map_err(|error| format!("TransportRequest failed: {error}"))?;
+    ensure!(
+        described_value(&transport, "x-hook") == Some("LongPolling GET"),
+        "a Long Polling request lacks the hook's header: {transport:?}"
     );
     client.disconnect();
     Ok(())

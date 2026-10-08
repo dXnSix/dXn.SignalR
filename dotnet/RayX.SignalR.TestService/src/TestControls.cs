@@ -25,7 +25,7 @@ namespace RayX.SignalR.TestService
 
         /// <summary>The request headers the request-headers scenario inspects.</summary>
         static readonly string[] _describedHeaders =
-            ["user-agent", "x-signalr-user-agent", "x-requested-with", "accept", "x-tenant"];
+            ["user-agent", "x-signalr-user-agent", "x-requested-with", "accept", "x-tenant", "x-hook"];
         static readonly ConcurrentDictionary<string, int> _clientResults = new();
         static readonly ConcurrentDictionary<string, string> _clientResultErrors = new();
         static readonly ConcurrentDictionary<string, HubConnectionContext> _connections = new();

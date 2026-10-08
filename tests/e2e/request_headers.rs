@@ -1,9 +1,11 @@
 //! Request headers and token placement as the official .NET client sends them: negotiate and the
 //! WebSocket upgrade carry `User-Agent` in the official format, `X-Requested-With` and the
 //! application's `with_header` headers (negotiate also `Accept: */*`), and the native WebSocket URL
-//! carries no `access_token`: the bearer token travels only in `Authorization`.
+//! carries no `access_token`: the bearer token travels only in `Authorization`. A request hook
+//! (`with_request_hook`, as .NET's `HttpMessageHandlerFactory`) adds a header to both, naming the
+//! request it saw.
 
-use rayx_signalr::SignalRClient;
+use rayx_signalr::{SignalRClient, Transports};
 
 use crate::support::{self, Protocol};
 
@@ -36,6 +38,13 @@ async fn scenario(protocol: Protocol) {
     let mut client = support::connect("test", protocol, |configuration| {
         configuration.authenticate_bearer("e2e-token".to_string());
         configuration.with_header("X-Tenant", "blue");
+        configuration.with_request_hook(|request| {
+            let tag = match request.transport() {
+                Some(transport) => format!("{transport:?} {}", request.method()),
+                None => format!("negotiate {}", request.method()),
+            };
+            request.set_header("X-Hook", tag).unwrap();
+        });
     })
     .await;
 
@@ -50,6 +59,7 @@ async fn scenario(protocol: Protocol) {
     );
     assert_eq!(value(&negotiate, "accept"), Some("*/*"));
     assert_eq!(value(&negotiate, "x-tenant"), Some("blue"));
+    assert_eq!(value(&negotiate, "x-hook"), Some("negotiate POST"));
     assert_eq!(value(&negotiate, "authorization"), Some("present"));
 
     let transport = described(&mut client, "TransportRequest", None).await;
@@ -62,11 +72,32 @@ async fn scenario(protocol: Protocol) {
         Some("XMLHttpRequest")
     );
     assert_eq!(value(&transport, "x-tenant"), Some("blue"));
+    assert_eq!(value(&transport, "x-hook"), Some("WebSockets GET"));
     assert_eq!(value(&transport, "authorization"), Some("present"));
     assert_eq!(
         value(&transport, "access_token"),
         Some("absent"),
         "the native WebSocket URL carries no token"
+    );
+    client.disconnect();
+
+    // Over Long Polling the hook sees the transport's requests too.
+    let mut client = support::connect("test", protocol, |configuration| {
+        configuration.with_transports(Transports::LONG_POLLING);
+        configuration.with_request_hook(|request| {
+            if let Some(transport) = request.transport() {
+                request
+                    .set_header("X-Hook", format!("{transport:?} {}", request.method()))
+                    .unwrap();
+            }
+        });
+    })
+    .await;
+    let transport = described(&mut client, "TransportRequest", None).await;
+    assert_eq!(
+        value(&transport, "x-hook"),
+        Some("LongPolling GET"),
+        "{transport:?}"
     );
     client.disconnect();
 }
