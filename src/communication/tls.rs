@@ -41,6 +41,21 @@ pub(crate) struct TlsSettings {
     pub(crate) extra_roots_pem: Option<Vec<u8>>,
     pub(crate) use_webpki_roots: bool,
     pub(crate) client_certificate: Option<ClientCertificatePem>,
+    /// `with_tls_config_hook`.
+    #[cfg(rayx_tls)]
+    pub(crate) config_hook: Option<TlsConfigHook>,
+}
+
+/// The hook of `with_tls_config_hook`, run on each connection's config before its first use.
+#[cfg(rayx_tls)]
+#[derive(Clone)]
+pub(crate) struct TlsConfigHook(pub(crate) Arc<dyn Fn(&mut rustls::ClientConfig) + Send + Sync>);
+
+#[cfg(rayx_tls)]
+impl std::fmt::Debug for TlsConfigHook {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("TlsConfigHook")
+    }
 }
 
 /// The client certificate chain and private key (PEM) of `with_client_certificate`. `Debug`
@@ -156,6 +171,7 @@ struct PreparedTls {
     use_webpki_roots: bool,
     extra_roots: Vec<rustls_pki_types::CertificateDer<'static>>,
     client_certificate: Option<ClientCertificate>,
+    config_hook: Option<TlsConfigHook>,
 }
 
 /// A parsed client certificate chain and its private key.
@@ -227,6 +243,7 @@ impl TlsContext {
                     use_webpki_roots: settings.use_webpki_roots,
                     extra_roots,
                     client_certificate,
+                    config_hook: settings.config_hook.clone(),
                 })),
                 config: Arc::default(),
             };
@@ -259,10 +276,13 @@ impl TlsContext {
     /// The connection's rustls config, built once on first use.
     #[cfg(rayx_tls)]
     pub(crate) fn config(&self) -> Result<Arc<rustls::ClientConfig>, Error> {
-        let mut slot = crate::platform::LockExt::locked(&*self.config);
-        if let Some(config) = slot.as_ref() {
+        if let Some(config) = crate::platform::LockExt::locked(&*self.config).as_ref() {
             return Ok(config.clone());
         }
+        // Built, and handed to the application's hook, without the slot's lock held. Secure
+        // connections build at `connect`, before the context is shared; a redirect's first
+        // secure use is a single negotiate request, and should two first uses race, the first
+        // config stored serves both.
         let prepared = self
             .prepared
             .as_ref()
@@ -270,14 +290,19 @@ impl TlsContext {
         let compiled = CompiledTls::CURRENT;
         let verifier =
             compiled.verifier(prepared.use_webpki_roots, !prepared.extra_roots.is_empty())?;
-        let config = Arc::new(build_config(
+        let mut config = build_config(
             compiled.provider()?,
             verifier,
             prepared.extra_roots.clone(),
             prepared.client_certificate.as_ref(),
-        )?);
-        *slot = Some(config.clone());
-        Ok(config)
+        )?;
+        // The application's adjustments (`with_tls_config_hook`), before anything uses it.
+        if let Some(hook) = &prepared.config_hook {
+            (hook.0)(&mut config);
+        }
+        let config = Arc::new(config);
+        let mut slot = crate::platform::LockExt::locked(&*self.config);
+        Ok(slot.get_or_insert(config).clone())
     }
 
     /// Whether the connection has built its rustls config yet.
@@ -569,7 +594,7 @@ NQ==
             TlsSettings {
                 extra_roots_pem: pem.map(|pem| pem.as_bytes().to_vec()),
                 use_webpki_roots,
-                client_certificate: None,
+                ..TlsSettings::default()
             }
         }
 
@@ -712,6 +737,7 @@ mod client_certificates {
                 chain: chain.as_bytes().to_vec(),
                 key: key.as_bytes().to_vec(),
             }),
+            ..TlsSettings::default()
         }
     }
 
@@ -793,11 +819,14 @@ mod client_certificates {
         let error = crate::communication::negotiate_http::post(
             &format!("https://localhost:{port}/hub/negotiate?negotiateVersion=1"),
             None,
-            &[],
-            &tls,
-            &crate::communication::proxy::ProxyConfig::Disabled,
-            &crate::CookieJar::new(),
-            None,
+            crate::communication::negotiate_http::Options {
+                headers: &[],
+                tls: &tls,
+                proxy: &crate::communication::proxy::ProxyConfig::Disabled,
+                cookies: &crate::CookieJar::new(),
+                integrated: None,
+                hook: None,
+            },
             std::time::Duration::from_secs(10),
         )
         .await
@@ -855,5 +884,44 @@ mod client_certificates {
         .err()
         .expect("new validates the client certificate");
         assert_eq!(error.setting(), Some("with_client_certificate"), "{error}");
+    }
+}
+
+#[cfg(all(test, rayx_tls))]
+mod transport_hooks_tls {
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+
+    use super::{TlsConfigHook, TlsContext, TlsSettings};
+
+    #[test]
+    fn transport_hooks_adjust_each_connection_config_once_before_use() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let counted = calls.clone();
+        let settings = TlsSettings {
+            config_hook: Some(TlsConfigHook(Arc::new(move |config| {
+                counted.fetch_add(1, Ordering::SeqCst);
+                config.enable_sni = false;
+                config.alpn_protocols = vec![b"http/1.1".to_vec()];
+            }))),
+            ..TlsSettings::default()
+        };
+        let context = TlsContext::for_connection(true, &settings).unwrap();
+        let config = context.config().unwrap();
+        assert!(!config.enable_sni);
+        assert_eq!(config.alpn_protocols, vec![b"http/1.1".to_vec()]);
+        // The one adjusted config serves every request and reconnect of the connection.
+        assert!(Arc::ptr_eq(&config, &context.clone().config().unwrap()));
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        // Each connection builds, and adjusts, its own.
+        TlsContext::for_connection(true, &settings).unwrap();
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        // A plaintext connection adjusts nothing until it first needs TLS.
+        let plaintext = TlsContext::for_connection(false, &settings).unwrap();
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        plaintext.config().unwrap();
+        assert_eq!(calls.load(Ordering::SeqCst), 3);
     }
 }

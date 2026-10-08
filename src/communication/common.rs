@@ -199,11 +199,7 @@ impl HttpClient {
         super::negotiate_http::post(
             &endpoint,
             authorization,
-            recipe.headers(),
-            recipe.tls(),
-            recipe.proxy(),
-            recipe.cookies(),
-            recipe.integrated(),
+            super::negotiate_http::Options::of(recipe),
             timeout,
         )
         .await
@@ -232,12 +228,7 @@ impl HttpClient {
         let controller = web_sys::AbortController::new().map_err(|_| {
             Error::transport_failure(None, "the browser cannot create an AbortController")
         })?;
-        let request = Self::fetch_text(
-            endpoint,
-            authorization,
-            recipe.headers(),
-            controller.signal(),
-        );
+        let request = Self::fetch_text(endpoint, authorization, recipe, controller.signal());
         let _abort = AbortOnDrop(controller);
         let timer = gloo_timers::future::sleep(timeout);
         match select(std::pin::pin!(request), std::pin::pin!(timer)).await {
@@ -253,17 +244,21 @@ impl HttpClient {
     async fn fetch_text(
         endpoint: String,
         authorization: Option<String>,
-        headers: &[(String, String)],
+        recipe: &ConnectionRecipe,
         signal: web_sys::AbortSignal,
     ) -> Result<String, Error> {
         use super::headers::{compose, user_agent, BROWSER_USER_AGENT_HEADER};
-        // Browsers forbid `User-Agent`, so the official format travels in its own header.
+        // Browsers forbid `User-Agent`, so the official format travels in its own header; the
+        // request hook sees the composed headers.
         let mut request = gloo_net::http::Request::post(&endpoint).abort_signal(Some(&signal));
-        for (name, value) in compose(
+        let composed = compose(
             &[(BROWSER_USER_AGENT_HEADER, user_agent())],
-            headers,
+            recipe.headers(),
             authorization,
-        ) {
+        );
+        for (name, value) in
+            super::request_hook::apply(recipe.request_hook(), None, "POST", &endpoint, composed)
+        {
             request = request.header(&name, &value);
         }
         let response = request.send().await.map_err(|error| {

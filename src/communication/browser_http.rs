@@ -216,27 +216,42 @@ impl Inner {
             .method(method.clone())
             .abort_signal(Some(&controller.signal()));
         // Browsers forbid `User-Agent`, so the official format travels in its own header.
-        for (name, value) in compose(
+        let mut composed = compose(
             &[(BROWSER_USER_AGENT_HEADER, user_agent())],
             self.recipe.headers(),
             authorization,
+        );
+        // The hook sees, and may replace, the body's content type, as natively.
+        if body.is_some() {
+            let content_type = if self.binary {
+                "application/octet-stream"
+            } else {
+                "text/plain;charset=UTF-8"
+            };
+            composed.insert(0, ("Content-Type".to_string(), content_type.to_string()));
+        }
+        // The request hook sees the composed headers.
+        for (name, value) in super::request_hook::apply(
+            self.recipe.request_hook(),
+            Some(self.kind),
+            method.as_str(),
+            &self.url,
+            composed,
         ) {
             request = request.header(&name, &value);
         }
         let request = match body {
             Some(body) => {
-                let (content_type, value) = if self.binary {
+                // The content type is among the headers set above.
+                let value = if self.binary {
                     // A copy in a fresh JavaScript buffer, never a view of (shared) wasm memory.
-                    (
-                        "application/octet-stream",
-                        JsValue::from(js_sys::Uint8Array::from(body)),
-                    )
+                    JsValue::from(js_sys::Uint8Array::from(body))
                 } else {
                     let text = std::str::from_utf8(body)
                         .map_err(|_| Error::serialization("a JSON frame is not UTF-8"))?;
-                    ("text/plain;charset=UTF-8", JsValue::from_str(text))
+                    JsValue::from_str(text)
                 };
-                request.header("Content-Type", content_type).body(value)
+                request.body(value)
             }
             None => request.build(),
         }

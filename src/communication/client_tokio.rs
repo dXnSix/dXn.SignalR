@@ -2206,11 +2206,19 @@ impl CommunicationClient {
         // Composed as for negotiate; native clients authenticate the upgrade with the same
         // Authorization header.
         let endpoint_url = endpoint.to_string();
+        // The request hook sees the upgrade before the jar's cookies are added, as .NET's
+        // `HttpMessageHandlerFactory` handler runs outside the handler that adds them.
         let composed = super::headers::with_cookies(
-            super::headers::compose(
-                &[("User-Agent", super::headers::user_agent())],
-                recipe.headers(),
-                authorization,
+            super::request_hook::apply(
+                recipe.request_hook(),
+                Some(TransportKind::WebSockets),
+                "GET",
+                &endpoint_url,
+                super::headers::compose(
+                    &[("User-Agent", super::headers::user_agent())],
+                    recipe.headers(),
+                    authorization,
+                ),
             ),
             recipe.cookies().cookie_header(&endpoint_url),
         );
@@ -2303,6 +2311,15 @@ impl CommunicationClient {
             recipe.headers(),
             authorization,
         );
+        // The request hook sees the logical upgrade once, as .NET's `HttpMessageHandlerFactory`;
+        // cookies and integrated-authentication legs come after it.
+        let composed = super::request_hook::apply(
+            recipe.request_hook(),
+            Some(TransportKind::WebSockets),
+            "GET",
+            &endpoint_url,
+            composed,
+        );
         let build = |integrated: Option<String>| {
             let mut request = http::Request::get(path)
                 .header(header::HOST, authority)
@@ -2310,24 +2327,14 @@ impl CommunicationClient {
                 .header(header::UPGRADE, "websocket")
                 .header(header::SEC_WEBSOCKET_VERSION, "13")
                 .header(header::SEC_WEBSOCKET_KEY, key.as_str());
-            let mut cookie = recipe.cookies().cookie_header(&endpoint_url);
-            for (name, value) in &composed {
-                // A challenge leg carries the integrated token instead of other credentials.
-                if integrated.is_some() && name.eq_ignore_ascii_case("authorization") {
-                    continue;
-                }
-                match cookie.take_if(|_| name.eq_ignore_ascii_case("cookie")) {
-                    Some(cookie) => {
-                        request = request.header(name.as_str(), format!("{value}; {cookie}"));
-                    }
-                    None => request = request.header(name.as_str(), value.as_str()),
-                }
-            }
-            if let Some(cookie) = cookie {
-                request = request.header(header::COOKIE, cookie);
-            }
-            if let Some(integrated) = integrated {
-                request = request.header(header::AUTHORIZATION, integrated);
+            // A challenge leg carries the integrated token instead of other credentials.
+            let leg = super::headers::leg(
+                &composed,
+                recipe.cookies().cookie_header(&endpoint_url),
+                integrated,
+            );
+            for (name, value) in leg {
+                request = request.header(name.as_str(), value.as_str());
             }
             request.body(Empty::<bytes::Bytes>::new()).map_err(|_| {
                 Error::configuration(

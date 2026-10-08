@@ -23,39 +23,60 @@ use tokio::{
     net::TcpStream,
 };
 
-use super::{integrated_auth::SecurityProvider, tls::TlsContext};
+use super::{integrated_auth::SecurityProvider, request_hook::RequestHook, tls::TlsContext};
 use crate::error::{Error, TimeoutOperation};
+
+/// What a negotiate request is sent with: the connection's application headers, TLS, proxy,
+/// cookies, integrated authentication and request hook.
+pub(crate) struct Options<'a> {
+    pub(crate) headers: &'a [(String, String)],
+    pub(crate) tls: &'a TlsContext,
+    pub(crate) proxy: &'a super::proxy::ProxyConfig,
+    pub(crate) cookies: &'a crate::CookieJar,
+    pub(crate) integrated: Option<&'a Arc<dyn SecurityProvider>>,
+    pub(crate) hook: Option<&'a RequestHook>,
+}
+
+impl<'a> Options<'a> {
+    /// The options of the connection `recipe` describes.
+    pub(crate) fn of(recipe: &'a crate::client::ConnectionRecipe) -> Self {
+        Self {
+            headers: recipe.headers(),
+            tls: recipe.tls(),
+            proxy: recipe.proxy(),
+            cookies: recipe.cookies(),
+            integrated: recipe.integrated(),
+            hook: recipe.request_hook(),
+        }
+    }
+}
 
 /// POSTs an empty body to `url` within `timeout` (the connection's connect timeout) and returns
 /// the response text; non-2xx statuses are errors.
-#[allow(clippy::too_many_arguments)]
 pub(crate) async fn post(
     url: &str,
     authorization: Option<String>,
-    headers: &[(String, String)],
-    tls: &TlsContext,
-    proxy: &super::proxy::ProxyConfig,
-    cookies: &crate::CookieJar,
-    integrated: Option<&Arc<dyn SecurityProvider>>,
+    options: Options<'_>,
     timeout: std::time::Duration,
 ) -> Result<String, Error> {
-    tokio::time::timeout(
-        timeout,
-        post_unbounded(url, authorization, headers, tls, proxy, cookies, integrated),
-    )
-    .await
-    .map_err(|_| Error::timed_out(TimeoutOperation::Negotiate, timeout))?
+    tokio::time::timeout(timeout, post_unbounded(url, authorization, options))
+        .await
+        .map_err(|_| Error::timed_out(TimeoutOperation::Negotiate, timeout))?
 }
 
 async fn post_unbounded(
     url: &str,
     authorization: Option<String>,
-    headers: &[(String, String)],
-    tls: &TlsContext,
-    proxy: &super::proxy::ProxyConfig,
-    cookies: &crate::CookieJar,
-    integrated: Option<&Arc<dyn SecurityProvider>>,
+    options: Options<'_>,
 ) -> Result<String, Error> {
+    let Options {
+        headers,
+        tls,
+        proxy,
+        cookies,
+        integrated,
+        hook,
+    } = options;
     let uri: Uri = url.parse().map_err(|error| {
         Error::negotiate(None, format!("the negotiate URL is invalid: {error}"))
     })?;
@@ -96,30 +117,17 @@ async fn post_unbounded(
         authorization,
     );
     // Every leg carries the jar's current cookies; a challenge leg of integrated authentication
-    // carries its token instead of other credentials.
+    // carries its token instead of other credentials; the request hook sees the result.
+    // The request hook sees the logical request once, as a .NET `HttpMessageHandlerFactory`
+    // handler sees one `SendAsync`; cookies and integrated-authentication legs come after it.
+    let composed = super::request_hook::apply(hook, None, "POST", url, composed);
     let build = |integrated: Option<String>| {
         let mut request = Request::post(path)
             .header(header::HOST, authority.as_str())
             .header(header::CONTENT_LENGTH, 0);
-        let cookie = cookies.cookie_header(url);
-        let mut cookie_sent = false;
-        for (name, value) in &composed {
-            if integrated.is_some() && name.eq_ignore_ascii_case("authorization") {
-                continue;
-            }
-            match (&cookie, name.eq_ignore_ascii_case("cookie")) {
-                (Some(cookie), true) => {
-                    request = request.header(name.as_str(), format!("{value}; {cookie}"));
-                    cookie_sent = true;
-                }
-                _ => request = request.header(name.as_str(), value.as_str()),
-            }
-        }
-        if let (Some(cookie), false) = (cookie, cookie_sent) {
-            request = request.header(header::COOKIE, cookie);
-        }
-        if let Some(integrated) = integrated {
-            request = request.header(header::AUTHORIZATION, integrated);
+        let leg = super::headers::leg(&composed, cookies.cookie_header(url), integrated);
+        for (name, value) in leg {
+            request = request.header(name.as_str(), value.as_str());
         }
         request.body(Empty::<Bytes>::new()).map_err(|_| {
             Error::configuration(
@@ -538,11 +546,14 @@ mod connection_setup_bounds {
         let error = post(
             &format!("http://127.0.0.1:{port}/hub/negotiate?access_token=secret"),
             None,
-            &[],
-            &tls,
-            &crate::communication::proxy::ProxyConfig::Disabled,
-            &crate::CookieJar::new(),
-            None,
+            super::Options {
+                headers: &[],
+                tls: &tls,
+                proxy: &crate::communication::proxy::ProxyConfig::Disabled,
+                cookies: &crate::CookieJar::new(),
+                integrated: None,
+                hook: None,
+            },
             Duration::from_millis(300),
         )
         .await
@@ -559,5 +570,79 @@ mod connection_setup_bounds {
         );
         assert!(started.elapsed() < Duration::from_secs(5));
         silent.abort();
+    }
+}
+
+#[cfg(test)]
+mod transport_hooks_negotiate {
+    use std::sync::{Arc, Mutex};
+
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    use super::{post, Options};
+    use crate::communication::{request_hook::RequestHook, tls::TlsContext};
+
+    #[tokio::test]
+    async fn transport_hooks_change_the_negotiate_request() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut head = Vec::new();
+            while !head.ends_with(b"\r\n\r\n") {
+                let mut byte = [0u8; 1];
+                stream.read_exact(&mut byte).await.unwrap();
+                head.push(byte[0]);
+            }
+            let body = "{\"negotiateVersion\":1}";
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{body}",
+                body.len()
+            );
+            stream.write_all(response.as_bytes()).await.unwrap();
+            String::from_utf8(head).unwrap().to_ascii_lowercase()
+        });
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let recorded = seen.clone();
+        let hook: RequestHook = Arc::new(move |request| {
+            recorded.lock().unwrap().push((
+                request.transport(),
+                request.method().to_string(),
+                request.url().to_string(),
+                request.header("x-tenant").map(str::to_string),
+            ));
+            request.set_header("X-Hook", "negotiate").unwrap();
+            request.remove_header("X-Requested-With");
+        });
+        let tls = TlsContext::for_connection(false, &Default::default()).unwrap();
+        let url = format!("http://127.0.0.1:{port}/hub/negotiate?negotiateVersion=1");
+        let body = post(
+            &url,
+            Some("Bearer token".to_string()),
+            Options {
+                headers: &[("X-Tenant".to_string(), "blue".to_string())],
+                tls: &tls,
+                proxy: &crate::communication::proxy::ProxyConfig::Disabled,
+                cookies: &crate::CookieJar::new(),
+                integrated: None,
+                hook: Some(&hook),
+            },
+            std::time::Duration::from_secs(10),
+        )
+        .await
+        .unwrap();
+        assert_eq!(body, "{\"negotiateVersion\":1}");
+        let head = server.await.unwrap();
+        assert!(head.contains("\r\nx-hook: negotiate\r\n"), "{head}");
+        assert!(!head.contains("x-requested-with"), "{head}");
+        assert!(
+            head.contains("\r\nauthorization: bearer token\r\n"),
+            "{head}"
+        );
+        assert_eq!(
+            *seen.lock().unwrap(),
+            vec![(None, "POST".to_string(), url, Some("blue".to_string()))],
+            "the hook ran once, on the final headers"
+        );
     }
 }

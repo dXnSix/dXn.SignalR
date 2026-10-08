@@ -157,29 +157,50 @@ impl Lane {
         .await
     }
 
-    /// The request for this lane's target with the transport's headers.
+    /// The headers of one logical request: the transport's `headers`, then the composed defaults,
+    /// application headers and credentials, as the request hook leaves them. The hook runs here,
+    /// once per logical request, as a .NET `HttpMessageHandlerFactory` handler sees one
+    /// `SendAsync`; cookies, integrated-authentication legs and a retry on a fresh connection come
+    /// after it, as `SocketsHttpHandler` adds them inside.
+    fn prepare(
+        &self,
+        method: &Method,
+        headers: &[(&str, &str)],
+        authorization: Option<String>,
+    ) -> Vec<(String, String)> {
+        let mut all: Vec<(String, String)> = headers
+            .iter()
+            .map(|(name, value)| ((*name).to_string(), (*value).to_string()))
+            .collect();
+        all.extend(super::headers::compose(
+            &[("User-Agent", super::headers::user_agent())],
+            self.recipe.headers(),
+            authorization,
+        ));
+        super::request_hook::apply(
+            self.recipe.request_hook(),
+            Some(self.kind),
+            method.as_str(),
+            &self.target.url(),
+            all,
+        )
+    }
+
+    /// One leg of a request for this lane's target: the prepared `headers`, the jar's current
+    /// cookies and an integrated-authentication token replacing other credentials.
     fn build(
         &self,
         method: Method,
         body: Bytes,
-        headers: &[(&str, &str)],
-        authorization: Option<String>,
+        headers: &[(String, String)],
+        integrated: Option<String>,
     ) -> Result<Request<Full<Bytes>>, Error> {
         let mut request = Request::builder()
             .method(method)
             .uri(self.target.path_and_query.as_str())
             .header(header::HOST, self.target.authority.as_str());
-        for (name, value) in headers {
-            request = request.header(*name, *value);
-        }
-        for (name, value) in super::headers::with_cookies(
-            super::headers::compose(
-                &[("User-Agent", super::headers::user_agent())],
-                self.recipe.headers(),
-                authorization,
-            ),
-            self.recipe.cookies().cookie_header(&self.target.url()),
-        ) {
+        let cookies = self.recipe.cookies().cookie_header(&self.target.url());
+        for (name, value) in super::headers::leg(headers, cookies, integrated) {
             request = request.header(name.as_str(), value.as_str());
         }
         request.body(Full::new(body)).map_err(|_| {
@@ -201,19 +222,17 @@ impl Lane {
         content_type: Option<&str>,
         authorization: Option<String>,
     ) -> Result<Response, Error> {
+        let content: Vec<(&str, &str)> = content_type
+            .map(|content_type| vec![("Content-Type", content_type)])
+            .unwrap_or_default();
+        let headers = self.prepare(&method, &content, authorization);
         let reused = match self.connection.take() {
             Some(connection) if !connection.sender.is_closed() => Some(connection),
             _ => None,
         };
         let retry = reused.is_some();
         match self
-            .exchange(
-                reused,
-                method.clone(),
-                body.clone(),
-                content_type,
-                authorization.clone(),
-            )
+            .exchange(reused, method.clone(), body.clone(), &headers)
             .await
         {
             Err(ExchangeError::Unanswered(error)) if retry => {
@@ -221,7 +240,7 @@ impl Lane {
                     "Retrying the {} {method} request on a fresh connection: {error}",
                     self.kind
                 );
-                self.exchange(None, method, body, content_type, authorization)
+                self.exchange(None, method, body, &headers)
                     .await
                     .map_err(ExchangeError::into_error)
             }
@@ -235,8 +254,7 @@ impl Lane {
         connection: Option<Connection<Full<Bytes>>>,
         method: Method,
         body: Bytes,
-        content_type: Option<&str>,
-        authorization: Option<String>,
+        headers: &[(String, String)],
     ) -> Result<Response, ExchangeError> {
         let mut connection = match connection {
             Some(connection) => connection,
@@ -248,9 +266,6 @@ impl Lane {
                     .with_source(error),
             )
         })?;
-        let headers: Vec<(&str, &str)> = content_type
-            .map(|content_type| vec![("Content-Type", content_type)])
-            .unwrap_or_default();
         // Integrated-authentication challenges are answered on this connection (or a new one when
         // the server closes it); a challenge leg carries its token instead of the transport's
         // credentials, and every leg the jar's current cookies.
@@ -261,14 +276,7 @@ impl Lane {
             self.target.host(),
             || self.connect(),
             |headers| self.recipe.cookies().store_response(&url, headers),
-            |leg| {
-                self.build(
-                    method.clone(),
-                    body.clone(),
-                    &headers,
-                    leg.or_else(|| authorization.clone()),
-                )
-            },
+            |leg| self.build(method.clone(), body.clone(), headers, leg),
         )
         .await
         .map_err(|failure| match failure {
@@ -307,6 +315,7 @@ impl Lane {
         headers: &[(&str, &str)],
         authorization: Option<String>,
     ) -> Result<hyper::Response<Incoming>, Error> {
+        let headers = self.prepare(&Method::GET, headers, authorization);
         let mut connection = self.connect().await?;
         connection.sender.ready().await.map_err(|error| {
             self.error(format!("the {} connection failed: {error}", self.kind))
@@ -319,14 +328,7 @@ impl Lane {
             self.target.host(),
             || self.connect(),
             |headers| self.recipe.cookies().store_response(&url, headers),
-            |leg| {
-                self.build(
-                    Method::GET,
-                    Bytes::new(),
-                    headers,
-                    leg.or_else(|| authorization.clone()),
-                )
-            },
+            |leg| self.build(Method::GET, Bytes::new(), &headers, leg),
         )
         .await
         .map_err(|failure| match failure {

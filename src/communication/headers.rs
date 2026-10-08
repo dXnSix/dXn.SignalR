@@ -112,20 +112,46 @@ pub(crate) fn with_cookies(
     headers
 }
 
+/// The headers of one request leg: `composed` with the jar's `cookies` after any application
+/// `Cookie` header, and an integrated-authentication `integrated` token replacing other
+/// credentials.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn leg(
+    composed: &[(String, String)],
+    cookies: Option<String>,
+    integrated: Option<String>,
+) -> Vec<(String, String)> {
+    let mut headers: Vec<(String, String)> = composed
+        .iter()
+        .filter(|(name, _)| integrated.is_none() || !name.eq_ignore_ascii_case("authorization"))
+        .cloned()
+        .collect();
+    headers = with_cookies(headers, cookies);
+    if let Some(integrated) = integrated {
+        headers.push(("Authorization".to_string(), integrated));
+    }
+    headers
+}
+
 /// Validates an application header before any I/O: a token name the transport does not own, and
 /// a value of visible ASCII, spaces and tabs (no line breaks), as `http::HeaderValue` accepts.
 pub(crate) fn validate(name: &str, value: &str) -> Result<(), Error> {
+    validate_for("with_header", name, value)
+}
+
+/// [`validate`] for the setting `setting` names in its errors.
+pub(crate) fn validate_for(setting: &'static str, name: &str, value: &str) -> Result<(), Error> {
     let lower = name.to_ascii_lowercase();
     if RESERVED.contains(&lower.as_str()) || lower.starts_with("sec-websocket-") {
         return Err(Error::configuration(
-            "with_header",
+            setting,
             format!("the {name} header belongs to the transport and cannot be set"),
         ));
     }
     let token = |byte: u8| byte.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&byte);
     if name.is_empty() || !name.bytes().all(token) {
         return Err(Error::configuration(
-            "with_header",
+            setting,
             format!("{name:?} is not a valid HTTP header name"),
         ));
     }
@@ -135,7 +161,7 @@ pub(crate) fn validate(name: &str, value: &str) -> Result<(), Error> {
     {
         // The value may be a secret, so it is never repeated.
         return Err(Error::configuration(
-            "with_header",
+            setting,
             format!("the value of the {name} header is not a valid HTTP header value"),
         ));
     }

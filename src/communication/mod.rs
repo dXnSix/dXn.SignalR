@@ -14,6 +14,7 @@ pub(crate) mod loopback_server;
 mod negotiate_http;
 pub(crate) mod negotiation;
 pub mod reconnection;
+pub(crate) mod request_hook;
 pub(crate) mod stateful;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod tls;

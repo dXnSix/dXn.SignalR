@@ -93,6 +93,8 @@ pub struct ConnectionConfiguration {
     /// Integrated authentication (`with_default_credentials`, `with_credentials`).
     #[cfg(not(target_arch = "wasm32"))]
     _integrated: Option<crate::communication::integrated_auth::IntegratedCredentials>,
+    /// Sees every HTTP request before it is sent (`with_request_hook`).
+    _request_hook: Option<crate::communication::request_hook::RequestHook>,
 }
 
 impl Authentication {
@@ -186,6 +188,8 @@ pub(crate) struct ConnectionRecipe {
     /// The Tokio runtime that owns this connection's I/O, timers and tasks.
     #[cfg(not(target_arch = "wasm32"))]
     runtime: Option<tokio::runtime::Handle>,
+    /// Sees every HTTP request before it is sent (`with_request_hook`).
+    request_hook: Option<crate::communication::request_hook::RequestHook>,
 }
 
 impl ConnectionRecipe {
@@ -214,6 +218,11 @@ impl ConnectionRecipe {
     /// The largest inbound hub message accepted (`None`: unbounded).
     pub(crate) fn maximum_message_size(&self) -> Option<usize> {
         self.maximum_message_size
+    }
+
+    /// The request hook (`with_request_hook`), when the application set one.
+    pub(crate) fn request_hook(&self) -> Option<&crate::communication::request_hook::RequestHook> {
+        self.request_hook.as_ref()
     }
 
     /// The application headers (`with_header`), validated when the client was built.
@@ -445,6 +454,7 @@ impl ConnectionConfiguration {
             _cookies: crate::CookieJar::new(),
             #[cfg(not(target_arch = "wasm32"))]
             _integrated: None,
+            _request_hook: None,
         }
     }
 
@@ -629,6 +639,83 @@ impl ConnectionConfiguration {
         Fut: std::future::Future<Output = Result<String, String>> + 'static,
     {
         self._access_token_factory = Some(std::rc::Rc::new(move || Box::pin(factory())));
+        self
+    }
+
+    /// Lets `hook` see and change every HTTP request before it is sent, as the .NET client's
+    /// `HttpMessageHandlerFactory` (and, for the WebSocket upgrade, `WebSocketConfiguration`)
+    /// does: natively negotiate, the WebSocket upgrade and every Long Polling and Server-Sent
+    /// Events request, each leg of integrated authentication included; in browsers every `fetch`
+    /// (negotiate, Long Polling, Server-Sent Events sends), as browser WebSockets and
+    /// `EventSource` streams carry no application headers. Like a .NET handler, it runs once per
+    /// request, with the defaults, `with_header` values, the credentials' `Authorization` and the
+    /// body's `Content-Type`; cookies and integrated-authentication tokens are added after it on
+    /// every leg, and a retried request keeps its changes.
+    ///
+    /// ```no_run
+    /// # fn example() -> Result<(), rayx_signalr::Error> {
+    /// let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+    ///     c.with_request_hook(|request| {
+    ///         // A header the application computes per request.
+    ///         let _ = request.set_header("X-Request-Source", "rayx");
+    ///     });
+    /// })?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_request_hook<F>(&mut self, hook: F) -> &ConnectionConfiguration
+    where
+        F: Fn(&mut crate::HttpRequest<'_>) + Send + Sync + 'static,
+    {
+        self._request_hook = Some(std::sync::Arc::new(hook));
+        self
+    }
+
+    /// Lets `hook` see and change every HTTP request before it is sent, as the .NET client's
+    /// `HttpMessageHandlerFactory`: in browsers every `fetch` (negotiate, Long Polling,
+    /// Server-Sent Events sends); browser WebSockets and `EventSource` streams carry no
+    /// application headers. It runs once per request, with the defaults, `with_header` values,
+    /// the credentials' `Authorization` and the body's `Content-Type`.
+    #[cfg(target_arch = "wasm32")]
+    pub fn with_request_hook<F>(&mut self, hook: F) -> &ConnectionConfiguration
+    where
+        F: Fn(&mut crate::HttpRequest<'_>) + 'static,
+    {
+        self._request_hook = Some(std::rc::Rc::new(hook));
+        self
+    }
+
+    /// Lets `hook` adjust the rustls `ClientConfig` of every secure native connection before its
+    /// first use, as the .NET client's `HttpMessageHandlerFactory` and `WebSocketConfiguration`
+    /// expose the TLS options of `SocketsHttpHandler` and `ClientWebSocket`. The hook runs once
+    /// per connection's config (built at `connect`, or on a first redirect to a secure endpoint)
+    /// and its result is shared by negotiate, every transport and every reconnect. The config
+    /// uses [`rayx_signalr::tls::rustls`](crate::tls::rustls).
+    ///
+    /// The hook can weaken security: replacing the certificate verifier (`dangerous()`) or the
+    /// protocol versions is the application's explicit choice. The client offers no ALPN
+    /// protocols by default and speaks HTTP/1.1, so a hook that sets `alpn_protocols` must
+    /// include `http/1.1`.
+    ///
+    /// ```no_run
+    /// # fn example() -> Result<(), rayx_signalr::Error> {
+    /// let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+    ///     c.with_tls_config_hook(|config| {
+    ///         config.enable_sni = false;
+    ///     });
+    /// })?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[cfg(all(not(target_arch = "wasm32"), rayx_tls))]
+    pub fn with_tls_config_hook<F>(&mut self, hook: F) -> &ConnectionConfiguration
+    where
+        F: Fn(&mut crate::tls::rustls::ClientConfig) + Send + Sync + 'static,
+    {
+        self._tls.config_hook = Some(crate::communication::tls::TlsConfigHook(
+            std::sync::Arc::new(hook),
+        ));
         self
     }
 
@@ -931,6 +1018,7 @@ impl ConnectionConfiguration {
             cookies: self._cookies.clone(),
             #[cfg(not(target_arch = "wasm32"))]
             integrated: None,
+            request_hook: self._request_hook.clone(),
         }
     }
 

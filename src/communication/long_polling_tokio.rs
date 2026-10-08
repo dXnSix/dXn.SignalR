@@ -995,6 +995,89 @@ mod long_polling_exchanges {
         assert_eq!(retried.method, "GET");
     }
 
+    #[tokio::test]
+    async fn transport_hooks_change_every_long_polling_request() {
+        let (_release, released) = mpsc::unbounded_channel();
+        let held = held_polls(
+            Arc::new(tokio::sync::Mutex::new(released)),
+            Arc::new(AtomicUsize::new(0)),
+        );
+        let mut server = ScriptedServer::start(held).await;
+        let recipe = recipe(server.port, |configuration| {
+            configuration.with_request_hook(|request| {
+                let tag = format!(
+                    "{:?} {} {}",
+                    request.transport(),
+                    request.method(),
+                    request.header("content-type").unwrap_or("-")
+                );
+                request.set_header("X-Hook", tag).unwrap();
+            });
+        });
+        let (mut sender, _frames) = start(&url(server.port), &recipe, false).await.unwrap();
+        assert_eq!(
+            server.next().await.header("x-hook"),
+            Some("Some(LongPolling) GET -")
+        );
+        assert_eq!(
+            server.next().await.header("x-hook"),
+            Some("Some(LongPolling) GET -"),
+            "every poll"
+        );
+        sender.send(Message::text("a\u{1e}")).await.unwrap();
+        let send = server.next().await;
+        assert_eq!(send.method, "POST");
+        assert_eq!(
+            send.header("x-hook"),
+            Some("Some(LongPolling) POST text/plain;charset=UTF-8"),
+            "the hook sees the content type"
+        );
+    }
+
+    #[tokio::test]
+    async fn transport_hooks_run_once_per_logical_request_also_when_retried() {
+        let gets = Arc::new(AtomicUsize::new(0));
+        let served = gets.clone();
+        let mut server = ScriptedServer::start(script(move |exchange| {
+            let n = if exchange.method == "GET" {
+                served.fetch_add(1, Ordering::SeqCst)
+            } else {
+                usize::MAX
+            };
+            async move {
+                match n {
+                    // The second poll is dropped on the reused connection and retried.
+                    1 => Reply::Drop,
+                    // The retried poll is held, so no further poll starts.
+                    2 => futures::future::pending::<Reply>().await,
+                    _ => Reply::Status(200, Vec::new()),
+                }
+            }
+        }))
+        .await;
+        let hooked = Arc::new(AtomicUsize::new(0));
+        let counted = hooked.clone();
+        let recipe = recipe(server.port, move |configuration| {
+            configuration.with_request_hook(move |request| {
+                let call = counted.fetch_add(1, Ordering::SeqCst);
+                request.set_header("X-Hook", call.to_string()).unwrap();
+            });
+        });
+        let (_sender, _frames) = start(&url(server.port), &recipe, false).await.unwrap();
+        let first = server.next().await;
+        let dropped = server.next().await;
+        let retried = server.next().await;
+        assert_eq!(first.header("x-hook"), Some("0"));
+        assert_eq!(dropped.header("x-hook"), Some("1"));
+        assert_eq!(
+            retried.header("x-hook"),
+            Some("1"),
+            "the retry keeps the hook's headers without running it again"
+        );
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert_eq!(hooked.load(Ordering::SeqCst), 2);
+    }
+
     impl ScriptedServer {
         async fn next_raw(&mut self) -> Option<Exchange> {
             self.requests.recv().await

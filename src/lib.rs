@@ -29,6 +29,7 @@ pub use communication::reconnection::{
     ExponentialBackoffPolicy, LinearBackoffPolicy, NoReconnectPolicy, ReconnectionConfig,
     ReconnectionPolicy, RetryContext,
 };
+pub use communication::request_hook::HttpRequest;
 pub use communication::transport::{TransportKind, Transports};
 pub use completer::{CompletedFuture, ManualFuture, ManualStream};
 pub use error::{CloseReason, Error, ErrorKind, TimeoutOperation, TransportAttempt};
@@ -38,6 +39,11 @@ pub use protocol::hub_protocol::HubProtocolKind;
 /// Native TLS integration points.
 #[cfg(not(target_arch = "wasm32"))]
 pub mod tls {
+    /// The rustls version the client builds its `ClientConfig` with, for
+    /// [`with_tls_config_hook`](crate::ConnectionConfiguration::with_tls_config_hook).
+    #[cfg(rayx_tls)]
+    pub use rustls;
+
     /// Android initialization for the platform certificate verifier. Call one of these once,
     /// with the JNI environment and an Android `Context` (for example from a native method the
     /// app's `Application` or `Activity` calls at start-up; `JNI_OnLoad` receives no
