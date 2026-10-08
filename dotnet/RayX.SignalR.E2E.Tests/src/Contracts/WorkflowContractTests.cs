@@ -30,7 +30,7 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
                                              path => Path.GetFileName(path),
                                              File.ReadAllText,
                                              StringComparer.Ordinal);
-    Assert.Equal(["e2e.yml", "quality.yml"], workflows.Keys.Order(StringComparer.Ordinal));
+    Assert.Equal(["e2e.yml", "perf.yml", "quality.yml"], workflows.Keys.Order(StringComparer.Ordinal));
     return workflows;
   }
 
@@ -40,8 +40,19 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
   {
     foreach((string name, string workflow) in Workflows())
     {
-      AssertMatches(name, workflow, @"(?ms)^on:\s*.*?pull_request:");
-      AssertMatches(name, workflow, @"(?ms)^on:\s*.*?push:");
+      // The performance comparison runs only on schedule and on demand; every other workflow
+      // gates pull requests and pushes.
+      if(name == "perf.yml")
+      {
+        AssertMatches(name, workflow, @"(?ms)^on:\s*.*?schedule:");
+        AssertMatches(name, workflow, @"(?ms)^on:\s*.*?workflow_dispatch:");
+        AssertNotMatches(name, workflow, @"(?m)^\s+(pull_request|push):");
+      }
+      else
+      {
+        AssertMatches(name, workflow, @"(?ms)^on:\s*.*?pull_request:");
+        AssertMatches(name, workflow, @"(?ms)^on:\s*.*?push:");
+      }
       AssertMatches(name, workflow, @"(?m)^permissions:\s*\r?\n\s+contents:\s*read\s*$");
       AssertMatches(name, workflow, @"(?ms)^concurrency:\s*.*?cancel-in-progress:\s*true");
       AssertNotMatches(name, workflow, @"(?im)^\s*[A-Za-z-]+:\s*write\s*$");
@@ -55,12 +66,21 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
       int checkouts = actions.Count(action => action.StartsWith("actions/checkout@", StringComparison.Ordinal));
       Assert.Equal(checkouts, PersistCredentialsDisabled().Count(workflow));
 
-      // Every upload step is a recognized, failure-only, bounded diagnostics upload.
+      // Every upload step is a recognized, bounded upload: failure-only redacted diagnostics, or
+      // the performance report (always, 30 days).
       Assert.Equal(
         Regex.Count(workflow, @"uses:\s*actions/upload-artifact@v7"),
         UploadStep().Count(workflow));
       foreach(Match upload in UploadStep().Matches(workflow))
       {
+        if(name == "perf.yml")
+        {
+          Assert.Matches(@"if:\s*always\(\)", upload.Value);
+          Assert.Contains("path: artifacts-temp/perf", upload.Value, StringComparison.Ordinal);
+          Assert.Contains("retention-days: 30", upload.Value, StringComparison.Ordinal);
+          continue;
+        }
+
         Assert.Matches(@"if:\s*failure\(\)", upload.Value);
         Assert.Contains("artifacts-temp/e2e", upload.Value, StringComparison.Ordinal);
         Assert.Contains("retention-days: 7", upload.Value, StringComparison.Ordinal);
@@ -209,7 +229,7 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
               "e2e / android",
               @"RAYX_SIGNALR_E2E_TARGETS: android",
               @"rustup toolchain install 1\.92\.0 --profile minimal --target x86_64-linux-android",
-              @"cargo ndk -t x86_64 -P 24 test --test e2e --features messagepack,proxy-pac,tls-webpki-roots --no-run",
+              @"cargo ndk -t x86_64 -P 24 test --test e2e --features messagepack,proxy-pac,http3,tls-webpki-roots --no-run",
               @"KERNEL==""kvm"", GROUP=""kvm"", MODE=""0666""",
               @"uses: reactivecircus/android-emulator-runner@v2",
               @"api-level: 34",
@@ -225,6 +245,8 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
               @"RAYX_SIGNALR_E2E_TARGETS: \$\{\{ matrix\.engine \}\}",
               @"RAYX_SIGNALR_E2E_PROTOCOLS: json,messagepack",
               @"RAYX_SIGNALR_E2E_SCENARIOS: all",
+              @"RAYX_SIGNALR_E2E_TRANSPORTS: all",
+              @"(?m)^\s+schedule:",
               @"pnpm --dir tools-node install --frozen-lockfile",
               @"rustup toolchain install nightly-2026-06-23 --profile minimal --component rust-src --target wasm32-unknown-unknown",
               @"playwright install --with-deps \$\{\{ matrix\.engine \}\}",
@@ -234,7 +256,8 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
       AssertMatches("e2e.yml", e2e, pattern);
     }
 
-    Assert.Equal(4, Regex.Count(e2e, @"dotnet test dotnet/RayX\.SignalR\.E2E\.Tests --filter Category=E2E"));
+    // native, browser, android, android-app, ios, os-proxy, three tls-aws-lc jobs and soak.
+    Assert.Equal(10, Regex.Count(e2e, @"dotnet test dotnet/RayX\.SignalR\.E2E\.Tests --filter Category=E2E"));
   }
 
   [Fact]
@@ -248,7 +271,8 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
       string job = target.Name switch
       {
         "native" => "native",
-        "android" or "android-app" or "android-app-release" => "android",
+        "android" => "android",
+        "android-app" or "android-app-release" => "android-app",
         "ios" => "ios",
         _ => "browser"
       };
@@ -279,7 +303,7 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
         @"runs-on: ubuntu-latest",
         @"RAYX_SIGNALR_E2E_TARGETS: android",
         @"cargo install cargo-ndk --version 4\.1\.2 --locked",
-        @"CARGO_TARGET_DIR: target/android-e2e\s+run: cargo ndk -t x86_64 -P 24 test --test e2e --features messagepack,proxy-pac,tls-webpki-roots --no-run",
+        @"CARGO_TARGET_DIR: target/android-e2e\s+run: cargo ndk -t x86_64 -P 24 test --test e2e --features messagepack,proxy-pac,http3,tls-webpki-roots --no-run",
         @"KERNEL==""kvm""",
         @"uses: reactivecircus/android-emulator-runner@v2",
         @"api-level: 34",
@@ -306,6 +330,152 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
     Assert.Equal(
       AndroidCellRunner.TargetDirectory,
       Regex.Match(jobs["android"], @"CARGO_TARGET_DIR: (?<directory>\S+)").Groups["directory"].Value);
+  }
+
+  [Fact]
+  [Trait("Category", "WorkflowContract")]
+  public void EveryEndToEndJobRunsEveryTransport()
+  {
+    string e2e = Workflows()["e2e.yml"];
+    AssertMatches("e2e.yml", e2e, @"(?m)^env:\s*\n(?:\s+.*\n)*?\s+RAYX_SIGNALR_E2E_TRANSPORTS: all");
+    foreach((string job, string block) in JobBlocks(e2e))
+    {
+      AssertNotMatches($"e2e.yml job {job}", block, @"RAYX_SIGNALR_E2E_TRANSPORTS:");
+    }
+  }
+
+  [Fact]
+  [Trait("Category", "WorkflowContract")]
+  public void EveryEndToEndJobRunsTheTypedErrorScenario()
+  {
+    foreach((string job, string block) in JobBlocks(Workflows()["e2e.yml"]))
+    {
+      // A job inherits `all`, or names `error-kinds` in its own selection.
+      Match scenarios = Regex.Match(block, @"RAYX_SIGNALR_E2E_SCENARIOS: (?<names>\S+)");
+      if(scenarios.Success)
+      {
+        Assert.Contains("error-kinds", scenarios.Groups["names"].Value.Split(','));
+      }
+    }
+  }
+
+  [Fact]
+  [Trait("Category", "WorkflowContract")]
+  public void AndroidAppJobRunsTheDebugAndReleaseAppsOnAnEmulator()
+  {
+    string block = JobBlocks(Workflows()["e2e.yml"])["android-app"];
+    foreach(string pattern in new[]
+            {
+              "name: e2e / android-app",
+              "runs-on: ubuntu-latest",
+              "RAYX_SIGNALR_E2E_TARGETS: android-app,android-app-release",
+              @"rustup toolchain install 1\.92\.0 --profile minimal --target x86_64-linux-android",
+              @"cargo install cargo-ndk --version 4\.1\.2 --locked",
+              @"JAVA_HOME: \$\{\{ env\.JAVA_HOME_17_X64 \}\}",
+              @"KERNEL==""kvm""",
+              @"uses: reactivecircus/android-emulator-runner@v2",
+              @"api-level: 34",
+              @"script: dotnet test dotnet/RayX\.SignalR\.E2E\.Tests --filter Category=E2E"
+            })
+    {
+      AssertMatches("e2e.yml job android-app", block, pattern);
+    }
+  }
+
+  [Theory]
+  [Trait("Category", "WorkflowContract")]
+  [InlineData("tls-aws-lc-native", @"os: \[ubuntu-latest, windows-latest, macos-latest\]", "RAYX_SIGNALR_E2E_TARGETS: native")]
+  [InlineData("tls-aws-lc-android", "uses: reactivecircus/android-emulator-runner@v2", "RAYX_SIGNALR_E2E_TARGETS: android")]
+  [InlineData("tls-aws-lc-ios", "runs-on: macos-latest", "RAYX_SIGNALR_E2E_TARGETS: ios")]
+  public void TlsAwsLcJobsRunTheTlsCellsWithTheAwsLcProvider(string job, string platform, string target)
+  {
+    string block = JobBlocks(Workflows()["e2e.yml"])[job];
+    AssertMatches(job, block, @"name: e2e / tls-aws-lc \(");
+    AssertMatches(job, block, platform);
+    AssertMatches(job, block, "(?m)" + target + @"\s*$");
+    AssertMatches(job, block, "RAYX_SIGNALR_E2E_TLS_PROVIDER: aws-lc-rs");
+    AssertMatches(job, block, @"RAYX_SIGNALR_E2E_SCENARIOS: \S*\btls\b");
+    AssertMatches(job, block, @"dotnet test dotnet/RayX\.SignalR\.E2E\.Tests --filter Category=E2E");
+  }
+
+  [Fact]
+  [Trait("Category", "WorkflowContract")]
+  public void OsProxyJobsChangeSystemSettingsOnlyOnEphemeralRunners()
+  {
+    Dictionary<string, string> jobs = JobBlocks(Workflows()["e2e.yml"]);
+    string block = jobs["os-proxy"];
+    foreach(string pattern in new[]
+            {
+              @"name: e2e / os-proxy \(\$\{\{ matrix\.os \}\}\)",
+              @"os: \[windows-latest, macos-latest\]",
+              "RAYX_SIGNALR_E2E_TARGETS: native",
+              @"RAYX_SIGNALR_E2E_SCENARIOS: os-proxy,error-kinds",
+              @"RAYX_SIGNALR_E2E_ALLOW_SYSTEM_CHANGES: ""1"""
+            })
+    {
+      AssertMatches("e2e.yml job os-proxy", block, pattern);
+    }
+
+    // No other job may change the host's settings.
+    Assert.All(
+      jobs.Where(job => job.Key != "os-proxy"),
+      job => AssertNotMatches($"e2e.yml job {job.Key}", job.Value, "RAYX_SIGNALR_E2E_ALLOW_SYSTEM_CHANGES"));
+  }
+
+  [Fact]
+  [Trait("Category", "WorkflowContract")]
+  public void SoakRunsNightlyAndOnDemandFor900Seconds()
+  {
+    string e2e = Workflows()["e2e.yml"];
+    AssertMatches("e2e.yml", e2e, @"(?ms)^on:\s*.*?schedule:\s*\n\s+- cron:");
+    string block = JobBlocks(e2e)["soak"];
+    foreach(string pattern in new[]
+            {
+              "name: e2e / soak",
+              @"if: github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'",
+              @"RAYX_SIGNALR_E2E_SCENARIOS: soak-chaos,error-kinds",
+              @"RAYX_SIGNALR_SOAK_SECONDS: ""900""",
+              @"dotnet test dotnet/RayX\.SignalR\.E2E\.Tests --filter Category=E2E"
+            })
+    {
+      AssertMatches("e2e.yml job soak", block, pattern);
+    }
+  }
+
+  [Theory]
+  [Trait("Category", "WorkflowContract")]
+  [InlineData("native")]
+  [InlineData("android")]
+  public void Http3CellsGetLibmsquicOnLinux(string job)
+  {
+    string block = JobBlocks(Workflows()["e2e.yml"])[job];
+    AssertMatches(job, block, @"packages\.microsoft\.com/config/ubuntu/");
+    AssertMatches(job, block, @"sudo apt-get install -y libmsquic");
+  }
+
+  [Fact]
+  [Trait("Category", "WorkflowContract")]
+  public void PerformanceWorkflowComparesBothClientsAtFullScale()
+  {
+    string perf = Workflows()["perf.yml"];
+    Dictionary<string, string> jobs = JobBlocks(perf);
+    Assert.Equal(["compare"], jobs.Keys);
+    foreach(string pattern in new[]
+            {
+              "name: perf / compare",
+              "runs-on: ubuntu-latest",
+              @"dotnet tool install --global Aspire\.Cli --version 13\.5\.\d+",
+              @"dotnet test dotnet/RayX\.SignalR\.E2E\.Tests --filter Category=Performance",
+              @"if: always\(\)",
+              "path: artifacts-temp/perf",
+              "retention-days: 30"
+            })
+    {
+      AssertMatches("perf.yml job compare", jobs["compare"], pattern);
+    }
+
+    AssertMatches("perf.yml", perf, @"(?m)^\s+RAYX_SIGNALR_PERF_SCALE: full\s*$");
+    AssertMatches("perf.yml", perf, @"(?m)^\s+RAYX_SIGNALR_PERF_WORKLOADS: all\s*$");
   }
 
   /// <summary>Splits a workflow's <c>jobs:</c> section into job blocks by job id.</summary>
