@@ -1,12 +1,12 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 190,
-  "planRevision": 29,
+  "revision": 200,
+  "planRevision": 32,
   "specHashes": {
-    "requirements": "37870255eb21f54e70ffdbe7f2b279757789abbd741198a130ba4979edc1093a",
-    "design": "9c936115672a8ba6da21f7f470aeef75f385c2bd7d9864a79634c2f4f0919931",
-    "plan": "eb6b71fd63d6366d22b43d32c60e9c447d166500a53ec79cefa00ba9663ab1dd"
+    "requirements": "16fb407fdfc6b55f8641348271d85ba83477bcf53e0b30690f4e217989c6e9c2",
+    "design": "d5dc2f8682b7b0d7dbc938d2393a28e22b0a97a189c3e0220d909f55d209cabf",
+    "plan": "236397e271dea62376bb645ecd51ade44f0c3b42ae97556e950cbb31f42fc5a7"
   },
   "tasks": {
     "S1.T1": {
@@ -172,13 +172,22 @@
       ]
     },
     "S11.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S11.T2": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S11.T3": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S12.T1": {
       "status": "pending"
@@ -511,6 +520,15 @@
         }
       },
       "recordedAt": "2026-10-08T00:59:10Z"
+    },
+    "47360a79b653171f974dff36289cd53595701e74539d8fe50a5942c6eb308328": {
+      "snapshot": {
+        "specHash": "ff34c72b0730fed0ff30569a1cdeae561e18f15b71ee8a6e9c348c6b078f91c2",
+        "repositories": {
+          "rayx-signalr": "b1636edc0dce580d57d5635dcfaeb0b3f432f897dad75301a26fcd0c7d12f8af"
+        }
+      },
+      "recordedAt": "2026-10-08T02:21:01Z"
     }
   },
   "checkResults": {
@@ -2417,6 +2435,91 @@
       "logPath": "artifacts-temp/agentx/production-grade-client/S10-final-8b1e3865eecb.log",
       "logSha256": "d7a4cd06b0e64537dac2022ff0e2223135f74d87ae48e0af12ba028e407bf927",
       "inputsHash": "28fdbd62910d191b048efb5c5bdb5508985071167072087ccc936f18b675a4ca"
+    },
+    "S11/s11-aws-lc-native/final": {
+      "checkId": "s11-aws-lc-native",
+      "boundaryId": "S11",
+      "phase": "final",
+      "batchId": "47360a79b653171f974dff36289cd53595701e74539d8fe50a5942c6eb308328",
+      "definitionHash": "07c5c1588a72c41b1cae73347eba3e9019061032b32044167bbe7d64b8c2381f",
+      "basisHash": "0181fb1c509952e7890b777c96c6b26de11a80111fdec0df7a88e5f6a3e81c65",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 8,
+      "durationSeconds": 16.5111,
+      "recordedAt": "2026-10-08T02:16:40Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S11-final-e600eeed993e.log",
+      "logSha256": "b42ff8a8fd6e31b5170e1ec82fcce1f2f3aabe4e228dd13ae4f36bbc576fbc13",
+      "inputsHash": "ff89f44239798f079bd28788fc00f52d9fe5715c0c1ab01e4a3b6dba0c536f0a"
+    },
+    "S11/s11-aws-lc-android/final": {
+      "checkId": "s11-aws-lc-android",
+      "boundaryId": "S11",
+      "phase": "final",
+      "batchId": "47360a79b653171f974dff36289cd53595701e74539d8fe50a5942c6eb308328",
+      "definitionHash": "fc950d417737c5a5af1fc785db5032cd5d688f9c36411a8ce02541f862a7c1bb",
+      "basisHash": "4a3875ac3747e19b36fc39312fdc99a24a69294503a4b40077c951edef821a96",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 8,
+      "durationSeconds": 117.3412,
+      "recordedAt": "2026-10-08T02:18:37Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S11-final-c5d3f8c68b04.log",
+      "logSha256": "cccaeadb06062ce1dab43dd033c8f8a5d799a0679e43d8b3621340d1a0eca5e3",
+      "inputsHash": "ff89f44239798f079bd28788fc00f52d9fe5715c0c1ab01e4a3b6dba0c536f0a"
+    },
+    "S11/s11-android-app-runner/final": {
+      "checkId": "s11-android-app-runner",
+      "boundaryId": "S11",
+      "phase": "final",
+      "batchId": "47360a79b653171f974dff36289cd53595701e74539d8fe50a5942c6eb308328",
+      "definitionHash": "c949286cc9651208a4045ed84ee54c47c8922eb9503140e179d282d3c96b7b1f",
+      "basisHash": "324d717d37e67a2669ac0abdf5bc24a7a848fda8cda76bcdbdf801be5d15e653",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 21,
+      "durationSeconds": 3.1564,
+      "recordedAt": "2026-10-08T02:18:40Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S11-final-a0b20324a7ea.log",
+      "logSha256": "144e529e8ba41b07806f4adfa6a1fceeb494d2036fd7a81f3e63292e412dfb99",
+      "inputsHash": "821e177b8a7503d9bce93e47ccc7f34c6ac7a2588c40c798403e070f51f31ea8"
+    },
+    "S11/s11-android-app/final": {
+      "checkId": "s11-android-app",
+      "boundaryId": "S11",
+      "phase": "final",
+      "batchId": "47360a79b653171f974dff36289cd53595701e74539d8fe50a5942c6eb308328",
+      "definitionHash": "22629d8beed0ad86ba449c2be82d090dd2831e341eaa0dc151bc24566503ff3b",
+      "basisHash": "7e8243a88d43c3894e5c7875bac599837278ed07a2866a2da5cc9602a8fa1fd7",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 12,
+      "durationSeconds": 108.7056,
+      "recordedAt": "2026-10-08T02:20:29Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S11-final-0ddc7f21445b.log",
+      "logSha256": "c292929f0b58468d838b2a9e725badd8763c5470e0ddad5258ea927c571ecafd",
+      "inputsHash": "ff89f44239798f079bd28788fc00f52d9fe5715c0c1ab01e4a3b6dba0c536f0a"
+    },
+    "S11/s11-static-categories/final": {
+      "checkId": "s11-static-categories",
+      "boundaryId": "S11",
+      "phase": "final",
+      "batchId": "47360a79b653171f974dff36289cd53595701e74539d8fe50a5942c6eb308328",
+      "definitionHash": "457ce39ba2853bc6466b7c81e2c39d5d0b1dbd6df47da53be9db3d100659dd7e",
+      "basisHash": "8734dda8321a8db7d12837bbde85743beed91788f7e3273199243ed6967d2bd1",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 110,
+      "durationSeconds": 31.339,
+      "recordedAt": "2026-10-08T02:21:00Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S11-final-bf39f2e26346.log",
+      "logSha256": "f0d55a6144873aad9db237f13533adecb21d24aa1ccb2bcc5d13025116cd3763",
+      "inputsHash": "a3a6a4c35327f7eafc2347001a99609abf4d1984557e153e6a6846d5570e6d5f"
     }
   },
   "reviews": {
@@ -6412,6 +6515,261 @@
         "S10-F4"
       ],
       "recordedAt": "2026-10-08T01:00:40Z"
+    },
+    "S11": {
+      "reviewerId": "s11-independent-reviewer-claude-opus",
+      "snapshotId": "47360a79b653171f974dff36289cd53595701e74539d8fe50a5942c6eb308328",
+      "criterionIds": [
+        "R10.C1",
+        "R10.C2",
+        "R10.C3"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/TlsProvider.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C1"
+          ],
+          "sha256": "28593e5af3f85951cceb6f1f3a78c2c399afbfb1ceb100c1a9093e4ff4f9d884"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/CellRunners.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C1",
+            "R10.C2"
+          ],
+          "sha256": "706ae806578cfbd35ab2adf3ac1a28b0518320a03d0b61625ee9537c7240669c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/MobileCellRunners.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C1"
+          ],
+          "sha256": "da5bf0c606301df8147e6c0675a41bf3c0fdfec9e893d038c171e14e128bde40"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/tls.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C1",
+            "R10.C2"
+          ],
+          "sha256": "207691ba562a7f11568577d7d699f903540ebb3028761e33fbb16fcf1ee67d36"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/proxy.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C1"
+          ],
+          "sha256": "086622aedac5b43923567f48b6262a4770b113a2380491a9dd946d2db8ec8c6e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/TlsProviderTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R10.C1"
+          ],
+          "sha256": "b368c05bec832bce2f01c881f2446bfe7cb2ab73f211337c5e8a445acca511f2"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/E2ECellTests.cs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R10.C1",
+            "R10.C2"
+          ],
+          "sha256": "fcbd1f34b7cf96a2fb533bb2afd08357d2127bfb8ea0b060aee50481099cc307"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/AndroidAppCellRunner.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C2"
+          ],
+          "sha256": "80cf58fb1be5e9326e88c9e95ae4348166915ef41cfb9e012357148742f0362a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/ScenarioCatalog.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C2"
+          ],
+          "sha256": "47e872b94ff891b839946e3bd3bf19831cc6918a76b0371db2b739f57b444e35"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Infrastructure/AspireEnvironment.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C2"
+          ],
+          "sha256": "05bfe2fb0f2c8d58a9d0755bf6be73b6746417c3aea5f6ad98cdc9333a2668d5"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.AppHost/src/TestCertificates.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C2"
+          ],
+          "sha256": "64aaa5630c132c52d8443a76a592fa4a7dc29eed0aa76404f0a07e3a9894e366"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/UntrustedTlsListener.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C2"
+          ],
+          "sha256": "878971fc98589138a203bfe3720d61619de07420eb7b262237a753bc8f774ff9"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/tls.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C2"
+          ],
+          "sha256": "378dee8122a865e1010062cd00d0e2fadca60a69070a6d0b1c80d63b9622652c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e-scenarios/src/lib.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C2"
+          ],
+          "sha256": "2bab921d48ac8656eded1463949da2f558991ff56f5df1aa824909d144e29be1"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/android-harness/src/lib.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C2",
+            "R10.C3"
+          ],
+          "sha256": "28914388e52b8e767abbcffb108cb60a1169e89e591ac50b1abcbec3396c3b5f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/android-app/app/src/main/kotlin/dev/rayx/signalr/e2e/ScenarioInstrumentation.kt",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C2"
+          ],
+          "sha256": "8c571cfaa98abf7a890ddd3e3ff9a8a27176385af3cd204bd6c62f7924d03f6d"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/android-app/app/src/main/AndroidManifest.xml",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C2"
+          ],
+          "sha256": "de3fe341ae25f1d5be50fba4b1b93e1af94bb9e3396e45cfffe7505e8aa003eb"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/android-app/app/build.gradle.kts",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C2",
+            "R10.C3"
+          ],
+          "sha256": "dc2b6dec9ee209fec29f1b84b3aa206fb61423f61017985646e1a7bdffabdc06"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/android-app/settings.gradle.kts",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C3"
+          ],
+          "sha256": "6d4ef4628e91b6a9bb444196c5890f97d9dd01389602d333b1abded5031adb86"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/android-app/app/proguard-rules.pro",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C2",
+            "R10.C3"
+          ],
+          "sha256": "be77b715bbe7001dfcf2b73619e9b29b637617569601655bbe90e73f409581f4"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/AndroidAppRunnerTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R10.C2"
+          ],
+          "sha256": "32321b0acddb9d54199957ffdbb7d5865c5c63633474e27ab747dfde3825fc61"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/09-platforms.md",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C3"
+          ],
+          "sha256": "fc49a59ffc94573317c8e8142a0bc5507f54e0f27a9009401d631e27df0d6603"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/12-limitations.md",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C3"
+          ],
+          "sha256": "ab3630e1336d88911d204f2a9396fb65aec12196f51638b278101942d212566b"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/14-testing.md",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C3"
+          ],
+          "sha256": "39a33491b3e0fa745220aa8ba0aa74e97174b7eba0d335665c299a5b93cd90f8"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/android-app/gradle/wrapper/gradle-wrapper.properties",
+          "kind": "source",
+          "criterionIds": [
+            "R10.C2"
+          ],
+          "sha256": "032a71c92fc7f3c1cadf8880f0554b71aa6beb411f97ac253aa93932cb3784d5"
+        }
+      ],
+      "summaryMarkdown": "Re-review at rev 199: all eight findings (S11-F1 to S11-F8) are repaired, and I verified each against current source and tests. R10.C1 holds: the aws-lc-rs builds exclude ring (`cargo tree -i ring` finds nothing on the host, Android and the harness), and every connection gets an explicit provider in `src/communication/tls.rs`, which S11 does not change. R10.C2 holds: the platform verifier runs alone and trusts a user CA in `AndroidCAStore` (confirmed in the verifier's class), the untrusted second CA is rejected as a trust failure, and R8 runs with the documented keep rule. The device-owner and CA steps are now confined to emulators unless the opt-in is set, cleanup covers the failure paths, the app gets only the variables it reads (no credentials), client logs reach logcat, and the Gradle wrapper's checksum matches Gradle's published value. R10.C3 holds: docs/09 matches the working app, and docs/12 states the Android trust-store behavior. Runtime evidence: `check --sprint S11` passed 5/5 at this snapshot (12/12 app cells).",
+      "findingIds": [
+        "S11-F1",
+        "S11-F2",
+        "S11-F3",
+        "S11-F4",
+        "S11-F5",
+        "S11-F6",
+        "S11-F7",
+        "S11-F8"
+      ],
+      "recordedAt": "2026-10-08T02:21:06Z"
     }
   },
   "checkpoints": {
@@ -6534,6 +6892,14 @@
       },
       "reviewHash": "f57a42d9cf1d482fcf83aa78e32d2ef0ad6cad0eda3366423ef133336d209ae6",
       "recordedAt": "2026-10-08T01:00:51Z"
+    },
+    "S11": {
+      "snapshotId": "47360a79b653171f974dff36289cd53595701e74539d8fe50a5942c6eb308328",
+      "commits": {
+        "rayx-signalr": "a58defc954318253a1878e52243c62a217761909"
+      },
+      "reviewHash": "18426d91ea89a756dd4b6da8ea31444864c75940b8fe2b458772b702b3cc1402",
+      "recordedAt": "2026-10-08T02:21:07Z"
     }
   },
   "findings": [
@@ -9006,9 +9372,194 @@
           "symbol": "freeze_page"
         }
       ]
+    },
+    {
+      "id": "S11-F1",
+      "boundaryId": "S11",
+      "criterionIds": [
+        "R10.C3"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**Expected:** R10.C3 (amended) says the limitations chapter `docs/12-limitations.md` both drops the two 'not exercised' bullets *and states which CAs the Android platform verifier trusts* (system and user CAs, not the app's network security config). **Observed:** `docs/12-limitations.md:50-54` only removes the bullets and notes the new coverage. The trust-store statement exists only in `docs/09-platforms.md:204-208` and the skill's `platforms.md`. Nothing in docs/12, including 'Behavior with caveats' (`docs/12-limitations.md:27`), tells a reader that a network-security-config `<trust-anchors>` entry is ignored, though that is a real consumer caveat. **Fix:** add a bullet under 'Behavior with caveats' in docs/12: the Android platform verifier trusts system and user CAs (`AndroidCAStore`) and does not read the app's network security config, so private CAs must be installed on the device (settings or device policy) or passed as extra PEM roots. Link it to docs/09#android.\n\n**Resolution (rev 199, verified):** docs/12-limitations.md now has an \"Android trust with the platform verifier\" bullet under \"Behavior with caveats\": the verifier trusts system and user CAs (`AndroidCAStore`), not the network security config; install the CA on the device or use extra PEM roots. It links to docs/09.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/12-limitations.md"
+        }
+      ]
+    },
+    {
+      "id": "S11-F2",
+      "boundaryId": "S11",
+      "criterionIds": [
+        "R10.C2"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**Expected:** the device-owner set-up and the trusted-CA install are confined to the emulator. R10.C2 and D10 say the app is 'made device owner on the emulator by the runner', and the constraints allow system-changing cells only on emulators or on opt-in ephemeral runners (`RAYX_SIGNALR_E2E_ALLOW_SYSTEM_CHANGES=1`). **Observed:** `AndroidAppCellRunner.PrepareAsync` (`dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/AndroidAppCellRunner.cs:216-255`) gets the serial from `AndroidCellRunner.SelectSerial`, which returns any `RAYX_SIGNALR_E2E_ANDROID_SERIAL` value unchecked (`MobileCellRunners.cs:204-207`). The runner then runs `dpm set-device-owner`, and each scenario runs `installCaCert`, on whatever device that serial names. That includes a physical phone without accounts, such as a freshly reset test device. Nothing verifies that the device is an emulator. **Fix:** before the install or device-owner step, require `adb -s <serial> shell getprop ro.kernel.qemu` (or `ro.boot.qemu`) to be `1`, or the serial to start with `emulator-`. Otherwise refuse with an environment error that names the requirement, unless `RAYX_SIGNALR_E2E_ALLOW_SYSTEM_CHANGES=1` is set. Add an `AndroidAppRunnerTests` case for the guard: an emulator is accepted, a physical serial is rejected without the opt-in.\n\n**Resolution (rev 199, verified):** `MayChangeDevice` (an `emulator-` serial, `ro.kernel.qemu=1`, or `RAYX_SIGNALR_E2E_ALLOW_SYSTEM_CHANGES=1`) is checked in `PrepareAsync` before any build, install, device-owner or CA step, and a non-emulator gets an environment error. Covered by `OnlyAnEmulatorIsChangedUnlessSystemChangesAreAllowed`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/AndroidAppCellRunner.cs",
+          "symbol": "MayChangeDevice"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/AndroidAppRunnerTests.cs",
+          "symbol": "OnlyAnEmulatorIsChangedUnlessSystemChangesAreAllowed"
+        }
+      ]
+    },
+    {
+      "id": "S11-F3",
+      "boundaryId": "S11",
+      "criterionIds": [
+        "R10.C2"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Expected:** diagnostics never carry proxy credentials (redaction rules: `*_CREDENTIALS=` values and URL user info). **Observed:** `AndroidAppCellRunner.RunAsync` forwards every `CellExecution.ScenarioVariables` entry (`CellRunners.cs:63-84`) as one base64 `-e environment` argument (`AndroidAppCellRunner.cs:102-113, 174-180`). That includes `RAYX_SIGNALR_E2E_PROXY_CREDENTIALS=rayx:<password>`. On a failing cell, `CellDiagnostics.WriteAsync` stores `command.Display` (`CellDiagnostics.cs:37`, `ProcessRunner.cs:37`), and `Redaction.Redact` cannot see inside base64. The run's proxy password therefore lands, trivially decodable, in `artifacts-temp/e2e/<cell>.json`, which CI uploads on failure. The impact is small: the password is a per-run GUID for a loopback proxy that dies with the run, and the app scenarios never use the proxy. It still bypasses the redaction contract that the bare `android` runner's `env KEY=VALUE` form satisfies. **Fix:** stop forwarding variables the app scenarios do not need (drop `RAYX_SIGNALR_E2E_PROXY_CREDENTIALS`, and `RAYX_SIGNALR_E2E_PROXY_URL` if unused). Alternatively, or in addition, give the instrument command a display form that shows `[REDACTED]` for the `environment` value. Add an `AndroidAppRunnerTests` assertion that the displayed command does not contain the encoded password.\n\n**Resolution (rev 199, verified):** `ForApp` keeps only `AppVariables`, so the proxy URL and credentials no longer reach the base64 instrument argument or `command.Display`. Covered by `TheAppReceivesOnlyTheVariablesItsScenariosRead`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/AndroidAppCellRunner.cs",
+          "symbol": "ForApp"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/AndroidAppRunnerTests.cs",
+          "symbol": "TheAppReceivesOnlyTheVariablesItsScenariosRead"
+        }
+      ]
+    },
+    {
+      "id": "S11-F4",
+      "boundaryId": "S11",
+      "criterionIds": [
+        "R10.C2",
+        "R10.C3"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Expected:** after the rev-193 amendment, source comments and specs say trust comes from the Android trust store (a user CA installed by device policy), not from the network security config. **Observed:** stale text remains in five places: `tests/e2e/tls.rs:9-12` ('the app trusts the run's CA through its network security config'); `tests/e2e/tls.rs:18-19` ('trusting the run's CA through the platform (its network security config)'); `tests/android-harness/Cargo.toml:19` ('the app trusts the run's CA through its network security config'); D10's `invariantsMarkdown` ('trust only via the OS (network security config)'); and the `s11-android-app-runner` check description, which still lists 'network security config generation'. **Fix:** reword these to 'the Android trust store (`AndroidCAStore`): the instrumentation installs the run's CA as a user CA', and amend the D10 invariant and the check description to match.\n\n**Resolution (rev 199, verified):** The tls.rs module and `platform_trust` docs and the harness Cargo.toml comment now describe a user CA in the device store. The D10 invariant (rev 198) reads \"trust only via the OS trust store (a user CA the app installs through device policy)\", and the check description is updated. The only remaining mention of the network security config (`AndroidAppCellRunner.cs:15`) is correct.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/tls.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/android-harness/Cargo.toml"
+        }
+      ]
+    },
+    {
+      "id": "S11-F5",
+      "boundaryId": "S11",
+      "criterionIds": [
+        "R10.C2"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Expected:** the device owner, the app and the per-run user CA are always removed from the emulator. **Observed:** three gaps. (1) `AndroidAppCellRunner.CleanupAsync` (`AndroidAppCellRunner.cs:134-146`) runs only when `_installed` is non-empty, and `_installed` is set only after a successful `set-device-owner` (`:257-258`). If `adb install` succeeds and the device-owner step (or anything after the install) throws, the app stays installed. (2) `AspireEnvironment.StopAsync` (`AspireEnvironment.cs:318-323`) awaits the Android, Android-app and iOS cleanups in sequence without try/finally, so an exception in `AndroidCellRunner.CleanupAsync` skips both the device-owner removal and the AppHost stop. (3) The CA is removed only in the Kotlin `finally` (`ScenarioInstrumentation.kt:60-70`). A native crash, an ANR or the runner's `am force-stop` on timeout (`AndroidAppCellRunner.cs:182-188`) leaves the user CA installed, and nothing removes it later. The CA's private key is not persisted, so this is clutter, not exposure. **Fix:** record that the app is installed right after a successful install, and clean up on that flag. Wrap each device cleanup in `StopAsync` in its own try/catch or try/finally. Add a cleanup instrumentation mode (for example `-e cleanup 1`) that calls `DevicePolicyManager.uninstallAllUserCaCerts(admin)`; run it before `dpm remove-active-admin` and after a timed-out cell.\n\n**Resolution (rev 199, verified):** A failed `set-device-owner` now uninstalls the app. `StopAsync` runs each device clean-up in its own try/catch and logs a redacted message. The instrumentation `-e cleanup true` mode calls `uninstallAllUserCaCerts`; it runs after force-stop on a timed-out cell and in `CleanupAsync` before `remove-active-admin`. Coordinator runtime evidence: no device owner and no package remain after the run. A residual edge (cancellation between install and the device-owner step) is accepted.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/AndroidAppCellRunner.cs",
+          "symbol": "CleanupAsync"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Infrastructure/AspireEnvironment.cs",
+          "symbol": "StopAsync"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/android-app/app/src/main/kotlin/dev/rayx/signalr/e2e/ScenarioInstrumentation.kt"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/AndroidAppRunnerTests.cs",
+          "symbol": "DiagnosticsReadTheHarnessLogAndCleanUpRemovesTheTestCas"
+        }
+      ]
+    },
+    {
+      "id": "S11-F6",
+      "boundaryId": "S11",
+      "criterionIds": [
+        "R10.C2"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Expected:** app cells run 'with the same bounds and diagnostics as other cells' (R10.C2). Other Rust cells record the client's `RUST_LOG` lifecycle output in their stdout tail. **Observed:** the scenarios initialize `env_logger::builder().is_test(true)` (`tests/e2e/support.rs:176,193`), which prints to stdout. An Android app process discards stdout and stderr, and the harness installs no logcat backend (`tests/android-harness/src/lib.rs`). A failing app cell is therefore left with a logcat tail that holds no client logs, plus the `result=` text. That text is cut to its first line, because the regex at `AndroidAppCellRunner.cs:292` drops the rest of a multi-line panic message. **Fix:** in the harness, route `log` records to logcat with the `RUST_LOG` filter before the scenario starts in `runScenario` (for example with the `android_logger` crate, or a small `log::Log` that calls `__android_log_write`). Alternatively, collect the records in memory and return them with a failing result. Make `ParseInstrumentation` keep the whole multi-line result.\n\n**Resolution (rev 199, verified):** The harness initializes `android_logger` (tag `rayx-signalr`, filter from `RUST_LOG`) before the scenarios' `env_logger::try_init`, which then becomes a no-op, so client logs reach logcat. Diagnostics read the tagged logcat plus crashes. The result regex keeps a multi-line result up to the next `INSTRUMENTATION_` line. Covered by `AMultiLineFailureIsKeptWhole` and `DiagnosticsReadTheHarnessLogAndCleanUpRemovesTheTestCas`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/android-harness/src/lib.rs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/AndroidAppCellRunner.cs",
+          "symbol": "ParseInstrumentation"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/AndroidAppRunnerTests.cs",
+          "symbol": "AMultiLineFailureIsKeptWhole"
+        }
+      ]
+    },
+    {
+      "id": "S11-F7",
+      "boundaryId": "S11",
+      "criterionIds": [
+        "R10.C2"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Expected:** `/e2e/untrusted-tls` reports the listener's port reliably once the service is healthy. **Observed:** `UntrustedTlsListener.Port` returns 0 until `ExecuteAsync` has bound the socket (`UntrustedTlsListener.cs:20,32-36`), and `Program.cs:175` returns that value without waiting. Since .NET 10, `BackgroundService` runs all of `ExecuteAsync` on the thread pool instead of running its synchronous prefix inside `StartAsync`, so the health check can pass before the PEM load and the bind finish. `AspireEnvironment.UntrustedTlsListenerAsync` treats a 0 as fatal ('The test service has no untrusted TLS listener') for every E2E run, not only the app cells. The window is small, but it is a possible start-up flake. **Fix:** make the endpoint await the port task with a short timeout (`await _port.Task.WaitAsync(TimeSpan.FromSeconds(10))`), or bind the `TcpListener` in the constructor, or in `StartAsync` before calling the base implementation.\n\n**Resolution (rev 199, verified):** `UntrustedTlsListener.PortAsync` awaits the bind, and `/e2e/untrusted-tls` awaits it with the request's cancellation token, so a health-before-bind race can no longer return 0.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/UntrustedTlsListener.cs",
+          "symbol": "PortAsync"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/Program.cs"
+        }
+      ]
+    },
+    {
+      "id": "S11-F8",
+      "boundaryId": "S11",
+      "criterionIds": [
+        "R10.C2"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Expected:** environment-error classification separates machine prerequisites from real build defects, and the downloaded Gradle distribution has a pinned checksum. **Observed:** (1) `AndroidAppCellRunner.MissingToolchain` (`AndroidAppCellRunner.cs:154-168`) reports any 'Could not resolve all' as an environment error that points at network access and the JDK. The most likely real defect produces the same marker: a `Cargo.lock` bump to a `rustls-platform-verifier-android` version the Maven archive does not have fails with 'Could not resolve all files ... Could not find org.rustls:rustls-platform-verifier:x.y.z'. That build defect is then reported as an environment problem. (2) `tests/android-app/gradle/wrapper/gradle-wrapper.properties:3` has no `distributionSha256Sum`, so the runner downloads and runs the Gradle distribution without checking it. **Fix:** classify 'Could not resolve' as an environment error only together with a network marker ('Could not GET', 'Could not HEAD', 'UnknownHostException', 'Connection refused', 'offline'), and report 'Could not find <coordinate>' as a build failure. Add `distributionSha256Sum` for gradle-9.4.1-bin.zip. Cover the 'Could not find' case in `AndroidAppRunnerTests`.\n\n**Resolution (rev 199, verified):** \"Could not resolve all\" is no longer an environment marker (only network markers are), and `ABuildErrorIsNotAnEnvironmentError` covers a missing artifact version. `distributionSha256Sum=2ab2958f…7ec6cb` matches the checksum Gradle publishes for gradle-9.4.1-bin.zip (verified against services.gradle.org).",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/AndroidAppCellRunner.cs",
+          "symbol": "MissingToolchain"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/android-app/gradle/wrapper/gradle-wrapper.properties"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/AndroidAppRunnerTests.cs",
+          "symbol": "ABuildErrorIsNotAnEnvironmentError"
+        }
+      ]
     }
   ],
-  "handoffMarkdown": "Docs (R9.C3): docs/06 Liveness gains 'Suspension detection' (1 s checks, sleep-inclusive clock, late-by-keep-alive rule, Ping vs lost transport, server client timeout ends the hub connection so stateful reconnects, Long Polling) and 'App lifecycle integration' (compiled on_foreground_changed example; iOS sceneDidEnterBackground/sceneDidBecomeActive, Android onStop/onStart, browsers visibilitychange/freeze/resume). docs/09 browser, Android and iOS notes point to it; docs/12 backgrounded-apps limitation rewritten; docs/13 liveness row; docs/14 suspend-resume scenario and runner controls (+ the proxy target line); README lifecycle bullet; skill lifecycle, platforms, maintaining.",
+  "handoffMarkdown": "Docs (R10.C3 as amended). docs/09 Android Option 1 is now the test app's setup: the settings.gradle.kts Maven repository, org.rustls:rustls-platform-verifier with its version read from Cargo.lock (ValueSource copied from app/build.gradle.kts; the docs previously said group 'rustls'), the ProGuard keep rule, and a JNI init example (jni 0.22, compiled for Android). They also state that the verifier trusts system and user CAs (AndroidCAStore), not the network security config. docs/12: an Android trust caveat bullet; the 'not exercised' bullets for the platform verifier and aws-lc-rs are removed. docs/14: app cells (prerequisites, command, targets, how they run). Skill platforms.md and maintaining.md updated. (Replayed after a local git reset lost the agentx state.)",
   "protectedPaths": {
     "rayx-signalr": {
       ".agentx/tasks/resilient-reconnect-and-production-gates/**": "a4110a3f5f2c68d64ddf8fbedb70479c98f46dde78b064b5b3ac826772db49a6",

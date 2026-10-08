@@ -4,7 +4,7 @@ agentx:
   scope: interop-validation/rust-tests
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-10-08T22:00:00+02:00"
+  updated: "2026-10-08T23:30:00+02:00"
   topics:
     - tokio
     - wasm
@@ -28,6 +28,16 @@ Since S10 the `suspend-resume` scenario (native, Chromium, Android, iOS; 120 s b
 - **Runner:** `Scenarios/Suspension.cs` `SuspensionController` (via the `ProcessRunner.RunAsync` output-line overload, `Scenario.Suspends`) suspends one request at a time and always resumes: Windows `NtSuspendProcess`, `kill -STOP`/`-CONT`, Android `adb shell kill`.
 - **Chromium:** the spec `signalr-suspend.spec.ts` uses CDP `Debugger.pause`/`resume`. Under Playwright `Page.setWebLifecycleState` frozen is a no-op because pages stay visible.
 - **Scenario:** a 20 s suspension where both clients keep their connections, then 40 s where both fail their pending work and reconnect within 5 s. The resume watcher takes its first timestamp before printing the readiness line.
+
+Since S11:
+
+- **TLS provider:** `RAYX_SIGNALR_E2E_TLS_PROVIDER=aws-lc-rs` (`Scenarios/TlsProvider.cs`) builds the native, Android and iOS `e2e` binaries without ring (`--no-default-features --features messagepack,tls-platform-verifier,tls-aws-lc-rs`, plus `tls-webpki-roots` on Android) into `target/e2e-aws-lc` and `target/android-e2e-aws-lc`. A missing toolchain is reported as an environment error.
+- **Android app targets:** `android-app` and `android-app-release` run `tls`, `connect-negotiate` and `invoke` inside `tests/android-app`. The app uses AGP 9.1, the Gradle 9.4.1 wrapper and self-instrumentation (`ScenarioInstrumentation`, plus an `-e cleanup true` mode).
+  - Rust side: the `tests/android-harness` JNI cdylib (with `android_logger`, tag `rayx-signalr`) runs `tests/e2e-scenarios`, a library crate that compiles `tests/e2e/main.rs` by `#[path]`; scenario modules are `pub(crate)`.
+  - The platform verifier's Kotlin component (`org.rustls:rustls-platform-verifier`) trusts `AndroidCAStore` (system and user CAs) and ignores the network security config. The runner therefore makes the app device owner on the emulator only (`MayChangeDevice` unless `RAYX_SIGNALR_E2E_ALLOW_SYSTEM_CHANGES=1`), the app installs the run's CA with `installCaCert` per scenario, and cleanup removes the CAs, the admin and the app.
+  - The app receives only `AndroidAppCellRunner.AppVariables` (no credentials), as base64 lines.
+- **`tls` scenario in app mode:** with `RAYX_SIGNALR_E2E_TLS_PLATFORM_TRUST=1` it adds no PEM root, and its rejection case targets the untrusted listener.
+- **`proxy` scenario:** its bound is now 120 s.
 
 ## Backlinks
 

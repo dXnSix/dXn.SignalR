@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 29,
+  "revision": 32,
   "title": "Production-grade rayx-signalr: typed errors, all transports, proxies, refreshable auth, suspension-aware liveness, proven TLS paths, reference-class performance, and stretch SOCKS/PAC/OS proxies, HTTP/2 and HTTP/3",
   "validationMode": "sprint",
   "repositories": [
@@ -1555,7 +1555,7 @@
       "criterionIds": [
         "R10.C2"
       ],
-      "descriptionMarkdown": "New `AndroidAppRunnerTests`: Gradle invocation, network security config generation, instrumentation argument quoting and result parsing, missing-toolchain classification.",
+      "descriptionMarkdown": "New `AndroidAppRunnerTests`: harness and Gradle invocations, the device-owner set-up and clean-up, the emulator guard, the app's variable allow-list, instrumentation argument encoding and result parsing, and missing-toolchain classification.",
       "argv": [
         "dotnet",
         "test",
@@ -5213,6 +5213,41 @@
         "RAYX_SIGNALR_E2E_SCENARIOS": "proxy-https",
         "RAYX_SIGNALR_E2E_TRANSPORTS": "websockets"
       }
+    },
+    {
+      "id": "s11-static-categories",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R10.C1",
+        "R10.C2"
+      ],
+      "descriptionMarkdown": "The static .NET categories CLAUDE.md requires for S11's runner, catalog (new targets), repository layout (new crates and the Gradle project) and test-service changes: WorkflowContract, Repository, Catalog (including the new `TlsProviderTests` and `AndroidAppRunnerTests`), Toolchain and Platform.",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=WorkflowContract|Category=Repository|Category=Catalog|Category=Toolchain|Category=Platform"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 90
+      },
+      "inputs": [
+        "Cargo.toml",
+        "build.rs",
+        "src/**",
+        "tests/**",
+        "global.json",
+        "aspire.config.json",
+        "RayX.SignalR.slnx",
+        "Directory.Build.props",
+        "dotnet/**",
+        ".github/**",
+        "tools-node/**"
+      ],
+      "timeoutSeconds": 3600
     }
   ],
   "finalCheckIds": [
@@ -6965,7 +7000,7 @@
         {
           "id": "S11.T2",
           "title": "Instrumented Android test app",
-          "descriptionMarkdown": "Extract the scenarios into a shared `tests/e2e-scenarios` crate used by `e2e` and `tests/android-harness` (cdylib, JNI), add `tests/android-app` (Gradle wrapper, instrumentation, generated network security config, release with R8 and the README keep rule), the `android-app`/`android-app-release` targets with their runner and `AndroidAppRunnerTests`, and the untrusted second CA for the `tls` rejection case.",
+          "descriptionMarkdown": "Add the shared `tests/e2e-scenarios` crate (compiling the `tests/e2e` sources) used by `e2e` and `tests/android-harness` (cdylib, JNI), add `tests/android-app` (Gradle wrapper, self-instrumentation, a test-only device admin that installs the run's CA as a user CA, release with R8 and the README keep rule), the `android-app`/`android-app-release` targets with their runner and `AndroidAppRunnerTests`, and the untrusted second CA for the `tls` rejection case.",
           "criterionIds": [
             "R10.C2"
           ],
@@ -6977,7 +7012,8 @@
           ],
           "checkIds": [
             "s11-android-app-runner",
-            "s11-android-app"
+            "s11-android-app",
+            "s11-static-categories"
           ],
           "sourceRefs": [
             {

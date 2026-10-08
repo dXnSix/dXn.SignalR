@@ -4,7 +4,7 @@ agentx:
   scope: interop-validation/dotnet-test-service
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-10-08T18:00:00+02:00"
+  updated: "2026-10-08T23:30:00+02:00"
   topics:
     - aspnet
     - signalr
@@ -31,6 +31,8 @@ Since S9 `RayX.SignalR.TestProxy` (Aspire resource `test-proxy`) is a raw Kestre
 - `/health` and `/stats` report `{tunnels, refused, ports}`.
 
 Cells get `RAYX_SIGNALR_E2E_PROXY_URL`/`_CREDENTIALS`. Native cells and performance binaries run with `ProcessCommand.IsolateFromProxy` (no machine proxy variables), and `Redaction` hides `*_CREDENTIALS=` values and URL user info.
+
+Since S11 `TestCertificates` also issues a server certificate from a second, untrusted CA (`untrusted-server.pem/key`). `UntrustedTlsListener`, a test-only raw `SslStream` listener on loopback port 0, serves it; `/e2e/untrusted-tls` waits for the bind and returns `{port}`. The runner passes `RAYX_SIGNALR_E2E_UNTRUSTED_TLS_URL` (`AspireEnvironment.UntrustedTlsUrl`).
 
 ## Backlinks
 
