@@ -982,8 +982,22 @@ impl DisconnectionHandler for RecordingHandler {
             notifications.len() - 1
         };
         let notifications = self.0.clone();
+        // Logged with their timing, so a slow manual reconnect shows where it waited.
+        progress(&format!(
+            "handler: disconnected (reconnect allowed: {})",
+            reconnection.server_allows_reconnect()
+        ));
         spawn_local(async move {
+            let started = js_sys::Date::now();
             let result = reconnection.reconnect().await;
+            progress(&format!(
+                "handler: reconnect ended after {:.0} ms: {}",
+                js_sys::Date::now() - started,
+                match &result {
+                    Ok(()) => "ok".to_string(),
+                    Err(error) => error.to_string(),
+                }
+            ));
             notifications.borrow_mut()[index].1 = Some(result);
         });
     }
