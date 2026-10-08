@@ -1,12 +1,12 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 225,
-  "planRevision": 36,
+  "revision": 238,
+  "planRevision": 38,
   "specHashes": {
-    "requirements": "16fb407fdfc6b55f8641348271d85ba83477bcf53e0b30690f4e217989c6e9c2",
+    "requirements": "7e3620c3430e84fba7714c215b3b00a31c40f6c553100f83ff7b9f1b3f9c8af6",
     "design": "e0589cff0cc65e3b12b9fd83bf89950f6bc3892bc2d5a27337ecee3a8c1751e6",
-    "plan": "24143cbd77528d349680d15cff309fd0f2e41697d3bb2fc1cdf88596b50abb24"
+    "plan": "47b13a98730b2d424de26369a41639faadb9a88f8e94de3094e60c8d4c0d0cc8"
   },
   "tasks": {
     "S1.T1": {
@@ -190,13 +190,22 @@
       ]
     },
     "S12.T1": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S12.T2": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S12.T3": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     },
     "S13.T1": {
       "status": "pending"
@@ -358,7 +367,10 @@
       ]
     },
     "S12.T4": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
+      ]
     }
   },
   "validationBatches": {
@@ -568,6 +580,15 @@
         }
       },
       "recordedAt": "2026-10-08T04:02:20Z"
+    },
+    "410d9897c7192448e2e8c6e8ef9e217a6740cee34abe084ee7531f608636f269": {
+      "snapshot": {
+        "specHash": "112db09940abc96852845ce21156c5ec514951a64a94a6ee8f1e974ca771decb",
+        "repositories": {
+          "rayx-signalr": "71dbe9f151795c8e0328939566f12364fe4e0f1d9d0ce461a2553eafd7fbea2b"
+        }
+      },
+      "recordedAt": "2026-10-08T06:18:33Z"
     }
   },
   "checkResults": {
@@ -2763,6 +2784,210 @@
       "logPath": "artifacts-temp/agentx/production-grade-client/P8-final-49210418a286.log",
       "logSha256": "1659fc29cabf3910a5957de2b2ab4719ded10ef1439dc22cc5e1016d39b1d455",
       "inputsHash": "41f3916e53177f980ce19352b4ba03d4595c3e35e823bf5bc0393c18b3fd17b0"
+    },
+    "S12/s12-socks-unit/final": {
+      "checkId": "s12-socks-unit",
+      "boundaryId": "S12",
+      "phase": "final",
+      "batchId": "410d9897c7192448e2e8c6e8ef9e217a6740cee34abe084ee7531f608636f269",
+      "definitionHash": "c2a361664609222cd3405560593ca4b9fbc9b9cde6f2d25bc1447266d2413120",
+      "basisHash": "039acac3a528e3f0a1e9a51d8b51fd5ec7cbb7a9ebd55a04d868b16315cf1993",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 10,
+      "durationSeconds": 6.1763,
+      "recordedAt": "2026-10-08T06:10:50Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S12-final-cc78788a78c7.log",
+      "logSha256": "cd62fcb89017793fc042a8940414b7730d5e912f370c5318c2aa8242975aa242",
+      "inputsHash": "f78fd7a1db051a59fda63e608d6e34f489a84d112914e3d5db90d154c2b9c42f"
+    },
+    "S12/s12-socks-native/final": {
+      "checkId": "s12-socks-native",
+      "boundaryId": "S12",
+      "phase": "final",
+      "batchId": "410d9897c7192448e2e8c6e8ef9e217a6740cee34abe084ee7531f608636f269",
+      "definitionHash": "3d76b75757e3470d5e2caecff1d806ad2fa5fe6c0e24b6da342748b4f098caa4",
+      "basisHash": "67d464cb7012bd768e6751ebb27b2689c1aade693bdcf414b7432f3a2b082ebb",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 38.4266,
+      "recordedAt": "2026-10-08T06:11:28Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S12-final-ba0be8425bf6.log",
+      "logSha256": "2210f9ee90b2013b3f3f40c2ed1f24503bb25220323742f0d651e65d34d2d00c",
+      "inputsHash": "2e53e3e057efa585b95ed2b4eb901a4beac25a7bae690b5bc97d80e0caf3a888"
+    },
+    "S12/s12-socks-android/final": {
+      "checkId": "s12-socks-android",
+      "boundaryId": "S12",
+      "phase": "final",
+      "batchId": "410d9897c7192448e2e8c6e8ef9e217a6740cee34abe084ee7531f608636f269",
+      "definitionHash": "75d51aec809597d26233301b0d0d135dce90f43934ed22038718a8654322245f",
+      "basisHash": "428036bb52a82679e0eed9f0c664348d8a117a857d91c676bc7c95e4b1713c3f",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 95.2231,
+      "recordedAt": "2026-10-08T06:13:03Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S12-final-a8a981e0e94c.log",
+      "logSha256": "78e7d6ab2171b3136f161c0455956c2cc5643b55305bf7d6add75a5731440410",
+      "inputsHash": "2e53e3e057efa585b95ed2b4eb901a4beac25a7bae690b5bc97d80e0caf3a888"
+    },
+    "S12/s12-pac-unit/final": {
+      "checkId": "s12-pac-unit",
+      "boundaryId": "S12",
+      "phase": "final",
+      "batchId": "410d9897c7192448e2e8c6e8ef9e217a6740cee34abe084ee7531f608636f269",
+      "definitionHash": "be76230704f3244e47efb0c635fe175ea8ca03fa7a178713e297c4da83888aba",
+      "basisHash": "9a150ce47afc32fd88d9fa09aa0f7e37df3943ecc63e57ef03a3cf59039f7f98",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 15,
+      "durationSeconds": 6.9045,
+      "recordedAt": "2026-10-08T06:13:10Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S12-final-da2a59662475.log",
+      "logSha256": "e8ba47acd9534681775e96ef4db51b52296c36f4440808bd85753385f914ddd9",
+      "inputsHash": "f78fd7a1db051a59fda63e608d6e34f489a84d112914e3d5db90d154c2b9c42f"
+    },
+    "S12/s12-pac-native/final": {
+      "checkId": "s12-pac-native",
+      "boundaryId": "S12",
+      "phase": "final",
+      "batchId": "410d9897c7192448e2e8c6e8ef9e217a6740cee34abe084ee7531f608636f269",
+      "definitionHash": "479edcba4ece130e403de5edea3cabfb89b3482956e251384586fdeb3ce2923b",
+      "basisHash": "fe04e536a4488b9207a70263c98d9ada0a1a4ff2414fa485736208bea6007215",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 18.6272,
+      "recordedAt": "2026-10-08T06:13:29Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S12-final-3b01cdb48c71.log",
+      "logSha256": "82b1235db57b7f3cd432ea92ee4b00127121e3b6ea3361da29e9a5cd7c2ae657",
+      "inputsHash": "2e53e3e057efa585b95ed2b4eb901a4beac25a7bae690b5bc97d80e0caf3a888"
+    },
+    "S12/s12-pac-android/final": {
+      "checkId": "s12-pac-android",
+      "boundaryId": "S12",
+      "phase": "final",
+      "batchId": "410d9897c7192448e2e8c6e8ef9e217a6740cee34abe084ee7531f608636f269",
+      "definitionHash": "afef33f422d879362496e02edba4cd905922438e32f6dee42ca3b04ac5e0ffbb",
+      "basisHash": "9aebf7a75937c32cd2e6a63a467b76ad106d614f05d85cc59a433123610dd8a7",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 71.5151,
+      "recordedAt": "2026-10-08T06:14:41Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S12-final-d992d6327a94.log",
+      "logSha256": "cf617e11e018ee9f14a952a651cac83693eac1dff94a6aa9e3000c0a50b15601",
+      "inputsHash": "2e53e3e057efa585b95ed2b4eb901a4beac25a7bae690b5bc97d80e0caf3a888"
+    },
+    "S12/s12-os-proxy-unit/final": {
+      "checkId": "s12-os-proxy-unit",
+      "boundaryId": "S12",
+      "phase": "final",
+      "batchId": "410d9897c7192448e2e8c6e8ef9e217a6740cee34abe084ee7531f608636f269",
+      "definitionHash": "8366ce547edf9c696235a3d17a1745188dd72df467cfdd0bf2b13d25beaafe76",
+      "basisHash": "fddbba071a967e9e720f3e1f08fdbe64c3623b078499e16bb1bdcd92b95ea8c6",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 7,
+      "durationSeconds": 0.5196,
+      "recordedAt": "2026-10-08T06:14:41Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S12-final-8deba1f05776.log",
+      "logSha256": "c7a2d7db48d3112d7aa8e956b8337927165edc090c9a7b4ba2b86fde58e7fcf3",
+      "inputsHash": "f78fd7a1db051a59fda63e608d6e34f489a84d112914e3d5db90d154c2b9c42f"
+    },
+    "S12/s12-os-proxy-android-app/final": {
+      "checkId": "s12-os-proxy-android-app",
+      "boundaryId": "S12",
+      "phase": "final",
+      "batchId": "410d9897c7192448e2e8c6e8ef9e217a6740cee34abe084ee7531f608636f269",
+      "definitionHash": "6a3096997cb58bce201aff79026440d51df35f5b1701d9266a5a92f3dc455066",
+      "basisHash": "5caae4bf828a3d72cda895d147dcd397557d213e0bb9fcd4fe107a1d54a791d0",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 99.037,
+      "recordedAt": "2026-10-08T06:16:20Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S12-final-5cd5356ad708.log",
+      "logSha256": "d97963f60d48de9ec9fd2eba590fccafaaa32c5f7de1a58eaba4184eb86b3a48",
+      "inputsHash": "2e53e3e057efa585b95ed2b4eb901a4beac25a7bae690b5bc97d80e0caf3a888"
+    },
+    "S12/s12-https-proxy-unit/final": {
+      "checkId": "s12-https-proxy-unit",
+      "boundaryId": "S12",
+      "phase": "final",
+      "batchId": "410d9897c7192448e2e8c6e8ef9e217a6740cee34abe084ee7531f608636f269",
+      "definitionHash": "29aab8ca54b4b2d5e3c8ff57fa13e10170aaf02af166c4af8f6a83e8cbf95c25",
+      "basisHash": "9c935589f83a75ed37f3eee8ecfabd9bdfe1bffb40863696bb5babfc971cfdce",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 5,
+      "durationSeconds": 13.6572,
+      "recordedAt": "2026-10-08T06:16:34Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S12-final-a129bf2070f5.log",
+      "logSha256": "a169e779de233dace1699584a4eeed1646291da45d935a467e41a47f9dafde2d",
+      "inputsHash": "f78fd7a1db051a59fda63e608d6e34f489a84d112914e3d5db90d154c2b9c42f"
+    },
+    "S12/s12-https-proxy-native/final": {
+      "checkId": "s12-https-proxy-native",
+      "boundaryId": "S12",
+      "phase": "final",
+      "batchId": "410d9897c7192448e2e8c6e8ef9e217a6740cee34abe084ee7531f608636f269",
+      "definitionHash": "39f0e2445f89498362096df8836a8a362f0d39c0672295707458b9c5be668a8d",
+      "basisHash": "6a402b1289f668a54d70bf6d05119fff0b5af2b0752e737397b0bf8334317ad9",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 36.1261,
+      "recordedAt": "2026-10-08T06:17:10Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S12-final-45bf3a8c2d72.log",
+      "logSha256": "cc89646f5331d2f8d8ee0ec7695cdd812269097a1c94e6642adf9b757b024912",
+      "inputsHash": "2e53e3e057efa585b95ed2b4eb901a4beac25a7bae690b5bc97d80e0caf3a888"
+    },
+    "S12/s12-https-proxy-android/final": {
+      "checkId": "s12-https-proxy-android",
+      "boundaryId": "S12",
+      "phase": "final",
+      "batchId": "410d9897c7192448e2e8c6e8ef9e217a6740cee34abe084ee7531f608636f269",
+      "definitionHash": "2581ac1ae93f2d605bc18665d4a2d3c879e62b585b2948375aafe5c726a57dc0",
+      "basisHash": "9ace4e624b07a467b32ea5945e9467a8145d204937a6c5e2ce4b62dc3e0bc412",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 2,
+      "durationSeconds": 77.0333,
+      "recordedAt": "2026-10-08T06:18:27Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S12-final-4358d81d352f.log",
+      "logSha256": "94bdadf1182769a0ef7674e4aa8b91f0c21d589b586c38ff6aac725f3f377562",
+      "inputsHash": "2e53e3e057efa585b95ed2b4eb901a4beac25a7bae690b5bc97d80e0caf3a888"
+    },
+    "S12/s12-proxy-unit/final": {
+      "checkId": "s12-proxy-unit",
+      "boundaryId": "S12",
+      "phase": "final",
+      "batchId": "410d9897c7192448e2e8c6e8ef9e217a6740cee34abe084ee7531f608636f269",
+      "definitionHash": "d2413691e11e5dbb1b67a96f6ec6be7d1dadfd59599cb5f1ed94276cac6704b6",
+      "basisHash": "db382293b2f5668e7653237d87f682699a15f991477443ebf9a38285204ae690",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 37,
+      "durationSeconds": 5.0069,
+      "recordedAt": "2026-10-08T06:18:32Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S12-final-32fb5cafc111.log",
+      "logSha256": "03a401835cb89ebf8ee265212e251d6f09a136d3c30e4e6ad5706871679c8074",
+      "inputsHash": "f78fd7a1db051a59fda63e608d6e34f489a84d112914e3d5db90d154c2b9c42f"
     }
   },
   "reviews": {
@@ -7430,6 +7655,166 @@
         "P8-F4"
       ],
       "recordedAt": "2026-10-08T04:03:51Z"
+    },
+    "S12": {
+      "reviewerId": "s12-independent-auditor-efe9c365",
+      "snapshotId": "410d9897c7192448e2e8c6e8ef9e217a6740cee34abe084ee7531f608636f269",
+      "criterionIds": [
+        "R13.C1",
+        "R13.C2",
+        "R13.C3",
+        "R13.C4"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/socks.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R13.C1"
+          ],
+          "sha256": "1a6e3c36ad100ef867a2842b01228ec5f814db45ca1535ecf0cb43f43292dc1c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/socks.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R13.C1"
+          ],
+          "sha256": "1a6e3c36ad100ef867a2842b01228ec5f814db45ca1535ecf0cb43f43292dc1c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/proxy_socks.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R13.C1"
+          ],
+          "sha256": "37b623f77cc1c263228b6c147991fe062514d477f1f3632c365d126f2b29d5a2"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/pac.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R13.C2"
+          ],
+          "sha256": "6c4840b99de833e0b832020ed0f28d2a6ee2495c497b7e383100b1eb85c954a2"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/pac.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R13.C2"
+          ],
+          "sha256": "6c4840b99de833e0b832020ed0f28d2a6ee2495c497b7e383100b1eb85c954a2"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/proxy_pac.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R13.C2"
+          ],
+          "sha256": "b7972f17056ab9853eea41c211e1a5b678ae414999b7d1cbc208eba3f38ebfc0"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/os_proxy.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R13.C3"
+          ],
+          "sha256": "d70e2ae0f2a959d8bef9bb336aa764deded90293e79f04fe2e7ceb127194bc91"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/os_proxy.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R13.C3"
+          ],
+          "sha256": "d70e2ae0f2a959d8bef9bb336aa764deded90293e79f04fe2e7ceb127194bc91"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/os_proxy.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R13.C3"
+          ],
+          "sha256": "949502b8a45db6568a3c3cabbf282d226d06fc996d50c91d2d3acb64f2e3c3e7"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/SystemProxy.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R13.C3"
+          ],
+          "sha256": "614ce1aafbdc82242324a8b02f318c7a730dc540bee2a571238bec4cb5d21068"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/proxy.rs",
+          "kind": "source",
+          "criterionIds": [
+            "R13.C1",
+            "R13.C2",
+            "R13.C3",
+            "R13.C4"
+          ],
+          "sha256": "0a4c1a72c57aca981a4a6ece3185b03746e61c7f3faa3ab0d1a8f811e39ec2ae"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/proxy.rs",
+          "kind": "test",
+          "criterionIds": [
+            "R13.C4"
+          ],
+          "sha256": "0a4c1a72c57aca981a4a6ece3185b03746e61c7f3faa3ab0d1a8f811e39ec2ae"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/proxy_https.rs",
+          "kind": "runtime",
+          "criterionIds": [
+            "R13.C4"
+          ],
+          "sha256": "29753c448594a0106b311a7c68a30ec9c572a96cef9334a6d7f7c1b6df88864f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestProxy/src/ProxyConnection.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R13.C1",
+            "R13.C2",
+            "R13.C3",
+            "R13.C4"
+          ],
+          "sha256": "3d198ebc69a65b24d6d7d565988f06a38b221625552c4d1e27118fa58e9ba87c"
+        }
+      ],
+      "summaryMarkdown": "**Re-review at 410d9897: passed. S12-F1 to S12-F11 are all resolved, verified against source.**\n\n**F11 (PAC DNS helpers):**\n- A thread-local `Resolver`, scoped to each evaluation, caches every answer (`null` included), so each host is looked up at most once per evaluation.\n- A lookup waits at most 2 s or the time left before the deadline, whichever is shorter, and none starts at or past the deadline.\n- Lookup threads are capped at 16 per process, with the counter released in the lookup thread.\n- The `RefCell` borrow is not held across the wait.\n- Tests prove the per-evaluation caching and that a hanging resolver still ends inside the deadline.\n\n**F8 (ALPN to the proxy):** now tested. A hook offers `h2`, the TLS proxy accepts `h2`, and the test asserts that no ALPN was negotiated.\n\n**F3 comment:** it now states the remaining difference from .NET accurately (the configured auto-config URL is kept after a recent auto-detection failure).\n\n**Still sound from the earlier reviews:**\n- The SOCKS byte layouts match .NET's `SocksHelper`.\n- HTTPS-proxy TLS uses the connection's verifier, and its failures are `ErrorKind::Proxy`.\n- Environment variables take precedence over the OS settings, as in .NET.\n- Settings that cannot be read, and auto-config failures, connect directly.\n- The next route is tried only when a route cannot be reached.\n- PAC evaluation is bounded by budget polling against a deadline, with an 8-slot cap.\n- The runners restore the previous proxy settings.\n- The Windows, Apple and Android FFI is memory-safe.\n- Credentials are redacted.\n\n**Validation run in this review:**\n- `cargo test --lib --all-features -- socks_ pac_ os_proxy_ https_proxy_ proxy_`: 57 passed.\n- Clippy with `--all-targets --test e2e --all-features` is clean.\n\n**Not runtime-proven yet:** the Apple CFNetwork code is reviewed by reading only. The Windows and macOS `os-proxy` cells are wired into CI in S15.T1.",
+      "findingIds": [
+        "S12-F1",
+        "S12-F2",
+        "S12-F3",
+        "S12-F4",
+        "S12-F5",
+        "S12-F6",
+        "S12-F7",
+        "S12-F8",
+        "S12-F9",
+        "S12-F10",
+        "S12-F11"
+      ],
+      "recordedAt": "2026-10-08T06:19:59Z"
     }
   },
   "checkpoints": {
@@ -7584,6 +7969,14 @@
       },
       "reviewHash": "0f53cc3ad0a5c7b0cb55c1023931e4709943929ad2cc9d3f17a361d54e73ce7d",
       "recordedAt": "2026-10-08T04:03:57Z"
+    },
+    "S12": {
+      "snapshotId": "410d9897c7192448e2e8c6e8ef9e217a6740cee34abe084ee7531f608636f269",
+      "commits": {
+        "rayx-signalr": "01a8785fdfa76aa2caf3a8808ec9c782cf1842a8"
+      },
+      "reviewHash": "a4df5ffaf92fa4466cdee0da9f0058a092a42fabebbbcdc781ccd903a91cf489",
+      "recordedAt": "2026-10-08T06:20:13Z"
     }
   },
   "findings": [
@@ -10596,9 +10989,269 @@
           "symbol": "with_tls_config_hook"
         }
       ]
+    },
+    {
+      "id": "S12-F1",
+      "boundaryId": "S12",
+      "criterionIds": [
+        "R13.C4",
+        "R13.C1"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**Three existing `proxy_` unit tests fail; the sprint left the lib suite red.** `cargo test --lib --all-features -- proxy_` gives 51 passed / 3 failed. The sprint checks select only `socks_`, `pac_`, `os_proxy_` and `https_proxy_`, so these failures were never run. The handoff says the existing `proxy_` tests pass; they do not.\n- `src/communication/proxy.rs:928` `proxy_invalid_urls_fail_without_repeating_them` still expects `https://user:secret@proxy:443` to be rejected (it now parses: `ProxyUrl(https://***@proxy:443)`).\n- `src/communication/proxy.rs:983-994` `proxy_environment_skips_empty_and_unusable_names_as_dotnet_does` expects `HTTPS_PROXY=https://y:2` to be skipped for `all_proxy` (observed `y:2`).\n- `src/communication/proxy.rs:1328-1336` `proxy_invalid_configuration_fails_new_before_io` expects `with_proxy(\"https://...\")` to fail `new`.\n\n**Expected:** the S9 tests are updated to the R13.C4 behavior, and they keep their redaction intent: use an unsupported scheme (`ftp://`, `quic://`) for the rejection and the env-skip cases, and add `https` to the accepted cases. **Repair:** update the three tests. The repair rerun should cover the `proxy_` group, not only the four new groups.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/proxy.rs",
+          "symbol": "proxy_invalid_urls_fail_without_repeating_them"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/proxy.rs",
+          "symbol": "proxy_environment_skips_empty_and_unusable_names_as_dotnet_does"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/proxy.rs",
+          "symbol": "proxy_invalid_configuration_fails_new_before_io"
+        }
+      ]
+    },
+    {
+      "id": "S12-F2",
+      "boundaryId": "S12",
+      "criterionIds": [
+        "R13.C3"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**A failure to read the OS proxy settings fails every connection. .NET ignores the failure and connects directly.** With the default `ProxyConfig::System` (no proxy env var), `proxy::routes` returns `Err`, and `connect` fails with `ErrorKind::Proxy` in these cases:\n- `WinHttpGetIEProxyConfigForCurrentUser` returns FALSE (`src/communication/os_proxy.rs:437-441`). It is documented to fail with `ERROR_FILE_NOT_FOUND` when no IE proxy settings exist, for example for a LocalSystem or NetworkService Windows service.\n- `CFNetworkCopySystemProxySettings` returns NULL (`:551-553`).\n- A JNI or Java exception occurs in `ProxySelector.select` (`:717`).\n- A system-provided PAC URL cannot be fetched or the script throws (`:92-99`, the `?` on `PacConfig::new`/`routes`/`routes_of_script`). This is common on macOS laptops off the corporate VPN. `PacConfig::new` even reports a `Configuration` error naming `with_proxy_auto_config` for an OS-supplied URL.\n\n**.NET:** `WinInetProxyHelper` ignores the error (\"We match behavior of WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY and ignore errors\") and uses no proxy. `MacProxy.ExecuteProxyAutoConfiguration` returns null on failure and moves on to the next entry or DIRECT.\n\n**Failure scenario:** a Rust SignalR client running as a Windows service gets `ErrorKind::Proxy` on every `start`, where the .NET client connects.\n\n**Repair:** in `os_proxy::routes` and the readers, map read failures and OS-PAC load or evaluation failures to a `log::debug!`/`warn!` plus skipping that entry (no entries left means `DIRECT`). Keep hard `Proxy` errors only for the explicit `with_proxy_auto_config`. Add `os_proxy_` tests with an injected failing reader and an OS route whose PAC fails.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/os_proxy.rs",
+          "symbol": "routes"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/os_proxy.rs",
+          "symbol": "os_proxy_settings_that_cannot_be_read_connect_directly"
+        }
+      ]
+    },
+    {
+      "id": "S12-F3",
+      "boundaryId": "S12",
+      "criterionIds": [
+        "R13.C3"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**WinHTTP: when the auto-config result is DIRECT, the client uses the manual proxy instead, unlike .NET's `HttpWindowsProxy`.** At `src/communication/os_proxy.rs:467-468`, `auto_proxy` returns `Ok(None)` when `WinHttpGetProxyForUrl` succeeds with `WINHTTP_ACCESS_TYPE_NO_PROXY` (the PAC said DIRECT). The `Ok(None) => {}` arm then falls through to `proxy.text()`, the manual proxy list.\n\n**.NET:** `WinInetProxyHelper.GetProxyForUrl` falls back to the manual settings only when the auto-proxy call *fails* (`!useProxy`). A successful DIRECT result yields `MultiProxy.Empty`.\n\n**Failure scenario:** a corporate profile has both \"Use automatic configuration script\" and a manual proxy, and the PAC returns DIRECT for `*.intranet`. Every connection to an intranet hub then goes through the manual proxy, which often cannot reach it or refuses it.\n\n**Repair:** treat any successful auto-proxy result as final: `Ok(None)` means `direct()`. Fall back to the manual list only on `Err`. Related parity gaps to fix in the same place:\n- `fAutoLogonIfChallenged` is always 1 (`:394-396`). .NET first calls with FALSE, so WinHTTP caches the autoproxy result, and retries with TRUE only on `ERROR_WINHTTP_LOGIN_FAILURE`.\n- After a recent auto-detection failure, .NET skips the whole auto path (`AutoSettingsUsed && !RecentAutoDetectionFailure`), including the config URL.\n\nFactor the decision into a pure function over (auto result, manual settings), so `os_proxy_` can test it without WinHTTP.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/os_proxy.rs",
+          "symbol": "winhttp::auto_proxy"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/os_proxy.rs",
+          "symbol": "winhttp::WinHttp::routes"
+        }
+      ]
+    },
+    {
+      "id": "S12-F4",
+      "boundaryId": "S12",
+      "criterionIds": [
+        "R13.C3",
+        "R13.C2"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**R13.C3 requires system PAC support on macOS and iOS through CFNetwork. On iOS the client skips it; on macOS it runs Boa instead of CFNetwork.**\n- `os_proxy.rs:91-108`: system `kCFProxyTypeAutoConfigurationURL`/`JavaScript` entries go to the Boa evaluator, which `build.rs:17-20` and `Cargo.toml` exclude on iOS.\n- On iOS the entry is dropped with a warning, and the connection goes DIRECT (documented in `docs/12-limitations.md` as a limitation).\n- The task says an infeasible part must be raised with the user. Running PAC on Apple targets is not infeasible: .NET's `MacProxy` runs it with `CFNetworkExecuteProxyAutoConfigurationURL`/`CFNetworkExecuteProxyAutoConfigurationScript` on a run loop. That works on iOS, needs no JS engine, and gives the system's own PAC semantics, caching and failure fallback.\n- The current path also re-fetches the PAC URL over HTTP for every new connection (`PacConfig::new(&url)` per call, no cache).\n\n**Failure scenario:** an iOS device on a corporate Wi-Fi with an auto-proxy URL connects DIRECT and fails where the .NET client goes through the proxy. macOS adds one PAC download per connection.\n\n**Repair:** on Apple targets, run OS-supplied PAC entries through CFNetwork's executor, as `MacProxy` does: a run loop in the blocking thread, a bounded wait, and errors mapped to skipping the entry (see S12-F2). Keep Boa only for `with_proxy_auto_config`. Remove the iOS limitation for system PAC from `docs/12` and `docs/02`. Alternatively, amend R13.C3 with the user's confirmation.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/os_proxy.rs",
+          "symbol": "cfnetwork::run_script"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/12-limitations.md"
+        }
+      ]
+    },
+    {
+      "id": "S12-F5",
+      "boundaryId": "S12",
+      "criterionIds": [
+        "R13.C2"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**PAC evaluation is bounded only for the caller. The script keeps running and can pin CPU indefinitely, which breaks D13's invariant (\"PAC evaluation is bounded and sandboxed\").**\n- `routes_of_script` (`src/communication/pac.rs:118-127`) wraps `spawn_blocking(evaluate)` in `tokio::time::timeout(5 s)`. On timeout the blocking thread is abandoned, not stopped.\n- The only in-engine bound is `set_loop_iteration_limit(1_000_000)` (`:456-458`). In Boa 0.22 that counter is per call frame: `CallFrame::loop_iteration_count`, initialized at frame creation (`boa_engine/src/vm/call_frame/mod.rs:69,153`) and incremented in `vm/opcode/iteration/loop_ops.rs`.\n- So `function f(){for(var i=0;i<999999;i++){}} function FindProxyForURL(u,h){for(;;)f();}` runs about 10^12 iterations without hitting the limit.\n- Builtins (`new Array(1e8).join()`) and regex backtracking are not counted at all.\n- Each `start` (including reconnect loops) and each connection's evaluation adds another runaway thread. Tokio's blocking pool (512 threads) and CPU are exhausted.\n- `dnsResolve`/`isResolvable`/`isInNet` call blocking `to_socket_addrs` with no timeout (`:415-428`). D13 says \"DNS helpers use the runtime resolver with the connect timeout\".\n- `docs/02-connecting.md:455` claims \"bounded at 5 seconds and a million loop iterations\".\n\n**Repair:**\n- Run the call as a Boa `Script` with `evaluate_async_with_budget` (Boa 0.22 `script.rs:204`), polled on a dedicated thread that checks a deadline between budget slices and drops the evaluation when the deadline passes. This gives a real instruction and time budget.\n- Cap concurrent PAC evaluations (for example a semaphore) so abandoned evaluations cannot accumulate.\n- Give DNS helpers a bounded resolve.\n- Fix the docs wording.\n- Add `pac_` tests for nested-call loops and for the thread actually finishing after the deadline.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/pac.rs",
+          "symbol": "run"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/pac.rs",
+          "symbol": "EvaluationSlot"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/pac.rs",
+          "symbol": "pac_evaluation_is_bounded"
+        }
+      ]
+    },
+    {
+      "id": "S12-F6",
+      "boundaryId": "S12",
+      "criterionIds": [
+        "R13.C2",
+        "R13.C3"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**The client moves to the next proxy route on every error. .NET does so only on connection failures, and the error reported is the last one rather than the meaningful one.**\n- `proxy::connect` (`src/communication/proxy.rs:741-756`) moves to the next route on any `Err`: 407 (refused or missing credentials), 403, a SOCKS ruleset refusal, an HTTPS-proxy certificate failure. It then reports only the last route's error.\n- .NET's `HttpConnectionPoolManager.SendAsyncMultiProxy` retries the next proxy only for `RequestRetryType.RetryOnNextProxy`, which is set for connection-establishment failures (`ConnectHelper.CreateWrappedException`).\n\n**Failure scenario:** with `PROXY corp:8080; DIRECT`, a 407 from `corp` is replaced by a DIRECT `ErrorKind::Transport` timeout or refusal. The actionable 407 is lost, and the attempt bypasses a proxy that answered.\n\n**Repair:** move to the next route only for connection-level proxy failures (TCP connect, TLS-to-proxy I/O, early close). Return proxy refusals (any `status()`: 407/403/5xx) immediately. Cover both in `pac_`/`proxy_` tests.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/proxy.rs",
+          "symbol": "connect"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/pac.rs",
+          "symbol": "pac_routes_are_tried_in_order"
+        }
+      ]
+    },
+    {
+      "id": "S12-F7",
+      "boundaryId": "S12",
+      "criterionIds": [
+        "R13.C3"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**The runners clear or partly reset the system proxy rather than restoring the previous setting.**\n- Android: `AndroidAppCellRunner.cs:216-236` sets `http_proxy` and then always runs `SystemProxy.AndroidClearArguments` (`SystemProxy.cs:53`, `http_proxy :0`). An emulator that had a proxy configured loses it.\n- If cancellation lands between the set and the `try`, the clear never runs.\n- The criterion and D13 say \"set and restored\".\n- macOS: `MacProxy.DisposeAsync` (`SystemProxy.cs:127`) restores only the enabled state, not the previous web-proxy host and port that `-setwebproxy` overwrote.\n- macOS: if `ApplyAsync` fails part-way (`Require` throws), the services already changed are never restored, because no disposable is returned.\n\n**Repair:**\n- Android: read `settings get global http_proxy` first and restore that value (or `settings delete global http_proxy` when it was `null`), with the set inside the `try`.\n- macOS: capture `-getwebproxy` server, port and state, and restore all of them, including when apply fails part-way.\n- As defense in depth, have `CellRunners` re-check `SystemProxy.HostAllowed()` before `ApplyToHostAsync`, rather than relying only on cell selection.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/AndroidAppCellRunner.cs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/SystemProxy.cs"
+        }
+      ]
+    },
+    {
+      "id": "S12-F8",
+      "boundaryId": "S12",
+      "criterionIds": [
+        "R13.C4"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**TLS to an `https://` proxy reuses the connection's ALPN list. .NET clears ALPN for the proxy.**\n- `proxy_tls` (`src/communication/proxy.rs:814-835`) uses `tls.config()` unchanged, including `alpn_protocols` set by `with_tls_config_hook` today, or `h2` once S13 makes HTTP/2 the ALPN default.\n- .NET builds `_sslOptionsProxy` from the handler's options and sets `ApplicationProtocols = null`.\n\n**Failure scenario:** a proxy that selects `h2` from the offered list answers the HTTP/1.1 `CONNECT` with an HTTP/2 preface, and the tunnel fails.\n\n**Repair:** derive the proxy's `ClientConfig` from the connection's config with `alpn_protocols` cleared, cached alongside it. Add an `https_proxy_` test with a hook that sets `h2` against a TLS proxy that records the offered ALPN.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/proxy.rs",
+          "symbol": "proxy_tls"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/proxy.rs",
+          "symbol": "https_proxy_tunnels_inside_tls_with_the_basic_challenge"
+        }
+      ]
+    },
+    {
+      "id": "S12-F9",
+      "boundaryId": "S12",
+      "criterionIds": [
+        "R13.C1"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**SOCKS4 rejects an IPv4-mapped IPv6 literal that .NET's `SocksHelper` maps to IPv4.**\n- `socks4` (`src/communication/socks.rs:267-274`) rejects every IPv6 literal.\n- .NET's `EstablishSocks4TunnelAsync` accepts `IsIPv4MappedToIPv6` and sends `MapToIPv4()`.\n\n**Failure scenario:** a host such as `[::ffff:10.0.0.5]` through `socks4://` fails in Rust and succeeds in .NET.\n\n**Repair:** use `Ipv6Addr::to_ipv4_mapped()` before rejecting. Add a `socks_` case.\n\n(The SOCKS4a placeholder `0.0.0.1` instead of .NET's `0.0.0.255` is protocol-valid and needs no change.)",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/socks.rs",
+          "symbol": "socks4"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/socks.rs",
+          "symbol": "socks4_and_4a_handshakes_follow_the_protocol"
+        }
+      ]
+    },
+    {
+      "id": "S12-F10",
+      "boundaryId": "S12",
+      "criterionIds": [
+        "R13.C2",
+        "R13.C3"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Documentation and catalog gaps:**\n- `docs/02-connecting.md:446-447` and `.claude/skills/rayx-signalr/references/setup-and-connection.md:170` list the PAC route keywords without `HTTPS` (an HTTPS proxy). `parse_result` and the criterion support it.\n- The options table at `docs/02-connecting.md:540` lacks `with_os_proxy()`.\n- `dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/ScenarioCatalog.cs:116-119`: the new `NativeTarget` constant was inserted between `ThreadedScenario` and its doc comment. `NativeTarget` now carries two `<summary>` elements and `ThreadedScenario` has none.\n\n**Repair:** add `HTTPS` to both lists, add the `with_os_proxy()` row, and move the `ThreadedScenario` summary back above its constant.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/02-connecting.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/setup-and-connection.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/ScenarioCatalog.cs"
+        }
+      ]
+    },
+    {
+      "id": "S12-F11",
+      "boundaryId": "S12",
+      "criterionIds": [
+        "R13.C2"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**The PAC DNS helpers ignore the evaluation deadline and cache nothing, so a normal script on slow DNS fails the connection and keeps an evaluation slot.**\n- `resolve` (`src/communication/pac.rs:419-437`) spawns a new OS thread for every `dnsResolve`/`isResolvable` call. It waits up to `DNS_LIMIT` (2 s) regardless of the evaluation's remaining time, and caches nothing.\n- The prelude's `isInNet` (`:332-342`) resolves the host again on every call.\n- `run` (`:523-547`, `BUDGET` at `:518`) checks the deadline only between 10,000-instruction budgets, and one native call counts as one instruction. One budget slice can therefore hold many 2 s lookups (a dozen or more `isInNet` calls), each blocking past the deadline.\n\n**Failure scenario:** a typical corporate PAC (`if (isInNet(host, a, m)) ... if (isInNet(host, b, m)) ...`, 4 or more checks) runs off-VPN, where the target's DNS times out. Expected (WinHTTP or browser behavior): the script finishes and its fallback route (for example DIRECT) is used. Observed: about 4 × 2 s exceeds the 7 s outer timeout (`:119`), so `start` fails with `ErrorKind::Proxy` \"ran longer than 5s\".\n- The abandoned evaluation keeps running and holds one of the 8 `EvaluationSlot`s for the rest of its lookups.\n- Every lookup leaves an OS thread blocked in `getaddrinfo`, with no cap.\n\n**Repair:** give each evaluation a per-host resolution cache (resolve each host at most once, as WinHTTP's and Chromium's PAC hosts do). Pass the evaluation deadline to the helper (a thread-local or context data) and wait at most `min(DNS_LIMIT, remaining)`, returning `null` once the deadline has passed. Bound the resolver threads (a small shared pool or semaphore). Add a `pac_` test with an injected slow resolver: repeated `isInNet` calls on one host resolve once, and an evaluation past its deadline stops resolving.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/pac.rs",
+          "symbol": "resolve_host"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/pac.rs",
+          "symbol": "pac_dns_lookups_are_cached_per_evaluation"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/pac.rs",
+          "symbol": "pac_dns_lookups_never_outwait_their_bound"
+        }
+      ]
     }
   ],
-  "handoffMarkdown": "Transport hooks (R16.C29, D22).\n- Request hook (src/communication/request_hook.rs): public HttpRequest (transport() None = negotiate, method(), url(), header(), headers(), set_header() validated by headers::validate_for as Configuration/with_request_hook without echoing the value, remove_header()); RequestHook is Arc Send+Sync natively, Rc in browsers; apply(hook, transport, method, url, headers). with_request_hook on both targets is stored in ConnectionRecipe.request_hook.\n- Applied after defaults, with_header, credentials and cookies:\n  - native negotiate: negotiate_http::post now takes Options{headers, tls, proxy, cookies, integrated, hook} with Options::of(recipe); each leg via headers::leg; the pre-I/O validation build runs without the hook, so the hook runs once per request sent.\n  - both upgrade paths (WebSockets GET, ws(s) URL; integrated legs too).\n  - Lane::build (LP/SSE requests including Content-Type, the DELETE and every poll).\n  - browser negotiate fetch (common::fetch_text) and browser_http request_once; never the browser WebSocket or EventSource.\n- TLS hook: with_tls_config_hook (native, cfg rayx_tls) is stored as TlsSettings.config_hook (TlsConfigHook newtype with Debug) and PreparedTls.config_hook, and is applied in TlsContext::config after build_config, before Arc (once per connection config). rayx_signalr::tls::rustls is re-exported.\n- Tests: transport_hooks_ (5): request view and changes, invalid/owned headers, the negotiate loopback (hook ran once on final headers), the TLS config adjusted once per connection (plaintext only on first secure use), every LP poll and POST (sees Content-Type).\n- request-headers scenario: native hook adds X-Hook to negotiate (negotiate POST) and the upgrade (WebSockets GET); the browser fixture to negotiate only, asserting the WebSocket has none. TestControls describes x-hook. 8/8 cells pass (native, chromium, firefox, webkit x json, messagepack).\n- Docs: docs/02 Request hooks section plus reference rows; docs/08 Adjusting the rustls configuration (the security note on dangerous() and ALPN); README; skill setup-and-connection and tls references; examples compiled.",
+  "handoffMarkdown": "HTTPS proxies (R13.C4, D13).\n- proxy.rs:\n  - ProxyScheme::Https (default port 443); with_proxy and the env vars accept https://.\n  - proxy::Stream enum {Tcp(TcpStream), ProxyTls(Box<tokio_rustls TlsStream<TcpStream>>)} implements AsyncRead/AsyncWrite and a manual Debug; proxy::connect returns Stream.\n  - tunnel()/tunnel_once() take the TlsContext. proxy_tls() runs TLS to the proxy with the connection's TLS config (tls.config(): roots, extra PEM, provider, hook); a Tls-kind failure is Error::proxy naming the proxy, with source.\n  - The CONNECT/407/Basic flow runs over the Stream (TLS or TCP); through() dispatches Http|Https to tunnel and the rest to SOCKS (Stream::Tcp).\n- negotiate_http: tls_stream and channel_binding are generic over the stream, so endpoint TLS runs inside a proxy TLS tunnel.\n- transport_tokio: WebSocketIo::Direct(MaybeTlsStream<proxy::Stream>).\n- tls::crypto_provider is pub(crate) for tests.\n- Tests: https_proxy_ (5): URL parsing/default port/redaction; env accepts https (and environment_configured); a TLS proxy (rcgen CA, tokio-rustls server) where 407 then Basic CONNECT run inside separate TLS sessions and the tunnel echoes bytes; an untrusted proxy cert gives Proxy naming the proxy, no credentials, nothing sent; no credentials gives 407 (not transient). Existing proxy_ tests pass the TlsContext.\n- TestProxy: a TLS listener (SslStream with the run's test certificate from TestProxy__CertificatePath/KeyPath set by the AppHost) on a dynamic loopback port, with credentials required; stats has tlsPort and tlsSessions.\n- Scenario proxy-https (native targets, limit 120 s): plain over WS/LP(/SSE json) and TLS WS through https:// (127.0.0.1 for localhost; the CA is trusted for proxy and endpoint): a TLS session plus tunnel counted, the peer is a tunnel; without the CA gives Proxy (Android uses webpki roots); wrong credentials give 407 redacted; http_proxy=https://... works as the system proxy.\n- Results: native 2/2 and Android 2/2 pass; regressions proxy, proxy-socks, proxy-pac and tls pass on native and Android (20 cells).\n- Docs: docs/02 https proxies; docs/12 removed the HTTPS-proxy limitation; docs/14 test proxy TLS listener and scenario list; with_proxy rustdoc lists all schemes; skill reference.",
   "protectedPaths": {
     "rayx-signalr": {
       ".agentx/tasks/resilient-reconnect-and-production-gates/**": "a4110a3f5f2c68d64ddf8fbedb70479c98f46dde78b064b5b3ac826772db49a6",

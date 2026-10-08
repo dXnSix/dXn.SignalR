@@ -35,6 +35,8 @@ HTTP options (P6-P8, D22/D23), all from .NET `HttpConnectionOptions`:
   - Browsers: `fetch` only.
 - Native with TLS features: `with_tls_config_hook(Fn(&mut rustls::ClientConfig))`, run once per connection config before it is shared; `rayx_signalr::tls::rustls` re-exports rustls.
 
+Proxies since S12: `with_proxy` accepts http, https, socks4, socks4a, socks5 and socks5h; `with_os_proxy()` (OS settings only); `with_proxy_auto_config(url)` (feature `proxy-pac`, native except iOS). The default `with_system_proxy` now reads the environment, else the OS.
+
 ## Backlinks
 
 - Source anchors: [src/client/client.rs](../../../../../src/client/client.rs), [src/client/configuration.rs](../../../../../src/client/configuration.rs), [src/lib.rs](../../../../../src/lib.rs), [tests/public_connection_configuration.rs](../../../../../tests/public_connection_configuration.rs), [src/error.rs](../../../../../src/error.rs), [tests/public_error_types.rs](../../../../../tests/public_error_types.rs).

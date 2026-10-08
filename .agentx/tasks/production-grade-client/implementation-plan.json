@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 36,
+  "revision": 38,
   "title": "Production-grade rayx-signalr: typed errors, all transports, proxies, refreshable auth, suspension-aware liveness, proven TLS paths, reference-class performance, and stretch SOCKS/PAC/OS proxies, HTTP/2 and HTTP/3",
   "validationMode": "sprint",
   "repositories": [
@@ -5319,6 +5319,33 @@
         "tools-node/**"
       ],
       "timeoutSeconds": 3600
+    },
+    {
+      "id": "s12-proxy-unit",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "R13.C1",
+        "R13.C4"
+      ],
+      "descriptionMarkdown": "The existing `proxy_` unit group (URL schemes, environment resolution, CONNECT exchange), which every S12 proxy scheme change touches.",
+      "argv": [
+        "cargo",
+        "test",
+        "--lib",
+        "--all-features",
+        "--",
+        "proxy_"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 20
+      },
+      "inputs": [
+        "Cargo.toml",
+        "build.rs",
+        "src/**"
+      ]
     }
   ],
   "finalCheckIds": [
@@ -7413,7 +7440,8 @@
           "checkIds": [
             "s12-https-proxy-unit",
             "s12-https-proxy-native",
-            "s12-https-proxy-android"
+            "s12-https-proxy-android",
+            "s12-proxy-unit"
           ],
           "sourceRefs": [
             {

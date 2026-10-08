@@ -45,6 +45,15 @@ Since P7:
 - `.AddNegotiate()` (`Microsoft.AspNetCore.Authentication.Negotiate` 10.0.12; 10.0.9 had an advisory) protects `WindowsAuthHub` at `/test-windows` (`Identity`, `AuthenticationType`, `Echo`).
 - `Scenario.WindowsHostOnlyReason` (`WindowsHostOnly` is derived from it) makes `E2ESelection.Cells(windowsHost)` select `windows-auth` only on Windows hosts. Its leg with a rejected `with_credentials` uses a non-existent account, so no real account's lockout counter moves.
 
+Since S12 the test proxy also:
+
+- Answers SOCKS5 on the same port (first byte 5; RFC 1929 with the run's credentials; reply 2 for denied targets; `socks`/`socksAddressTypes` counters).
+- Serves `/proxy.pac?http=..&https=..` scripts (proxy, socks5, direct, dead, throw; `pacScripts`) whose routes use a credential-free loopback listener (`openPort`).
+- Runs a TLS listener with the run's server certificate (`TestProxy__CertificatePath`/`KeyPath`; `tlsPort`, `tlsSessions`) for https:// proxies.
+- Routes the alias `rayx-os-proxy.test` to the service for `os-proxy`.
+
+The E2E runner's `SystemProxy` sets and restores the emulator's global proxy (its previous value) around `os-proxy` android-app cells, and the Windows WinINet or macOS networksetup proxy only when `HostAllowed()` (`RAYX_SIGNALR_E2E_ALLOW_SYSTEM_CHANGES=1` on Windows or macOS). E2E builds include the `proxy-pac` feature everywhere; `proxy-pac` excludes iOS.
+
 ## Backlinks
 
 - Source anchors: [Program.cs](../../../../../dotnet/RayX.SignalR.TestService/src/Program.cs), [TestHub.cs](../../../../../dotnet/RayX.SignalR.TestService/src/TestHub.cs), [project](../../../../../dotnet/RayX.SignalR.TestService/RayX.SignalR.TestService.csproj).

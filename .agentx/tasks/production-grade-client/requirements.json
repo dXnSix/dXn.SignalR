@@ -280,7 +280,7 @@
       "criteria": [
         {
           "id": "R13.C1",
-          "descriptionMarkdown": "`with_proxy` and the proxy environment variables accept `socks5://` (local DNS) and `socks5h://` (proxy-side DNS) URLs with optional username/password authentication (RFC 1929); IPv4, IPv6 and domain addresses; every native connection (negotiate and all transports) tunnels through SOCKS5 with TLS inside the tunnel; failures are `ErrorKind::Proxy` with the SOCKS reply code and never contain credentials. Unit group `socks_` (handshake bytes, auth, reply codes, truncated replies); scenario `proxy-socks` (the Aspire test proxy gains a SOCKS5 listener with a counter and required credentials) on native and Android.",
+          "descriptionMarkdown": "`with_proxy` and the proxy environment variables accept SOCKS proxy URLs as the official .NET client (`SocksHelper`, `HttpEnvironmentProxy`) does: `socks5://` and `socks5h://` (both send domain names to the proxy, which resolves them; IP literals go as IPv4/IPv6 addresses), `socks4://` (resolved locally to IPv4) and `socks4a://` (proxy-side DNS), default port 1080, with optional username/password authentication (RFC 1929 for SOCKS5, the user id for SOCKS4). Every native connection (negotiate and all transports) tunnels through SOCKS with TLS inside the tunnel; failures are `ErrorKind::Proxy` naming the SOCKS reply code and never contain credentials. Unit group `socks_` (handshake bytes, auth, address types, reply codes, truncated replies, SOCKS4/4a); scenario `proxy-socks` (the Aspire test proxy gains a SOCKS5 listener with a counter and required credentials) on native and Android.",
           "verification": "automated"
         },
         {
