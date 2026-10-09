@@ -1677,8 +1677,13 @@ impl std::ops::Deref for CommunicationClient {
 pub(crate) struct WeakCommunicationClient(Weak<ClientInner>);
 
 impl WeakCommunicationClient {
+    /// The client, unless its last handle was dropped: a lifecycle hook that runs while that
+    /// handle is still being dropped cannot revive the client it reports closed.
     pub(crate) fn upgrade(&self) -> Option<CommunicationClient> {
-        self.0.upgrade().map(|inner| CommunicationClient { inner })
+        self.0
+            .upgrade()
+            .filter(|inner| !inner._released.load(std::sync::atomic::Ordering::Acquire))
+            .map(|inner| CommunicationClient { inner })
     }
 }
 
@@ -1693,6 +1698,8 @@ pub struct ClientInner {
     _coordinator: ReconnectCoordinator,
     _protocol_kind: HubProtocolKind,
     _hooks: LifecycleHooks,
+    /// Set when the last handle was dropped, before the client closes.
+    _released: std::sync::atomic::AtomicBool,
 }
 
 impl Communication for CommunicationClient {
@@ -1758,6 +1765,8 @@ impl Communication for CommunicationClient {
             debug!("Releasing one of {} connection handles", other_refs + 1);
             return;
         }
+        self._released
+            .store(true, std::sync::atomic::Ordering::Release);
         self.disconnect().await;
     }
 
@@ -2066,6 +2075,7 @@ impl CommunicationClient {
             _coordinator: coordinator,
             _protocol_kind: protocol_kind,
             _hooks: hooks,
+            _released: std::sync::atomic::AtomicBool::new(false),
         };
         Ok(CommunicationClient {
             inner: Arc::new(inner),
@@ -4516,5 +4526,25 @@ mod lock_scope_tests {
         drop(busy);
         waiting.await.unwrap().unwrap();
         client.disconnect().await;
+    }
+}
+
+#[cfg(test)]
+mod release_tests {
+    use super::CommunicationClient;
+    use crate::{client::ConnectionConfiguration, communication::Communication};
+
+    /// Once the last handle released the client, a weak handle never upgrades, even while that
+    /// handle is still alive (as when a lifecycle hook runs during its drop).
+    #[tokio::test]
+    async fn release_a_released_client_never_upgrades() {
+        let mut configuration = ConnectionConfiguration::new("127.0.0.1".into(), "hub".into());
+        configuration.unsecure();
+        let mut client = CommunicationClient::create(configuration.connection_recipe()).unwrap();
+        let weak = client.downgrade();
+        assert!(weak.upgrade().is_some(), "a live client upgrades");
+        client.release().await;
+        assert!(weak.upgrade().is_none(), "a released client does not");
+        drop(client);
     }
 }
