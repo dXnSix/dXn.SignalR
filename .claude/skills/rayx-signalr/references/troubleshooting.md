@@ -68,8 +68,9 @@ rejected Acks, Sequences or messages with the reason. Every record starts with `
   settings: WinHTTP, CFNetwork, `java.net.ProxySelector`; `with_os_proxy` for the OS alone), and
   PAC scripts (`with_proxy_auto_config`, feature `proxy-pac`, not on iOS). HTTP proxies
   authenticate with Basic only (Digest, NTLM and Negotiate challenges fail with `Proxy` 407);
-  a PAC entry's non-standard `user:pass@` is used only for Basic after a 407 and is masked in
-  logs.
+  a PAC entry's non-standard `user:pass@` is that proxy's credentials (Basic after a 407 for
+  `PROXY`/`HTTP`/`HTTPS` entries, the SOCKS5 username/password or SOCKS4 user id for `SOCKS`
+  entries) and is masked in logs.
 - No per-call timeout. No hook for every status change: `on_closed`, `on_reconnecting`,
   `on_reconnected` (the .NET events) and `status()`.
 - Browsers use the default `same-origin` credentials mode (no `withCredentials`, as the .NET

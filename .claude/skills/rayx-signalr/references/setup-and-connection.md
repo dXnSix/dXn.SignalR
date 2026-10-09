@@ -186,8 +186,9 @@ server must read `access_token` for hub paths (JWT `OnMessageReceived`).
   standard helpers (DNS once per host per evaluation, 2 s, never past the deadline); sandboxed, 5 s deadline checked between instruction budgets, at
   most 8 concurrent; load or
   script failures are `ErrorKind::Proxy`; a PAC entry may name `user:pass@host:port` (non-standard),
-  used for Basic after a 407 and masked in logs; PAC is not built for
-  iOS.
+  used as that proxy's credentials (Basic after a 407 for `PROXY`/`HTTP`/`HTTPS` entries, the
+  SOCKS5 username/password or SOCKS4 user id for `SOCKS` entries) and masked in logs; PAC is not
+  built for iOS.
 - Server-Sent Events (both targets, JSON only): one streaming `GET` (`Accept: text/event-stream`;
   native parser per the HTML event-stream rules; browsers `EventSource` without automatic
   reconnection); sends as for Long Polling; closing ends the stream (no `DELETE`); native
