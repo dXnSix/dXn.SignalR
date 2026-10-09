@@ -181,7 +181,8 @@ Chromium the fixture keeps the last 400 trace records and returns them with a fa
 `soak-chaos` runs mixed concurrent traffic (invocations with results, sends, server streams,
 server-to-client callbacks, client results) against an ordinary and a stateful chaos hub at once
 for `RAYX_SIGNALR_SOAK_SECONDS`, while the test service's test-only `ChaosControl` aborts the
-transports at seeded random 0.5-5 s intervals (the seed is in the cell output). Stateful mode must
+transports at seeded random 0.5-5 s intervals (the seed is in the cell output), sparing a
+connection for 3 s after aborting it so a stateful resume completes before the next abort. Stateful mode must
 lose, duplicate or reorder nothing and keep its logical connection; ordinary mode must complete or
 fail every call within 30 s and recover. Natively the clients run on their own runtime, whose
 alive-task count must return to its pre-connect value after `disconnect`; in Chromium every

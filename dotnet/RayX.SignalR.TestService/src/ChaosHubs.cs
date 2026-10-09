@@ -18,7 +18,16 @@ namespace RayX.SignalR.TestService
         readonly ConcurrentDictionary<string, HubCallerContext> _connections = new(StringComparer.Ordinal);
         readonly ConcurrentDictionary<int, int> _sends = new();
         readonly ConcurrentDictionary<string, int> _transportAborts = new(StringComparer.Ordinal);
+        // When each connection's transport was last aborted by the chaos loop.
+        readonly ConcurrentDictionary<string, long> _lastChaosAbort = new(StringComparer.Ordinal);
         readonly object _gate = new();
+
+        /// <summary>
+        /// How long a connection is spared after the chaos loop aborted its transport, so a stateful
+        /// resume (slow on an emulator) completes before the next abort: the soak proves delivery
+        /// across resumes, not a resume interrupted by another abort.
+        /// </summary>
+        static readonly TimeSpan ResumeGrace = TimeSpan.FromSeconds(3);
         CancellationTokenSource? _chaos;
         int _aborts;
 
@@ -34,13 +43,18 @@ namespace RayX.SignalR.TestService
                 control._connections.Clear();
                 control._sends.Clear();
                 control._transportAborts.Clear();
+                control._lastChaosAbort.Clear();
                 Interlocked.Exchange(ref control._aborts, 0);
             }
         }
 
         public void Track(HubCallerContext connection) => _connections[connection.ConnectionId] = connection;
 
-        public void Untrack(string connectionId) => _connections.TryRemove(connectionId, out _);
+        public void Untrack(string connectionId)
+        {
+            _connections.TryRemove(connectionId, out _);
+            _lastChaosAbort.TryRemove(connectionId, out _);
+        }
 
         /// <summary>Starts aborting transports every <paramref name="minMilliseconds"/> to <paramref name="maxMilliseconds"/>.</summary>
         public void Start(int minMilliseconds, int maxMilliseconds, int seed)
@@ -68,8 +82,16 @@ namespace RayX.SignalR.TestService
 
                     foreach (HubCallerContext connection in _connections.Values)
                     {
+                        string id = connection.ConnectionId;
+                        if (_lastChaosAbort.TryGetValue(id, out long last)
+                            && System.Diagnostics.Stopwatch.GetElapsedTime(last) < ResumeGrace)
+                        {
+                            continue;
+                        }
+
                         if (connection.GetHttpContext() is { } transport)
                         {
+                            _lastChaosAbort[id] = System.Diagnostics.Stopwatch.GetTimestamp();
                             Interlocked.Increment(ref _aborts);
                             transport.Abort();
                         }
