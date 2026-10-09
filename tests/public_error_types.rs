@@ -5,9 +5,13 @@
 use std::future::Future;
 
 use rayx_signalr::{
-    ArgumentConfiguration, ConnectionConfiguration, Error, ErrorKind, InvocationContext,
-    ManualStream, ReconnectionHandler, SignalRClient, StatefulReconnectConfig,
+    ArgumentConfiguration, ConnectionConfiguration, Error, ErrorKind, HttpRequest,
+    InvocationContext, ManualStream, ReconnectionHandler, SignalRClient, StatefulReconnectConfig,
 };
+
+/// A configuration closure, and `SignalRClient::new` with it.
+type Configure = fn(&mut ConnectionConfiguration);
+type New = fn(&str, &str, Configure) -> Result<SignalRClient, Error>;
 
 /// Asserts that `future` completes with `Result<T, Error>`.
 fn output<T, F: Future<Output = Result<T, Error>>>(future: F) -> F {
@@ -42,9 +46,11 @@ async fn asynchronous_signatures(
     let _ = output::<(), _>(
         client.send_with_args("Target".to_string(), |_: &mut ArgumentConfiguration| {}),
     );
+    let _ = output::<(), _>(client.start());
     let _ = output::<(), _>(client.pause());
     let _ = output::<(), _>(client.resume());
     let _ = output::<(), _>(context.complete(1));
+    let _ = output::<(), _>(context.fail("refused"));
     let _ = output::<(), _>(handler.reconnect());
     let _ = output::<(), _>(handler.reconnect_with_policy());
 }
@@ -57,6 +63,9 @@ fn public_fallible_items_report_the_typed_error() {
     let _: for<'a> fn(&'a ManualStream<i32>) -> Option<&'a Error> = ManualStream::<i32>::error;
     let _: for<'a> fn(&'a ReconnectionHandler) -> &'a Error = ReconnectionHandler::reason;
     let _: fn(&Error) -> ErrorKind = Error::kind;
+    let _: New = SignalRClient::new::<Configure>;
+    // `impl Into<String>` parameters: a closure pins the return type.
+    let _ = |request: &mut HttpRequest| -> Result<(), Error> { request.set_header("a", "b") };
     let _ = asynchronous_signatures;
 }
 
