@@ -1,7 +1,7 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 277,
+  "revision": 280,
   "planRevision": 45,
   "specHashes": {
     "requirements": "bd48f05de08be57f2eddf4110f764c1185df4c7d70dcc9ecc8aa290bfc35ec72",
@@ -655,6 +655,15 @@
         }
       },
       "recordedAt": "2026-10-09T16:57:08Z"
+    },
+    "ec25256141ea6aafc46e42a996ab83960ebb52d112c0b46a30f2d888543d04a7": {
+      "snapshot": {
+        "specHash": "43ff40c873c5e39f5d5396bab875ee6e1c245cbe6902a9fad5fa52c5a4a7ef99",
+        "repositories": {
+          "rayx-signalr": "0c0c2de79638255ed6e9e1dd820ee20ebf9411014a589fbf6f7cb5f7289c0530"
+        }
+      },
+      "recordedAt": "2026-10-09T18:12:43Z"
     }
   },
   "checkResults": {
@@ -5677,193 +5686,193 @@
       "checkId": "final-fmt",
       "boundaryId": "final",
       "phase": "final",
-      "batchId": "1b354b9a214b7636570264c362140cd558bcb77be8bdf48fec8708537a89655f",
+      "batchId": "ec25256141ea6aafc46e42a996ab83960ebb52d112c0b46a30f2d888543d04a7",
       "definitionHash": "1703bdf0862011c809cfef62913dd7b2153bb232b927144ad7c08e91a2deeff0",
-      "basisHash": "91e39f1cdf640aa2a1d9deefc561e9b6c5bda4d9a1a624fe5eb189b74dccb5c2",
+      "basisHash": "18887b1457916f6088b81920336c52332e668c12ff886e488a3fe7e11d5fcb2d",
       "status": "passed",
       "exitCode": 0,
       "testCount": 0,
-      "durationSeconds": 0.7961,
-      "recordedAt": "2026-10-09T16:21:25Z",
+      "durationSeconds": 0.7369,
+      "recordedAt": "2026-10-09T17:37:19Z",
       "messageMarkdown": "Expectation matched",
-      "logPath": "artifacts-temp/agentx/production-grade-client/final-final-c503691ce8b3.log",
+      "logPath": "artifacts-temp/agentx/production-grade-client/final-final-ac2d8bc83d92.log",
       "logSha256": "cddf1fd8138027144b8781f6bca800523614e071668905990a1ca37b19b520a1"
     },
     "final/final-clippy/final": {
       "checkId": "final-clippy",
       "boundaryId": "final",
       "phase": "final",
-      "batchId": "1b354b9a214b7636570264c362140cd558bcb77be8bdf48fec8708537a89655f",
+      "batchId": "ec25256141ea6aafc46e42a996ab83960ebb52d112c0b46a30f2d888543d04a7",
       "definitionHash": "56cfc91be26874086f7c89b59f5cc98acb52d9947db358f6b877b3a18865172b",
-      "basisHash": "3785f4a7ba4d82707b31b91347ef6bfce7a213315e1e832bd7ff1276ece5ee89",
+      "basisHash": "656831b5e0f970dd25676d1655c4cf13e4a9881bc6a161dc40bd9f33b7310480",
       "status": "passed",
       "exitCode": 0,
       "testCount": 0,
-      "durationSeconds": 6.1139,
-      "recordedAt": "2026-10-09T16:21:31Z",
+      "durationSeconds": 3.6271,
+      "recordedAt": "2026-10-09T17:37:23Z",
       "messageMarkdown": "Expectation matched",
-      "logPath": "artifacts-temp/agentx/production-grade-client/final-final-e9cad34d6f45.log",
-      "logSha256": "be5ad51f1fbf79c8acbfbafa1cd5d81fa44bc418ef91cb5f49eeafedfd8d786a"
+      "logPath": "artifacts-temp/agentx/production-grade-client/final-final-9a89b5048eda.log",
+      "logSha256": "b4aeb14e6e5c676b6a3197e2af652771f1c7f43144fc78737bbc14c4f9912536"
     },
     "final/final-native-no-default/final": {
       "checkId": "final-native-no-default",
       "boundaryId": "final",
       "phase": "final",
-      "batchId": "1b354b9a214b7636570264c362140cd558bcb77be8bdf48fec8708537a89655f",
+      "batchId": "ec25256141ea6aafc46e42a996ab83960ebb52d112c0b46a30f2d888543d04a7",
       "definitionHash": "2d04a06dce5e355ccef48170039bab4ef77a7fa0efbea8d8b9be5cf60431be4d",
-      "basisHash": "7dcaafc1a39d15f9bbda3f322298a70f5813cda57a330aa881d26eb3b9ee858a",
+      "basisHash": "f16b16d17323cdfe9c58f2dce01ed832e2128bb2dc1707a00d24c0cd125657f9",
       "status": "passed",
       "exitCode": 0,
       "testCount": 0,
-      "durationSeconds": 8.035,
-      "recordedAt": "2026-10-09T16:21:39Z",
+      "durationSeconds": 1.5228,
+      "recordedAt": "2026-10-09T17:37:24Z",
       "messageMarkdown": "Expectation matched",
-      "logPath": "artifacts-temp/agentx/production-grade-client/final-final-93d475d2439e.log",
-      "logSha256": "0f3f3ef3570ba4135fb367389a386cdbe20fd73f16da806d75e7009f2986848e"
+      "logPath": "artifacts-temp/agentx/production-grade-client/final-final-e1e03e664767.log",
+      "logSha256": "6bafd7971ea24595e8247e03d1852a240563a63c9ae8d9f2343a33a8677020f7"
     },
     "final/final-wasm-default/final": {
       "checkId": "final-wasm-default",
       "boundaryId": "final",
       "phase": "final",
-      "batchId": "1b354b9a214b7636570264c362140cd558bcb77be8bdf48fec8708537a89655f",
+      "batchId": "ec25256141ea6aafc46e42a996ab83960ebb52d112c0b46a30f2d888543d04a7",
       "definitionHash": "66d0e736f639841a2ee05f10cd9be9d15b2c79baa3b88326fe586390a53d140a",
-      "basisHash": "11a9346b2a5ca1137653207c47dbc543a50fc363e955daff7ea1f935ed6f25fd",
+      "basisHash": "e1f86e8f5cd4eae053c50962184aaa9ea0516eb05eea2de355a89928be16e4f6",
       "status": "passed",
       "exitCode": 0,
       "testCount": 0,
-      "durationSeconds": 1.855,
-      "recordedAt": "2026-10-09T16:21:41Z",
+      "durationSeconds": 0.7052,
+      "recordedAt": "2026-10-09T17:37:25Z",
       "messageMarkdown": "Expectation matched",
-      "logPath": "artifacts-temp/agentx/production-grade-client/final-final-b89bf0e651fb.log",
-      "logSha256": "b9896542a153287c5d73f6efcadbf0fa30a866654df6d21d6be56c95448c6ee1"
+      "logPath": "artifacts-temp/agentx/production-grade-client/final-final-03b4600270e4.log",
+      "logSha256": "10084961c34ec65363b37913f67e2ec588a4eec8cf72e12be47bb68ead210982"
     },
     "final/final-wasm-all/final": {
       "checkId": "final-wasm-all",
       "boundaryId": "final",
       "phase": "final",
-      "batchId": "1b354b9a214b7636570264c362140cd558bcb77be8bdf48fec8708537a89655f",
+      "batchId": "ec25256141ea6aafc46e42a996ab83960ebb52d112c0b46a30f2d888543d04a7",
       "definitionHash": "8d8baf38a5e6ece27f4732842aece75d1e2f335c0bd0bb80b3b55c555f6f81ce",
-      "basisHash": "3527092fd641411a9e2333bf7796d899f163e7bcfe7efb5bdb14db7d68c9a795",
+      "basisHash": "67187fc604e4487ceb5685ebd9a0a5a276c4eff3a50861440b90968011402676",
       "status": "passed",
       "exitCode": 0,
       "testCount": 0,
-      "durationSeconds": 0.6946,
-      "recordedAt": "2026-10-09T16:21:42Z",
+      "durationSeconds": 0.6986,
+      "recordedAt": "2026-10-09T17:37:26Z",
       "messageMarkdown": "Expectation matched",
-      "logPath": "artifacts-temp/agentx/production-grade-client/final-final-97322aeae985.log",
+      "logPath": "artifacts-temp/agentx/production-grade-client/final-final-1a9b2f043e02.log",
       "logSha256": "c0a501fa095cee6d412dc3d331a9490b5294b094d472b861cc4326b15dd76a90"
     },
     "final/final-rustdoc/final": {
       "checkId": "final-rustdoc",
       "boundaryId": "final",
       "phase": "final",
-      "batchId": "1b354b9a214b7636570264c362140cd558bcb77be8bdf48fec8708537a89655f",
+      "batchId": "ec25256141ea6aafc46e42a996ab83960ebb52d112c0b46a30f2d888543d04a7",
       "definitionHash": "e7e39e9e894a4616bfbed38b19b12c0a0da68962c5927949cf51c1c18f8c7cc0",
-      "basisHash": "7aeaa739873273e495f4346c713cf35fb543d7048610c7c13d1f221dfeba6b76",
+      "basisHash": "44e1e5ac9a5262287376b288704b21a8c1b50897a67efd4d796efb609802a06c",
       "status": "passed",
       "exitCode": 0,
       "testCount": 0,
-      "durationSeconds": 3.8596,
-      "recordedAt": "2026-10-09T16:21:45Z",
+      "durationSeconds": 3.1443,
+      "recordedAt": "2026-10-09T17:37:29Z",
       "messageMarkdown": "Expectation matched",
-      "logPath": "artifacts-temp/agentx/production-grade-client/final-final-2b2dfc694738.log",
-      "logSha256": "10d2c0186b347b3bc1dcb58d82cbb0167bdce7b48b678e89a936b05e0ddd4a65"
+      "logPath": "artifacts-temp/agentx/production-grade-client/final-final-d935dff18551.log",
+      "logSha256": "e0fcf94db005387208a6a8d99a55269672d6d85a4913495504a9d0501655be37"
     },
     "final/final-dotnet-build/final": {
       "checkId": "final-dotnet-build",
       "boundaryId": "final",
       "phase": "final",
-      "batchId": "1b354b9a214b7636570264c362140cd558bcb77be8bdf48fec8708537a89655f",
+      "batchId": "ec25256141ea6aafc46e42a996ab83960ebb52d112c0b46a30f2d888543d04a7",
       "definitionHash": "7bdaa55a7d74c78e8fdf4aa49277073fccf48f4ec3f5b5bddd8d4e1856935a74",
-      "basisHash": "565b807968af7531ae154b9729480a890c2cedc278a3753a37f97d079a6edd5d",
+      "basisHash": "eaed356bf3b2614aa551b5b4e48305791326cd25f213e33a4e44375174658b26",
       "status": "passed",
       "exitCode": 0,
       "testCount": 0,
-      "durationSeconds": 3.9407,
-      "recordedAt": "2026-10-09T16:21:49Z",
+      "durationSeconds": 6.5531,
+      "recordedAt": "2026-10-09T17:37:35Z",
       "messageMarkdown": "Expectation matched",
-      "logPath": "artifacts-temp/agentx/production-grade-client/final-final-f553a177f0b5.log",
-      "logSha256": "55c32eddb894d5fd337a7693cfde632290bebc4bc84d741e6fbe2623e21e69ba"
+      "logPath": "artifacts-temp/agentx/production-grade-client/final-final-c7d0874c8290.log",
+      "logSha256": "006b2a749f57b46f3a6c848269fb246ddedb15eb84313a714227a09c812e1e89"
     },
     "final/final-unit-all-features/final": {
       "checkId": "final-unit-all-features",
       "boundaryId": "final",
       "phase": "final",
-      "batchId": "1b354b9a214b7636570264c362140cd558bcb77be8bdf48fec8708537a89655f",
+      "batchId": "ec25256141ea6aafc46e42a996ab83960ebb52d112c0b46a30f2d888543d04a7",
       "definitionHash": "e5d2c87716c0b6a6a245ab897d0506c41915ebeaf8c0791fe4e0962d62e2c63e",
-      "basisHash": "dcf5731ecdf4b0daab7d745af90edf64e73f825f284b2b35dfb26cc87c3c7ab7",
+      "basisHash": "4569c38f89d02050d37fb26eae17e97d81086132cecd9abe3b1a2faba5327b65",
       "status": "passed",
       "exitCode": 0,
       "testCount": 581,
-      "durationSeconds": 23.0482,
-      "recordedAt": "2026-10-09T16:22:12Z",
+      "durationSeconds": 20.5606,
+      "recordedAt": "2026-10-09T17:37:56Z",
       "messageMarkdown": "Expectation matched",
-      "logPath": "artifacts-temp/agentx/production-grade-client/final-final-d18da4376ecc.log",
-      "logSha256": "1a35bc0bb1cfc847f66d965a3ccd0b6b30ae1df9514d9c2b7350dba19cdef623"
+      "logPath": "artifacts-temp/agentx/production-grade-client/final-final-4571d09a6805.log",
+      "logSha256": "5b839f5e86153a22cb115cef71aacbe8ace49175a48974f69c100fb4db5726bc"
     },
     "final/final-unit-json-only/final": {
       "checkId": "final-unit-json-only",
       "boundaryId": "final",
       "phase": "final",
-      "batchId": "1b354b9a214b7636570264c362140cd558bcb77be8bdf48fec8708537a89655f",
+      "batchId": "ec25256141ea6aafc46e42a996ab83960ebb52d112c0b46a30f2d888543d04a7",
       "definitionHash": "f132b6f59b62eba499d90fbcda829013b31aa07cfeea6ec2665ea436dc09e6f0",
-      "basisHash": "db4f26545bc75ff74ffb669c5947435e90c1c92599e3fb654c449dd70ea91afc",
+      "basisHash": "8253268577d738352d69183fd4e63e49d4ba93fdf8e73879b1d8a750eff62383",
       "status": "passed",
       "exitCode": 0,
       "testCount": 476,
-      "durationSeconds": 13.4509,
-      "recordedAt": "2026-10-09T16:22:26Z",
+      "durationSeconds": 11.4068,
+      "recordedAt": "2026-10-09T17:38:07Z",
       "messageMarkdown": "Expectation matched",
-      "logPath": "artifacts-temp/agentx/production-grade-client/final-final-f006376d6c93.log",
-      "logSha256": "ccde1828e708193ffe4788adb9bd0313372155a15914318113f6ed71863026a6"
+      "logPath": "artifacts-temp/agentx/production-grade-client/final-final-de1a328c608f.log",
+      "logSha256": "f36c468fc3729ca6f28868d658c5d182f81426be2af0022fd70c7fdd2a8ab60f"
     },
     "final/final-static-categories/final": {
       "checkId": "final-static-categories",
       "boundaryId": "final",
       "phase": "final",
-      "batchId": "1b354b9a214b7636570264c362140cd558bcb77be8bdf48fec8708537a89655f",
+      "batchId": "ec25256141ea6aafc46e42a996ab83960ebb52d112c0b46a30f2d888543d04a7",
       "definitionHash": "6022958819b264007c5e41ed221d6c449ff5a171632a6a88a6e7245f31d07cf5",
-      "basisHash": "bf46da8445916eb3684bee695749ef8b95e5e796ac6d4e2d9a100fe3e650bc62",
+      "basisHash": "c1f4131512652e8bf742feb8edb9cc1560e1e32ef886f31e7d3b7a17e38ade1c",
       "status": "passed",
       "exitCode": 0,
       "testCount": 127,
-      "durationSeconds": 62.5212,
-      "recordedAt": "2026-10-09T16:23:28Z",
+      "durationSeconds": 55.2557,
+      "recordedAt": "2026-10-09T17:39:03Z",
       "messageMarkdown": "Expectation matched",
-      "logPath": "artifacts-temp/agentx/production-grade-client/final-final-083460f3eeda.log",
-      "logSha256": "f94059c3874ee7edd12d1ba7eb06d806215ef430970d5fc72f6449ba7b60d750"
+      "logPath": "artifacts-temp/agentx/production-grade-client/final-final-558478c5f422.log",
+      "logSha256": "480c4a035d39e5d80d6d28a4ccf02ba17b9b6d7ac8c120a5b26e40db1bedda25"
     },
     "final/final-e2e-native/final": {
       "checkId": "final-e2e-native",
       "boundaryId": "final",
       "phase": "final",
-      "batchId": "1b354b9a214b7636570264c362140cd558bcb77be8bdf48fec8708537a89655f",
+      "batchId": "ec25256141ea6aafc46e42a996ab83960ebb52d112c0b46a30f2d888543d04a7",
       "definitionHash": "622ad0625aa56a411f05f95eec0aee214fdb8ed3a82d513aba9bd80880d42ed8",
-      "basisHash": "ef7322490fef4fbb26aa2e85ca8024bb4c0d2e7ee00b48f3641ec089fc80077f",
+      "basisHash": "9dec5f7cefaa6d05b99db86ed23bc83a40448c3f4bed5c2ceac6a9d4726ca933",
       "status": "passed",
       "exitCode": 0,
       "testCount": 150,
-      "durationSeconds": 858.0201,
-      "recordedAt": "2026-10-09T16:37:46Z",
+      "durationSeconds": 859.0171,
+      "recordedAt": "2026-10-09T17:53:22Z",
       "messageMarkdown": "Expectation matched",
-      "logPath": "artifacts-temp/agentx/production-grade-client/final-final-37f354ae67c5.log",
-      "logSha256": "955c54390d365e48e4bfa3a13324ce9974a5e495170debcc1c990b63af3a85c0"
+      "logPath": "artifacts-temp/agentx/production-grade-client/final-final-671e3925313c.log",
+      "logSha256": "79d1a623fbd84ee8c8f0e626468eda106690973d679b188741ca4931d9bc8869"
     },
     "final/final-e2e-chromium/final": {
       "checkId": "final-e2e-chromium",
       "boundaryId": "final",
       "phase": "final",
-      "batchId": "1b354b9a214b7636570264c362140cd558bcb77be8bdf48fec8708537a89655f",
+      "batchId": "ec25256141ea6aafc46e42a996ab83960ebb52d112c0b46a30f2d888543d04a7",
       "definitionHash": "b0b52f243ebece5b271ac1d424eae551acab7e944c2814f1d984797deaeacc10",
-      "basisHash": "a20aa660938051b24d29d284d6606f3f59746c00c1e9c0bbcaa8a906270b7828",
+      "basisHash": "ba3d39dc1ed1e44807d106967a09aa4ebe8ef9de3586cd59257cfc1e6e641bdd",
       "status": "passed",
       "exitCode": 0,
       "testCount": 138,
-      "durationSeconds": 1161.001,
-      "recordedAt": "2026-10-09T16:57:07Z",
+      "durationSeconds": 1161.4051,
+      "recordedAt": "2026-10-09T18:12:43Z",
       "messageMarkdown": "Expectation matched",
-      "logPath": "artifacts-temp/agentx/production-grade-client/final-final-cb741ccd5a55.log",
-      "logSha256": "614dae15d389e2f0b00b03a4e514ea2fc3d13f2ea2ed112e73629605d5a865df"
+      "logPath": "artifacts-temp/agentx/production-grade-client/final-final-f1830302d85f.log",
+      "logSha256": "8b62eec423e7e443263a4d7b5a423f54f81f693c8acd4b1e22438157bcc7d5bc"
     }
   },
   "reviews": {
@@ -11128,7 +11137,7 @@
     },
     "final": {
       "reviewerId": "final-independent-auditor-efe9c365",
-      "snapshotId": "1b354b9a214b7636570264c362140cd558bcb77be8bdf48fec8708537a89655f",
+      "snapshotId": "ec25256141ea6aafc46e42a996ab83960ebb52d112c0b46a30f2d888543d04a7",
       "criterionIds": [
         "R1.C1",
         "R1.C2",
@@ -12781,16 +12790,17 @@
           "sha256": "db9d284a85f408a363e2be0841901135b6752ad741aeccf4e72ec60b53f4852c"
         }
       ],
-      "summaryMarkdown": "**Verdict: passed** (re-review at revision 276). All six findings of the first final review are resolved and verified against source: FINAL-F1 (case-insensitive WebSocket scheme, unknown schemes rejected before I/O, TLS wire test), FINAL-F2 (PAC routes logged masked, endpoints logged without query), FINAL-F3 (no re-entrant buffer lock; state lock no longer held across the connection-lock await in `writer`/`pause`), FINAL-F4 (docs, README, skill, rustdoc and memory corrected; no stale phrase remains), FINAL-F5 (public_error_types asserts new, start, fail, set_header), FINAL-F6 (D28 records the chaos grace; `stateful-resume-fallback` proves the interrupted-resume fallback). The new test groups `websocket_scheme_`, `log_redaction_` and `lock_scope_` pass (rerun by the reviewer); `check --epic` passed 159/159 at this snapshot.\n\nThe integrated epic meets R1-R16: typed errors, single-pass codec and budgets, all three transports with fallback, proxies (CONNECT, HTTPS, SOCKS, PAC, OS), HTTP/2 and experimental HTTP/3, suspension-aware liveness, aws-lc-rs and the Android platform verifier proven, and .NET parity (R16). Security constraints hold (explicit rustls provider, no plaintext or accept-all fallback, redaction, payloads only at trace); test-only controls stay in the test service and runners.\n\nR11.C2: PR runs on 60a0f36 green (Quality 37862871103, End-to-end 37862871128); dispatched runs 37845697880 and 37854530727 have `e2e / soak` green (the runs failed on recorded residual risks: WebKit Long Polling, iOS); `perf / compare` is replaced by the local full-scale ReferenceClientBudget runs per the amended criterion and is a recorded post-merge follow-up. Later commits, including the review repairs, are local and proven by the local final checks. Residual risks remain recorded in docs/12 and the hypotheses. Consumers (outside the epic): RayX merged the consumer branch into master (b9d02b95, per the coordinator); RayX.GameX `0418b7e0` awaits the user.",
+      "summaryMarkdown": "**Verdict: passed** (re-review at revision 279). All seven findings are resolved and verified against source.\n- **FINAL-F1:** a case-variant `HTTPS` scheme keeps the WebSocket on TLS, and an unknown scheme fails before I/O.\n- **FINAL-F2:** PAC results and endpoints are logged without secrets.\n- **FINAL-F3:** the lock scopes are fixed.\n- **FINAL-F4:** docs, README, skill, rustdoc and memory are consistent with the code.\n- **FINAL-F5:** `public_error_types` covers `new`, `start`, `fail` and `set_header`.\n- **FINAL-F6:** D28 records the chaos grace, and `stateful-resume-fallback` proves the interrupted resume.\n- **FINAL-F7:** the skill's PAC credential wording matches HTTP Basic and the SOCKS4/SOCKS5 handshakes.\n\nThe repair test groups `websocket_scheme_`, `log_redaction_` and `lock_scope_` passed when rerun by the reviewer. `check --epic` passed 159/159 at this snapshot. The commits after the code repairs (`b69d24c`, `d63e9b7`) changed only two skill lines. `bf6c568` promoted the epic decisions into memory (D5 supersedes the event-driven browser transport record), and `pendingSupersession` is empty.\n\nThe integrated epic meets R1-R16:\n- typed errors;\n- single-pass codec and the micro and reference-client budgets;\n- all three transports with fallback;\n- CONNECT, HTTPS, SOCKS, PAC and OS proxies;\n- HTTP/2 and experimental HTTP/3;\n- suspension-aware liveness;\n- aws-lc-rs and the Android platform verifier proven;\n- .NET parity (R16).\n\nSecurity constraints hold: an explicit rustls provider, no plaintext or accept-all fallback, redaction, and payloads only at trace. Test-only controls stay in the test service and runners.\n\n**R11.C2:**\n- Pull-request runs on 60a0f36 are green: Quality 37862871103 and End-to-end 37862871128.\n- The dispatched runs 37845697880 and 37854530727 have `e2e / soak` green. The runs failed overall on recorded residual risks: WebKit Long Polling and iOS.\n- `perf / compare` is replaced by the local full-scale ReferenceClientBudget runs, per the amended criterion; dispatching it after the merge is a recorded follow-up.\n\nResidual risks stay recorded in docs/12 and the hypotheses.\n\n**Consumers (outside the epic):** RayX merged the consumer branch into master (`b9d02b95`). RayX.GameX `0418b7e0` awaits the user.",
       "findingIds": [
         "FINAL-F1-redirect-scheme-plaintext-websocket",
         "FINAL-F2-secret-redaction-in-logs",
         "FINAL-F3-lock-discipline-client-tokio",
         "FINAL-F4-docs-skill-memory-consistency",
         "FINAL-F5-public-error-types-coverage",
-        "FINAL-F6-soak-chaos-resume-grace"
+        "FINAL-F6-soak-chaos-resume-grace",
+        "FINAL-F7-pac-credentials-wording"
       ],
-      "recordedAt": "2026-10-09T16:59:39Z"
+      "recordedAt": "2026-10-09T18:13:35Z"
     }
   },
   "checkpoints": {
@@ -16578,6 +16588,31 @@
         {
           "repositoryId": "rayx-signalr",
           "path": "dotnet/RayX.SignalR.TestService/src/ChaosHubs.cs"
+        }
+      ],
+      "boundaryId": "final"
+    },
+    {
+      "id": "FINAL-F7-pac-credentials-wording",
+      "criterionIds": [
+        "R11.C3",
+        "R13.C2"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**Expected:** the skill references describe what a PAC entry's non-standard `user:pass@` credentials do, matching the code (R11.C3, CLAUDE.md doc-consistency rule).\n\n**Observed:** commit `b69d24c` states that these credentials are used \"only for Basic after a 407\". The two places are `.claude/skills/rayx-signalr/references/troubleshooting.md:71-72` (\"a PAC entry's non-standard `user:pass@` is used only for Basic after a 407 and is masked in logs\") and `references/setup-and-connection.md:188-189` (\"used for Basic after a 407\").\n- That holds only for `PROXY`/`HTTP`/`HTTPS` entries.\n- `pac::parse_result` (`src/communication/pac.rs`) also builds `SOCKS`/`SOCKS4` entries as `socks4://` and `SOCKS5` entries as `socks5://` through the same `ProxyUrl::parse`, which keeps the userinfo.\n- For those entries `socks.rs` sends the credentials in the SOCKS handshake itself. `socks5` offers username/password in its greeting when credentials are set (`socks.rs:156-175`, RFC 1929), and SOCKS4 sends the user id. Neither involves a 407 or Basic.\n- The masked-in-logs part is correct.\n\n**Repair:** reword both lines. For example: \"a PAC entry's non-standard `user:pass@` is used as the proxy's credentials (Basic after a 407 for HTTP(S) entries, the SOCKS5 username/password or SOCKS4 user id for SOCKS entries) and is masked in logs\".\n\n**Resolved (d63e9b7):** both lines now say the credentials are that proxy's credentials. That means Basic after a 407 for `PROXY`/`HTTP`/`HTTPS` entries, the SOCKS5 username/password or the SOCKS4 user id for `SOCKS` entries, and masked in logs. This matches `pac::parse_result`, `socks5` (`socks.rs:156-175`) and `socks4_request`, which writes `user` into the request (`socks.rs:239-255`).",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/setup-and-connection.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/troubleshooting.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/socks.rs"
         }
       ],
       "boundaryId": "final"
