@@ -443,8 +443,9 @@ impl SignalRClient {
         #[cfg(target_arch = "wasm32")]
         if !recipe.headers().is_empty() {
             log::warn!(
-                "Browsers cannot set WebSocket headers: the headers from with_header reach \
-                 negotiate only"
+                "Browsers cannot set WebSocket or EventSource headers: the headers from \
+                 with_header reach the fetch requests (negotiate, Long Polling, Server-Sent \
+                 Events sends) only"
             );
         }
 
@@ -1375,7 +1376,8 @@ impl SignalRClient {
     /// # Errors
     ///
     /// [`ErrorKind::ConnectionClosed`](crate::ErrorKind::ConnectionClosed) for a locally closed
-    /// client.
+    /// client; [`ErrorKind::InvalidState`](crate::ErrorKind::InvalidState) for a client that was
+    /// never started (a failed `start` leaves it usable).
     pub async fn pause(&self) -> Result<(), Error> {
         match &self._connection {
             Some(connection) => connection.pause().await,
@@ -1402,7 +1404,9 @@ impl SignalRClient {
     /// [`ErrorKind::ConnectionClosed`](crate::ErrorKind::ConnectionClosed) for a locally closed
     /// client, or with [`CloseReason::ReconnectExhausted`](crate::CloseReason::ReconnectExhausted)
     /// when every attempt failed (its source is the last attempt's error);
-    /// [`ErrorKind::Paused`](crate::ErrorKind::Paused) when `pause` superseded the run.
+    /// [`ErrorKind::Paused`](crate::ErrorKind::Paused) when `pause` superseded the run;
+    /// [`ErrorKind::InvalidState`](crate::ErrorKind::InvalidState) for a client that was never
+    /// started (a failed `start` leaves it usable).
     pub async fn resume(&self) -> Result<(), Error> {
         match &self._connection {
             Some(connection) => connection.resume().await,

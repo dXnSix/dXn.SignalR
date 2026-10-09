@@ -423,8 +423,13 @@ impl ConnectionRecipe {
         )
     }
 
+    /// The endpoint for logs and errors: without its query, which may carry a token.
     pub(crate) fn display_endpoint(&self) -> String {
-        self.web_url()
+        let url = self.web_url();
+        match url.split_once('?') {
+            Some((base, _)) => base.to_string(),
+            None => url,
+        }
     }
 
     fn http_schema(&self) -> &'static str {
@@ -945,8 +950,9 @@ impl ConnectionConfiguration {
 
     /// Adds a header to every HTTP request (negotiate and the HTTP transports) and natively to the
     /// WebSocket upgrade, as the official .NET client's `HttpConnectionOptions.Headers` does.
-    /// Browsers cannot set WebSocket headers: there the header reaches negotiate only, and
-    /// building the client logs a warning. As in the .NET client, the header replaces a default
+    /// Browsers cannot set headers on a WebSocket or an `EventSource`: there the header reaches
+    /// the `fetch` requests (negotiate, Long Polling, Server-Sent Events sends) only, and building
+    /// the client logs a warning. As in the .NET client, the header replaces a default
     /// of the same name (an empty `User-Agent` removes it), while `X-Requested-With` and the
     /// credentials' `Authorization` always win. An invalid name or value, or a header the
     /// transport owns (`Host`, `Content-Length`, `Connection`, `Upgrade`, `Transfer-Encoding`,
@@ -1387,5 +1393,20 @@ mod browser_basic {
             assert!(!warned);
             assert!(records.is_empty());
         }
+    }
+}
+
+#[cfg(test)]
+mod log_redaction_endpoint_tests {
+    use super::ConnectionConfiguration;
+
+    #[test]
+    fn log_redaction_endpoints_drop_their_query() {
+        let configuration = ConnectionConfiguration::new(
+            "hub.example".to_string(),
+            "chat?access_token=secret-token&key=secret-key".to_string(),
+        );
+        let shown = configuration.connection_recipe().display_endpoint();
+        assert_eq!(shown, "https://hub.example/chat");
     }
 }

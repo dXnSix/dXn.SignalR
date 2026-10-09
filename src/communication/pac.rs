@@ -125,9 +125,15 @@ pub(crate) async fn routes_of_script(
             )
         })?
         .map_err(|error| Error::proxy(None, format!("the PAC script stopped: {error}")))??;
-    let routes = parse_result(&result);
-    log::debug!("The PAC script chose {result:?}");
-    Ok(routes)
+    Ok(chosen_routes(&result))
+}
+
+/// The routes of a PAC result, logged as parsed: a proxy's credentials (`user:pass@` in an
+/// entry) are masked, never logged as the script wrote them.
+fn chosen_routes(result: &str) -> Vec<Route> {
+    let routes = parse_result(result);
+    log::debug!("The PAC script chose {routes:?}");
+    routes
 }
 
 fn load_failure(message: impl fmt::Display) -> Error {
@@ -1112,5 +1118,27 @@ mod pac_tests {
         let missing = PacConfig::new("file:///no/such/proxy.pac").unwrap();
         let error = missing.routes(&tls, false, "hub", 80).await.unwrap_err();
         assert_eq!(error.kind(), ErrorKind::Proxy, "{error}");
+    }
+}
+
+#[cfg(test)]
+mod log_redaction_tests {
+    #[test]
+    fn log_redaction_pac_results_never_log_proxy_credentials() {
+        let (routes, records) = crate::test_logging::capture(|| {
+            super::chosen_routes("PROXY user:secret-pass@proxy.example:8080; DIRECT")
+        });
+        assert_eq!(routes.len(), 2);
+        let logged: Vec<_> = records
+            .iter()
+            .map(|record| record.message.as_str())
+            .collect();
+        assert!(!logged.is_empty(), "the choice is logged");
+        assert!(
+            logged
+                .iter()
+                .all(|message| !message.contains("secret-pass")),
+            "{logged:?}"
+        );
     }
 }

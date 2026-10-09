@@ -254,6 +254,23 @@ fn websocket_error(message: impl Into<String>) -> Error {
     Error::transport_failure(Some(TransportKind::WebSockets), message)
 }
 
+/// Whether the WebSocket `endpoint` is secure, by its scheme, compared case-insensitively as URL
+/// schemes are: `wss` (or `https`, as a redirect may name it). Any other scheme fails before I/O,
+/// so a secure endpoint never becomes a plaintext connection.
+fn websocket_secure(endpoint: &Uri) -> Result<bool, Error> {
+    match endpoint
+        .scheme_str()
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
+        Some("wss" | "https") => Ok(true),
+        Some("ws" | "http") => Ok(false),
+        other => Err(websocket_error(format!(
+            "the WebSocket URL has the unsupported scheme {other:?}"
+        ))),
+    }
+}
+
 /// A connection-state error that no particular transport caused.
 fn connection_error(message: impl Into<String>) -> Error {
     Error::transport_failure(None, message)
@@ -678,7 +695,10 @@ impl ReconnectionContext {
     }
 
     async fn attempt_once(&self, generation: u64) -> Result<(), Error> {
-        info!("Connecting to {}...", self.endpoint);
+        info!(
+            "Connecting to {}...",
+            CommunicationClient::display_endpoint(&self.endpoint)
+        );
         let resumable = active(&self.stateful);
         let (socket, fresh) = if let Some(buffer) = resumable {
             let target = self.transport_endpoint.read_locked().clone();
@@ -744,7 +764,10 @@ impl ReconnectionContext {
         );
         *guard = ConnectionState::Connected(Arc::new(Mutex::new(connection)));
         self.actions.callbacks().transport_installed();
-        info!("Connected to {}", self.endpoint);
+        info!(
+            "Connected to {}",
+            CommunicationClient::display_endpoint(&self.endpoint)
+        );
         Ok(())
     }
 
@@ -768,7 +791,10 @@ impl ReconnectionContext {
             if !self.current() {
                 return None;
             }
-            if let Err(error) = buffer.locked().disconnected() {
+            // Bound first: the guard of the condition must not live into the branch, which
+            // locks the buffer again.
+            let entered = buffer.locked().disconnected();
+            if let Err(error) = entered {
                 error!("Cannot enter stateful resume: {}", error);
                 buffer.locked().dispose();
                 *guard =
@@ -817,7 +843,10 @@ impl ReconnectionContext {
                 );
                 *guard = ConnectionState::Connected(Arc::new(Mutex::new(connection)));
                 self.actions.callbacks().transport_installed();
-                info!("Resumed the stateful connection to {}", self.endpoint);
+                info!(
+                    "Resumed the stateful connection to {}",
+                    CommunicationClient::display_endpoint(&self.endpoint)
+                );
                 None
             }
             Err(error) => {
@@ -1842,26 +1871,33 @@ impl CommunicationClient {
     /// attempt is in flight waits for it, then runs on the new connection or fails with the
     /// attempt's error; during a reconnect delay it fails at once.
     async fn writer(&self) -> Result<ConnectionWriter, Error> {
-        let attempt = match &*self._state.lock().await {
-            ConnectionState::NotConnected(DisconnectionReason::Attempting(attempt)) => {
-                attempt.clone()
-            }
-            ConnectionState::NotConnected(DisconnectionReason::Resuming(writer)) => {
-                return Ok(writer.clone());
-            }
-            ConnectionState::NotConnected(reason) => return Err(reason.send_error()),
-            ConnectionState::Connected(connection) => {
-                let connection = connection.clone();
-                return Ok(connection.lock().await.writer.clone());
+        // The state lock is released before the connection lock is awaited.
+        let connection = {
+            let state = self._state.lock().await;
+            match &*state {
+                ConnectionState::NotConnected(DisconnectionReason::Attempting(attempt)) => {
+                    Err(attempt.clone())
+                }
+                ConnectionState::NotConnected(DisconnectionReason::Resuming(writer)) => {
+                    return Ok(writer.clone());
+                }
+                ConnectionState::NotConnected(reason) => return Err(reason.send_error()),
+                ConnectionState::Connected(connection) => Ok(connection.clone()),
             }
         };
-        attempt.wait().await?;
-        let connection = match &*self._state.lock().await {
-            ConnectionState::NotConnected(DisconnectionReason::Resuming(writer)) => {
-                return Ok(writer.clone());
+        let connection = match connection {
+            Ok(connection) => connection,
+            Err(attempt) => {
+                attempt.wait().await?;
+                let state = self._state.lock().await;
+                match &*state {
+                    ConnectionState::NotConnected(DisconnectionReason::Resuming(writer)) => {
+                        return Ok(writer.clone());
+                    }
+                    ConnectionState::NotConnected(reason) => return Err(reason.send_error()),
+                    ConnectionState::Connected(connection) => connection.clone(),
+                }
             }
-            ConnectionState::NotConnected(reason) => return Err(reason.send_error()),
-            ConnectionState::Connected(connection) => connection.clone(),
         };
         let writer = connection.lock().await.writer.clone();
         Ok(writer)
@@ -1883,7 +1919,8 @@ impl CommunicationClient {
     /// fail until `resume`. The transition happens under the state lock.
     pub(crate) async fn pause(&self) -> Result<(), Error> {
         let stateful;
-        {
+        // The transition happens under the state lock; the detached connection stops after it.
+        let previous = {
             let mut guard = self._state.lock().await;
             if self._coordinator.pause()? == PauseOutcome::AlreadyPaused {
                 return Ok(());
@@ -1899,13 +1936,14 @@ impl CommunicationClient {
                 // buffer is replaced by a fresh negotiation on resume.
                 let _ = buffer.locked().disconnected();
             }
-            if let ConnectionState::Connected(connection) = previous {
-                let mut connection = connection.lock().await;
-                if stateful.is_some() {
-                    connection.abort();
-                } else {
-                    connection.stop();
-                }
+            previous
+        };
+        if let ConnectionState::Connected(connection) = previous {
+            let mut connection = connection.lock().await;
+            if stateful.is_some() {
+                connection.abort();
+            } else {
+                connection.stop();
             }
         }
         if stateful.is_none() {
@@ -2265,7 +2303,7 @@ impl CommunicationClient {
         let host = endpoint
             .host()
             .ok_or_else(|| Error::negotiate(None, "the WebSocket endpoint has no host"))?;
-        let secure = Some("wss") == endpoint.scheme_str();
+        let secure = websocket_secure(&endpoint)?;
         let port = endpoint.port_u16().unwrap_or(if secure { 443 } else { 80 });
         // Every resolved address is tried and Nagle's algorithm is off (see `connect_tcp`),
         // through the proxy's CONNECT tunnel when one applies; TLS runs inside it.
@@ -2316,7 +2354,7 @@ impl CommunicationClient {
             .ok_or_else(|| Error::negotiate(None, "the WebSocket endpoint has no host"))?
             .trim_start_matches('[')
             .trim_end_matches(']');
-        let secure = Some("wss") == endpoint.scheme_str();
+        let secure = websocket_secure(endpoint)?;
         let port = endpoint.port_u16().unwrap_or(if secure { 443 } else { 80 });
         let authority = endpoint
             .authority()
@@ -2474,7 +2512,7 @@ impl CommunicationClient {
             .ok_or_else(|| Error::negotiate(None, "the WebSocket endpoint has no host"))?
             .trim_start_matches('[')
             .trim_end_matches(']');
-        let secure = Some("wss") == endpoint.scheme_str();
+        let secure = websocket_secure(endpoint)?;
         let port = endpoint.port_u16().unwrap_or(if secure { 443 } else { 80 });
         let authority = endpoint
             .authority()
@@ -4336,5 +4374,144 @@ mod integrated_auth_upgrade {
             super::websocket_key().unwrap(),
             "a fresh key per upgrade"
         );
+    }
+}
+
+#[cfg(test)]
+mod websocket_scheme_tests {
+    use http::Uri;
+
+    use super::{websocket_secure, CommunicationClient};
+    use crate::{communication::negotiation::socket_url, ConnectionConfiguration, ErrorKind};
+
+    #[test]
+    fn websocket_scheme_security_ignores_the_scheme_case() {
+        for (url, secure) in [
+            ("wss://hub.example/chat", true),
+            ("WSS://hub.example/chat", true),
+            ("HTTPS://hub.example/chat", true),
+            ("https://hub.example/chat", true),
+            ("ws://hub.example/chat", false),
+            ("HTTP://hub.example/chat", false),
+        ] {
+            let endpoint: Uri = url.parse().unwrap();
+            assert_eq!(websocket_secure(&endpoint).unwrap(), secure, "{url}");
+        }
+        let error = websocket_secure(&"ftp://hub.example/chat".parse().unwrap()).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::Transport, "{error}");
+    }
+
+    #[test]
+    fn websocket_scheme_redirect_urls_keep_their_security() {
+        assert_eq!(
+            socket_url("HTTPS://hub.example/chat", &[("id", "a b")]),
+            "wss://hub.example/chat?id=a%20b"
+        );
+        assert_eq!(
+            socket_url("Http://hub.example/chat", &[]),
+            "ws://hub.example/chat"
+        );
+        assert_eq!(
+            socket_url("https://hub.example/chat?x=1", &[("id", "t")]),
+            "wss://hub.example/chat?x=1&id=t"
+        );
+    }
+
+    /// A WebSocket URL whose scheme is an upper-case `HTTPS` (as a redirect may name it) opens
+    /// TLS: the first bytes on the wire are a TLS ClientHello, never the upgrade with its token.
+    #[cfg(rayx_tls)]
+    #[tokio::test]
+    async fn websocket_scheme_upper_case_https_never_sends_plaintext() {
+        use tokio::io::AsyncReadExt;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let first_bytes = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buffer = vec![0u8; 512];
+            let read = socket.read(&mut buffer).await.unwrap_or(0);
+            buffer.truncate(read);
+            buffer
+        });
+        let mut configuration = ConnectionConfiguration::new("127.0.0.1".into(), "hub".into());
+        configuration.authenticate_bearer("secret-token".to_string());
+        configuration.without_proxy();
+        let recipe = configuration.connection_recipe().with_tls(
+            crate::communication::tls::TlsContext::for_connection(
+                true,
+                configuration.tls_settings(),
+            )
+            .unwrap(),
+        );
+        let endpoint: Uri = format!("HTTPS://127.0.0.1:{port}/hub?id=1")
+            .parse()
+            .unwrap();
+        let opened = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            CommunicationClient::open_websocket(endpoint, &recipe),
+        )
+        .await;
+        let bytes = first_bytes.await.unwrap();
+        assert_eq!(
+            bytes.first(),
+            Some(&0x16),
+            "a TLS handshake record comes first"
+        );
+        assert!(
+            !String::from_utf8_lossy(&bytes).contains("secret-token"),
+            "the token never travels in plaintext"
+        );
+        assert!(
+            matches!(opened, Ok(Err(_)) | Err(_)),
+            "the listener speaks no TLS"
+        );
+    }
+}
+
+#[cfg(test)]
+mod lock_scope_tests {
+    use std::time::Duration;
+
+    use super::{CommunicationClient, ConnectionState};
+    use crate::{
+        client::ConnectionConfiguration,
+        communication::{
+            loopback_server::{LoopbackOptions, LoopbackServer},
+            tls::TlsContext,
+            Communication,
+        },
+    };
+
+    /// `writer()` waiting for a busy connection lock leaves the state lock free, so a
+    /// `disconnect` from a callback on the same single-threaded runtime never waits behind it.
+    #[tokio::test]
+    async fn lock_scope_writer_releases_the_state_lock_while_waiting_for_the_connection() {
+        let server = LoopbackServer::start(LoopbackOptions::default()).await;
+        let mut configuration = ConnectionConfiguration::new("127.0.0.1".into(), "hub".into());
+        configuration.unsecure();
+        configuration.with_port(i32::from(server.port));
+        let recipe = configuration
+            .connection_recipe()
+            .with_runtime(tokio::runtime::Handle::current())
+            .with_tls(TlsContext::for_connection(false, configuration.tls_settings()).unwrap());
+        let client = CommunicationClient::create(recipe).unwrap();
+        client.start().await.unwrap();
+        let connection = match &*client._state.lock().await {
+            ConnectionState::Connected(connection) => connection.clone(),
+            _ => panic!("the client is connected"),
+        };
+        let busy = connection.lock().await;
+        let waiting = {
+            let client = client.clone();
+            tokio::spawn(async move { client.writer().await.map(|_| ()) })
+        };
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert!(
+            client._state.try_lock().is_ok(),
+            "the state lock is free while the writer waits"
+        );
+        drop(busy);
+        waiting.await.unwrap().unwrap();
+        client.disconnect().await;
     }
 }

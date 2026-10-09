@@ -149,15 +149,14 @@ pub(crate) fn encode_query_value(value: &str) -> String {
     encoded
 }
 
-/// The WebSocket URL for a hub base URL: `http`→`ws`, `https`→`wss`, plus percent-encoded query
+/// The WebSocket URL for a hub base URL: `http`→`ws`, `https`→`wss` (schemes compare
+/// case-insensitively, so a redirect to `HTTPS://` stays secure), plus percent-encoded query
 /// parameters.
 pub(crate) fn socket_url(base: &str, parameters: &[(&str, &str)]) -> String {
-    let mut url = if let Some(rest) = base.strip_prefix("https://") {
-        format!("wss://{rest}")
-    } else if let Some(rest) = base.strip_prefix("http://") {
-        format!("ws://{rest}")
-    } else {
-        base.to_string()
+    let mut url = match base.split_once("://") {
+        Some((scheme, rest)) if scheme.eq_ignore_ascii_case("https") => format!("wss://{rest}"),
+        Some((scheme, rest)) if scheme.eq_ignore_ascii_case("http") => format!("ws://{rest}"),
+        _ => base.to_string(),
     };
     for (name, value) in parameters {
         url.push(if url.contains('?') { '&' } else { '?' });

@@ -14,9 +14,10 @@ use crate::communication::transport::TransportKind;
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 #[non_exhaustive]
 pub enum ErrorKind {
-    /// A setting cannot work: the configuration was rejected before any I/O, or a call exceeded a
-    /// limit it sets (a message larger than the stateful replay buffer). [`Error::setting`] names
-    /// the setting.
+    /// A setting cannot work: the configuration was rejected before any I/O, or a call found a
+    /// value it set unusable (a header the request hook set, for example). [`Error::setting`]
+    /// names the setting. A message larger than the stateful replay buffer is sent, as the .NET
+    /// client sends it.
     Configuration,
     /// The negotiate request failed; [`Error::status`] is the HTTP status when the server answered.
     Negotiate,
