@@ -1,9 +1,12 @@
 name: Quality
 
-# Pull requests only: a merge to master re-runs nothing the pull request already proved.
+# Pull requests only: a merge to master re-runs nothing the pull request already proved. Pushes
+# that only change the AgentX epic state and memory run nothing.
 on:
   pull_request:
     branches: [master]
+    paths-ignore:
+      - ".agentx/**"
 
 permissions:
   contents: read

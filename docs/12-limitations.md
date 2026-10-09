@@ -88,6 +88,14 @@ These parts are not exercised:
   them, on ephemeral runners. Developer machines run `os-proxy` only inside the Android test app.
 - **iOS background timing.** Spawned simulator processes are not foreground apps. The iOS runner
   raises the scenario thread's QoS class and warms the simulator up before timed cells.
+- **Long Polling connects in WebKit on Linux CI.** In the 2026-10-08 CI runs, a WebKit Long
+  Polling cell occasionally hung while connecting or reconnecting, until its cell bound. It hit
+  `server-close` and `authentication`, and only in dispatched runs: four of them failed this
+  way, while the same cells passed in every pull-request run and pass in isolation (10 of 10)
+  and locally. No cause is confirmed; Chromium, Firefox and native Long Polling never showed it.
+- **Timing on loaded simulators.** On a busy macOS runner the iOS simulator can run a
+  timing-bounded cell (`stateful-reconnect`, `lifecycle-events`) past its bound, or fail to
+  start it. The same cells pass on the next run.
 - **A once-seen stall, retired.** After a third stateful resume on the Android emulator, one
   invocation once did not complete although the transport stayed open. The `stateful-resume-stress`
   scenario (500 transport aborts per cell, each followed by an invocation and a stream, with the
