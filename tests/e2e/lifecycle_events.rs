@@ -92,7 +92,7 @@ async fn scenario(protocol: Protocol) {
     // A server close without reconnect permission ends the connection.
     client
         .invoke_with_args::<(), _>("ScheduleServerClose".to_string(), |arguments| {
-            arguments.argument(false).argument(0);
+            arguments.argument(false).argument(200);
         })
         .await
         .unwrap();

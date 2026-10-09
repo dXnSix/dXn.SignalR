@@ -67,7 +67,7 @@ async fn scenario(protocol: Protocol) {
     // Restart after the server ended the connection.
     client
         .invoke_with_args::<(), _>("ScheduleServerClose".to_string(), |arguments| {
-            arguments.argument(false).argument(0);
+            arguments.argument(false).argument(200);
         })
         .await
         .unwrap();

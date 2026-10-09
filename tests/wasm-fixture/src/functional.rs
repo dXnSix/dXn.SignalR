@@ -2860,7 +2860,7 @@ async fn restart_after_stop(messagepack: bool) -> Outcome {
     // Restart after the server ended the connection.
     client
         .invoke_with_args::<(), _>("ScheduleServerClose".to_string(), |arguments| {
-            arguments.argument(false).argument(0);
+            arguments.argument(false).argument(200);
         })
         .await
         .map_err(|error| format!("ScheduleServerClose failed: {error}"))?;
@@ -3004,7 +3004,7 @@ async fn lifecycle_events(messagepack: bool) -> Outcome {
     // A server close without reconnect permission ends the connection.
     client
         .invoke_with_args::<(), _>("ScheduleServerClose".to_string(), |arguments| {
-            arguments.argument(false).argument(0);
+            arguments.argument(false).argument(200);
         })
         .await
         .map_err(|error| format!("ScheduleServerClose failed: {error}"))?;
