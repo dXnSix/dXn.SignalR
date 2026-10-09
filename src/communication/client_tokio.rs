@@ -4381,8 +4381,8 @@ mod integrated_auth_upgrade {
 mod websocket_scheme_tests {
     use http::Uri;
 
-    use super::{websocket_secure, CommunicationClient};
-    use crate::{communication::negotiation::socket_url, ConnectionConfiguration, ErrorKind};
+    use super::websocket_secure;
+    use crate::{communication::negotiation::socket_url, ErrorKind};
 
     #[test]
     fn websocket_scheme_security_ignores_the_scheme_case() {
@@ -4423,6 +4423,9 @@ mod websocket_scheme_tests {
     #[tokio::test]
     async fn websocket_scheme_upper_case_https_never_sends_plaintext() {
         use tokio::io::AsyncReadExt;
+
+        use super::CommunicationClient;
+        use crate::ConnectionConfiguration;
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
