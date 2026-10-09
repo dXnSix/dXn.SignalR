@@ -51,7 +51,8 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
       else
       {
         AssertMatches(name, workflow, @"(?ms)^on:\s*.*?pull_request:");
-        AssertMatches(name, workflow, @"(?ms)^on:\s*.*?push:");
+        // Pull requests only: a merge to master would re-run what the pull request proved.
+        AssertNotMatches(name, workflow, @"(?m)^\s+push:");
       }
       AssertMatches(name, workflow, @"(?m)^permissions:\s*\r?\n\s+contents:\s*read\s*$");
       AssertMatches(name, workflow, @"(?ms)^concurrency:\s*.*?cancel-in-progress:\s*true");
@@ -445,6 +446,10 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
   {
     string e2e = Workflows()["e2e.yml"];
     AssertMatches("e2e.yml", e2e, @"(?ms)^on:\s*.*?schedule:\s*\n\s+- cron:");
+    // The nightly schedule runs only the soak; every other job skips it.
+    Assert.All(
+      JobBlocks(e2e).Where(job => job.Key != "soak"),
+      job => AssertMatches($"e2e.yml job {job.Key}", job.Value, @"if: github\.event_name != 'schedule'"));
     string block = JobBlocks(e2e)["soak"];
     foreach(string pattern in new[]
             {

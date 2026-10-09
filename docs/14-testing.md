@@ -318,8 +318,9 @@ CI runs every category except `Orchestration`.
 
 ## CI checks
 
-The least-privilege workflows (`contents: read`, no secrets) run on pull requests to `master` and
-on pushes to `master`; the end-to-end workflow also runs nightly and can be started manually. They
+The least-privilege workflows (`contents: read`, no secrets) run on pull requests to `master` only.
+A merge to `master` triggers nothing, so nothing a pull request already proved runs twice. The
+end-to-end workflow can also be started manually, and its nightly schedule runs only the soak. They
 cancel superseded pull-request runs and upload bounded, redacted diagnostics only after failures.
 The performance workflow (`perf.yml`) runs weekly and on demand only.
 

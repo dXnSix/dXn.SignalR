@@ -1,11 +1,10 @@
 name: End-to-end
 
+# Pull requests and manual dispatch; a merge to master re-runs nothing the pull request already
+# proved. The nightly schedule runs only the soak.
 on:
   pull_request:
     branches: [master]
-  push:
-    branches: [master]
-  # Nightly: every job, plus the long soak.
   schedule:
     - cron: "17 2 * * *"
   workflow_dispatch:
@@ -30,6 +29,7 @@ env:
 jobs:
   native:
     name: e2e / native (${{ matrix.os }})
+    if: github.event_name != 'schedule'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     strategy:
@@ -80,6 +80,7 @@ jobs:
 
   browser:
     name: e2e / browser (${{ matrix.engine }})
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     strategy:
@@ -135,6 +136,7 @@ jobs:
 
   android:
     name: e2e / android
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 150
     env:
@@ -201,6 +203,7 @@ jobs:
 
   android-app:
     name: e2e / android-app
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
@@ -258,6 +261,7 @@ jobs:
 
   ios:
     name: e2e / ios
+    if: github.event_name != 'schedule'
     runs-on: macos-latest
     timeout-minutes: 150
     env:
@@ -293,6 +297,7 @@ jobs:
 
   os-proxy:
     name: e2e / os-proxy (${{ matrix.os }})
+    if: github.event_name != 'schedule'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
@@ -336,6 +341,7 @@ jobs:
 
   tls-aws-lc-native:
     name: e2e / tls-aws-lc (native, ${{ matrix.os }})
+    if: github.event_name != 'schedule'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -377,6 +383,7 @@ jobs:
 
   tls-aws-lc-android:
     name: e2e / tls-aws-lc (android)
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
@@ -431,6 +438,7 @@ jobs:
 
   tls-aws-lc-ios:
     name: e2e / tls-aws-lc (ios)
+    if: github.event_name != 'schedule'
     runs-on: macos-latest
     timeout-minutes: 90
     env:
