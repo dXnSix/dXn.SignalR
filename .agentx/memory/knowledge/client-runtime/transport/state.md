@@ -113,4 +113,7 @@ Experimental HTTP/3 (S14, D15, R15), `communication/http3.rs`, feature `http3` (
 
 - Source anchors: [src/communication/common.rs](../../../../../src/communication/common.rs), [src/communication/client_tokio.rs](../../../../../src/communication/client_tokio.rs), [src/communication/client_wasm.rs](../../../../../src/communication/client_wasm.rs).
 - 2026-10-06 current [Rustls per connection and hyper negotiate](../../../decisions/client-runtime/transport/2026-10-06-client-runtime-transport-rustls-per-connection-tls.md).
-- 2026-10-06 current [Event-driven browser transport](../../../decisions/client-runtime/transport/2026-10-06-client-runtime-transport-event-driven-browser-transport.md).
+- 2026-10-06 superseded [Event-driven browser transport](../../../decisions/client-runtime/transport/2026-10-06-client-runtime-transport-event-driven-browser-transport.md), by:
+- 2026-10-09 current [One transport abstraction per target](../../../decisions/client-runtime/transport/2026-10-09-client-runtime-transport-one-transport-abstraction-per-target.md).
+- 2026-10-09 current [Proxy route resolution](../../../decisions/client-runtime/transport/2026-10-09-client-runtime-transport-proxy-route-resolution.md).
+- 2026-10-09 current [HTTP versions as the .NET client](../../../decisions/client-runtime/transport/2026-10-09-client-runtime-transport-http-versions-as-dotnet.md).

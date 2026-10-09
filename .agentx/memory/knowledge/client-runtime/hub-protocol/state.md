@@ -28,3 +28,4 @@ Client-to-server streams encode StreamItem as JSON `{"type":2,"invocationId":id,
 ## Backlinks
 
 - Source anchors: [src/protocol](../../../../../src/protocol), [src/client/client.rs](../../../../../src/client/client.rs).
+- 2026-10-09 current [Single-pass wire codec](../../../decisions/client-runtime/hub-protocol/2026-10-09-client-runtime-hub-protocol-single-pass-wire-codec.md).

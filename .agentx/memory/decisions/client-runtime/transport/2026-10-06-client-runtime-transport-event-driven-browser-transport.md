@@ -2,16 +2,17 @@
 agentx:
   kind: decision
   scope: client-runtime/transport
-  status: current
+  status: superseded
   created: "2026-10-06T21:00:00+02:00"
-  updated: "2026-10-06T21:00:00+02:00"
+  updated: "2026-10-09T18:00:00+02:00"
   topics:
     - wasm
     - browser
     - websocket
     - workers
   supersedes: []
-  superseded_by: []
+  superseded_by:
+    - 2026-10-09-client-runtime-transport-one-transport-abstraction-per-target.md
 ---
 ## Decision: Run one event-driven task per browser socket over a minimal web-sys wrapper
 

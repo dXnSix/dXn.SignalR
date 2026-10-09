@@ -45,3 +45,4 @@ Since S14, with the non-default `http3` feature: `HttpVersion::Http3` and `Http3
 
 - Source anchors: [src/client/client.rs](../../../../../src/client/client.rs), [src/client/configuration.rs](../../../../../src/client/configuration.rs), [src/lib.rs](../../../../../src/lib.rs), [tests/public_connection_configuration.rs](../../../../../tests/public_connection_configuration.rs), [src/error.rs](../../../../../src/error.rs), [tests/public_error_types.rs](../../../../../tests/public_error_types.rs).
 - 2026-06-24 current [AD-009 backend network client decision](../../../decisions/client-runtime/public-api/2026-06-24-client-runtime-public-api-backend-network-client.md).
+- 2026-10-09 current [Typed error model](../../../decisions/client-runtime/public-api/2026-10-09-client-runtime-public-api-typed-error-model.md).
