@@ -294,6 +294,15 @@ first, and records the median of each metric with the build profile and the mach
 architecture, processors, .NET and Rust versions, commit) in `artifacts-temp/perf/<run>.json`.
 Budgets are always relative to the .NET client in the same run, never absolute numbers.
 
+The `ReferenceClientBudget` category checks the R2.C4 budgets on a full run. Latency (p50 and
+p99) must be at most 1.10× the .NET client's; throughput (sends, stream items, fan-in calls) at
+least 0.95×. It runs any rows the `Performance` category has not run in the same process, and
+writes `artifacts-temp/perf/reference-budget-<run>.txt`:
+
+```bash
+RAYX_SIGNALR_PERF_WORKLOADS=all RAYX_SIGNALR_PERF_SCALE=full dotnet test dotnet/RayX.SignalR.E2E.Tests --filter "Category=Performance|Category=ReferenceClientBudget"
+```
+
 ## Static contract categories
 
 ```bash
@@ -363,8 +372,9 @@ selection includes the typed-error scenario `error-kinds`:
 
 Performance check:
 
-- `perf / compare` runs `RAYX_SIGNALR_PERF_WORKLOADS=all` with `RAYX_SIGNALR_PERF_SCALE=full`,
-  then uploads `artifacts-temp/perf` as the `perf-report` artifact, kept for 30 days.
+- `perf / compare` runs `Category=Performance|Category=ReferenceClientBudget` with
+  `RAYX_SIGNALR_PERF_WORKLOADS=all` and `RAYX_SIGNALR_PERF_SCALE=full`, so a budget miss fails
+  it. It then uploads `artifacts-temp/perf` as the `perf-report` artifact, kept for 30 days.
 
 ## Consumer conformance gates
 

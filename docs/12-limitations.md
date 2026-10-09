@@ -93,6 +93,10 @@ These parts are not exercised:
   `server-close` and `authentication`, and only in dispatched runs: four of them failed this
   way, while the same cells passed in every pull-request run and pass in isolation (10 of 10)
   and locally. No cause is confirmed; Chromium, Firefox and native Long Polling never showed it.
+- **One missed callback on Windows CI.** In pull-request run 37854527851 (attempt 1, job
+  113575403521), the `callbacks` scenario (MessagePack, WebSockets) on `windows-latest` waited
+  5 s for a server-to-client callback that never arrived; no warning or panic was logged. The
+  cell passed in every other run. No cause is confirmed.
 - **Timing on loaded simulators.** On a busy macOS runner the iOS simulator can run a
   timing-bounded cell (`stateful-reconnect`, `lifecycle-events`) past its bound, or fail to
   start it. The same cells pass on the next run.

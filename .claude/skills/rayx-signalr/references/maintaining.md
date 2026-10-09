@@ -73,7 +73,9 @@ dotnet test dotnet/RayX.SignalR.E2E.Tests --filter "Category=WorkflowContract|Ca
   Windows 11 or Server 2022, Linux with `libmsquic`) and is never selected on macOS or iOS.
 - Performance: `RAYX_SIGNALR_PERF_WORKLOADS=all RAYX_SIGNALR_PERF_SCALE=quick|full dotnet test
   dotnet/RayX.SignalR.E2E.Tests --filter Category=Performance` compares against the .NET client
-  in one run and writes `artifacts-temp/perf/<run>.json` (CI: `perf.yml` `perf / compare`).
+  in one run and writes `artifacts-temp/perf/<run>.json`. `Category=ReferenceClientBudget` (full
+  scale, all workloads) enforces the R2.C4 budgets: latency at most 1.10× and throughput at least
+  0.95× the .NET client's. CI runs both in `perf.yml` (`perf / compare`, dispatch only).
 - Android app cells (`android-app`, `android-app-release`; `Scenarios/AndroidAppCellRunner.cs`):
   `tests/android-harness` (cdylib over `tests/e2e-scenarios`, which compiles the `tests/e2e`
   sources by path; scenario modules in `tests/e2e/main.rs` are `pub(crate)`) is built with
