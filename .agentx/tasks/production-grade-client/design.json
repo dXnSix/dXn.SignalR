@@ -829,6 +829,26 @@
           "path": "src/communication/server_sent_events_tokio.rs"
         }
       ]
+    },
+    {
+      "id": "D28",
+      "requirementIds": [
+        "R3",
+        "R16"
+      ],
+      "descriptionMarkdown": "**Soak chaos grace (refines D25, after the final review finding FINAL-F6).**\n- `ChaosControl` spares a connection for 3 s after aborting its transport. On the slow Android emulator, the next random abort (0.5-5 s) could land inside the stateful resume the previous one started. That ends the logical connection by design (a resume is tried once, D20, as the .NET client does) and failed the soak's stateful assertions.\n- The soak proves delivery across many resumes; an interrupted resume and the fallback to a fresh connection are proven on purpose by the `stateful-resume-fallback` scenario (server-rejected resume, R16.C15).\n- The intervals R3.C3 names are unchanged; the grace only skips a connection that was aborted less than 3 s before.",
+      "invariantsMarkdown": "- Chaos remains test-only (the .NET test service).",
+      "rationaleMarkdown": "A soak that fails when chaos interrupts a resume tests the emulator's speed, not message integrity; the dedicated fallback scenario keeps the interrupted-resume path proven deterministically.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.TestService/src/ChaosHubs.cs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "tests/e2e/stateful_resume_fallback.rs"
+        }
+      ]
     }
   ],
   "memoryDecisionsConsidered": [
