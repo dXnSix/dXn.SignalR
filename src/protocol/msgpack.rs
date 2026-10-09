@@ -12,20 +12,53 @@ fn encoding(error: impl std::fmt::Display) -> Error {
 
 // ── VarInt Framing ──────────────────────────────────────────────────────
 
-/// Encode a length as a VarInt (LEB128-style, MSB continuation bit).
-pub fn encode_varint(mut value: usize) -> Vec<u8> {
-    let mut buf = Vec::new();
-    loop {
+/// The longest VarInt length prefix a frame needs (a `u32` length).
+const MAX_PREFIX: usize = 5;
+
+/// Writes `value` as a VarInt (LEB128-style, MSB continuation bit) into `prefix`; returns how
+/// many bytes it took.
+fn write_varint(mut value: usize, prefix: &mut [u8; MAX_PREFIX]) -> usize {
+    let mut written = 0;
+    for slot in prefix.iter_mut() {
         let mut byte = (value & 0x7F) as u8;
         value >>= 7;
         if value > 0 {
             byte |= 0x80;
         }
-        buf.push(byte);
+        *slot = byte;
+        written += 1;
         if value == 0 {
             break;
         }
     }
+    written
+}
+
+/// Encode a length as a VarInt (LEB128-style, MSB continuation bit).
+#[cfg(test)]
+pub fn encode_varint(value: usize) -> Vec<u8> {
+    let mut prefix = [0; MAX_PREFIX];
+    let written = write_varint(value, &mut prefix);
+    prefix.iter().take(written).copied().collect()
+}
+
+/// A buffer for one message with room for its length prefix in front ([`finish_frame`]), so a
+/// frame is written with one allocation and no copy into a second buffer.
+fn frame_buffer(capacity: usize) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(MAX_PREFIX + capacity);
+    buf.resize(MAX_PREFIX, 0);
+    buf
+}
+
+/// Frames the message written after [`frame_buffer`]'s reserved prefix, in place.
+fn finish_frame(mut buf: Vec<u8>) -> Vec<u8> {
+    let mut prefix = [0; MAX_PREFIX];
+    let written = write_varint(buf.len() - MAX_PREFIX, &mut prefix);
+    let start = MAX_PREFIX - written;
+    for (slot, byte) in buf.iter_mut().skip(start).zip(prefix.iter().take(written)) {
+        *slot = *byte;
+    }
+    buf.drain(..start);
     buf
 }
 
@@ -51,7 +84,10 @@ pub fn decode_varint(data: &[u8]) -> Result<(usize, usize), Error> {
 
 /// Frame a MessagePack message with VarInt length prefix.
 pub fn frame_message(payload: &[u8]) -> Vec<u8> {
-    let mut framed = encode_varint(payload.len());
+    let mut prefix = [0; MAX_PREFIX];
+    let written = write_varint(payload.len(), &mut prefix);
+    let mut framed = Vec::with_capacity(written + payload.len());
+    framed.extend(prefix.iter().take(written));
     framed.extend_from_slice(payload);
     framed
 }
@@ -127,63 +163,73 @@ fn encode_headers(
 /// Layout: [Type, Headers, InvocationId?, Target, Arguments, StreamIds]
 /// Always writes 6 elements to match the .NET SignalR MessagePack protocol.
 fn write_invocation(
+    buf: &mut Vec<u8>,
     msg_type: u8,
     headers: &Option<BTreeMap<String, String>>,
     invocation_id: Option<&str>,
     target: &str,
     arguments: &[impl AsRef<[u8]>],
     stream_ids: &[String],
-) -> Result<Vec<u8>, Error> {
+) -> Result<(), Error> {
     let length = |count: usize| {
         u32::try_from(count).map_err(|_| Error::serialization("too many MessagePack items"))
     };
-    let encoded: usize = arguments
-        .iter()
-        .map(|argument| argument.as_ref().len())
-        .sum();
-    let mut buf = Vec::with_capacity(encoded + target.len() + 64);
 
     // Always 6 elements - .NET SignalR MessagePack protocol expects exactly 6
-    rmp::encode::write_array_len(&mut buf, 6).map_err(encoding)?;
-    rmp::encode::write_uint(&mut buf, msg_type as u64).map_err(encoding)?;
-    encode_headers(&mut buf, headers)?;
+    rmp::encode::write_array_len(buf, 6).map_err(encoding)?;
+    rmp::encode::write_uint(buf, msg_type as u64).map_err(encoding)?;
+    encode_headers(buf, headers)?;
 
     // InvocationId (nil if absent)
     match invocation_id {
-        Some(id) => rmp::encode::write_str(&mut buf, id).map_err(encoding)?,
-        None => rmp::encode::write_nil(&mut buf).map_err(encoding)?,
+        Some(id) => rmp::encode::write_str(buf, id).map_err(encoding)?,
+        None => rmp::encode::write_nil(buf).map_err(encoding)?,
     }
 
-    rmp::encode::write_str(&mut buf, target).map_err(encoding)?;
+    rmp::encode::write_str(buf, target).map_err(encoding)?;
 
     // Arguments array, each argument copied as encoded
-    rmp::encode::write_array_len(&mut buf, length(arguments.len())?).map_err(encoding)?;
+    rmp::encode::write_array_len(buf, length(arguments.len())?).map_err(encoding)?;
     for argument in arguments {
         buf.extend_from_slice(argument.as_ref());
     }
 
     // StreamIds (always present, empty array if none)
-    rmp::encode::write_array_len(&mut buf, length(stream_ids.len())?).map_err(encoding)?;
+    rmp::encode::write_array_len(buf, length(stream_ids.len())?).map_err(encoding)?;
     for id in stream_ids {
-        rmp::encode::write_str(&mut buf, id).map_err(encoding)?;
+        rmp::encode::write_str(buf, id).map_err(encoding)?;
     }
 
-    Ok(buf)
+    Ok(())
 }
 
-/// Encodes and frames an Invocation or StreamInvocation from its encoded arguments.
+/// The bytes an invocation needs beyond its encoded arguments (a capacity hint).
+fn invocation_capacity(arguments: &[impl AsRef<[u8]>], target: &str) -> usize {
+    arguments
+        .iter()
+        .map(|argument| argument.as_ref().len())
+        .sum::<usize>()
+        + target.len()
+        + 64
+}
+
+/// Encodes and frames an Invocation or StreamInvocation from its encoded arguments, into one
+/// buffer.
 pub(crate) fn encode_invocation_frame(
     invocation: &crate::protocol::invoke::Invocation,
 ) -> Result<Vec<u8>, Error> {
-    let payload = write_invocation(
+    let arguments = invocation.msgpack_arguments();
+    let mut buf = frame_buffer(invocation_capacity(arguments, invocation.target()));
+    write_invocation(
+        &mut buf,
         invocation.message_type() as u8,
         invocation.headers(),
         invocation.invocation_id(),
         invocation.target(),
-        invocation.msgpack_arguments(),
+        arguments,
         invocation.stream_ids(),
     )?;
-    Ok(frame_message(&payload))
+    Ok(finish_frame(buf))
 }
 
 /// Encode an Invocation (type 1) or StreamInvocation (type 4) from argument values.
@@ -204,14 +250,17 @@ pub fn encode_invocation(
         })
         .collect::<Result<Vec<_>, _>>()
         .map_err(encoding)?;
+    let mut buf = Vec::with_capacity(invocation_capacity(&arguments, target));
     write_invocation(
+        &mut buf,
         msg_type,
         headers,
         invocation_id.as_deref(),
         target,
         &arguments,
         stream_ids.as_deref().unwrap_or_default(),
-    )
+    )?;
+    Ok(buf)
 }
 
 /// Encode and frame a non-void Completion (type 3).
@@ -224,7 +273,7 @@ pub fn encode_completion<T: serde::Serialize>(
         Error::serialization(format!("cannot encode the completion result: {error}"))
     })?;
 
-    let mut payload = Vec::with_capacity(encoded.len() + invocation_id.len() + 16);
+    let mut payload = frame_buffer(encoded.len() + invocation_id.len() + 16);
     rmp::encode::write_array_len(&mut payload, 5).map_err(encoding)?;
     rmp::encode::write_uint(&mut payload, MessageType::Completion as u8 as u64)
         .map_err(encoding)?;
@@ -232,7 +281,7 @@ pub fn encode_completion<T: serde::Serialize>(
     rmp::encode::write_str(&mut payload, invocation_id).map_err(encoding)?;
     rmp::encode::write_uint(&mut payload, 3).map_err(encoding)?;
     payload.extend_from_slice(&encoded);
-    Ok(frame_message(&payload))
+    Ok(finish_frame(payload))
 }
 
 /// Encode and frame an error Completion (type 3).
