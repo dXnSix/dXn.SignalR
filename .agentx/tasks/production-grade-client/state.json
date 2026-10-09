@@ -1,12 +1,12 @@
 {
   "schemaVersion": 6,
   "epicId": "production-grade-client",
-  "revision": 259,
-  "planRevision": 41,
+  "revision": 267,
+  "planRevision": 43,
   "specHashes": {
-    "requirements": "0336059f67a37c0c7dc2906bea9d3dd4ab161bbc7a2c1697826ac153d99b1ca5",
+    "requirements": "bd48f05de08be57f2eddf4110f764c1185df4c7d70dcc9ecc8aa290bfc35ec72",
     "design": "f8a89ae75c0cd91eced4df287edecfb51a3a55bf4cdb04eb8e9b172352f1fb27",
-    "plan": "5842b6dda5d3a5c52a105798bb8dc8fbbd3734e1ae3d7a128d71affa38036c15"
+    "plan": "c8ea7c5449b06e4022e6597b9cf536a1ead9599498bcde0576aaa43a317e3700"
   },
   "tasks": {
     "S1.T1": {
@@ -232,23 +232,22 @@
       ]
     },
     "S15.T1": {
-      "status": "implemented",
+      "status": "done",
       "workerIds": [
         "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
       ]
     },
     "S15.T2": {
-      "status": "implemented",
+      "status": "done",
       "workerIds": [
         "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
       ]
     },
     "S15.T3": {
-      "status": "blocked",
+      "status": "done",
       "workerIds": [
         "efe9c365-c8eb-41a2-a5f7-72ed42597df0"
-      ],
-      "blockerMarkdown": "The user chose (2026-10-08) not to push feat/production-grade-client yet. R11.C2 needs the branch on GitHub. The workflows run on PRs and pushes to master, and perf.yml can be dispatched only once it is on master. Resume when the user pushes or authorizes a push and a draft PR."
+      ]
     },
     "S2.T5": {
       "status": "done",
@@ -629,6 +628,15 @@
         }
       },
       "recordedAt": "2026-10-08T07:45:39Z"
+    },
+    "59fb95318e720e92e4679affa78106f492705bba3ca7f72cbf8a2395c4ce4b4e": {
+      "snapshot": {
+        "specHash": "75431ee1c17790b6f46f73564df47bf0ed33b41256f2ebcf6e0ca5f33a0f9422",
+        "repositories": {
+          "rayx-signalr": "6635454bfea60f9f1648c00690ec52335986847cd7c3eaff29b2f9546a6f4940"
+        }
+      },
+      "recordedAt": "2026-10-09T00:31:17Z"
     }
   },
   "checkResults": {
@@ -3130,6 +3138,23 @@
       "logPath": "artifacts-temp/agentx/production-grade-client/S14-final-5f23182a1f0a.log",
       "logSha256": "769cb93ad15bf4123e14bf231c651ee962c6c5142130d39bbdc5e5bbd170d00b",
       "inputsHash": "10391afcad96d5704133fbb8b4fd9d95eb4cbefaad279b771346bb1037f61672"
+    },
+    "S15/s15-workflow-contract/final": {
+      "checkId": "s15-workflow-contract",
+      "boundaryId": "S15",
+      "phase": "final",
+      "batchId": "59fb95318e720e92e4679affa78106f492705bba3ca7f72cbf8a2395c4ce4b4e",
+      "definitionHash": "14a31794c5bd0daf0693a5aff32c1c08d2e6c123d8cda1d85e0a1311d7d57bf8",
+      "basisHash": "7e48b5839af034b207725f388875de9f5d9815405825e2927a2f1381b5ce65dc",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 16,
+      "durationSeconds": 4.7048,
+      "recordedAt": "2026-10-09T00:31:17Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/production-grade-client/S15-final-65ecc04e6f12.log",
+      "logSha256": "03cab51ddbfd0f108a84b5c81efd3cfb22d8c85aa228c8317a6d37c47ab9c711",
+      "inputsHash": "dbad4b199e586b06f66914e871a3bb64ce34b4e51fce40ee11c00fb44abd4cbe"
     }
   },
   "reviews": {
@@ -8252,6 +8277,145 @@
       "summaryMarkdown": "**Passed (revision 253).** R15.C1 and R15.C2 hold against source, the `http3_` group and runtime.\n\n- **Security:**\n  - QUIC uses `TlsContext::config_with_alpn(Some(h3))`, so it gets the connection's explicit provider, verifier, extra roots and hook.\n  - Nothing reads rustls' process default.\n  - There is no 0-RTT (the `Connecting` future is awaited), and certificate failures map to `Tls` (`http3_certificates_must_verify`).\n  - Errors carry only the host, the address and the quinn or h3 text. Application and hook headers already exclude connection-specific names (`headers::RESERVED`), so h3 never receives them.\n- **Retry safety:** `retry` is set only when `send_request` fails, before any body or FIN. The headers were then never fully accepted, or the peer refused or is closing. Later errors are never resent.\n- **Locks:** `Pool` takes its `std` mutex synchronously only. Dropping an h3 sender under it runs only h3's non-blocking close and wake.\n- **Feature off:** the default dependency graph has no quinn. `cargo check --lib` (default features) and `--no-default-features --features http3` are clean, and strict `Http3` without TLS is a `Configuration` error.\n- **Evidence:**\n  - `http3_` 7/7 (all features).\n  - Clippy (all targets, e2e, all features) clean.\n  - My own native `http3` e2e run 2/2 (JSON and MessagePack).\n  - The coordinator's Android 2/2 and contracts 115/115.\n- **Non-blocking notes from the first pass:**\n  - Repaired:\n    - the retry rule now has `http3_requests_the_server_took_are_never_sent_twice` (sent once, then a new connection);\n    - the `error.rs` doc placement is fixed;\n    - the RFC 9220 skip message now describes the client, not the server.\n  - Accepted as documented: dropping the pooled h3 connection on failure, and `Http3Preferred` giving QUIC half the connect timeout.",
       "findingIds": [],
       "recordedAt": "2026-10-08T07:46:20Z"
+    },
+    "S15": {
+      "reviewerId": "s15-independent-auditor-efe9c365",
+      "snapshotId": "d2c63f2e9c54f20654252afeda2f1d94fa04cd657ecd516d925009589db1c599",
+      "criterionIds": [
+        "R11.C1",
+        "R11.C2",
+        "R11.C3"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/e2e.yml",
+          "kind": "source",
+          "criterionIds": [
+            "R11.C1",
+            "R11.C2"
+          ],
+          "sha256": "5b94ecda3d3743eb720c41dd57edaf974d66994284115fcf7d856a4bb13ba33e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/perf.yml",
+          "kind": "source",
+          "criterionIds": [
+            "R11.C1",
+            "R11.C2"
+          ],
+          "sha256": "5208c3604c96014390fba33ea904cb8ad534b4f1da828c10b4fdb23eb1621c91"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/quality.yml",
+          "kind": "source",
+          "criterionIds": [
+            "R11.C1",
+            "R11.C2"
+          ],
+          "sha256": "80a4831821f1a4088d0f7be9efa80544a2be5fa220977b674c0226ba8567ecd9"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/WorkflowContractTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "R11.C1"
+          ],
+          "sha256": "abd8de80d56eaddaf8160609c1e5e32bd667195f3b9186e792a4179969f4406d"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/ScenarioCatalog.cs",
+          "kind": "source",
+          "criterionIds": [
+            "R11.C1"
+          ],
+          "sha256": "96bc3a8926a90145fca4876d481ed34a2a835aa5e970459252aa27927a87137b"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/12-limitations.md",
+          "kind": "source",
+          "criterionIds": [
+            "R11.C3"
+          ],
+          "sha256": "158792af4ea1ed2a002d08c55ead7d5a2a8bb89832e39d7f5cc273c5844c4c5c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/13-architecture.md",
+          "kind": "source",
+          "criterionIds": [
+            "R11.C3"
+          ],
+          "sha256": "433b7f350412af018c0020c8f2c18a94d867ff37ef9f54b2809b80779f5961b4"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/14-testing.md",
+          "kind": "source",
+          "criterionIds": [
+            "R11.C3"
+          ],
+          "sha256": "b8e2212ea9f075743181443be0d79ae82f0354b88db816e5cf1f03726aba570c"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/02-connecting.md",
+          "kind": "source",
+          "criterionIds": [
+            "R11.C3"
+          ],
+          "sha256": "d6662c28fe5fa96d2b0637dcd2ec8b4b77331f29405644ec99ef105eecf23621"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "README.md",
+          "kind": "source",
+          "criterionIds": [
+            "R11.C3"
+          ],
+          "sha256": "20c972376d86161f39329ce2820344bd139dfb0793fafd44d21971690f1a3e52"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/maintaining.md",
+          "kind": "source",
+          "criterionIds": [
+            "R11.C3"
+          ],
+          "sha256": "bd7eac363ab426efcf70367dc288e5cc1a97eb145aeb14ea4871c2c793854d14"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/memory/knowledge/repository-governance/quality-gates/state.md",
+          "kind": "source",
+          "criterionIds": [
+            "R11.C3"
+          ],
+          "sha256": "922452ac4b8de20c0552ce961e00b4873996180b22b68e3381152941710dea1f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/memory/knowledge/interop-validation/hypotheses.md",
+          "kind": "source",
+          "criterionIds": [
+            "R11.C3"
+          ],
+          "sha256": "380ed213cd6eeb02eb5138750599edd5473c7bb36fabbbb7b9d65cc446f53fe8"
+        }
+      ],
+      "summaryMarkdown": "**Passed (revision 265).**\n\n- **R11.C1:** holds. Pull-request and dispatch triggers only, per-event concurrency, error-kinds resolved on every job, enforced perf budgets; WorkflowContract, Repository and Catalog 95/95.\n- **R11.C2 (amended at rev 264 by user decision):**\n  - Green pull-request runs Quality 37862871103 and End-to-end 37862871128 on 60a0f36 (first attempt, every e2e job). They cover all transports on every target, android-app, the tls-aws-lc jobs, os-proxy and HTTP/3.\n  - Green dispatched 900 s soak jobs in runs 37845697880 and 37854530727.\n  - The budget-checked local full-scale run (`reference-budget-20261008-082407-39704.txt`, every R2.C4 budget held) stands in for `perf / compare`.\n- **Follow-ups:**\n  - Dispatch `perf / compare` on master after the merge and record its URL.\n  - Confirm the pull-request runs for 8149473 and 1ae96d7 (paths-ignore and docs only).\n  - Investigate the WebKit Long Polling and Windows callback flakes, which are recorded as active hypotheses.\n- **R11.C3:** holds.\n  - docs/14 and `maintaining.md` name `ReferenceClientBudget` with its 1.10x/0.95x limits and the `perf / compare` filter.\n  - docs/12 and the hypotheses record the Windows callback flake (run 37854527851, job 113575403521, confirmed as a failed `native (windows-latest)` job), and the hypotheses note the spending-limit loss in attempt 1 of 37854530727.\n  - docs/13 reports the budget-checked local run with its environment, as amended.",
+      "findingIds": [
+        "S15-F1",
+        "S15-F2",
+        "S15-F3"
+      ],
+      "recordedAt": "2026-10-09T00:45:31Z"
     }
   },
   "checkpoints": {
@@ -8430,6 +8594,14 @@
       },
       "reviewHash": "14eb15cc02ab679ac246b32fa468c02292bb205fe709f6ffe0a5313b38a7d6ed",
       "recordedAt": "2026-10-08T07:46:28Z"
+    },
+    "S15": {
+      "snapshotId": "d2c63f2e9c54f20654252afeda2f1d94fa04cd657ecd516d925009589db1c599",
+      "commits": {
+        "rayx-signalr": "1ae96d70f15eadec855384f471b398e45cee819b"
+      },
+      "reviewHash": "d53e47cbb18379c5c3345bed17566b3e18e9da9afabe08f7571afd29ea72bde0",
+      "recordedAt": "2026-10-09T00:45:32Z"
     }
   },
   "findings": [
@@ -11811,9 +11983,70 @@
           "symbol": "ConnectionConfiguration::with_tls_config_hook"
         }
       ]
+    },
+    {
+      "id": "S15-F1",
+      "boundaryId": "S15",
+      "criterionIds": [
+        "R11.C2",
+        "R11.C3"
+      ],
+      "severity": "major",
+      "status": "resolved",
+      "descriptionMarkdown": "**R11.C2 requires a dispatched `perf / compare` whose report meets R2.C4, and none exists.**\n\n- **Expected:** R11.C2 asks for \"a dispatched `perf / compare` whose report meets R2.C4; the run URLs are recorded\". R11.C3 asks the measured-performance docs to summarize \"the `perf / compare` report ... with its environment\".\n- **Observed:**\n  - `gh run list --workflow perf.yml` has no run. GitHub only dispatches a workflow whose file is on the default branch, and `perf.yml` is not on master.\n  - The only R2.C4 evidence is a local Windows run (`reference-budget-20261008-082407-39704.txt`, commit `68c6cae-dirty`; all ten budgets hold).\n  - docs/13 summarizes that local run, not a `perf / compare` report.\n- **Everything else in R11.C2 is met:**\n  - Quality 37862871103 and End-to-end 37862871128 (pull_request, 60a0f36) are green on their first attempt. They cover all transports and every target, android-app, the five tls-aws-lc jobs, os-proxy on windows and macos, and HTTP/3 with libmsquic.\n  - The 900 s `e2e / soak` job succeeded in dispatched runs 37845697880 and 37854530727.\n- **Repair (pick one):**\n  - (a) Get `perf.yml` onto master (the user decides how), dispatch it on the epic branch (`gh workflow run perf.yml --ref feat/production-grade-client`), confirm `ReferenceClientBudget` passes in the job, record the run URL, and add the CI report's Linux numbers and environment to docs/13.\n  - (b) If the user accepts the local full-scale budget run as R2.C4 evidence, amend R11.C2/R11.C3 (`amend --specification`, citing the workflow_dispatch default-branch constraint) so the CI dispatch becomes a recorded post-merge follow-up.\n- This is a blocker only for R11.C2 as written; with (b) it becomes a follow-up.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/13-architecture.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/perf.yml"
+        }
+      ]
+    },
+    {
+      "id": "S15-F2",
+      "boundaryId": "S15",
+      "criterionIds": [
+        "R11.C3"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**The S15.T3 handoff cites a residual risk that is recorded nowhere.** The handoff lists \"one missed callback on Windows (callbacks/messagepack), which passed in the next run\" among the residual risks \"in docs/12 and interop-validation hypotheses\".\n\n- **Observed:** neither `docs/12-limitations.md` nor `interop-validation/hypotheses.md` mentions it.\n- **Checked:** no failed job in any attempt of the epic branch's e2e runs (37834681830 to 37862871128) shows it. Attempt 1 of 37854530727 also had iOS and `tls-aws-lc (native, macos-latest)` jobs fail with no failed step (likely runner-level), which no record mentions.\n- **Repair:** record the Windows callback flake with its run and job URL in docs/12 (iOS/runner timing style) and the hypotheses, or remove the claim from the handoff and final review.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/12-limitations.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/memory/knowledge/interop-validation/hypotheses.md"
+        }
+      ]
+    },
+    {
+      "id": "S15-F3",
+      "boundaryId": "S15",
+      "criterionIds": [
+        "R11.C3"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "**The testing chapter and the skill's validation list never name the `ReferenceClientBudget` category.**\n\n- **Expected:** R11.C3 requires them to name the new categories and selectors.\n- **Observed:**\n  - docs/14 (Performance section and \"Performance check\") and `maintaining.md` show only `--filter Category=Performance`.\n  - Neither names `Category=ReferenceClientBudget`, the budget gate that `perf / compare` now runs (`Category=Performance|Category=ReferenceClientBudget`).\n  - docs/14 says `perf / compare` only \"uploads\" the report, not that it enforces the R2.C4 budgets.\n  - Only docs/13 mentions the category.\n- **Repair:** add the `ReferenceClientBudget` selector, what it enforces (latency at most 1.10x, throughput at least 0.95x) and the `perf / compare` filter to docs/14 and the skill's `maintaining.md`.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/14-testing.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/maintaining.md"
+        }
+      ]
     }
   ],
-  "handoffMarkdown": "Documentation, memory and consumers (R11.C3).\n- docs/13 Measured performance: full-scale perf on 2026-10-08 (Windows 11 x64, 16 CPUs, .NET 10.0.0, rustc 1.92.0; report artifacts-temp/perf/20261008-075414-10580.json, all 8 rows passed). Invoke p50 1.03-1.06x, send 0.92x, stream 1.95-2.35x, fan-in 1.36-1.40x.\n- README highlights now cover transports, proxies, performance, HTTP/3 and the connect timeout.\n- docs/12 adds Kerberos and OS-proxy hosts to not-covered; docs/14 CI checks list every job; the skill's maintaining reference lists the transports, soak and system-change selectors, host gates and the Performance category; docs/09 matrix.\n- CI tls-aws-lc scenarios aligned with the skill: tls, connect-negotiate, negotiate-redirect, proxy, error-kinds.\n- Library fix found while validating consumers on Rust 1.99 (GameX): ntlm.rs was dead code on Windows (42 warnings). It is now cfg(any(not(windows), test)), and random moved to integrated_auth.\n- Consumers (not pushed; hand over to the user):\n  - RayX worktree D:/Work/projects/RayX/RayX.signalr-consumer, branch feat/rayx-signalr-production-grade-client from master, commit 03b8f6eb: SignalRService returns rayx_signalr::Error, plus the lock. rayx_devkit check, clippy -D warnings and signalr tests pass.\n  - RayX.GameX worktree D:/Work/projects/RayX/RayX.GameX.signalr-consumer, same branch name from master, commit 0418b7e0: remote_source maps the connect error to its text. gamex_sbk_services check passes and its tests are 40/40. GameX master's own clippy already fails in gamex_sbk_abstractions (unrelated); its stale Cargo.lock was left unchanged.\n- Memory: repository-governance/quality-gates state.",
+  "handoffMarkdown": "Green GitHub Actions runs (R11.C2) on PR rayx-ui/RayX.SignalR#2, branch feat/production-grade-client.\n- The user authorized pushing and running (2026-10-08) and raised the Actions budget on 2026-10-09.\n- Green on 60a0f36, the head before the closeout docs:\n  - Quality: https://github.com/rayx-ui/RayX.SignalR/actions/runs/37862871103\n  - End-to-end: https://github.com/rayx-ui/RayX.SignalR/actions/runs/37862871128\n  - Coverage: all transports; native ubuntu/windows/macos; browsers; Android; android-app; iOS; os-proxy on windows and macos; tls-aws-lc native x3, Android and iOS; HTTP/3 with libmsquic.\n- 900 s soak (dispatched), success both times:\n  - https://github.com/rayx-ui/RayX.SignalR/actions/runs/37845697880 (7cca360)\n  - https://github.com/rayx-ui/RayX.SignalR/actions/runs/37854530727 (790eb5a)\n- perf / compare: perf.yml can be dispatched only once it is on master (a workflow_dispatch rule). The full-scale ReferenceClientBudget run passed locally on 2026-10-08 (artifacts-temp/perf/reference-budget-20261008-*.txt). Dispatch perf / compare after the merge.\n- Repairs during the run:\n  - gradlew executable bit;\n  - dead code on iOS and on Android without the verifier;\n  - TLS-less unit tests;\n  - Apple TLS refuses an h2-only ALPN offer with a protocol_version alert;\n  - macOS suspension: the /bin/kill helper failed, so the runner now calls libc kill(2);\n  - WebKit manual-reconnect wait raised to 30 s.\n- User decisions: no push or schedule triggers (R11.C1 amended, revision 260); pull-request pushes touching only .agentx/** run nothing.\n- Residual risks in docs/12 and interop-validation hypotheses:\n  - a WebKit Long Polling connect hang, only in dispatched runs (4/4);\n  - iOS simulator timing (stateful-reconnect, lifecycle-events), each passing on the next run;\n  - one missed callback on Windows (callbacks/messagepack), which passed in the next run.",
   "protectedPaths": {
     "rayx-signalr": {
       ".agentx/tasks/resilient-reconnect-and-production-gates/**": "a4110a3f5f2c68d64ddf8fbedb70479c98f46dde78b064b5b3ac826772db49a6",
