@@ -51,7 +51,10 @@ jobs:
         run: rustup toolchain install 1.92.0 --profile minimal
       - name: Install libmsquic for the HTTP/3 cells
         if: runner.os == 'Linux'
+        # A stalled package mirror fails the step instead of holding the runner to the job timeout.
+        timeout-minutes: 10
         run: |
+          echo 'Acquire::Retries "3"; Acquire::http::Timeout "30"; Acquire::https::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/99rayx-timeouts
           # The runner image may already list packages.microsoft.com; add it only when it does not.
           if ! grep -rqs "packages.microsoft.com/ubuntu" /etc/apt/sources.list /etc/apt/sources.list.d; then
             curl -sSLo packages-microsoft-prod.deb "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
@@ -151,7 +154,10 @@ jobs:
       - name: Install pinned Rust with the emulator target
         run: rustup toolchain install 1.92.0 --profile minimal --target x86_64-linux-android
       - name: Install libmsquic for the HTTP/3 cells
+        # A stalled package mirror fails the step instead of holding the runner to the job timeout.
+        timeout-minutes: 10
         run: |
+          echo 'Acquire::Retries "3"; Acquire::http::Timeout "30"; Acquire::https::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/99rayx-timeouts
           # The runner image may already list packages.microsoft.com; add it only when it does not.
           if ! grep -rqs "packages.microsoft.com/ubuntu" /etc/apt/sources.list /etc/apt/sources.list.d; then
             curl -sSLo packages-microsoft-prod.deb "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
