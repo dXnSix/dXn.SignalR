@@ -6,7 +6,9 @@
 hub protocol from Rust. One API covers two runtimes:
 
 - **Native** targets (Windows, Linux, macOS, Android, iOS) run on Tokio. Negotiation, Server-Sent
-  Events and Long Polling use hyper HTTP/1.1 requests, WebSockets use `tokio-websockets`, and TLS is rustls.
+  Events and Long Polling use hyper requests (by default HTTP/2 over TLS when the server agrees
+  through ALPN, otherwise HTTP/1.1; see [HTTP versions](02-connecting.md#http-versions)),
+  WebSockets use `tokio-websockets` over HTTP/1.1, and TLS is rustls.
 - **Browser** builds (`wasm32-unknown-unknown`) use the browser's `fetch` and `WebSocket`, and the
   browser's own TLS. They run on the main thread, in Web Workers, and in multithreaded (atomics)
   builds.

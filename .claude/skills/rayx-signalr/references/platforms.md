@@ -30,7 +30,8 @@ The runtime needs IO and time drivers and must outlive the client. The crate ena
 
 ## Browser
 
-- `fetch` for negotiate, `WebSocket` for transport; event-driven, no `window` access.
+- `fetch` for negotiate, Long Polling and Server-Sent Events sends, `EventSource` for the
+  Server-Sent Events stream, `WebSocket` for WebSockets; event-driven, no `window` access.
 - Client is `!Send`: one per thread or worker; drive with `wasm_bindgen_futures::spawn_local`.
 - Server must allow the page origin (CORS).
 - Bearer tokens or an access-token factory (sent as `access_token` on the WebSocket and the

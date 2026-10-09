@@ -25,7 +25,7 @@ Natively, every connection belongs to exactly one Tokio runtime:
 3. `connect` fails before any I/O, with an `ErrorKind::Configuration` error (`setting()` is
    `with_runtime_handle`) that names both options.
 
-Negotiation, the WebSocket, keep-alive and timeout timers, reconnect delays, stateful backpressure,
+Negotiation, the transport, keep-alive and timeout timers, reconnect delays, stateful backpressure,
 stream cancellation, the connection's writer and receiver tasks and the callback dispatch task
 all run on that runtime. The
 futures the client returns only wait on runtime-agnostic primitives, so they can be awaited from any
@@ -61,7 +61,8 @@ them.
 
 ## Browsers
 
-The browser client uses `fetch` for negotiation and Long Polling, and the browser's `WebSocket` for
+The browser client uses `fetch` for negotiation, Long Polling and the sends of Server-Sent Events,
+the browser's `EventSource` for the Server-Sent Events stream, and the browser's `WebSocket` for
 the WebSockets transport. It is event-driven: transport events feed one receiver task per
 transport, timers are cancellable `gloo-timers` futures, and nothing touches `window`.
 

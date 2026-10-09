@@ -22,7 +22,7 @@ that carry them:
 | `Authentication` | The server refused the credentials, or the access-token factory returned `Err` (`access token factory failed: <message>`, no status). | `status()`: 401 or 403. |
 | `Timeout` | An operation exceeded its bound. | `timeout_operation()` (`Connect`, `Negotiate`, `Handshake`, `ServerTimeout`) and `timeout()`. |
 | `Tls` | The TLS handshake or certificate verification failed (native). | |
-| `Proxy` | A proxy refused or failed the `CONNECT` tunnel (native), or could not be reached. | `status()` when the proxy answered (407, 403, 5xx); 407 and 403 are not transient. |
+| `Proxy` | A proxy refused or failed the tunnel (an HTTP `CONNECT` or a SOCKS handshake; native), could not be reached, or a proxy auto-config script could not be loaded or failed. | `status()` when the proxy answered (407, 403, 5xx); 407 and 403 are not transient. |
 | `Transport` | The network or the transport failed or dropped. | `transport()` when one was involved; `server_allows_reconnect()`. |
 | `TransportUnavailable` | No transport could be used: the server offers none the client can use, or several were tried and each failed to start (a single failed transport returns its own error). | `attempts()`: each transport with why it was skipped or failed. |
 | `Handshake` | The SignalR handshake failed. | |
@@ -32,7 +32,7 @@ that carry them:
 | `ConnectionClosed` | The connection is closed. | `close_reason()`: `Local`, `Server` (with `server_message()` and `server_allows_reconnect()`), or `ReconnectExhausted` (the last attempt's error is the `source()`). |
 | `Paused` | The connection is paused. | |
 | `Canceled` | The operation ended before it completed: a manual reconnect while another reconnect (or a start) runs or after a newer one superseded it, a connection task whose runtime shut down, an invocation removed before the server completed it, or (as `on_closed`'s argument) a stop that interrupted a reconnect. | |
-| `InvalidState` | The operation is not valid in the connection's current state, as .NET's `InvalidOperationException`: `start` on a client that is starting, connected, reconnecting or paused, or a call, `pause` or `resume` on a client that is not started (or whose start failed). | |
+| `InvalidState` | The operation is not valid in the connection's current state, as .NET's `InvalidOperationException`: `start` on a client that is starting, connected, reconnecting or paused; a call on a client that is not started (or whose start failed); `pause` or `resume` on a client that was never started. After a failed start `pause` and `resume` work: the client is `Disconnected`, and `resume` connects it. | |
 
 `ErrorKind` is `#[non_exhaustive]`: new kinds can arrive in minor releases, so a `match` needs a
 wildcard arm. `Error::is_transient()` is `true` for timeouts, network and transport failures, and
@@ -118,9 +118,9 @@ work are logged as warnings):
 | Negotiate answered 401 or 403 | `Authentication`, `status()` |
 | Negotiate answered another error status | `Negotiate`, `status()` (`is_transient()` for 408, 429 and 5xx) |
 | The server answered negotiate with an `error`, an unreadable body, or more than 100 redirects | `Negotiate` without a status |
-| The server offers no transport with the needed transfer format | `TransportUnavailable`, `attempts()`; enable WebSockets on the server, or MessagePack for `Binary` |
+| The server offers no transport with the needed transfer format | `TransportUnavailable`, `attempts()`; enable on the server a transport the client allows, or MessagePack for `Binary` (Server-Sent Events carry text only) |
 | Negotiate exceeded `with_connect_timeout` (default 120 s) | `Timeout`, `TimeoutOperation::Negotiate` |
-| Opening the WebSocket exceeded `with_connect_timeout` | `Timeout`, `TimeoutOperation::Connect` |
+| Starting the transport exceeded `with_connect_timeout` | `Timeout`, `TimeoutOperation::Connect` |
 | The server certificate is not trusted (native) | `Tls` |
 | The server did not answer the handshake within `with_handshake_timeout` | `Timeout`, `TimeoutOperation::Handshake` |
 | The server answered the handshake with an error (for example an unsupported protocol) | `Handshake` |

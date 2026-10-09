@@ -31,8 +31,8 @@ redacted (no tokens, `Authorization` values, URL credentials). `From<Error> for 
 | `TransportUnavailable` | no offered transport the client may use (its message names each with the reason); enable a transport, `AddMessagePackProtocol()` for MessagePack (Server-Sent Events carry text only) |
 | `Timeout`, `timeout_operation()` `Negotiate`/`Connect`/`Handshake` | setup exceeded `with_connect_timeout` / `with_handshake_timeout` |
 | `Tls` | untrusted server certificate (native) |
-| `Proxy`, `status()` 407 / 403 / 5xx / none | native proxy tunnel failed: missing or refused credentials, no Basic scheme offered, target denied, proxy failure, or proxy unreachable (check `with_proxy` and the proxy environment variables) |
-| `Configuration`, `setting() == "with_proxy"` | proxy URL is not `http://[user:pass@]host[:port]` |
+| `Proxy`, `status()` 407 / 403 / 5xx / none | native proxy tunnel failed: missing or refused credentials, no Basic scheme offered, target denied, proxy failure, or proxy unreachable (check `with_proxy`, the proxy environment variables, the OS proxy settings or the PAC script) |
+| `Configuration`, `setting() == "with_proxy"` | proxy URL is not `scheme://[user:pass@]host[:port]` with `http`, `https`, `socks4`, `socks4a`, `socks5` or `socks5h` |
 | `Handshake` | server rejected the handshake (protocol not enabled) |
 | `Transport` from a call | call while reconnecting, after a manual-mode drop, or pending call failed by a drop or ordinary reconnect |
 | `Paused` | call while paused, or pending call failed by `pause()` |
@@ -63,9 +63,14 @@ rejected Acks, Sequences or messages with the reason. Every record starts with `
 
 ## Limitations
 
-- Native proxies: `http://` CONNECT proxies only, Basic authentication only, system proxy from
-  environment variables (no OS settings, PAC, HTTPS or SOCKS proxies yet).
-- No per-call timeout; no status-change events.
+- Native proxies: `http://` and `https://` (CONNECT) and `socks4`/`socks4a`/`socks5`/`socks5h`
+  proxies (`with_proxy`), the system's settings by default (environment variables, else the OS
+  settings: WinHTTP, CFNetwork, `java.net.ProxySelector`; `with_os_proxy` for the OS alone), and
+  PAC scripts (`with_proxy_auto_config`, feature `proxy-pac`, not on iOS). HTTP proxies
+  authenticate with Basic only (Digest, NTLM and Negotiate challenges fail with `Proxy` 407);
+  PAC routes carry no credentials.
+- No per-call timeout. No hook for every status change: `on_closed`, `on_reconnecting`,
+  `on_reconnected` (the .NET events) and `status()`.
 - Browsers use the default `same-origin` credentials mode (no `withCredentials`, as the .NET
   browser client): no cookies to a hub on another origin.
 - Browser Basic auth goes only on `fetch` requests (negotiate, Long Polling, Server-Sent Events
@@ -73,6 +78,8 @@ rejected Acks, Sequences or messages with the reason. Every record starts with `
   or an access-token factory. Browser `pause()` ends
   stateful connections.
 - Background apps/tabs fire liveness timers late; use `pause()`/`resume()`.
-- Not proven by tests: the Android platform verifier inside a real app, physical devices, and
-  `aws-lc-rs` end to end. A stall seen once after a third stateful resume on the Android emulator is
+- Not proven by tests: physical devices. The Android platform verifier runs inside the Android
+  test app on the emulator (`android-app`, `android-app-release` targets), and `aws-lc-rs` runs
+  the TLS-dependent scenarios on native, Android and iOS (`RAYX_SIGNALR_E2E_TLS_PROVIDER=aws-lc-rs`,
+  the `tls-aws-lc` CI jobs). A stall seen once after a third stateful resume on the Android emulator is
   retired: `stateful-resume-stress` (500 aborts per cell) and `soak-chaos` do not reproduce it.

@@ -7,7 +7,7 @@ own TLS stack and trust store, and none of the options below exist.
 
 Native connections use [rustls](https://github.com/rustls/rustls), never OpenSSL. Each connection
 builds its own rustls `ClientConfig` at `connect`, with an explicit crypto provider and certificate
-verifier, and reuses it for negotiate, the WebSocket and every reconnect. The client never installs
+verifier, and reuses it for negotiate, every transport and every reconnect. The client never installs
 or depends on rustls' process-wide default `CryptoProvider`, so other crates in your application can
 select providers without affecting it.
 

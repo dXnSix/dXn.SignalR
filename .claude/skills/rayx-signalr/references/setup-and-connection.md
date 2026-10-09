@@ -114,11 +114,13 @@ server must read `access_token` for hub paths (JWT `OnMessageReceived`).
 
 - `POST {hub}/negotiate?negotiateVersion=1` (+ `useStatefulReconnect=true` with stateful).
 - Redirects (`url` + optional `accessToken`, Azure SignalR style) are followed up to 100 times; the
-  redirect token replaces configured credentials for the next negotiate and the WebSocket.
+  redirect token replaces configured credentials for the next negotiate and the transport.
 - `{"error": ...}` responses fail `connect` with the server's message; a classic ASP.NET SignalR
   server gets the official `Negotiate` explanation; a response without `negotiateVersion` is v0.
-- The response must offer `WebSockets` with `Text` (JSON) or `Binary` (MessagePack).
-- Each negotiate request and the transport opening are bounded by `with_connect_timeout` (120 s
+- The response lists the offered transports; the client tries those `with_transports` allows that
+  carry the hub protocol's transfer format, `Text` (JSON) or `Binary` (MessagePack), in the
+  server's order (see `with_transports` below).
+- Each negotiate request and the transport start (WebSocket upgrade, first poll, event stream) are bounded by `with_connect_timeout` (120 s
   default, as in the .NET client) on both targets; browsers abort the negotiate `fetch`. Exceeding it fails with
   `Timeout` naming `Negotiate` or `Connect`.
 - `skip_negotiation()` connects straight to `ws(s)://host[:port]/hub` (Bearer in `Authorization`

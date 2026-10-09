@@ -195,7 +195,13 @@ drop. Call `disconnect()` or `stop()` when you are done, and unregister callback
 need:
 
 ```rust
+use rayx_signalr::CallbackHandler;
+
+let on_message = client.register_typed("ReceiveMessage", |_ctx, (text,): (String,)| {
+    println!("{text}");
+});
+
+// Later, when the application is done with the hub:
 on_message.unregister();
-on_presence.unregister();
 client.disconnect();
 ```

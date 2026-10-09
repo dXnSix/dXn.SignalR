@@ -22,7 +22,8 @@ handler.unregister();
   only its own, `client.remove(target)` removes them all. Changes apply at once.
 - Calls for unregistered targets are dropped with a warning (a result-expecting call gets
   `Client didn't provide a result.`).
-- Callbacks survive reconnects; `disconnect()` drops them.
+- Callbacks survive reconnects, `disconnect()`/`stop()` and a restart with `start()`; only
+  `unregister` or `remove` drops them (scenario `restart-after-stop`).
 - Calls run on the client's dispatch task (connection runtime natively, event loop in the browser),
   one at a time in arrival order; completions, stream items and Pings never wait on a callback.
   Result-expecting calls (`InvokeAsync`) start in arrival order and continue on their own task once
@@ -31,7 +32,7 @@ handler.unregister();
   caught and logged; a result call no other callback answers then gets the panic message as its
   error.
 - Answers go to the logical connection the call arrived on (kept by a stateful resume; after an
-  ordinary reconnect `complete` returns `Transport`). `disconnect()` drops all callbacks.
+  ordinary reconnect `complete` returns `Transport`).
 - `register_async(target, |ctx| async move { .. })`: awaited one at a time (future `Send` natively).
 - `register_typed(target: impl Into<String>, |ctx, (a, b): (String, i32)| ..)`: arguments decoded before the
   call (tuples up to 12, or `()`); a mismatch skips the callback, logs, and answers a

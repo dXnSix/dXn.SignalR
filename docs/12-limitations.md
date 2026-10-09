@@ -25,8 +25,12 @@ prove. Each item says what to do instead where there is an alternative.
   407 challenge offers it; Digest, NTLM and Negotiate challenges fail with `ErrorKind::Proxy`
   (407).
 - **Invocation timeout.** There is no per-call timeout; wrap calls in your runtime's timeout.
-- **Status events.** There is no status-change callback; use a disconnection handler or poll
-  `status()`.
+- **Status-change callback.** As in the .NET client, there is no hook for every status change.
+  `on_closed`, `on_reconnecting` and `on_reconnected` report the .NET client's `Closed`,
+  `Reconnecting` and `Reconnected` events (see
+  [Lifecycle events](06-connection-lifecycle.md#lifecycle-events)), a disconnection handler sees
+  drops in manual mode, and `status()` returns the current `ConnectionStatus`. Other transitions,
+  such as a completed `start` or a `pause`, show only in `status()`.
 - **WASI and other non-browser WebAssembly targets.** There is no WebSocket implementation there;
   compilation fails on purpose.
 

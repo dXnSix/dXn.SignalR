@@ -1,13 +1,13 @@
 # Hub protocols and serialization
 
-SignalR separates the transport (WebSockets here) from the hub protocol that encodes messages. The
-client implements both ASP.NET Core hub protocols:
+SignalR separates the transport (WebSockets, Server-Sent Events or Long Polling) from the hub
+protocol that encodes messages. The client implements both ASP.NET Core hub protocols:
 
 | | JSON (default) | MessagePack (`messagepack` feature) |
 |---|---|---|
 | Select with | nothing | `with_messagepack_protocol()` |
 | Server needs | nothing | `.AddMessagePackProtocol()` |
-| WebSocket frames | text, records end with `0x1E` | binary, each message prefixed with a varint length |
+| Messages on the wire | text, records end with `0x1E` | binary, each message prefixed with a varint length |
 | Negotiated transfer format | `Text` | `Binary` |
 | Typical use | readability, browser debugging, widest compatibility | smaller frames and faster encoding |
 

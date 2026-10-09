@@ -99,7 +99,8 @@ rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR", features = ["m
 ## A quick tour
 
 The snippets assume an `async fn` that returns `Result<(), Box<dyn std::error::Error>>`, inside a
-Tokio runtime natively or `wasm_bindgen_futures::spawn_local` in the browser.
+Tokio runtime natively or `wasm_bindgen_futures::spawn_local` in the browser. Snippets that use
+`client` without creating it use the one the first snippet creates.
 
 ### Connect and invoke
 

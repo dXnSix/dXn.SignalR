@@ -52,7 +52,7 @@ A call on a client that was never started (or whose start failed) fails with
 | `Connected` | A transport is open and the handshake completed, or a stateful connection is resuming a lost transport transparently ([Stateful reconnect](07-reconnection.md#stateful-reconnect)). | Everything; during a transparent resume sends go into the replay buffer. |
 | `Reconnecting` | An automatic, manual or `resume` reconnect is running. | Calls made while an attempt is in flight wait for it; during the policy delay they fail at once. |
 | `Paused` | The application called `pause()`. No transport, keep-alive or automatic reconnect. | `resume()`. Calls fail. |
-| `Disconnected` | Not started yet, or the transport is gone and nothing is reconnecting: a failed start, a drop in manual mode, exhausted reconnect attempts, or a server close. | `start()`, `resume()` (after a connection) or a manual reconnect. Calls fail. |
+| `Disconnected` | Not started yet, or the transport is gone and nothing is reconnecting: a failed start, a drop in manual mode, exhausted reconnect attempts, or a server close. | `start()`, `resume()` (after a start, failed or not) or a manual reconnect. Calls fail. |
 | `Closed` | Stopped locally by `disconnect`/`stop` (on any handle) or by dropping the last handle. | `start()` connects again. |
 
 `status()` is synchronous and cheap. To react to changes, use the [lifecycle events](#lifecycle-events).
@@ -113,7 +113,7 @@ let _restart = client.on_closed(move |error| {
 ## Stopping
 
 `stop().await` stops the client as `StopAsync` does and returns once the transport closed:
-messages already sent go out, then a SignalR `Close` message, then the WebSocket closes, so the
+messages already sent go out, then a SignalR `Close` message, then the transport closes, so the
 hub's `OnDisconnectedAsync` sees no error. It waits at most the close timeout
 (`with_close_timeout`, 5 s by default, as .NET's `CloseTimeout`), then drops the transport.
 `disconnect()` is the synchronous form: it stops the same way and lets the transport close in the
@@ -161,7 +161,7 @@ let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
 | `with_keep_alive_interval` | 15 s | After this long without any outbound message, the client sends a SignalR `Ping`; as the .NET client, it also sends one right after every handshake (not after a stateful resume), so the server arms its client timeout. The server's `ClientTimeoutInterval` (30 s by default) drops clients that stay silent longer. |
 | `with_server_timeout` | 30 s | After this long without any inbound message, the transport counts as dropped and the reconnect path runs. The server pings every `KeepAliveInterval` (15 s by default). |
 | `with_handshake_timeout` | 15 s | `start` (and each reconnect attempt) fails when the server does not answer the handshake in time. |
-| `with_connect_timeout` | 120 s (the official .NET client's bound) | Bounds each negotiate request and opening the transport (natively TCP, TLS and the WebSocket upgrade; in browsers opening the WebSocket). Browsers abort a negotiate `fetch` that exceeds it. `start` (and each reconnect attempt) then fails with `ErrorKind::Timeout` naming `Negotiate` or `Connect`. |
+| `with_connect_timeout` | 120 s (the official .NET client's bound) | Bounds each negotiate request and starting the transport (natively TCP, TLS and the WebSocket upgrade, the first poll or the event stream; in browsers opening the WebSocket, the first poll or the `EventSource`). Browsers abort a negotiate `fetch` that exceeds it. `start` (and each reconnect attempt) then fails with `ErrorKind::Timeout` naming `Negotiate` or `Connect`. |
 | `with_close_timeout` | 5 s | How long `stop` waits for the transport to close. |
 
 As in the .NET client, every duration is accepted. Values that cannot work are logged as warnings
@@ -179,9 +179,9 @@ answer are kept.
 Pings are never buffered for stateful replay, and keep-alive continues while a stateful send waits
 for buffer space.
 
-Long Polling keeps itself alive: over it the client sends no Pings (not even after the handshake)
-and runs no server timeout, as the .NET client does, so the keep-alive interval and server timeout
-apply to WebSockets only. See [Long Polling](02-connecting.md#long-polling).
+The keep-alive interval and server timeout apply to WebSockets and Server-Sent Events. Long
+Polling keeps itself alive: over it the client sends no Pings (not even after the handshake) and
+runs no server timeout, as the .NET client does. See [Long Polling](02-connecting.md#long-polling).
 
 ### Suspension detection
 

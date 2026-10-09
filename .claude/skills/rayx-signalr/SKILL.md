@@ -8,7 +8,9 @@ description: Use, integrate, change, and validate rayx-signalr (Rust crate `rayx
 Inspect the affected current source first; it is the source of truth (`src/`, re-exported from
 `src/lib.rs`). Select the reference matching the task, then follow additional links only for a
 concrete need. Paths below are relative to this skill; commands run from the repository root. The
-long-form, compile-checked documentation is in [`docs/`](../../../docs/README.md).
+long-form documentation is in [`docs/`](../../../docs/README.md). Every Rust example in the README
+and `docs/` must compile; nothing compiles them automatically, so check the examples you change.
+Examples in these references may be fragments that assume a `client` in scope.
 
 The package is `rayx-signalr`, imported as `rayx_signalr`; it is not on crates.io (use a Git or path
 dependency). One API covers native Tokio targets and browser `wasm32-unknown-unknown`; WASI and

@@ -5,7 +5,7 @@ fragments.
 
 | Client feature | Server requirement |
 |---|---|
-| any connection | `builder.Services.AddSignalR(); app.MapHub<THub>("/path");` with WebSockets allowed (the only client transport); proxies must forward upgrades |
+| any connection | `builder.Services.AddSignalR(); app.MapHub<THub>("/path");` with at least one transport the client allows (`with_transports`, all three by default: WebSockets, Server-Sent Events, Long Polling); the client falls back in the server's order; proxies must forward WebSocket upgrades for WebSockets |
 | `skip_negotiation()` | hub accepts WebSocket-only connections: `options.Transports = HttpTransportType.WebSockets` |
 | `with_messagepack_protocol()` | package `Microsoft.AspNetCore.SignalR.Protocols.MessagePack`, `.AddMessagePackProtocol()`, DTOs `[MessagePackObject]` + string `[Key("serdeName")]` |
 | `with_stateful_reconnect` | `app.MapHub<THub>("/path", o => o.AllowStatefulReconnects = true)`; optional `StatefulReconnectBufferSize`; otherwise silent fallback to ordinary reconnect |

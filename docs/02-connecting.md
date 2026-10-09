@@ -59,7 +59,7 @@ The hub URL is `{scheme}://{domain}[:{port}]/{hub}`.
 
 | Method | Default | Effect |
 |---|---|---|
-| `secure()` | on | `https` for negotiation and `wss` for the WebSocket. |
+| `secure()` | on | `https` for negotiation, Long Polling and Server-Sent Events, and `wss` for the WebSocket. |
 | `unsecure()` | | `http` and `ws`. Use it for local development servers. |
 | `with_port(i32)` | none | Appends `:port`. Without it, the scheme's default port is used. |
 | `with_hub(String)` | the `hub` argument | Replaces the hub path given to `connect_with`. |
@@ -224,23 +224,25 @@ options of native connections have their own hook, `with_tls_config_hook`
 
 ## Negotiation
 
-By default the client negotiates before opening the WebSocket:
+By default the client negotiates before starting a transport:
 
 1. `POST {hub}/negotiate?negotiateVersion=1` (plus `useStatefulReconnect=true` when stateful
    reconnect is configured).
 2. A **redirect** response (`url` and optional `accessToken`, as Azure SignalR Service returns)
    restarts negotiation at the new URL. Its access token replaces the configured credentials for
-   the next negotiate and for the WebSocket. At most 100 redirects are followed.
+   the next negotiate and for the transport. At most 100 redirects are followed.
 3. An **error** response (`{"error": "..."}`) fails `connect` with the server's message. A classic
    ASP.NET SignalR server (not ASP.NET Core) gets the official clients' explanation as an
    `ErrorKind::Negotiate` error.
-4. A **connection** response must offer the `WebSockets` transport with the protocol's transfer
-   format (`Text` for JSON, `Binary` for MessagePack). The WebSocket URL is the final negotiate URL
-   with `ws`/`wss` and the connection token as `id` (a response without `negotiateVersion` is
-   version 0, whose connection id is the `id`).
+4. A **connection** response lists the transports the server offers. The client tries those it
+   allows that carry the protocol's transfer format (`Text` for JSON, `Binary` for MessagePack),
+   in the server's order (see [Transports](#transports)). The transport URL is the final
+   negotiate URL with the connection token as `id`, with `ws`/`wss` for WebSockets (a response
+   without `negotiateVersion` is version 0, whose connection id is the `id`).
 
-Each negotiate request and the transport setup (natively TCP, TLS and the WebSocket upgrade; in
-browsers opening the WebSocket) are bounded by `with_connect_timeout`, 120 s by default like the
+Each negotiate request and the transport start (natively TCP, TLS and the WebSocket upgrade, the
+first poll or the event stream; in browsers opening the WebSocket, the first poll or the
+`EventSource`) are bounded by `with_connect_timeout`, 120 s by default like the
 official .NET client; browsers abort a negotiate `fetch` that exceeds it. Non-2xx negotiate
 responses fail with the status (`ErrorKind::Authentication` for 401 and 403, otherwise
 `ErrorKind::Negotiate`) and a short, credential-redacted excerpt of the body.
@@ -312,9 +314,11 @@ Long Polling works as in the official clients, on both targets and with both hub
   connect timeout, and a poll that exceeds it is reissued, as the .NET client reissues a poll its
   `HttpClient` timed out. Sends and the `DELETE` are bounded by the connect timeout; a send that
   exceeds it ends the transport.
-- **Native connections.** Natively the requests use HTTP/1.1 connections over the client's own TCP
-  and TLS stream. A request that fails on a reused connection before any answer is sent once more
-  on a fresh connection, as .NET's `SocketsHttpHandler` does.
+- **Native connections.** Natively the requests run over the client's own TCP and TLS stream, with
+  the HTTP version `with_http_version` selects (see [HTTP versions](#http-versions)): by default
+  HTTP/2 over TLS when the server agrees through ALPN, otherwise HTTP/1.1. A request that fails on
+  a reused HTTP/1.1 connection before any answer is sent once more on a fresh connection, as
+  .NET's `SocketsHttpHandler` does.
 
 Long Polling keeps itself alive. As in the .NET client and ASP.NET Core, the client sends no
 keep-alive Pings over it, runs no server timeout, and sends no Ping after the handshake. That Ping
@@ -458,7 +462,8 @@ let client = rayx_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
 ```
 
 Every native connection (negotiate, the WebSocket, Long Polling and Server-Sent Events) to a
-proxied endpoint opens an HTTP `CONNECT` tunnel through the proxy, and runs TLS with the
+proxied endpoint opens a tunnel through the proxy (an HTTP `CONNECT`, or a SOCKS handshake for the
+SOCKS proxies below), and runs TLS with the
 connection's own configuration inside the tunnel for secure endpoints, so the proxy never sees the
 traffic or terminates TLS. As in the .NET client, the URL's credentials (percent-encode `:` and
 `@` in them) go out only when the proxy asks for them: after a 407 that offers the Basic scheme,

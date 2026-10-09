@@ -6,7 +6,7 @@ have none of these options.
 ## Model
 
 - rustls only, never OpenSSL. One `ClientConfig` per connection, built at `connect` with an
-  explicit provider and verifier, shared by negotiate, the WebSocket and every reconnect.
+  explicit provider and verifier, shared by negotiate, every transport (WebSockets, Long Polling, Server-Sent Events) and every reconnect.
 - Never uses or installs rustls' process-default `CryptoProvider`.
 - Secure endpoints never fall back to plaintext or to an accept-any verifier.
 - A plaintext connection redirected by negotiate to `https` builds its TLS config on first use.
