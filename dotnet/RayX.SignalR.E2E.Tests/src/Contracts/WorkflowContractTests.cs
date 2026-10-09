@@ -40,11 +40,11 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
   {
     foreach((string name, string workflow) in Workflows())
     {
-      // The performance comparison runs only on schedule and on demand; every other workflow
-      // gates pull requests and pushes.
+      // Nothing runs on a schedule (the user's decision, 2026-10-09). The performance comparison
+      // runs only on demand; every other workflow gates pull requests.
+      AssertNotMatches(name, workflow, @"(?m)^\s+schedule:");
       if(name == "perf.yml")
       {
-        AssertMatches(name, workflow, @"(?ms)^on:\s*.*?schedule:");
         AssertMatches(name, workflow, @"(?ms)^on:\s*.*?workflow_dispatch:");
         AssertNotMatches(name, workflow, @"(?m)^\s+(pull_request|push):");
       }
@@ -247,7 +247,6 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
               @"RAYX_SIGNALR_E2E_PROTOCOLS: json,messagepack",
               @"RAYX_SIGNALR_E2E_SCENARIOS: all",
               @"RAYX_SIGNALR_E2E_TRANSPORTS: all",
-              @"(?m)^\s+schedule:",
               @"pnpm --dir tools-node install --frozen-lockfile",
               @"rustup toolchain install nightly-2026-06-23 --profile minimal --component rust-src --target wasm32-unknown-unknown",
               @"playwright install --with-deps \$\{\{ matrix\.engine \}\}",
@@ -442,19 +441,14 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
 
   [Fact]
   [Trait("Category", "WorkflowContract")]
-  public void SoakRunsNightlyAndOnDemandFor900Seconds()
+  public void SoakRunsOnDemandFor900Seconds()
   {
     string e2e = Workflows()["e2e.yml"];
-    AssertMatches("e2e.yml", e2e, @"(?ms)^on:\s*.*?schedule:\s*\n\s+- cron:");
-    // The nightly schedule runs only the soak; every other job skips it.
-    Assert.All(
-      JobBlocks(e2e).Where(job => job.Key != "soak"),
-      job => AssertMatches($"e2e.yml job {job.Key}", job.Value, @"if: github\.event_name != 'schedule'"));
     string block = JobBlocks(e2e)["soak"];
     foreach(string pattern in new[]
             {
               "name: e2e / soak",
-              @"if: github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'",
+              @"(?m)if: github\.event_name == 'workflow_dispatch'\s*$",
               @"RAYX_SIGNALR_E2E_SCENARIOS: soak-chaos,error-kinds",
               @"RAYX_SIGNALR_SOAK_SECONDS: ""900""",
               @"dotnet test dotnet/RayX\.SignalR\.E2E\.Tests --filter Category=E2E"

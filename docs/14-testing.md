@@ -319,10 +319,10 @@ CI runs every category except `Orchestration`.
 ## CI checks
 
 The least-privilege workflows (`contents: read`, no secrets) run on pull requests to `master` only.
-A merge to `master` triggers nothing, so nothing a pull request already proved runs twice. The
-end-to-end workflow can also be started manually, and its nightly schedule runs only the soak. They
+A merge to `master` triggers nothing, so nothing a pull request already proved runs twice, and
+nothing runs on a schedule. The end-to-end workflow can also be started manually. They
 cancel superseded pull-request runs and upload bounded, redacted diagnostics only after failures.
-The performance workflow (`perf.yml`) runs weekly and on demand only.
+The performance workflow (`perf.yml`) runs on demand only.
 
 Quality checks:
 
@@ -359,7 +359,7 @@ selection includes the typed-error scenario `error-kinds`:
 - `e2e / tls-aws-lc (native, <os>)`, `e2e / tls-aws-lc (android)` and `e2e / tls-aws-lc (ios)`
   run `tls`, `connect-negotiate`, `negotiate-redirect` and `proxy` with
   `RAYX_SIGNALR_E2E_TLS_PROVIDER=aws-lc-rs`.
-- `e2e / soak` runs only nightly and on demand: `soak-chaos` for 900 seconds.
+- `e2e / soak` runs only when the workflow is started manually: `soak-chaos` for 900 seconds.
 
 Performance check:
 

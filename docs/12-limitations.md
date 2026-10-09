@@ -83,7 +83,7 @@ These parts are not exercised:
 - **HTTP/3 on Apple targets.** The QUIC client is compile-checked for macOS and iOS only, because
   Kestrel cannot serve HTTP/3 there.
 - **Performance on one host.** The measured comparison with the .NET client comes from one Windows
-  machine; `perf / compare` repeats it on a Linux runner each week.
+  machine; `perf / compare` repeats it on a Linux runner when it is started manually.
 - **OS proxy settings on Windows and macOS hosts.** Only the `e2e / os-proxy` CI jobs change
   them, on ephemeral runners. Developer machines run `os-proxy` only inside the Android test app.
 - **iOS background timing.** Spawned simulator processes are not foreground apps. The iOS runner

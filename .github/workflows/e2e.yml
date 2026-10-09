@@ -1,19 +1,17 @@
 name: End-to-end
 
-# Pull requests and manual dispatch; a merge to master re-runs nothing the pull request already
-# proved. The nightly schedule runs only the soak.
+# Pull requests and manual dispatch only: a merge to master re-runs nothing the pull request
+# already proved, and nothing runs on a schedule.
 on:
   pull_request:
     branches: [master]
-  schedule:
-    - cron: "17 2 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  # Per event, so a push, the nightly run and a dispatch never cancel each other.
+  # Per event, so a pull request run and a dispatch never cancel each other.
   group: e2e-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
@@ -29,7 +27,6 @@ env:
 jobs:
   native:
     name: e2e / native (${{ matrix.os }})
-    if: github.event_name != 'schedule'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     strategy:
@@ -80,7 +77,6 @@ jobs:
 
   browser:
     name: e2e / browser (${{ matrix.engine }})
-    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     strategy:
@@ -136,7 +132,6 @@ jobs:
 
   android:
     name: e2e / android
-    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 150
     env:
@@ -203,7 +198,6 @@ jobs:
 
   android-app:
     name: e2e / android-app
-    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
@@ -261,7 +255,6 @@ jobs:
 
   ios:
     name: e2e / ios
-    if: github.event_name != 'schedule'
     runs-on: macos-latest
     timeout-minutes: 150
     env:
@@ -297,7 +290,6 @@ jobs:
 
   os-proxy:
     name: e2e / os-proxy (${{ matrix.os }})
-    if: github.event_name != 'schedule'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
@@ -341,7 +333,6 @@ jobs:
 
   tls-aws-lc-native:
     name: e2e / tls-aws-lc (native, ${{ matrix.os }})
-    if: github.event_name != 'schedule'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -383,7 +374,6 @@ jobs:
 
   tls-aws-lc-android:
     name: e2e / tls-aws-lc (android)
-    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
@@ -438,7 +428,6 @@ jobs:
 
   tls-aws-lc-ios:
     name: e2e / tls-aws-lc (ios)
-    if: github.event_name != 'schedule'
     runs-on: macos-latest
     timeout-minutes: 90
     env:
@@ -476,7 +465,8 @@ jobs:
 
   soak:
     name: e2e / soak
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # Only on demand: the 900-second soak is too long for every pull request.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:

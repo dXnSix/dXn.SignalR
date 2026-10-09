@@ -204,7 +204,7 @@ alternating rounds. `ReferenceClientBudget` then checks the R2.C4 budgets on tho
 - latency at most 1.10× the .NET client's;
 - throughput at least 0.95× the .NET client's.
 
-The scheduled `perf / compare` job runs both and publishes the report as its `perf-report`
+The `perf / compare` job, started manually, runs both and publishes the report as its `perf-report`
 artifact.
 
 The budget-checked run below is at full scale (`RAYX_SIGNALR_PERF_SCALE=full`), on 2026-10-08. It
