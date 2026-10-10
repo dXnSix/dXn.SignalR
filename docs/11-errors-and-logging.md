@@ -206,7 +206,8 @@ Levels:
   that is not registered, a message for an unknown invocation id).
 - `info`: connection milestones (negotiation, connect, reconnect, close).
 - `debug`: message-level tracing by message type, invocation id and callback target.
-- `trace`: the decoder texts of payloads that did not decode, which can quote the payload.
+- `trace`: the decoder texts of payloads that did not decode, which can quote the payload, and
+  every hub message that did not decode, whole (target `rayx_signalr::communication::common`).
 
 Stateful reconnect logs its sequencing at `debug` under the `rayx_signalr::stateful` target, on
 both targets and without payloads: every tracked outgoing sequence id, every received trackable id

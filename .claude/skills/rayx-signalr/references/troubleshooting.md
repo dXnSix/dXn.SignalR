@@ -52,7 +52,7 @@ redacted (no tokens, `Authorization` values, URL credentials). `From<Error> for 
 `log` facade, target `rayx_signalr`. Native: `env_logger` with
 `RUST_LOG=rayx_signalr=info` (or `debug` for message tracing by type, id and target). Browser:
 `console_log`. Payloads, arguments and results appear only at `trace` (decoder texts of values
-that did not decode); avoid `trace` in production for sensitive hubs.
+that did not decode, and undecodable hub messages whole); avoid `trace` in production for sensitive hubs.
 
 Stateful reconnect sequencing logs at `debug` on its own target, `rayx_signalr::stateful`, on both
 targets: tracked outgoing ids, received ids with `accepted`/`duplicate`, Acks sent and received,

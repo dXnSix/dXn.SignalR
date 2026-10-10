@@ -38,7 +38,7 @@ use crate::{
         call_connection_replaced, ReplyFuture, ReplySink, Storage, UpdatableActionStorage,
     },
     protocol::{
-        codec::{self, InboundMessage, OutboundMessage, Record},
+        codec::{InboundMessage, OutboundMessage, Record},
         hub_protocol::HubProtocolKind,
         messages::MessageParser,
         negotiate::HandshakeRequest,
@@ -1129,7 +1129,12 @@ fn process_frame(
         (HubProtocolKind::Json, Frame::Text(text)) => records
             .text
             .feed(&text, |record| {
-                handle_record(&mut storage, codec::decode_json(record), shared, socket)
+                handle_record(
+                    &mut storage,
+                    super::common::decode_json(record),
+                    shared,
+                    socket,
+                )
             })
             .unwrap_or_else(Some),
         #[cfg(feature = "messagepack")]
@@ -1138,7 +1143,7 @@ fn process_frame(
             .feed(&bytes, |record| {
                 handle_record(
                     &mut storage,
-                    codec::decode_messagepack(record),
+                    super::common::decode_messagepack(record),
                     shared,
                     socket,
                 )

@@ -25,7 +25,7 @@ use crate::{
         call_connection_replaced, ReplyFuture, ReplySink, Storage, UpdatableActionStorage,
     },
     protocol::{
-        codec::{self, InboundMessage, OutboundMessage, Record},
+        codec::{InboundMessage, OutboundMessage, Record},
         hub_protocol::HubProtocolKind,
         messages::MessageParser,
         negotiate::HandshakeRequest,
@@ -1474,7 +1474,9 @@ impl CommunicationConnection {
                         let ended = match protocol_kind {
                             HubProtocolKind::Json => match ws_message.as_text() {
                                 Some(text) => text_records
-                                    .feed(text, |record| context.handle(codec::decode_json(record)))
+                                    .feed(text, |record| {
+                                        context.handle(super::common::decode_json(record))
+                                    })
                                     .unwrap_or_else(Some),
                                 None => Some(unexpected_frame("a binary frame", "JSON")),
                             },
@@ -1483,7 +1485,7 @@ impl CommunicationConnection {
                                 let frame: &[u8] = ws_message.as_payload();
                                 binary_records
                                     .feed(frame, |record| {
-                                        context.handle(codec::decode_messagepack(record))
+                                        context.handle(super::common::decode_messagepack(record))
                                     })
                                     .unwrap_or_else(Some)
                             }

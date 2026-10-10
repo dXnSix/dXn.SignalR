@@ -80,6 +80,20 @@ pub(crate) fn dispatch_decoded<S: Storage>(
     }
 }
 
+/// Decodes one JSON record; an undecodable one is traced (payloads appear only at `trace`).
+pub(crate) fn decode_json(record: &str) -> Result<InboundMessage<'_>, Error> {
+    crate::protocol::codec::decode_json(record)
+        .inspect_err(|_| log::trace!("Undecodable record: {record:?}"))
+}
+
+/// Decodes one MessagePack message; an undecodable one is traced (payloads appear only at
+/// `trace`).
+#[cfg(feature = "messagepack")]
+pub(crate) fn decode_messagepack(record: &[u8]) -> Result<InboundMessage<'_>, Error> {
+    crate::protocol::codec::decode_messagepack(record)
+        .inspect_err(|_| log::trace!("Undecodable record: {record:?}"))
+}
+
 /// The error a malformed message ends the transport with, as in the .NET client (the reconnection
 /// policy then runs). Decoder messages can quote payload fragments, so they are logged only at
 /// `trace` and never become part of the error.
