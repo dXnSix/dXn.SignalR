@@ -349,9 +349,9 @@ fn run_now<F: std::future::Future>(future: F) -> F::Output {
 }
 
 impl Drop for SignalRClient {
-    /// Dropping a handle closes the connection only when it is the last one (registered callbacks
-    /// and live `InvocationContext`s are handles too); [`disconnect`](SignalRClient::disconnect)
-    /// closes it for every handle.
+    /// Dropping a handle closes the connection only when it is the last one (a live
+    /// `InvocationContext` and an open stream count as handles; registered callbacks and hooks do
+    /// not); [`disconnect`](SignalRClient::disconnect) closes it for every handle.
     fn drop(&mut self) {
         if let Some(mut conn) = self._connection.take() {
             run_now(conn.release());

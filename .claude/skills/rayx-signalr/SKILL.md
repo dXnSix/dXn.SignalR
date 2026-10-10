@@ -48,7 +48,7 @@ the crate by path (`rayx-signalr = { path = "../RayX.SignalR" }`) through
   (`connect_with` is both at once and can miss messages the hub sends on connect).
 - Import `CallbackHandler` to call `unregister()`. `disconnect()`/`stop().await` stop the connection
   for every handle (like .NET `StopAsync`); `start()` restarts it. Dropping the last handle closes
-  it (registered callbacks and hooks do not count). Capture `client.downgrade()` in callbacks and
+  it (registered callbacks and hooks do not count; an open stream does until it is dropped). Capture `client.downgrade()` in callbacks and
   hooks, never a `SignalRClient` clone (reference cycle).
 - Import `futures::StreamExt` to iterate `ManualStream`; check `error()` after it ends; drop it to
   cancel the server stream.
