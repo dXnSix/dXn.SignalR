@@ -314,8 +314,9 @@ public static class ScenarioCatalog
     new("stateful-resume-stress", Set([_native, _chromium, _android]))
     {
       Limit = TimeSpan.FromSeconds(600),
-      // The stateful sequence trace reaches the cell diagnostics.
-      LogFilter = "rayx_signalr=info,rayx_signalr::stateful=debug",
+      // The stateful sequence trace and any undecodable message (test data only) reach the cell
+      // diagnostics.
+      LogFilter = "rayx_signalr=info,rayx_signalr::stateful=debug,rayx_signalr::communication::common=trace",
       Exclusions = new Dictionary<string, string>
       {
         [_firefox] = "a stress cell runs for minutes; one browser engine (Chromium) proves the browser stateful resume",

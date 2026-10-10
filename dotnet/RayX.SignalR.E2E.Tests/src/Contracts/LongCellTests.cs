@@ -32,7 +32,7 @@ public sealed class LongCellTests
       Assert.Equal("900", soakVariables[CellExecution.SoakSecondsVariable]);
       Assert.Equal("rayx_signalr=info", soakVariables["RUST_LOG"]);
       Assert.Equal(
-        "rayx_signalr=info,rayx_signalr::stateful=debug",
+        "rayx_signalr=info,rayx_signalr::stateful=debug,rayx_signalr::communication::common=trace",
         CellExecution.CellVariables(stress)["RUST_LOG"]);
 
       // Android passes them through `adb shell env`, iOS through SIMCTL_CHILD_ variables.
