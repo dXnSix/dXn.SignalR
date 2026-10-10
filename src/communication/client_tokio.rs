@@ -1657,11 +1657,32 @@ impl Clone for ConnectionState {
     }
 }
 
-/// One client handle: every clone shares one `ClientInner`, whose strong count is the number of
+/// One client handle: every clone shares one `ClientInner`, whose owner count is the number of
 /// handles (connection tasks hold only its parts, or a `Weak`).
-#[derive(Clone)]
 pub struct CommunicationClient {
     inner: Arc<ClientInner>,
+}
+
+impl Clone for CommunicationClient {
+    fn clone(&self) -> Self {
+        self.inner
+            ._owners
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+impl Drop for CommunicationClient {
+    fn drop(&mut self) {
+        // The last handle's `release` already took the count to zero.
+        let _ = self.inner._owners.fetch_update(
+            std::sync::atomic::Ordering::AcqRel,
+            std::sync::atomic::Ordering::Acquire,
+            |owners| owners.checked_sub(1),
+        );
+    }
 }
 
 impl std::ops::Deref for CommunicationClient {
@@ -1677,13 +1698,22 @@ impl std::ops::Deref for CommunicationClient {
 pub(crate) struct WeakCommunicationClient(Weak<ClientInner>);
 
 impl WeakCommunicationClient {
-    /// The client, unless its last handle was dropped: a lifecycle hook that runs while that
-    /// handle is still being dropped cannot revive the client it reports closed.
+    /// The client, unless its last handle was released: a lifecycle hook that runs while that
+    /// handle is still being dropped cannot revive the client it reports closed. Joining the owners
+    /// and the last release are ordered by the owner count, so exactly one of them wins a race.
     pub(crate) fn upgrade(&self) -> Option<CommunicationClient> {
-        self.0
-            .upgrade()
-            .filter(|inner| !inner._released.load(std::sync::atomic::Ordering::Acquire))
-            .map(|inner| CommunicationClient { inner })
+        let inner = self.0.upgrade()?;
+        inner
+            ._owners
+            .fetch_update(
+                std::sync::atomic::Ordering::AcqRel,
+                std::sync::atomic::Ordering::Acquire,
+                |owners| (owners > 0).then_some(owners + 1),
+            )
+            .ok()?;
+        let client = CommunicationClient { inner };
+        // A handle cloned while the released client closes does not reopen it either.
+        (!client._released.load(std::sync::atomic::Ordering::Acquire)).then_some(client)
     }
 }
 
@@ -1698,7 +1728,9 @@ pub struct ClientInner {
     _coordinator: ReconnectCoordinator,
     _protocol_kind: HubProtocolKind,
     _hooks: LifecycleHooks,
-    /// Set when the last handle was dropped, before the client closes.
+    /// The live handles; a weak handle joins them only while this is above zero.
+    _owners: std::sync::atomic::AtomicUsize,
+    /// Set when the last handle was released, before the client closes.
     _released: std::sync::atomic::AtomicBool,
 }
 
@@ -1759,10 +1791,15 @@ impl Communication for CommunicationClient {
     }
 
     async fn release(&mut self) {
-        // strong_count includes this handle; only the last handle closes the connection.
-        let other_refs = Arc::strong_count(&self.inner) - 1;
-        if other_refs > 0 {
-            debug!("Releasing one of {} connection handles", other_refs + 1);
+        // Only the last handle closes the connection; taking the count from one to zero also
+        // stops weak handles from joining.
+        if let Err(owners) = self._owners.compare_exchange(
+            1,
+            0,
+            std::sync::atomic::Ordering::AcqRel,
+            std::sync::atomic::Ordering::Acquire,
+        ) {
+            debug!("Releasing one of {owners} connection handles");
             return;
         }
         self._released
@@ -2075,6 +2112,7 @@ impl CommunicationClient {
             _coordinator: coordinator,
             _protocol_kind: protocol_kind,
             _hooks: hooks,
+            _owners: std::sync::atomic::AtomicUsize::new(1),
             _released: std::sync::atomic::AtomicBool::new(false),
         };
         Ok(CommunicationClient {
@@ -4538,13 +4576,69 @@ mod release_tests {
     /// handle is still alive (as when a lifecycle hook runs during its drop).
     #[tokio::test]
     async fn release_a_released_client_never_upgrades() {
-        let mut configuration = ConnectionConfiguration::new("127.0.0.1".into(), "hub".into());
-        configuration.unsecure();
-        let mut client = CommunicationClient::create(configuration.connection_recipe()).unwrap();
+        let mut client = client();
         let weak = client.downgrade();
         assert!(weak.upgrade().is_some(), "a live client upgrades");
         client.release().await;
         assert!(weak.upgrade().is_none(), "a released client does not");
         drop(client);
+    }
+
+    /// A handle that joined through a weak handle is an owner: releasing the original handle
+    /// leaves the client open, and releasing the joined one closes it.
+    #[tokio::test]
+    async fn release_an_upgraded_handle_owns_the_client() {
+        let mut client = client();
+        let weak = client.downgrade();
+        let mut joined = weak.upgrade().expect("a live client upgrades");
+        client.release().await;
+        drop(client);
+        assert!(
+            weak.upgrade().is_some(),
+            "the joined handle keeps the client open"
+        );
+        joined.release().await;
+        assert!(
+            weak.upgrade().is_none(),
+            "the last release closes the client"
+        );
+        drop(joined);
+    }
+
+    /// A weak handle joining while the last handle is released either joins first, so the
+    /// release leaves the client open, or fails: no joined handle ever sees the client released.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn release_races_with_upgrade_have_one_winner() {
+        for _ in 0..300 {
+            let mut client = client();
+            let weak = client.downgrade();
+            let start = std::sync::Arc::new(std::sync::Barrier::new(2));
+            let joiner = std::thread::spawn({
+                let start = start.clone();
+                move || {
+                    start.wait();
+                    for _ in 0..200 {
+                        let Some(joined) = weak.upgrade() else {
+                            return;
+                        };
+                        std::thread::yield_now();
+                        assert!(
+                            !joined._released.load(std::sync::atomic::Ordering::Acquire),
+                            "a joined handle saw its client released"
+                        );
+                    }
+                }
+            });
+            start.wait();
+            client.release().await;
+            drop(client);
+            joiner.join().unwrap();
+        }
+    }
+
+    fn client() -> CommunicationClient {
+        let mut configuration = ConnectionConfiguration::new("127.0.0.1".into(), "hub".into());
+        configuration.unsecure();
+        CommunicationClient::create(configuration.connection_recipe()).unwrap()
     }
 }
