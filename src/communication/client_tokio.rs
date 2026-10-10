@@ -1661,6 +1661,8 @@ impl Clone for ConnectionState {
 /// handles (connection tasks hold only its parts, or a `Weak`).
 pub struct CommunicationClient {
     inner: Arc<ClientInner>,
+    /// Whether this handle still counts as an owner; `release` gives the ownership up.
+    owns: bool,
 }
 
 impl Clone for CommunicationClient {
@@ -1670,14 +1672,29 @@ impl Clone for CommunicationClient {
             .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
         Self {
             inner: self.inner.clone(),
+            owns: true,
         }
     }
 }
 
 impl Drop for CommunicationClient {
+    /// A last owner that never released (a dropped stream's cancellation handle) closes the
+    /// client in the background, as `release` would.
     fn drop(&mut self) {
-        // The last handle's `release` already took the count to zero.
-        update_owners(&self.inner._owners, |owners| owners.checked_sub(1));
+        if !self.owns || !self.leave_owners() {
+            return;
+        }
+        let closer = CommunicationClient {
+            inner: self.inner.clone(),
+            owns: false,
+        };
+        match closer
+            .runtime()
+            .or_else(|| tokio::runtime::Handle::try_current().ok())
+        {
+            Some(runtime) => drop(runtime.spawn(async move { closer.disconnect().await })),
+            None => debug!("The last connection handle was dropped outside a runtime"),
+        }
     }
 }
 
@@ -1724,7 +1741,7 @@ impl WeakCommunicationClient {
         if !update_owners(&inner._owners, |owners| (owners > 0).then_some(owners + 1)) {
             return None;
         }
-        let client = CommunicationClient { inner };
+        let client = CommunicationClient { inner, owns: true };
         // A handle cloned while the released client closes does not reopen it either.
         (!client._released.load(std::sync::atomic::Ordering::Acquire)).then_some(client)
     }
@@ -1804,19 +1821,12 @@ impl Communication for CommunicationClient {
     }
 
     async fn release(&mut self) {
-        // Only the last handle closes the connection; taking the count from one to zero also
-        // stops weak handles from joining.
-        if let Err(owners) = self._owners.compare_exchange(
-            1,
-            0,
-            std::sync::atomic::Ordering::AcqRel,
-            std::sync::atomic::Ordering::Acquire,
-        ) {
-            debug!("Releasing one of {owners} connection handles");
+        // Only the last owner closes the connection; taking the count to zero also stops weak
+        // handles from joining.
+        if !self.owns || !self.leave_owners() {
+            debug!("Releasing one of the connection handles");
             return;
         }
-        self._released
-            .store(true, std::sync::atomic::Ordering::Release);
         self.disconnect().await;
     }
 
@@ -2082,6 +2092,18 @@ impl CommunicationClient {
         self._coordinator.connection_id()
     }
 
+    /// Gives this handle's ownership up; `true` for the one owner that must close the client.
+    fn leave_owners(&mut self) -> bool {
+        self.owns = false;
+        let last = self
+            ._owners
+            .fetch_sub(1, std::sync::atomic::Ordering::AcqRel)
+            == 1;
+        last && !self
+            ._released
+            .swap(true, std::sync::atomic::Ordering::AcqRel)
+    }
+
     pub(crate) fn downgrade(&self) -> WeakCommunicationClient {
         WeakCommunicationClient(Arc::downgrade(&self.inner))
     }
@@ -2130,6 +2152,7 @@ impl CommunicationClient {
         };
         Ok(CommunicationClient {
             inner: Arc::new(inner),
+            owns: true,
         })
     }
 
@@ -4647,6 +4670,47 @@ mod release_tests {
             drop(client);
             joiner.join().unwrap();
         }
+    }
+
+    /// Handles released together, each before the other is dropped, still close the client once.
+    #[tokio::test]
+    async fn release_by_every_owner_closes_the_client() {
+        let mut first = client();
+        let mut second = first.clone();
+        let inner = first.inner.clone();
+        first.release().await;
+        assert!(
+            !inner._released.load(std::sync::atomic::Ordering::Acquire),
+            "another owner keeps the client open"
+        );
+        second.release().await;
+        assert!(
+            inner._released.load(std::sync::atomic::Ordering::Acquire),
+            "the last release closes the client"
+        );
+        drop((first, second));
+    }
+
+    /// A last owner dropped without releasing (a dropped stream's cancellation handle) closes the
+    /// client too.
+    #[tokio::test]
+    async fn release_a_dropped_last_owner_closes_the_client() {
+        let mut client = client();
+        let held = client.clone();
+        let weak = client.downgrade();
+        let inner = client.inner.clone();
+        client.release().await;
+        drop(client);
+        assert!(
+            weak.upgrade().is_some(),
+            "the held handle keeps the client open"
+        );
+        drop(held);
+        assert!(
+            inner._released.load(std::sync::atomic::Ordering::Acquire),
+            "dropping the last owner closes the client"
+        );
+        assert!(weak.upgrade().is_none(), "a closed client does not upgrade");
     }
 
     fn client() -> CommunicationClient {
