@@ -468,7 +468,7 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
     AssertMatches(job, block, @"packages\.microsoft\.com/config/ubuntu/");
     AssertMatches(job, block, @"sudo apt-get install -y libmsquic");
     // A stalled mirror must not hold the runner until the job timeout.
-    AssertMatches(job, block, @"Install libmsquic for the HTTP/3 cells\n(?:\s+(?:if|#).*\n)*\s+timeout-minutes: 10\n");
+    AssertMatches(job, block, @"Install libmsquic for the HTTP/3 cells\r?\n(?:\s+(?:if|#).*\r?\n)*\s+timeout-minutes: 10\r?\n");
     AssertMatches(job, block, @"Acquire::Retries ""3""; Acquire::http::Timeout ""30""; Acquire::https::Timeout ""30"";");
   }
 
