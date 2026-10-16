@@ -42,7 +42,7 @@ Since P6:
 
 Since P7:
 
-- `.AddNegotiate()` (`Microsoft.AspNetCore.Authentication.Negotiate` 10.0.12; 10.0.9 had an advisory) protects `WindowsAuthHub` at `/test-windows` (`Identity`, `AuthenticationType`, `Echo`).
+- `.AddNegotiate()` (`Microsoft.AspNetCore.Authentication.Negotiate` 10.0.13; 10.0.9 and 10.0.12 had advisories) protects `WindowsAuthHub` at `/test-windows` (`Identity`, `AuthenticationType`, `Echo`).
 - `Scenario.WindowsHostOnlyReason` (`WindowsHostOnly` is derived from it) makes `E2ESelection.Cells(windowsHost)` select `windows-auth` only on Windows hosts. Its leg with a rejected `with_credentials` uses a non-existent account, so no real account's lockout counter moves.
 
 Since S12 the test proxy also:
