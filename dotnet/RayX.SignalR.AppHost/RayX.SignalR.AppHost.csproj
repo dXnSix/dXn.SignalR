@@ -8,6 +8,10 @@
         <UserSecretsId>3f0c5b0e-7d55-4f61-9a0e-2b8a3b3e5a11</UserSecretsId>
     </PropertyGroup>
     <ItemGroup>
+        <!-- Aspire's StreamJsonRpc still asks for MessagePack 2.5.302 (GHSA-qhrr-8q5h-9q3h); 2.5.303 fixes it. -->
+        <PackageReference Include="MessagePack" Version="2.5.303"/>
+    </ItemGroup>
+    <ItemGroup>
         <ProjectReference Include="../RayX.SignalR.TestService/RayX.SignalR.TestService.csproj"/>
         <ProjectReference Include="../RayX.SignalR.FixtureHost/RayX.SignalR.FixtureHost.csproj"/>
         <ProjectReference Include="../RayX.SignalR.TestProxy/RayX.SignalR.TestProxy.csproj"/>
