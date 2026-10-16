@@ -43,7 +43,10 @@ async fn assert_unsent_stream_ends(client: &mut SignalRClient, phase: &str) -> M
         .error()
         .unwrap_or_else(|| panic!("a stream started while {phase} must end with an error"));
     assert!(
-        error.contains("not connected"),
+        matches!(
+            error.kind(),
+            rayx_signalr::ErrorKind::Paused | rayx_signalr::ErrorKind::Transport
+        ),
         "a stream started while {phase} ended with: {error}"
     );
     assert!(started.elapsed() < Duration::from_secs(1));

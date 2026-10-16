@@ -50,8 +50,10 @@ requirements, and the ASP.NET Core server setup that goes with them.
 
 - Examples import from the crate root (`use rayx_signalr::...`); every public type is exported
   there. Short snippets use `?` and `.await`, so they assume an enclosing `async fn` that returns
-  `Result<_, String>`. Native code runs inside a Tokio runtime (`#[tokio::main]`), browser code
-  inside `wasm_bindgen_futures::spawn_local`.
+  `Result<_, Box<dyn std::error::Error>>`. Native code runs inside a Tokio runtime
+  (`#[tokio::main]`), browser code inside `wasm_bindgen_futures::spawn_local`. Snippets that use
+  `client` without creating it assume a `SignalRClient` from an earlier example, declared
+  `let mut client` where a method takes `&mut self`.
 - Configuration methods take `&mut self` and return `&ConnectionConfiguration`, so call them as
   separate statements inside the `connect_with` closure instead of chaining them.
 - "Native" means every non-WASM target (Windows, Linux, macOS, Android, iOS). "Browser" means

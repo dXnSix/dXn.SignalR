@@ -21,6 +21,8 @@ pub enum MessageType {
 #[serde(rename_all = "camelCase")]
 pub struct NegotiateResponseV0 {
     pub connection_id: String,
+    /// Absent in responses of servers that predate negotiate versions: version 0.
+    #[serde(default)]
     pub negotiate_version: u8,
     pub available_transports: Vec<TransportSpec>,
     #[serde(default)]
@@ -50,6 +52,8 @@ pub enum NegotiateResponse {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct NegotiateVersionProbe {
+    /// A response without `negotiateVersion` is version 0, as in the official clients.
+    #[serde(default)]
     negotiate_version: u8,
 }
 
@@ -141,31 +145,6 @@ impl HandshakeResponse {
     /// Whether the record is a hub message (it has a `type`) rather than a handshake response.
     pub fn is_hub_message(&self) -> bool {
         self.message_type.is_some()
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-/// Sent by either party to check if the connection is active.
-pub struct Ping {
-    r#type: MessageType,
-}
-
-impl Ping {
-    pub fn new() -> Self {
-        Ping {
-            r#type: MessageType::Ping,
-        }
-    }
-
-    pub fn message_type(&self) -> MessageType {
-        self.r#type
-    }
-}
-
-impl Default for Ping {
-    fn default() -> Self {
-        Ping::new()
     }
 }
 

@@ -60,13 +60,47 @@ impl ServiceEndpoint {
         if let Some(port) = self.port {
             configuration.with_port(port);
         }
+        // The cell's transport (the page's `transport` parameter); WebSockets cells keep the
+        // default transports.
+        if let Some(transports) = TRANSPORTS.with(Cell::get) {
+            configuration.with_transports(transports);
+        }
     }
 }
 
+/// Selects the transport every scenario connection uses (`websockets`, `long-polling`,
+/// `server-sent-events`), from the page's `transport` parameter.
+#[wasm_bindgen]
+pub fn configure_transport(transport: String) -> Result<(), JsValue> {
+    let transports = match transport.as_str() {
+        "" | "websockets" => None,
+        "long-polling" => Some(rayx_signalr::Transports::LONG_POLLING),
+        "server-sent-events" => Some(rayx_signalr::Transports::SERVER_SENT_EVENTS),
+        other => return Err(JsValue::from_str(&format!("unknown transport {other}"))),
+    };
+    TRANSPORTS.with(|slot| slot.set(transports));
+    Ok(())
+}
+
+/// Whether the scenario connections use Long Polling (the page's `transport` parameter).
+fn long_polling() -> bool {
+    TRANSPORTS.with(Cell::get) == Some(rayx_signalr::Transports::LONG_POLLING)
+}
+
+/// Whether the scenario connections use an HTTP transport (Long Polling or Server-Sent Events),
+/// whose requests keep the token negotiate fetched.
+fn http_transport() -> bool {
+    long_polling()
+        || TRANSPORTS.with(Cell::get) == Some(rayx_signalr::Transports::SERVER_SENT_EVENTS)
+}
+
 mod functional;
+mod soak;
+mod stress;
 
 thread_local! {
     static SERVICE: RefCell<Option<ServiceEndpoint>> = const { RefCell::new(None) };
+    static TRANSPORTS: Cell<Option<rayx_signalr::Transports>> = const { Cell::new(None) };
     static CLIENT: RefCell<Option<SignalRClient>> = const { RefCell::new(None) };
     static CALLBACK_COUNT: Cell<u32> = const { Cell::new(0) };
     static STATEFUL_CALLBACK_VALUES: RefCell<Vec<i32>> = const { RefCell::new(Vec::new()) };
@@ -427,6 +461,6 @@ fn set_scenario_error(error: String) {
     SCENARIO_ERROR.with(|slot| *slot.borrow_mut() = Some(error));
 }
 
-fn js_error(prefix: &'static str) -> impl FnOnce(String) -> JsValue {
+fn js_error(prefix: &'static str) -> impl FnOnce(rayx_signalr::Error) -> JsValue {
     move |error| JsValue::from_str(&format!("{prefix}: {error}"))
 }

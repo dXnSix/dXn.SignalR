@@ -16,7 +16,18 @@ namespace RayX.SignalR.TestService
         static readonly ConcurrentDictionary<string, DateTimeOffset> _rejections = new(StringComparer.OrdinalIgnoreCase);
         static readonly ConcurrentDictionary<string, ConcurrentQueue<string>> _recordedSends = new();
         static readonly ConcurrentDictionary<string, int> _disconnects = new();
+        static readonly ConcurrentDictionary<string, string> _disconnectErrors = new();
+        static readonly ConcurrentDictionary<string, TimeSpan> _negotiationDelays = new(StringComparer.OrdinalIgnoreCase);
+        static readonly ConcurrentDictionary<string, string[]> _negotiateHeaders = new(StringComparer.OrdinalIgnoreCase);
+        static readonly ConcurrentDictionary<string, byte> _rejectedResumes = new();
+        static int _clientCloses;
+        static int _resumeRejections;
+
+        /// <summary>The request headers the request-headers scenario inspects.</summary>
+        static readonly string[] _describedHeaders =
+            ["user-agent", "x-signalr-user-agent", "x-requested-with", "accept", "x-tenant", "x-hook"];
         static readonly ConcurrentDictionary<string, int> _clientResults = new();
+        static readonly ConcurrentDictionary<string, string> _clientResultErrors = new();
         static readonly ConcurrentDictionary<string, HubConnectionContext> _connections = new();
         static readonly ConcurrentDictionary<string, (string Name, string Scheme)> _authenticatedTokens = new();
 
@@ -27,6 +38,14 @@ namespace RayX.SignalR.TestService
             _rejections.Clear();
             _recordedSends.Clear();
             _disconnects.Clear();
+            _disconnectErrors.Clear();
+            _negotiationDelays.Clear();
+            _negotiateHeaders.Clear();
+            _rejectedResumes.Clear();
+            Interlocked.Exchange(ref _clientCloses, 0);
+            Interlocked.Exchange(ref _resumeRejections, 0);
+            ChaosControl.ResetAll();
+            RotatingTokens.Reset();
             _clientResults.Clear();
             _authenticatedTokens.Clear();
         }
@@ -43,6 +62,69 @@ namespace RayX.SignalR.TestService
             _negotiateCounts.TryRemove(hubPath, out _);
             _rejections[hubPath] = DateTimeOffset.UtcNow + duration;
         }
+
+        /// <summary>Holds the next negotiate request of <paramref name="hubPath"/> for <paramref name="delay"/>.</summary>
+        public static void DelayNextNegotiation(string hubPath, TimeSpan delay) => _negotiationDelays[hubPath] = delay;
+
+        /// <summary>Returns and clears the pending negotiate delay of <paramref name="hubPath"/>.</summary>
+        public static TimeSpan? TakeNegotiationDelay(string hubPath) =>
+            _negotiationDelays.TryRemove(hubPath, out var delay) ? delay : null;
+
+        /// <summary>
+        /// Describes a request for the request-headers scenario: one <c>name: value</c> line per
+        /// inspected header that is present, whether an <c>Authorization</c> header was sent (never
+        /// its value) and whether the query carries an <c>access_token</c>.
+        /// </summary>
+        public static string[] DescribeRequest(HttpRequest request)
+        {
+            List<string> lines = [];
+            foreach (string name in _describedHeaders)
+            {
+                if (request.Headers.TryGetValue(name, out var value))
+                {
+                    lines.Add($"{name}: {value}");
+                }
+            }
+
+            lines.Add($"authorization: {(request.Headers.ContainsKey("authorization") ? "present" : "absent")}");
+            lines.Add($"access_token: {(request.Query.ContainsKey("access_token") ? "present" : "absent")}");
+            // The HTTP version and the connection the request came on (the http2 scenario).
+            lines.Add($"protocol: {request.Protocol}");
+            lines.Add($"connection: {request.HttpContext.Connection.Id}");
+            return [.. lines];
+        }
+
+        /// <summary>Records the last negotiate request of a hub path.</summary>
+        public static void RecordNegotiate(string hubPath, HttpRequest request) =>
+            _negotiateHeaders[hubPath] = DescribeRequest(request);
+
+        /// <summary>The last negotiate request of a hub path, described as <see cref="DescribeRequest"/> does.</summary>
+        public static string[] NegotiateRequest(string hubPath) =>
+            _negotiateHeaders.TryGetValue(hubPath, out var lines) ? lines : [];
+
+        /// <summary>Answers the next stateful resume of <paramref name="connectionToken"/> with 404, as ASP.NET Core answers a resume of a connection it disposed.</summary>
+        public static void RejectNextResume(string connectionToken) => _rejectedResumes[connectionToken] = 0;
+
+        /// <summary>Whether a WebSocket request for <paramref name="connectionToken"/> is a resume to reject; counts it.</summary>
+        public static bool TakeResumeRejection(string connectionToken)
+        {
+            if (!_rejectedResumes.TryRemove(connectionToken, out _))
+            {
+                return false;
+            }
+
+            Interlocked.Increment(ref _resumeRejections);
+            return true;
+        }
+
+        /// <summary>How many resumes were rejected since the last reset.</summary>
+        public static int ResumeRejections() => Volatile.Read(ref _resumeRejections);
+
+        /// <summary>Counts a SignalR Close message a client sent.</summary>
+        public static void CountClientClose() => Interlocked.Increment(ref _clientCloses);
+
+        /// <summary>How many SignalR Close messages clients sent since the last reset.</summary>
+        public static int ClientCloseMessages() => Volatile.Read(ref _clientCloses);
 
         public static bool IsRejected(string hubPath) =>
             _rejections.TryGetValue(hubPath, out var until) && DateTimeOffset.UtcNow < until;
@@ -65,10 +147,26 @@ namespace RayX.SignalR.TestService
         public static int DisconnectCount(string connectionId) =>
             _disconnects.TryGetValue(connectionId, out var count) ? count : 0;
 
+        /// <summary>Records the exception the hub's <c>OnDisconnectedAsync</c> received (empty for none).</summary>
+        public static void RecordDisconnectError(string connectionId, Exception? exception) =>
+            _disconnectErrors[connectionId] = exception?.Message ?? string.Empty;
+
+        /// <summary>The <c>OnDisconnectedAsync</c> exception text of a connection: empty when it ended gracefully, null while connected.</summary>
+        public static string? DisconnectError(string connectionId) =>
+            _disconnectErrors.TryGetValue(connectionId, out var message) ? message : null;
+
         public static void RecordClientResult(string connectionId, int value) => _clientResults[connectionId] = value;
 
         public static int? ClientResult(string connectionId) =>
             _clientResults.TryGetValue(connectionId, out var value) ? value : null;
+
+        /// <summary>Records the <see cref="HubException"/> text a client-result request observed.</summary>
+        public static void RecordClientResultError(string connectionId, string message) =>
+            _clientResultErrors[connectionId] = message;
+
+        /// <summary>Returns and clears the last client-result error of a connection.</summary>
+        public static string? TakeClientResultError(string connectionId) =>
+            _clientResultErrors.TryRemove(connectionId, out var message) ? message : null;
 
         /// <summary>Sends a SignalR Close message to a connection after a delay and aborts it.</summary>
         public static void ScheduleClose(string connectionId, bool allowReconnect, TimeSpan delay)

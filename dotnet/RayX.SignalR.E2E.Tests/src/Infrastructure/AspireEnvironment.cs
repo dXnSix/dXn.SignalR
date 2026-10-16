@@ -23,6 +23,12 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
   /// <summary>The browser fixture static host resource.</summary>
   public const string FixtureHostResource = "fixture-host";
 
+  /// <summary>The test-only CONNECT proxy resource.</summary>
+  public const string ProxyResource = "test-proxy";
+
+  /// <summary>The user name the test proxy requires.</summary>
+  public const string ProxyUser = "rayx";
+
   /// <summary>The completion-gated resources that produce the browser fixture, in dependency order.</summary>
   public static readonly IReadOnlyList<string> FixtureBuildResources =
     ["wasm-bindgen-cli", "wasm-fixture-build", "wasm-fixture-bindgen"];
@@ -54,8 +60,26 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
   /// <summary>Gets the SignalR test service's HTTP endpoint.</summary>
   public Uri ServiceUrl => App.GetEndpoint(ServiceResource, "http");
 
+  /// <summary>Gets the test proxy's endpoint.</summary>
+  public Uri ProxyUrl => App.GetEndpoint(ProxyResource, "http");
+
+  /// <summary>Gets the password the test proxy requires, generated for this run.</summary>
+  public string ProxyPassword { get; } = Guid.NewGuid().ToString("N");
+
   /// <summary>Gets the SignalR test service's HTTPS endpoint (served with <see cref="TlsCaPem"/>'s CA).</summary>
   public Uri TlsServiceUrl => App.GetEndpoint(ServiceResource, "https");
+
+  /// <summary>Gets the SignalR test service's HTTP/2-only plaintext (h2c) endpoint.</summary>
+  public Uri H2cServiceUrl => App.GetEndpoint(ServiceResource, "h2c");
+
+  /// <summary>Gets the SignalR test service's HTTP/1.1-only HTTPS endpoint.</summary>
+  public Uri Http1TlsServiceUrl => App.GetEndpoint(ServiceResource, "https-http1");
+
+  /// <summary>
+  /// Gets the SignalR test service's HTTPS endpoint that also serves HTTP/3 (QUIC), on hosts with
+  /// msquic (<see cref="QuicSupport"/>); <see langword="null"/> elsewhere.
+  /// </summary>
+  public Uri? Http3ServiceUrl => QuicSupport.IsSupported ? App.GetEndpoint(ServiceResource, "http3") : null;
 
   /// <summary>
   /// Gets the directory of this run's generated TLS certificates and key: outside
@@ -66,6 +90,21 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
     "artifacts-temp",
     "tls",
     $"{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}");
+
+  /// <summary>
+  /// Gets the test service's untrusted TLS listener, whose certificate a second CA issued that no
+  /// client trusts (the <c>tls</c> scenario's rejection case in the Android app).
+  /// </summary>
+  public Uri UntrustedTlsUrl =>
+    _untrustedTlsUrl ?? throw new InvalidOperationException("The AppHost has not reported its untrusted TLS listener.");
+
+  Uri? _untrustedTlsUrl;
+
+  /// <summary>Gets the PEM of the client certificate the test CA issued (the <c>/test-mtls</c> hub).</summary>
+  public string ClientCertificatePem => File.ReadAllText(new TestCertificateFiles(TlsDirectory).ClientCertificate);
+
+  /// <summary>Gets the client certificate's private key (PEM); diagnostics redact it.</summary>
+  public string ClientKeyPem => File.ReadAllText(new TestCertificateFiles(TlsDirectory).ClientKey);
 
   /// <summary>Gets the PEM of the CA that issued the HTTPS endpoint's certificate.</summary>
   public string TlsCaPem => File.ReadAllText(new TestCertificateFiles(TlsDirectory).CaCertificate);
@@ -115,7 +154,7 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
       startup.CancelAfter(_startupTimeout);
       IDistributedApplicationTestingBuilder builder = await DistributedApplicationTestingBuilder
                                                         .CreateAsync<Projects.RayX_SignalR_AppHost>(
-                                                          [$"--Fixture:Enabled={requireFixture}", $"--Fixture:Threads={requireThreads}", $"--Tls:Directory={TlsDirectory}"],
+                                                          [$"--Fixture:Enabled={requireFixture}", $"--Fixture:Threads={requireThreads}", $"--Tls:Directory={TlsDirectory}", $"--Parameters:test-proxy-password={ProxyPassword}"],
                                                           startup.Token);
       builder.Configuration["DcpPublisher:WaitForResourceCleanup"] = "false";
       DistributedApplication app = await builder.BuildAsync(startup.Token);
@@ -124,6 +163,8 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
       _threadsEnabled = requireThreads;
       await app.StartAsync(startup.Token);
       await WaitForHealthyAsync(ServiceResource, startup.Token);
+      await WaitForHealthyAsync(ProxyResource, startup.Token);
+      _untrustedTlsUrl = await UntrustedTlsListenerAsync(startup.Token);
       if(requireFixture)
       {
         foreach(string resource in requireThreads ? [.. FixtureBuildResources, .. ThreadedFixtureBuildResources] : FixtureBuildResources)
@@ -146,6 +187,20 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
     {
       _gate.Release();
     }
+  }
+
+  /// <summary>Asks the test service where its untrusted TLS listener listens.</summary>
+  /// <param name="cancellationToken">Cancels the request.</param>
+  /// <returns>The listener's URL.</returns>
+  async Task<Uri> UntrustedTlsListenerAsync(CancellationToken cancellationToken)
+  {
+    using HttpClient client = new() { Timeout = TimeSpan.FromSeconds(30) };
+    using System.Text.Json.JsonDocument listener = System.Text.Json.JsonDocument.Parse(
+      await client.GetStringAsync(new Uri(ServiceUrl, "/e2e/untrusted-tls"), cancellationToken));
+    int port = listener.RootElement.GetProperty("port").GetInt32();
+    return port > 0
+      ? new Uri($"https://127.0.0.1:{port}")
+      : throw new InvalidOperationException("The test service has no untrusted TLS listener.");
   }
 
   /// <summary>Clears the test service's probes and controls before a cell.</summary>
@@ -280,9 +335,23 @@ public sealed class AspireEnvironment : IAsyncLifetime, IDisposable
 
   async Task StopAsync()
   {
-    // Device-side artifacts never outlive the run.
-    await Scenarios.AndroidCellRunner.CleanupAsync();
-    await Scenarios.IosCellRunner.CleanupAsync();
+    // Device-side artifacts never outlive the run; one failed clean-up does not skip the others.
+    foreach(Func<Task> cleanup in new Func<Task>[]
+            {
+              Scenarios.AndroidCellRunner.CleanupAsync,
+              Scenarios.AndroidAppCellRunner.CleanupAsync,
+              Scenarios.IosCellRunner.CleanupAsync
+            })
+    {
+      try
+      {
+        await cleanup();
+      }
+      catch(Exception exception) when (exception is InvalidOperationException or IOException or System.ComponentModel.Win32Exception)
+      {
+        Console.WriteLine($"device clean-up failed: {Redaction.Redact(exception.Message)}");
+      }
+    }
     DistributedApplication? app = _app;
     try
     {

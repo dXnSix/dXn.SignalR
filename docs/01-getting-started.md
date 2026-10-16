@@ -5,13 +5,16 @@
 `rayx-signalr` speaks the [ASP.NET Core SignalR](https://learn.microsoft.com/aspnet/core/signalr/introduction)
 hub protocol from Rust. One API covers two runtimes:
 
-- **Native** targets (Windows, Linux, macOS, Android, iOS) run on Tokio. Negotiation uses a hyper
-  HTTP/1.1 request, the transport is `tokio-websockets`, and TLS is rustls.
+- **Native** targets (Windows, Linux, macOS, Android, iOS) run on Tokio. Negotiation, Server-Sent
+  Events and Long Polling use hyper requests (by default HTTP/2 over TLS when the server agrees
+  through ALPN, otherwise HTTP/1.1; see [HTTP versions](02-connecting.md#http-versions)),
+  WebSockets use `tokio-websockets` over HTTP/1.1, and TLS is rustls.
 - **Browser** builds (`wasm32-unknown-unknown`) use the browser's `fetch` and `WebSocket`, and the
   browser's own TLS. They run on the main thread, in Web Workers, and in multithreaded (atomics)
   builds.
 
-The transport is WebSockets. The hub protocol is JSON by default, or MessagePack with the
+The transports are WebSockets, Server-Sent Events and Long Polling (see
+[Transports](02-connecting.md#transports)). The hub protocol is JSON by default, or MessagePack with the
 `messagepack` feature. The client supports request/response invocations, fire-and-forget sends,
 server-to-client streams, server-to-client calls with client results, automatic and manual
 reconnection, ASP.NET Core stateful reconnect, keep-alive and server timeouts, and
@@ -54,6 +57,8 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 | `tls-webpki-roots` | off | Bundles Mozilla's root certificates; select them with `use_webpki_roots()`. |
 | `tls-ring` | on | Uses `ring` as the rustls crypto provider. |
 | `tls-aws-lc-rs` | off | Uses `aws-lc-rs` as the crypto provider; wins over `tls-ring` when both are on. |
+| `proxy-pac` | off | Adds proxy auto-config (`with_proxy_auto_config`): PAC scripts run in the pure-Rust Boa JavaScript engine, so no C toolchain is needed. |
+| `http3` | off | Adds experimental HTTP/3 over QUIC (`HttpVersion::Http3`, `HttpVersion::Http3Preferred`; quinn and h3) for native clients with a TLS verifier and provider; see [HTTP versions](02-connecting.md#experimental-http3). |
 
 A secure native endpoint (`https`/`wss`) needs one verifier feature and one provider feature. The
 defaults enable one of each. Turning every TLS feature off builds a plaintext-only native client.
@@ -80,7 +85,7 @@ method that broadcasts `ReceiveMessage(user, text)` to every client.
 use rayx_signalr::{CallbackHandler, SignalRClient};
 
 #[tokio::main]
-async fn main() -> Result<(), String> {
+async fn main() -> Result<(), rayx_signalr::Error> {
     let mut client = SignalRClient::connect_with("localhost", "chat", |c| {
         c.unsecure(); // http/ws; the default is https/wss
         c.with_port(5000);
@@ -111,11 +116,13 @@ What happens in `connect_with`:
 
 1. The closure configures the connection. `"localhost"` is the host, `"chat"` the hub path, so the
    hub URL is `http://localhost:5000/chat`.
-2. The client posts to `/chat/negotiate?negotiateVersion=1`, follows redirects, and checks that the
-   server offers WebSockets with the right transfer format.
-3. It opens the WebSocket, sends the SignalR handshake, and waits for the answer (15 seconds by
+2. The client posts to `/chat/negotiate?negotiateVersion=1`, follows redirects, and picks the
+   first transport the server offers that it can use with the protocol's transfer format
+   (WebSockets, Server-Sent Events or Long Polling, in the server's order).
+3. It starts that transport, sends the SignalR handshake, and waits for the answer (15 seconds by
    default).
-4. It returns a connected `SignalRClient`, or an `Err(String)` that says which step failed.
+4. It returns a connected `SignalRClient`, or an `Err(rayx_signalr::Error)` whose `kind()` says
+   which step failed (see [Errors and logging](11-errors-and-logging.md)).
 
 `connect("localhost", "chat")` is the same with the default configuration: `https`, port 443, JSON,
 no authentication, and no reconnection.
@@ -139,7 +146,7 @@ pub fn start() {
         {
             Ok(client) => client,
             Err(error) => {
-                web_sys::console::error_1(&error.into());
+                web_sys::console::error_1(&error.to_string().into());
                 return;
             }
         };

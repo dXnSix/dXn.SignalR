@@ -1,8 +1,25 @@
+// Decoding and transport code must not panic on peer input; tests may.
+#![cfg_attr(
+    not(test),
+    deny(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing
+    )
+)]
+
 use std::time::Duration;
+
+use crate::error::Error;
 
 /// The lifecycle of one logical connection, shared by both targets.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum LifecycleState {
+    /// Built by `SignalRClient::new` and never started.
+    NotStarted,
+    /// `start` is negotiating and connecting.
+    Connecting,
     Disconnected,
     Connected,
     Reconnecting,
@@ -15,23 +32,21 @@ pub(crate) enum LifecycleState {
 /// The status of a client's connection, as reported by `SignalRClient::status`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum ConnectionStatus {
+    /// `start` is negotiating and connecting (the official .NET client's `Connecting`).
+    Connecting,
     /// A transport is open and the handshake completed.
     Connected,
     /// A reconnect (automatic, manual or after `resume`) is running.
     Reconnecting,
     /// Paused by `pause`; `resume` reconnects.
     Paused,
-    /// The transport is gone and nothing is reconnecting (a manual-mode drop, exhausted
-    /// attempts or a server close); `resume` or a manual reconnect may still connect again.
+    /// Not started yet, or the transport is gone and nothing is reconnecting (a failed start, a
+    /// manual-mode drop, exhausted attempts or a server close); `start`, `resume` or a manual
+    /// reconnect may connect again.
     Disconnected,
-    /// Closed locally by `disconnect`; terminal.
+    /// Closed locally by `disconnect`; `start` connects again.
     Closed,
 }
-
-/// Returned when an operation needs a client that was not closed locally.
-pub(crate) const LOCALLY_CLOSED: &str = "Client was locally disconnected";
-/// Returned when a reconnect is requested while the application paused the connection.
-pub(crate) const PAUSED: &str = "The connection is paused";
 
 /// What `pause` did.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -45,12 +60,13 @@ pub(crate) enum PauseOutcome {
 pub(crate) enum ResumeOutcome {
     /// A reconnect began with this generation.
     Started(u64),
-    /// The client is connected or already reconnecting: nothing to do.
+    /// The client is connecting, connected or already reconnecting: nothing to do.
     AlreadyActive,
 }
 
-/// The lifecycle state machine. Every reconnect owns a generation; pausing, closing and a
-/// terminal server close move to a new generation, so a superseded attempt can never complete.
+/// The lifecycle state machine. Every start and every reconnect owns a generation; pausing,
+/// closing and a terminal server close move to a new generation, so a superseded attempt can
+/// never complete.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Lifecycle {
     state: LifecycleState,
@@ -58,6 +74,15 @@ pub(crate) struct Lifecycle {
 }
 
 impl Lifecycle {
+    /// A client that was never started.
+    pub(crate) const fn new() -> Self {
+        Self {
+            state: LifecycleState::NotStarted,
+            generation: 0,
+        }
+    }
+
+    #[cfg(test)]
     pub(crate) const fn connected() -> Self {
         Self {
             state: LifecycleState::Connected,
@@ -75,45 +100,80 @@ impl Lifecycle {
 
     pub(crate) fn status(&self) -> ConnectionStatus {
         match self.state {
+            LifecycleState::Connecting => ConnectionStatus::Connecting,
             LifecycleState::Connected => ConnectionStatus::Connected,
             LifecycleState::Reconnecting => ConnectionStatus::Reconnecting,
             LifecycleState::Paused => ConnectionStatus::Paused,
-            LifecycleState::Disconnected => ConnectionStatus::Disconnected,
+            LifecycleState::NotStarted | LifecycleState::Disconnected => {
+                ConnectionStatus::Disconnected
+            }
             LifecycleState::LocalClosed => ConnectionStatus::Closed,
         }
     }
 
-    /// Whether `generation` is the reconnect that currently runs.
+    /// Whether `generation` is the start or reconnect that currently runs.
     pub(crate) fn owns(&self, generation: u64) -> bool {
-        self.state == LifecycleState::Reconnecting && self.generation == generation
+        matches!(
+            self.state,
+            LifecycleState::Connecting | LifecycleState::Reconnecting
+        ) && self.generation == generation
     }
 
-    /// Why a reconnect of an older generation stopped.
-    pub(crate) fn superseded_reason(&self) -> &'static str {
+    /// Why a start or reconnect of an older generation stopped.
+    pub(crate) fn superseded(&self) -> Error {
         match self.state {
-            LifecycleState::LocalClosed => LOCALLY_CLOSED,
-            LifecycleState::Paused => PAUSED,
-            _ => "The reconnect attempt was superseded",
+            LifecycleState::LocalClosed => Error::closed_locally(),
+            LifecycleState::Paused => Error::paused(),
+            _ => Error::canceled("the connection attempt was superseded"),
+        }
+    }
+
+    /// Starts the client, as `HubConnection.StartAsync`: from a client that was never started,
+    /// is disconnected or was closed locally. A client that is starting, connected, reconnecting
+    /// or paused is left unchanged.
+    pub(crate) fn start(&mut self) -> Result<u64, Error> {
+        match self.state {
+            LifecycleState::NotStarted
+            | LifecycleState::Disconnected
+            | LifecycleState::LocalClosed => Ok(self.advance(LifecycleState::Connecting)),
+            LifecycleState::Connecting => Err(Error::invalid_state(
+                "the connection cannot be started while it is starting",
+            )),
+            LifecycleState::Connected => Err(Error::invalid_state(
+                "the connection cannot be started while it is connected",
+            )),
+            LifecycleState::Reconnecting => Err(Error::invalid_state(
+                "the connection cannot be started while it is reconnecting",
+            )),
+            LifecycleState::Paused => Err(Error::invalid_state(
+                "the connection cannot be started while it is paused; resume it",
+            )),
         }
     }
 
     /// Starts a reconnect (automatic or manual) from a connected or disconnected client.
-    pub(crate) fn begin(&mut self) -> Result<u64, &'static str> {
+    pub(crate) fn begin(&mut self) -> Result<u64, Error> {
         match self.state {
-            LifecycleState::LocalClosed => Err(LOCALLY_CLOSED),
-            LifecycleState::Paused => Err(PAUSED),
-            LifecycleState::Reconnecting => Err("A reconnect attempt is already running"),
-            LifecycleState::Connected | LifecycleState::Disconnected => Ok(self.start()),
+            LifecycleState::LocalClosed => Err(Error::closed_locally()),
+            LifecycleState::Paused => Err(Error::paused()),
+            LifecycleState::NotStarted => Err(Error::not_started()),
+            LifecycleState::Connecting => Err(Error::canceled("the connection is starting")),
+            LifecycleState::Reconnecting => {
+                Err(Error::canceled("a reconnect attempt is already running"))
+            }
+            LifecycleState::Connected | LifecycleState::Disconnected => {
+                Ok(self.advance(LifecycleState::Reconnecting))
+            }
         }
     }
 
-    fn start(&mut self) -> u64 {
+    fn advance(&mut self, state: LifecycleState) -> u64 {
         self.generation = self.generation.wrapping_add(1);
-        self.state = LifecycleState::Reconnecting;
+        self.state = state;
         self.generation
     }
 
-    /// Completes the reconnect of `generation`; false when it was superseded.
+    /// Completes the start or reconnect of `generation`; false when it was superseded.
     pub(crate) fn complete(&mut self, generation: u64) -> bool {
         if !self.owns(generation) {
             return false;
@@ -122,7 +182,8 @@ impl Lifecycle {
         true
     }
 
-    /// Ends the reconnect of `generation` without a connection; false when it was superseded.
+    /// Ends the start or reconnect of `generation` without a connection; false when it was
+    /// superseded.
     pub(crate) fn fail(&mut self, generation: u64) -> bool {
         if !self.owns(generation) {
             return false;
@@ -138,51 +199,138 @@ impl Lifecycle {
         }
     }
 
-    /// Records a terminal server close; a later manual reconnect or resume may still begin a new
-    /// generation. A paused or locally closed client keeps its state.
+    /// Records a terminal server close; a later start, manual reconnect or resume may still
+    /// begin a new generation. A paused or locally closed client keeps its state.
     pub(crate) fn remote_close(&mut self) {
         if !matches!(
             self.state,
-            LifecycleState::LocalClosed | LifecycleState::Paused
+            LifecycleState::LocalClosed | LifecycleState::Paused | LifecycleState::NotStarted
         ) {
-            self.generation = self.generation.wrapping_add(1);
-            self.state = LifecycleState::Disconnected;
+            self.advance(LifecycleState::Disconnected);
         }
     }
 
     pub(crate) fn local_close(&mut self) {
-        self.generation = self.generation.wrapping_add(1);
-        self.state = LifecycleState::LocalClosed;
+        self.advance(LifecycleState::LocalClosed);
     }
 
-    /// Pauses a connected, reconnecting or disconnected client, superseding any running
-    /// reconnect. Pausing a paused client is a no-op; a closed client rejects it.
-    pub(crate) fn pause(&mut self) -> Result<PauseOutcome, &'static str> {
+    /// Pauses a connected, starting, reconnecting or disconnected client, superseding any
+    /// running start or reconnect. Pausing a paused client is a no-op; a closed or unstarted
+    /// client rejects it.
+    pub(crate) fn pause(&mut self) -> Result<PauseOutcome, Error> {
         match self.state {
-            LifecycleState::LocalClosed => Err(LOCALLY_CLOSED),
+            LifecycleState::LocalClosed => Err(Error::closed_locally()),
+            LifecycleState::NotStarted => Err(Error::not_started()),
             LifecycleState::Paused => Ok(PauseOutcome::AlreadyPaused),
             LifecycleState::Connected
+            | LifecycleState::Connecting
             | LifecycleState::Reconnecting
             | LifecycleState::Disconnected => {
-                self.generation = self.generation.wrapping_add(1);
-                self.state = LifecycleState::Paused;
+                self.advance(LifecycleState::Paused);
                 Ok(PauseOutcome::Paused)
             }
         }
     }
 
-    /// Resumes a paused or disconnected client by beginning a reconnect. Resuming a connected or
-    /// reconnecting client is a no-op; a closed client rejects it.
-    pub(crate) fn resume(&mut self) -> Result<ResumeOutcome, &'static str> {
+    /// Resumes a paused or disconnected client by beginning a reconnect. Resuming a starting,
+    /// connected or reconnecting client is a no-op; a closed or unstarted client rejects it.
+    pub(crate) fn resume(&mut self) -> Result<ResumeOutcome, Error> {
         match self.state {
-            LifecycleState::LocalClosed => Err(LOCALLY_CLOSED),
-            LifecycleState::Connected | LifecycleState::Reconnecting => {
-                Ok(ResumeOutcome::AlreadyActive)
-            }
-            LifecycleState::Paused | LifecycleState::Disconnected => {
-                Ok(ResumeOutcome::Started(self.start()))
-            }
+            LifecycleState::LocalClosed => Err(Error::closed_locally()),
+            LifecycleState::NotStarted => Err(Error::not_started()),
+            LifecycleState::Connecting
+            | LifecycleState::Connected
+            | LifecycleState::Reconnecting => Ok(ResumeOutcome::AlreadyActive),
+            LifecycleState::Paused | LifecycleState::Disconnected => Ok(ResumeOutcome::Started(
+                self.advance(LifecycleState::Reconnecting),
+            )),
         }
+    }
+}
+
+/// The starts and reconnect runs in flight, which a local close cancels at once (as
+/// `HubConnection.StopAsync` cancels `StartAsync` and the reconnect loop) instead of letting
+/// them run to their next check.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Runs {
+    /// Each run in flight under its own key, so one ending never forgets another's handle.
+    handles: std::sync::Arc<std::sync::Mutex<Vec<(u64, futures::future::AbortHandle)>>>,
+    next: std::sync::Arc<std::sync::atomic::AtomicU64>,
+}
+
+impl Runs {
+    /// Runs `future` until it ends or `cancel_all` (a local close or a pause) ends it with
+    /// `superseded()`.
+    pub(crate) async fn supervise<T>(
+        &self,
+        future: impl std::future::Future<Output = Result<T, Error>>,
+        superseded: impl FnOnce() -> Error,
+    ) -> Result<T, Error> {
+        use crate::platform::LockExt;
+        let key = self.next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let (handle, registration) = futures::future::AbortHandle::new_pair();
+        self.handles.locked().push((key, handle));
+        let result = futures::future::Abortable::new(future, registration).await;
+        self.handles.locked().retain(|(running, _)| *running != key);
+        result.unwrap_or_else(|_| Err(superseded()))
+    }
+
+    /// Cancels every run in flight.
+    pub(crate) fn cancel_all(&self) {
+        use crate::platform::LockExt;
+        for (_, handle) in self.handles.locked().drain(..) {
+            handle.abort();
+        }
+    }
+}
+
+/// A start or reconnect attempt in flight. Calls made meanwhile wait for its outcome, as the
+/// official .NET client's connection lock makes them wait, then run on the new connection or
+/// fail with the attempt's error.
+#[derive(Clone)]
+pub(crate) struct AttemptOutcome {
+    id: u64,
+    outcome: futures::future::Shared<futures::channel::oneshot::Receiver<Result<(), Error>>>,
+}
+
+/// Reports the outcome of the attempt an [`AttemptOutcome`] waits for.
+pub(crate) struct AttemptReport(futures::channel::oneshot::Sender<Result<(), Error>>);
+
+impl AttemptOutcome {
+    pub(crate) fn new() -> (AttemptReport, Self) {
+        use futures::FutureExt;
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        let (report, outcome) = futures::channel::oneshot::channel();
+        let attempt = Self {
+            id: NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+            outcome: outcome.shared(),
+        };
+        (AttemptReport(report), attempt)
+    }
+
+    pub(crate) fn id(&self) -> u64 {
+        self.id
+    }
+
+    /// Waits for the attempt: `Ok` when it connected, or when it was canceled (the caller reads
+    /// the client's state again); otherwise the attempt's error.
+    pub(crate) async fn wait(&self) -> Result<(), Error> {
+        self.outcome.clone().await.unwrap_or(Ok(()))
+    }
+}
+
+impl std::fmt::Debug for AttemptOutcome {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("AttemptOutcome")
+            .field("id", &self.id)
+            .finish_non_exhaustive()
+    }
+}
+
+impl AttemptReport {
+    pub(crate) fn report(self, result: &Result<(), Error>) {
+        let _ = self.0.send(result.clone());
     }
 }
 
@@ -198,47 +346,135 @@ pub(crate) enum FirstAttempt {
 }
 
 impl FirstAttempt {
-    /// The delay before attempt `retry_count` (0-based), or `None` when the run is over.
+    /// The delay before the attempt `context` describes, or `None` when the run is over.
+    /// `initial` is the first delay when the caller already asked the policy for it (an
+    /// automatic run decides with it whether to start at all).
     pub(crate) fn delay(
         self,
         policy: &dyn ReconnectionPolicy,
-        retry_count: u32,
-        elapsed_milliseconds: u64,
+        context: &RetryContext,
+        initial: Option<Duration>,
     ) -> Option<Duration> {
-        if retry_count == 0 && self == FirstAttempt::Always {
+        let first = context.previous_retry_count == 0;
+        if first && self == FirstAttempt::Always {
             return Some(Duration::ZERO);
         }
-        let delay = policy.next_retry_delay(retry_count, elapsed_milliseconds)?;
-        if retry_count == 0 && self == FirstAttempt::WithoutDelay {
+        if let (true, Some(initial)) = (first, initial) {
+            return Some(initial);
+        }
+        let delay = ask_policy(policy, context)?;
+        if first && self == FirstAttempt::WithoutDelay {
             return Some(Duration::ZERO);
         }
         Some(delay)
     }
 }
 
-/// Serializes reconnect ownership across a native client's clones and tasks.
+/// Asks the policy for the next delay; a policy that panics ends the run, as the .NET client
+/// treats a throwing `IRetryPolicy` (natively; a browser panic aborts the module).
+pub(crate) fn ask_policy(
+    policy: &dyn ReconnectionPolicy,
+    context: &RetryContext,
+) -> Option<Duration> {
+    match crate::execution::guarded("the reconnection policy", || {
+        policy.next_retry_delay_with(context)
+    }) {
+        Ok(delay) => delay,
+        Err(_) => {
+            log::error!("The reconnection policy panicked; reconnecting stops");
+            None
+        }
+    }
+}
+
+/// Serializes start and reconnect ownership across a native client's clones and tasks.
 #[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone, Debug)]
 pub(crate) struct ReconnectCoordinator {
-    state: std::sync::Arc<std::sync::Mutex<Lifecycle>>,
+    state: std::sync::Arc<std::sync::Mutex<Coordinated>>,
+    runs: Runs,
+}
+
+/// The lifecycle and the connection id of the current connection, changed together.
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug)]
+struct Coordinated {
+    lifecycle: Lifecycle,
+    connection_id: Option<String>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 impl ReconnectCoordinator {
+    /// The coordinator of a client that was never started.
+    pub(crate) fn new() -> Self {
+        Self::with_lifecycle(Lifecycle::new())
+    }
+
+    #[cfg(test)]
     pub(crate) fn connected() -> Self {
+        Self::with_lifecycle(Lifecycle::connected())
+    }
+
+    fn with_lifecycle(lifecycle: Lifecycle) -> Self {
         Self {
-            state: std::sync::Arc::new(std::sync::Mutex::new(Lifecycle::connected())),
+            state: std::sync::Arc::new(std::sync::Mutex::new(Coordinated {
+                lifecycle,
+                connection_id: None,
+            })),
+            runs: Runs::default(),
         }
     }
 
     fn with<R>(&self, change: impl FnOnce(&mut Lifecycle) -> R) -> R {
-        change(&mut self.state.lock().expect("reconnect coordinator poisoned"))
+        use crate::platform::LockExt;
+        change(&mut self.state.locked().lifecycle)
     }
 
-    pub(crate) fn begin(&self) -> Result<u64, &'static str> {
+    /// Completes the start or reconnect of `generation`: a fresh connection records its
+    /// negotiated id (`Some`), a stateful resume keeps the current one (`None`). False when the
+    /// generation was superseded.
+    pub(crate) fn complete_connection(
+        &self,
+        generation: u64,
+        connection_id: Option<Option<String>>,
+    ) -> bool {
+        use crate::platform::LockExt;
+        let mut state = self.state.locked();
+        if !state.lifecycle.complete(generation) {
+            return false;
+        }
+        if let Some(connection_id) = connection_id {
+            state.connection_id = connection_id;
+        }
+        true
+    }
+
+    /// The negotiated id of the current connection, while connected.
+    pub(crate) fn connection_id(&self) -> Option<String> {
+        use crate::platform::LockExt;
+        let state = self.state.locked();
+        (state.lifecycle.state() == LifecycleState::Connected)
+            .then(|| state.connection_id.clone())
+            .flatten()
+    }
+
+    pub(crate) fn start(&self) -> Result<u64, Error> {
+        self.with(Lifecycle::start)
+    }
+
+    pub(crate) fn begin(&self) -> Result<u64, Error> {
         self.with(Lifecycle::begin)
     }
 
+    /// Runs a start, reconnect or resume until it ends or a local close or a pause cancels it.
+    pub(crate) async fn supervise<T>(
+        &self,
+        future: impl std::future::Future<Output = Result<T, Error>>,
+    ) -> Result<T, Error> {
+        self.runs.supervise(future, || self.superseded()).await
+    }
+
+    #[cfg(test)]
     pub(crate) fn complete(&self, generation: u64) -> bool {
         self.with(|lifecycle| lifecycle.complete(generation))
     }
@@ -251,8 +487,8 @@ impl ReconnectCoordinator {
         self.with(|lifecycle| lifecycle.owns(generation))
     }
 
-    pub(crate) fn superseded_reason(&self) -> &'static str {
-        self.with(|lifecycle| lifecycle.superseded_reason())
+    pub(crate) fn superseded(&self) -> Error {
+        self.with(|lifecycle| lifecycle.superseded())
     }
 
     pub(crate) fn transport_lost(&self) {
@@ -264,15 +500,20 @@ impl ReconnectCoordinator {
         self.with(Lifecycle::remote_close)
     }
 
+    /// Closes locally and cancels the start or reconnect run in flight.
     pub(crate) fn local_close(&self) {
-        self.with(Lifecycle::local_close)
+        self.with(Lifecycle::local_close);
+        self.runs.cancel_all();
     }
 
-    pub(crate) fn pause(&self) -> Result<PauseOutcome, &'static str> {
-        self.with(Lifecycle::pause)
+    /// Pauses and cancels the start, reconnect or resume in flight, which the pause supersedes.
+    pub(crate) fn pause(&self) -> Result<PauseOutcome, Error> {
+        let outcome = self.with(Lifecycle::pause)?;
+        self.runs.cancel_all();
+        Ok(outcome)
     }
 
-    pub(crate) fn resume(&self) -> Result<ResumeOutcome, &'static str> {
+    pub(crate) fn resume(&self) -> Result<ResumeOutcome, Error> {
         self.with(Lifecycle::resume)
     }
 
@@ -289,11 +530,68 @@ impl ReconnectCoordinator {
     }
 }
 
-/// Defines the behavior for reconnection attempts.
+/// What a reconnection policy decides the next delay from, as the official .NET client's
+/// `RetryContext`.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct RetryContext {
+    /// How many attempts of this reconnect run failed so far (0 before the first attempt).
+    pub previous_retry_count: u32,
+    /// How long the run has been reconnecting.
+    pub elapsed: Duration,
+    /// Why the run needs another attempt: the error that ended the transport before the first
+    /// attempt, then the last attempt's error.
+    pub retry_reason: crate::Error,
+}
+
+impl RetryContext {
+    /// A context, for example to test a policy:
+    ///
+    /// ```
+    /// use std::time::Duration;
+    /// use rayx_signalr::{DelayListPolicy, ReconnectionPolicy, RetryContext};
+    ///
+    /// fn second_delay(reason: rayx_signalr::Error) {
+    ///     let policy = DelayListPolicy::new([Duration::ZERO, Duration::from_secs(2)]);
+    ///     let context = RetryContext::new(1, Duration::from_secs(1), reason);
+    ///     assert_eq!(
+    ///         policy.next_retry_delay_with(&context),
+    ///         Some(Duration::from_secs(2))
+    ///     );
+    /// }
+    /// ```
+    pub fn new(previous_retry_count: u32, elapsed: Duration, retry_reason: crate::Error) -> Self {
+        Self {
+            previous_retry_count,
+            elapsed,
+            retry_reason,
+        }
+    }
+}
+
+/// Decides whether and when the client reconnects, as the official .NET client's `IRetryPolicy`.
+///
+/// Implement [`next_retry_delay_with`](Self::next_retry_delay_with) to see the
+/// [`RetryContext`] (including why the client is reconnecting), or the older
+/// [`next_retry_delay`](Self::next_retry_delay). A policy that implements neither never
+/// reconnects. A policy that panics stops the reconnect run, which then ends as if the policy had
+/// returned `None`.
 pub trait ReconnectionPolicy: crate::platform::MaybeSendSync {
-    /// Returns the delay before the next reconnection attempt.
-    /// Returns `None` if no more attempts should be made.
-    fn next_retry_delay(&self, retry_count: u32, elapsed_milliseconds: u64) -> Option<Duration>;
+    /// Returns the delay before the next reconnection attempt, or `None` to stop reconnecting.
+    /// `retry_count` is the number of failed attempts so far and `elapsed_milliseconds` how long
+    /// the run has been reconnecting.
+    fn next_retry_delay(&self, retry_count: u32, elapsed_milliseconds: u64) -> Option<Duration> {
+        let _ = (retry_count, elapsed_milliseconds);
+        None
+    }
+
+    /// Returns the delay before the next reconnection attempt, or `None` to stop reconnecting,
+    /// as `IRetryPolicy.NextRetryDelay(RetryContext)`. Defaults to
+    /// [`next_retry_delay`](Self::next_retry_delay).
+    fn next_retry_delay_with(&self, context: &RetryContext) -> Option<Duration> {
+        let elapsed = u64::try_from(context.elapsed.as_millis()).unwrap_or(u64::MAX);
+        self.next_retry_delay(context.previous_retry_count, elapsed)
+    }
 }
 
 /// A reconnection policy that never retries.
@@ -434,6 +732,28 @@ impl Default for ReconnectionConfig {
     }
 }
 
+/// Retries after each delay of a list, then stops, as the official .NET client's
+/// `WithAutomaticReconnect(TimeSpan[])`: the first attempt waits `delays[0]`, the second
+/// `delays[1]`, and so on.
+#[derive(Clone, Debug, Default)]
+pub struct DelayListPolicy {
+    delays: Vec<Duration>,
+}
+
+impl DelayListPolicy {
+    pub fn new(delays: impl IntoIterator<Item = Duration>) -> Self {
+        Self {
+            delays: delays.into_iter().collect(),
+        }
+    }
+}
+
+impl ReconnectionPolicy for DelayListPolicy {
+    fn next_retry_delay(&self, retry_count: u32, _elapsed_milliseconds: u64) -> Option<Duration> {
+        self.delays.get(retry_count as usize).copied()
+    }
+}
+
 /// The official clients' default reconnect delays: 0, 2, 10 and 30 seconds, then no further
 /// attempts (as `withAutomaticReconnect()` in the JavaScript and Swift clients). Opt in with
 /// `ReconnectionConfig { policy: Arc::new(DefaultRetryPolicy) }`; `ReconnectionConfig::default()`
@@ -461,8 +781,16 @@ mod lifecycle_controls {
     use super::{
         ConnectionStatus, DefaultRetryPolicy, FirstAttempt, Lifecycle, LifecycleState,
         NoReconnectPolicy, PauseOutcome, ReconnectionConfig, ReconnectionPolicy, ResumeOutcome,
-        LOCALLY_CLOSED, PAUSED,
     };
+    use crate::{CloseReason, ErrorKind};
+
+    fn retry(previous_retry_count: u32) -> super::RetryContext {
+        super::RetryContext::new(
+            previous_retry_count,
+            Duration::ZERO,
+            crate::Error::canceled("test"),
+        )
+    }
 
     fn reconnecting() -> (Lifecycle, u64) {
         let mut lifecycle = Lifecycle::connected();
@@ -487,16 +815,16 @@ mod lifecycle_controls {
     #[test]
     fn lifecycle_controls_pause_is_accepted_from_every_open_state() {
         let mut connected = Lifecycle::connected();
-        assert_eq!(connected.pause(), Ok(PauseOutcome::Paused));
+        assert_eq!(connected.pause().ok(), Some(PauseOutcome::Paused));
         assert_eq!(connected.state(), LifecycleState::Paused);
 
         let (mut reconnecting, _) = reconnecting();
-        assert_eq!(reconnecting.pause(), Ok(PauseOutcome::Paused));
+        assert_eq!(reconnecting.pause().ok(), Some(PauseOutcome::Paused));
 
         let mut disconnected = Lifecycle::connected();
         disconnected.transport_lost();
         assert_eq!(disconnected.status(), ConnectionStatus::Disconnected);
-        assert_eq!(disconnected.pause(), Ok(PauseOutcome::Paused));
+        assert_eq!(disconnected.pause().ok(), Some(PauseOutcome::Paused));
     }
 
     #[test]
@@ -510,14 +838,14 @@ mod lifecycle_controls {
         );
         lifecycle.fail(generation);
         assert_eq!(lifecycle.state(), LifecycleState::Paused);
-        assert_eq!(lifecycle.superseded_reason(), PAUSED);
+        assert_eq!(lifecycle.superseded().kind(), ErrorKind::Paused);
     }
 
     #[test]
     fn lifecycle_controls_paused_clients_refuse_reconnects_and_server_closes() {
         let mut lifecycle = Lifecycle::connected();
         lifecycle.pause().unwrap();
-        assert_eq!(lifecycle.begin(), Err(PAUSED));
+        assert_eq!(lifecycle.begin().unwrap_err().kind(), ErrorKind::Paused);
         lifecycle.remote_close();
         lifecycle.transport_lost();
         assert_eq!(lifecycle.state(), LifecycleState::Paused);
@@ -545,15 +873,15 @@ mod lifecycle_controls {
     #[test]
     fn lifecycle_controls_repeated_pause_and_resume_are_no_ops() {
         let mut lifecycle = Lifecycle::connected();
-        assert_eq!(lifecycle.resume(), Ok(ResumeOutcome::AlreadyActive));
+        assert_eq!(lifecycle.resume().ok(), Some(ResumeOutcome::AlreadyActive));
         assert_eq!(lifecycle.state(), LifecycleState::Connected);
         let (mut running, generation) = reconnecting();
-        assert_eq!(running.resume(), Ok(ResumeOutcome::AlreadyActive));
+        assert_eq!(running.resume().ok(), Some(ResumeOutcome::AlreadyActive));
         assert!(running.owns(generation));
 
         lifecycle.pause().unwrap();
         let paused = lifecycle;
-        assert_eq!(lifecycle.pause(), Ok(PauseOutcome::AlreadyPaused));
+        assert_eq!(lifecycle.pause().ok(), Some(PauseOutcome::AlreadyPaused));
         assert_eq!(lifecycle, paused, "a repeated pause changes nothing");
     }
 
@@ -562,9 +890,13 @@ mod lifecycle_controls {
         let (mut lifecycle, generation) = reconnecting();
         lifecycle.local_close();
         assert!(!lifecycle.complete(generation));
-        assert_eq!(lifecycle.pause(), Err(LOCALLY_CLOSED));
-        assert_eq!(lifecycle.resume(), Err(LOCALLY_CLOSED));
-        assert_eq!(lifecycle.begin(), Err(LOCALLY_CLOSED));
+        for error in [
+            lifecycle.pause().unwrap_err(),
+            lifecycle.resume().unwrap_err(),
+            lifecycle.begin().unwrap_err(),
+        ] {
+            assert_eq!(error.close_reason(), Some(CloseReason::Local));
+        }
         lifecycle.remote_close();
         assert_eq!(lifecycle.status(), ConnectionStatus::Closed);
     }
@@ -598,7 +930,7 @@ mod lifecycle_controls {
 
         let mut buffer = StatefulMessageBuffer::new(1_024).unwrap();
         let old_generation = buffer.transport_generation();
-        let frame = || SerializedFrame::Text("{}".to_string());
+        let frame = || SerializedFrame::text("{}");
         buffer.track(MessageType::Invocation, frame()).unwrap();
         assert!(!buffer.is_disposed());
         buffer.dispose();
@@ -611,13 +943,16 @@ mod lifecycle_controls {
         assert!(!buffer.is_disposed());
         assert_eq!(buffer.buffered_bytes(), 0);
         assert_eq!(
-            buffer.track(MessageType::Invocation, frame()),
-            Ok(TrackResult::Buffered(1)),
+            buffer.track(MessageType::Invocation, frame()).ok(),
+            Some(TrackResult::Buffered(1)),
             "a renewed buffer numbers frames from the start"
         );
         assert_eq!(
-            buffer.track_for(old_generation, MessageType::Invocation, frame()),
-            Err(STALE_TRANSPORT.to_string()),
+            buffer
+                .track_for(old_generation, MessageType::Invocation, frame())
+                .unwrap_err()
+                .to_string(),
+            STALE_TRANSPORT,
             "writers of the ended connection can never track frames"
         );
     }
@@ -626,27 +961,270 @@ mod lifecycle_controls {
     fn lifecycle_controls_resume_attempts_immediately_then_follows_the_policy() {
         let policy = DefaultRetryPolicy;
         assert_eq!(
-            FirstAttempt::Always.delay(&NoReconnectPolicy, 0, 0),
+            FirstAttempt::Always.delay(&NoReconnectPolicy, &retry(0), None),
             Some(Duration::ZERO)
         );
-        assert_eq!(FirstAttempt::Always.delay(&NoReconnectPolicy, 1, 0), None);
         assert_eq!(
-            FirstAttempt::Always.delay(&policy, 1, 0),
+            FirstAttempt::Always.delay(&NoReconnectPolicy, &retry(1), None),
+            None
+        );
+        assert_eq!(
+            FirstAttempt::Always.delay(&policy, &retry(1), None),
             Some(Duration::from_secs(2))
         );
         assert_eq!(
-            FirstAttempt::WithoutDelay.delay(&NoReconnectPolicy, 0, 0),
+            FirstAttempt::WithoutDelay.delay(&NoReconnectPolicy, &retry(0), None),
             None
         );
         let slow = super::ConstantDelayPolicy::new(Duration::from_secs(5), Some(2));
         assert_eq!(
-            FirstAttempt::WithoutDelay.delay(&slow, 0, 0),
+            FirstAttempt::WithoutDelay.delay(&slow, &retry(0), None),
             Some(Duration::ZERO)
         );
         assert_eq!(
-            FirstAttempt::AfterPolicyDelay.delay(&slow, 0, 0),
+            FirstAttempt::AfterPolicyDelay.delay(&slow, &retry(0), None),
             Some(Duration::from_secs(5))
         );
+    }
+}
+
+/// Starting and restarting, as `HubConnection.StartAsync` (R16.C2, R16.C3).
+#[cfg(test)]
+mod start_lifecycle {
+    use super::{ConnectionStatus, Lifecycle, LifecycleState};
+    use crate::ErrorKind;
+
+    #[test]
+    fn client_start_lifecycle_moves_from_not_started_through_connecting() {
+        let mut lifecycle = Lifecycle::new();
+        assert_eq!(lifecycle.state(), LifecycleState::NotStarted);
+        assert_eq!(lifecycle.status(), ConnectionStatus::Disconnected);
+        for refused in [lifecycle.begin(), lifecycle.pause().map(|_| 0)] {
+            assert_eq!(refused.unwrap_err().kind(), ErrorKind::InvalidState);
+        }
+        assert_eq!(
+            lifecycle.resume().unwrap_err().kind(),
+            ErrorKind::InvalidState
+        );
+        assert_eq!(lifecycle.state(), LifecycleState::NotStarted);
+
+        let generation = lifecycle.start().unwrap();
+        assert_eq!(lifecycle.status(), ConnectionStatus::Connecting);
+        assert!(lifecycle.owns(generation));
+        assert!(lifecycle.complete(generation));
+        assert_eq!(lifecycle.status(), ConnectionStatus::Connected);
+    }
+
+    #[test]
+    fn client_start_lifecycle_a_failed_start_disconnects() {
+        let mut lifecycle = Lifecycle::new();
+        let generation = lifecycle.start().unwrap();
+        assert!(lifecycle.fail(generation));
+        assert_eq!(lifecycle.status(), ConnectionStatus::Disconnected);
+        assert!(lifecycle.start().is_ok(), "a failed start may be retried");
+    }
+
+    #[test]
+    fn client_start_lifecycle_pause_and_close_supersede_a_start() {
+        let mut paused = Lifecycle::new();
+        let generation = paused.start().unwrap();
+        paused.pause().unwrap();
+        assert!(!paused.complete(generation));
+        assert_eq!(paused.superseded().kind(), ErrorKind::Paused);
+
+        let mut closed = Lifecycle::new();
+        let generation = closed.start().unwrap();
+        closed.local_close();
+        assert!(!closed.complete(generation));
+        assert_eq!(
+            closed.superseded().close_reason(),
+            Some(crate::CloseReason::Local)
+        );
+    }
+
+    #[test]
+    fn client_restart_lifecycle_starts_again_after_a_local_or_remote_close() {
+        let mut lifecycle = Lifecycle::new();
+        let first = lifecycle.start().unwrap();
+        lifecycle.complete(first);
+        lifecycle.local_close();
+        assert_eq!(lifecycle.status(), ConnectionStatus::Closed);
+        let second = lifecycle.start().unwrap();
+        assert_ne!(second, first, "a restart is a new generation");
+        assert!(lifecycle.complete(second));
+
+        lifecycle.remote_close();
+        assert_eq!(lifecycle.status(), ConnectionStatus::Disconnected);
+        let third = lifecycle.start().unwrap();
+        assert!(lifecycle.complete(third));
+        assert_eq!(lifecycle.status(), ConnectionStatus::Connected);
+    }
+
+    #[test]
+    fn client_restart_lifecycle_rejects_start_while_active() {
+        let mut connecting = Lifecycle::new();
+        connecting.start().unwrap();
+        let mut connected = Lifecycle::connected();
+        let mut reconnecting = Lifecycle::connected();
+        reconnecting.begin().unwrap();
+        let mut paused = Lifecycle::connected();
+        paused.pause().unwrap();
+        for lifecycle in [
+            &mut connecting,
+            &mut connected,
+            &mut reconnecting,
+            &mut paused,
+        ] {
+            let before = *lifecycle;
+            assert_eq!(
+                lifecycle.start().unwrap_err().kind(),
+                ErrorKind::InvalidState
+            );
+            assert_eq!(*lifecycle, before, "a refused start changes nothing");
+        }
+        assert_eq!(
+            connecting.begin().unwrap_err().kind(),
+            ErrorKind::Canceled,
+            "no manual reconnect while starting"
+        );
+    }
+}
+
+/// Reconnection policies see a `RetryContext`, as `IRetryPolicy.NextRetryDelay` (R16.C25).
+#[cfg(test)]
+mod retry_context {
+    use std::time::Duration;
+
+    use super::{ask_policy, DelayListPolicy, FirstAttempt, ReconnectionPolicy, RetryContext};
+
+    fn context(previous_retry_count: u32, elapsed: Duration) -> RetryContext {
+        RetryContext::new(
+            previous_retry_count,
+            elapsed,
+            crate::Error::canceled("dropped"),
+        )
+    }
+
+    #[test]
+    fn retry_context_policies_with_the_old_signature_keep_working() {
+        struct Counting;
+        impl ReconnectionPolicy for Counting {
+            fn next_retry_delay(&self, retry_count: u32, elapsed: u64) -> Option<Duration> {
+                (retry_count < 2).then(|| Duration::from_millis(elapsed + u64::from(retry_count)))
+            }
+        }
+        let context = context(1, Duration::from_millis(40));
+        assert_eq!(
+            Counting.next_retry_delay_with(&context),
+            Some(Duration::from_millis(41))
+        );
+        assert_eq!(
+            Counting.next_retry_delay_with(&super::RetryContext::new(
+                2,
+                Duration::ZERO,
+                crate::Error::canceled("x")
+            )),
+            None
+        );
+    }
+
+    #[test]
+    fn retry_context_policies_see_the_reason_and_unimplemented_ones_never_retry() {
+        struct ByReason;
+        impl ReconnectionPolicy for ByReason {
+            fn next_retry_delay_with(&self, context: &RetryContext) -> Option<Duration> {
+                (context.retry_reason.kind() == crate::ErrorKind::Canceled)
+                    .then_some(context.elapsed)
+            }
+        }
+        struct Silent;
+        impl ReconnectionPolicy for Silent {}
+        let context = context(0, Duration::from_secs(3));
+        assert_eq!(
+            ByReason.next_retry_delay_with(&context),
+            Some(Duration::from_secs(3))
+        );
+        assert_eq!(Silent.next_retry_delay_with(&context), None);
+    }
+
+    #[test]
+    fn retry_context_a_panicking_policy_stops_reconnecting() {
+        struct Panicking;
+        impl ReconnectionPolicy for Panicking {
+            fn next_retry_delay_with(&self, _context: &RetryContext) -> Option<Duration> {
+                panic!("policy failure")
+            }
+        }
+        assert_eq!(ask_policy(&Panicking, &context(0, Duration::ZERO)), None);
+        assert_eq!(
+            FirstAttempt::AfterPolicyDelay.delay(&Panicking, &context(1, Duration::ZERO), None),
+            None
+        );
+    }
+
+    #[test]
+    fn retry_context_delay_list_policy_matches_with_automatic_reconnect() {
+        let policy = DelayListPolicy::new([Duration::ZERO, Duration::from_millis(500)]);
+        let delays: Vec<_> = (0..3)
+            .map(|retry| policy.next_retry_delay_with(&context(retry, Duration::ZERO)))
+            .collect();
+        assert_eq!(
+            delays,
+            [Some(Duration::ZERO), Some(Duration::from_millis(500)), None]
+        );
+        assert_eq!(
+            DelayListPolicy::default().next_retry_delay_with(&context(0, Duration::ZERO)),
+            None
+        );
+    }
+}
+
+/// The negotiated connection id, as `HubConnection.ConnectionId` (R16.C5).
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod connection_id {
+    use super::ReconnectCoordinator;
+
+    #[test]
+    fn connection_id_follows_fresh_connections_and_survives_a_stateful_resume() {
+        let coordinator = ReconnectCoordinator::new();
+        assert_eq!(coordinator.connection_id(), None, "not started");
+        let start = coordinator.start().unwrap();
+        assert_eq!(coordinator.connection_id(), None, "connecting");
+        assert!(coordinator.complete_connection(start, Some(Some("first".into()))));
+        assert_eq!(coordinator.connection_id().as_deref(), Some("first"));
+
+        let resume = coordinator.begin().unwrap();
+        assert_eq!(coordinator.connection_id(), None, "reconnecting");
+        assert!(coordinator.complete_connection(resume, None));
+        assert_eq!(
+            coordinator.connection_id().as_deref(),
+            Some("first"),
+            "a stateful resume keeps the id"
+        );
+
+        let fresh = coordinator.begin().unwrap();
+        assert!(coordinator.complete_connection(fresh, Some(Some("second".into()))));
+        assert_eq!(coordinator.connection_id().as_deref(), Some("second"));
+
+        coordinator.local_close();
+        assert_eq!(coordinator.connection_id(), None, "stopped");
+    }
+
+    #[test]
+    fn connection_id_is_none_without_negotiation_and_after_a_superseded_attempt() {
+        let coordinator = ReconnectCoordinator::new();
+        let start = coordinator.start().unwrap();
+        assert!(coordinator.complete_connection(start, Some(None)));
+        assert_eq!(
+            coordinator.connection_id(),
+            None,
+            "skip_negotiation has no id"
+        );
+
+        let stale = coordinator.begin().unwrap();
+        coordinator.pause().unwrap();
+        assert!(!coordinator.complete_connection(stale, Some(Some("stale".into()))));
+        assert_eq!(coordinator.connection_id(), None);
     }
 }
 
@@ -660,8 +1238,8 @@ mod reconnect_lifecycle {
         let generation = coordinator.begin().unwrap();
         assert_eq!(coordinator.lifecycle(), LifecycleState::Reconnecting);
         assert_eq!(
-            coordinator.begin(),
-            Err("A reconnect attempt is already running")
+            coordinator.begin().unwrap_err().kind(),
+            crate::ErrorKind::Canceled
         );
         assert!(coordinator.complete(generation));
         assert_eq!(coordinator.lifecycle(), LifecycleState::Connected);
@@ -674,7 +1252,10 @@ mod reconnect_lifecycle {
         coordinator.local_close();
         assert!(!coordinator.complete(stale_generation));
         assert_eq!(coordinator.lifecycle(), LifecycleState::LocalClosed);
-        assert_eq!(coordinator.begin(), Err("Client was locally disconnected"));
+        assert_eq!(
+            coordinator.begin().unwrap_err().close_reason(),
+            Some(crate::CloseReason::Local)
+        );
     }
 
     #[test]

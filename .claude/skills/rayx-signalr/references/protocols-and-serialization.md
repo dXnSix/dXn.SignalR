@@ -36,16 +36,23 @@ public sealed class OrderLine
 }
 ```
 
-- JSON: ASP.NET Core writes camelCase and reads case-insensitively.
+- JSON: ASP.NET Core writes camelCase and reads case-insensitively. The client also reads JSON
+  results, stream items and callback arguments case-insensitively on a second decode (as the .NET
+  client's System.Text.Json web defaults); outbound names stay the Serde names.
+- Framing: a hub message may span WebSocket messages (the rest is carried over); no size cap
+  unless `with_maximum_message_size`. Malformed messages or a wrong frame kind end the transport
+  with `Protocol` and the policy reconnects; unknown message types are ignored.
 - MessagePack outbound: the client writes structs as maps keyed by Serde names
   (`rmp_serde::to_vec_named`) and never rewrites keys. MessagePack-CSharp matches keys exactly, so
   .NET needs string `[Key("...")]` equal to the Serde names. Integer keys (array layout) do not
   match.
 - MessagePack inbound `invoke` results and stream items: `rmp_serde` into `T`, retried once with
   PascalCase map keys converted to camelCase.
-- MessagePack inbound callback arguments: converted to JSON values first. `byte[]` becomes a base64
-  string, extension values (timestamps, `DateTime`) become `null`, non-string map keys are dropped.
-  Prefer ISO 8601 strings or Unix milliseconds and base64 strings in shared payloads.
+- MessagePack inbound callback arguments: decoded like results, from the server's original
+  values. `byte[]` needs a bytes type (`serde_bytes::ByteBuf`, not `Vec<u8>`); `DateTime` arrives
+  as extension type -1 (`#[serde(rename = "_ExtStruct")] struct Ext((i8, ByteBuf))`);
+  `Dictionary<int, string>` decodes into `HashMap<i32, String>`. Prefer ISO 8601 strings or Unix
+  milliseconds and base64 strings in payloads shared with JSON clients.
 
 ## Void and null
 

@@ -6,8 +6,9 @@ use std::{cell::Cell, cell::RefCell, future::Future, rc::Rc, sync::Arc, time::Du
 use futures::{channel::oneshot, future::Either, StreamExt};
 use gloo_timers::future::TimeoutFuture;
 use rayx_signalr::{
-    CallbackHandler, ConnectionConfiguration, ConstantDelayPolicy, DisconnectionHandler,
-    InvocationContext, ManualStream, ReconnectionConfig, ReconnectionHandler, SignalRClient,
+    CallbackHandler, CloseReason, ConnectionConfiguration, ConnectionStatus, ConstantDelayPolicy,
+    DisconnectionHandler, Error, ErrorKind, InvocationContext, ManualStream, ReconnectionConfig,
+    ReconnectionHandler, SignalRClient, TimeoutOperation,
 };
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
@@ -66,6 +67,26 @@ pub async fn run_functional_scenario(
         "pause-resume" => pause_resume(messagepack).await,
         "pause-resume-stateful" => pause_resume_stateful(messagepack).await,
         "unsent-stream" => unsent_stream(messagepack).await,
+        "error-kinds" => error_kinds(messagepack).await,
+        "disconnect-every-handle" => disconnect_every_handle(messagepack).await,
+        "msgpack-fidelity" => msgpack_fidelity(messagepack).await,
+        "callback-dispatch" => callback_dispatch(messagepack).await,
+        "client-result-errors" => client_result_errors(messagepack).await,
+        "connected-callback" => connected_callback(messagepack).await,
+        "restart-after-stop" => restart_after_stop(messagepack).await,
+        "lifecycle-events" => lifecycle_events(messagepack).await,
+        "connection-id" => connection_id(messagepack).await,
+        "graceful-stop" => graceful_stop(messagepack).await,
+        "reconnect-call-wait" => reconnect_call_wait(messagepack).await,
+        "request-headers" => request_headers(messagepack).await,
+        "stateful-transparent-resume" => stateful_transparent_resume(messagepack).await,
+        "stateful-resume-fallback" => stateful_resume_fallback(messagepack).await,
+        "token-factory" => token_factory(messagepack).await,
+        "ordinary-reconnect" => ordinary_reconnect(messagepack).await,
+        "negotiate-timeout" => negotiate_timeout_scenario(messagepack).await,
+        "transport-fallback" => transport_fallback(messagepack).await,
+        "client-to-server-stream" => client_to_server_stream(messagepack).await,
+        "suspend-resume" => suspend_resume(messagepack).await,
         other => Err(format!("unknown functional scenario {other}")),
     };
     outcome
@@ -73,20 +94,23 @@ pub async fn run_functional_scenario(
         .map_err(|error| JsValue::from_str(&format!("{scenario} {protocol}: {error}")))
 }
 
+/// Connects to `hub`; the outer error is a fixture failure, the inner result the client's.
 async fn try_connect(
     hub: &str,
     messagepack: bool,
     mut configure: impl FnMut(&mut ConnectionConfiguration),
-) -> Result<SignalRClient, String> {
+) -> Result<Result<SignalRClient, Error>, String> {
     let endpoint = super::service().map_err(|error| format!("{error:?}"))?;
-    SignalRClient::connect_with(&endpoint.host, hub, |configuration| {
-        endpoint.apply(configuration);
-        if messagepack {
-            configuration.with_messagepack_protocol();
-        }
-        configure(configuration);
-    })
-    .await
+    Ok(
+        SignalRClient::connect_with(&endpoint.host, hub, |configuration| {
+            endpoint.apply(configuration);
+            if messagepack {
+                configuration.with_messagepack_protocol();
+            }
+            configure(configuration);
+        })
+        .await,
+    )
 }
 
 async fn connect(
@@ -95,7 +119,7 @@ async fn connect(
     configure: impl FnMut(&mut ConnectionConfiguration),
 ) -> Result<SignalRClient, String> {
     try_connect(hub, messagepack, configure)
-        .await
+        .await?
         .map_err(|error| format!("connect to {hub} failed: {error}"))
 }
 
@@ -130,7 +154,7 @@ where
     }
 }
 
-async fn identity(client: &mut SignalRClient) -> Result<String, String> {
+async fn identity(client: &mut SignalRClient) -> Result<String, Error> {
     client
         .invoke::<String>("ConnectionIdentity".to_string())
         .await
@@ -143,6 +167,245 @@ fn spawn<T: 'static>(future: impl Future<Output = T> + 'static) -> oneshot::Rece
         let _ = sender.send(future.await);
     });
     receiver
+}
+
+/// Client-to-server streams, as the .NET client's `IAsyncEnumerable<T>`/`ChannelReader<T>`
+/// arguments: `invoke` with a stream bound to an `IAsyncEnumerable<int>` and to a
+/// `ChannelReader<int>` parameter (also after an ordinary argument), `enumerate` with a stream the
+/// hub streams back, and `send` with a stream the hub reads to its end; dropping an `invoke`
+/// future or an `enumerate` stream before it ended ends the upload with the .NET client's
+/// `Stream canceled by client.`. A browser pause always ends a stateful logical connection, so an
+/// upload in flight ends with its call.
+async fn client_to_server_stream(messagepack: bool) -> Outcome {
+    use futures::stream;
+
+    async fn outcome(client: &mut SignalRClient) -> Result<String, String> {
+        Ok(client.invoke::<String>("StreamOutcome".to_string()).await?)
+    }
+
+    let mut client = connect("test", messagepack, |_| {}).await?;
+    let sum: i32 = client
+        .invoke_with_args("SumStream".to_string(), |c| {
+            c.stream(stream::iter(1..=10));
+        })
+        .await?;
+    ensure!(sum == 55, "SumStream returned {sum}");
+
+    let paced = stream::iter(1..=5).then(|number| async move {
+        sleep(20).await;
+        number
+    });
+    let sum: i32 = client
+        .invoke_with_args("SumChannel".to_string(), |c| {
+            c.stream(paced);
+        })
+        .await?;
+    ensure!(sum == 15, "SumChannel returned {sum}");
+
+    let sum: i32 = client
+        .invoke_with_args("SumWithOffset".to_string(), |c| {
+            c.stream(stream::iter(1..=3)).argument(100);
+        })
+        .await?;
+    ensure!(sum == 106, "SumWithOffset returned {sum}");
+
+    let doubled: Vec<i32> = client
+        .enumerate_with_args::<i32, _>("DoubleStream".to_string(), |c| {
+            c.stream(stream::iter(1..=3));
+        })
+        .await
+        .collect()
+        .await;
+    ensure!(doubled == [2, 4, 6], "DoubleStream streamed {doubled:?}");
+
+    client
+        .send_with_args("ObserveStream".to_string(), |c| {
+            c.stream(stream::iter([4, 5, 6]));
+        })
+        .await?;
+    let completed = eventually("the sent stream's end", 10_000.0, || {
+        let mut probe = client.clone();
+        async move {
+            outcome(&mut probe)
+                .await
+                .ok()
+                .filter(|outcome| outcome != "none")
+        }
+    })
+    .await?;
+    ensure!(
+        completed == "completed:15",
+        "the sent stream ended with {completed}"
+    );
+
+    // Dropping the invoke future cancels its stream.
+    let endless = stream::iter([1]).chain(stream::pending());
+    let mut invoking = client.clone();
+    // Boxed so that it can be dropped as soon as the timer wins.
+    let invoke = Box::pin(
+        invoking.invoke_with_args::<i32, _>("ObserveStream".to_string(), |c| {
+            c.stream(endless);
+        }),
+    );
+    let timer = std::pin::pin!(sleep(500));
+    match futures::future::select(invoke, timer).await {
+        Either::Left((result, _)) => {
+            return Err(format!("the endless stream completed: {result:?}"));
+        }
+        Either::Right(((), invoke)) => drop(invoke),
+    }
+    let canceled = eventually("the canceled stream's end", 10_000.0, || {
+        let mut probe = client.clone();
+        async move {
+            outcome(&mut probe)
+                .await
+                .ok()
+                .filter(|outcome| outcome.starts_with("error:"))
+        }
+    })
+    .await?;
+    ensure!(
+        canceled == "error:Stream canceled by client.",
+        "the canceled stream ended with {canceled}"
+    );
+
+    client.disconnect();
+
+    // Dropping an enumerate stream before it ended cancels its upload (a fresh connection, whose
+    // outcome nothing recorded yet).
+    let mut observer = connect("test", messagepack, |_| {}).await?;
+    let endless = stream::iter([1]).chain(stream::pending());
+    let observing = observer
+        .enumerate_with_args::<i32, _>("ObserveUpload".to_string(), |c| {
+            c.stream(endless);
+        })
+        .await;
+    sleep(300).await;
+    let open = outcome(&mut observer).await?;
+    ensure!(open == "none", "the upload ended early: {open}");
+    drop(observing);
+    let dropped = eventually("the dropped stream's upload end", 10_000.0, || {
+        let mut probe = observer.clone();
+        async move {
+            outcome(&mut probe)
+                .await
+                .ok()
+                .filter(|outcome| outcome != "none")
+        }
+    })
+    .await?;
+    ensure!(
+        dropped == "error:Stream canceled by client.",
+        "the dropped stream's upload ended with {dropped}"
+    );
+    observer.disconnect();
+
+    // A browser pause ends a stateful logical connection: an upload in flight ends with its call.
+    let mut stateful = connect("test-stateful", messagepack, |configuration| {
+        configuration.with_stateful_reconnect(rayx_signalr::StatefulReconnectConfig::default());
+    })
+    .await?;
+    let paced = stream::iter(1..=10).then(|number| async move {
+        sleep(100).await;
+        number
+    });
+    let (result, received) = futures::channel::oneshot::channel();
+    let mut invoking = stateful.clone();
+    spawn_local(async move {
+        let sum = invoking
+            .invoke_with_args::<i32, _>("SumStream".to_string(), |c| {
+                c.stream(paced);
+            })
+            .await;
+        let _ = result.send(sum);
+    });
+    sleep(350).await;
+    stateful
+        .pause()
+        .await
+        .map_err(|error| format!("pause failed: {error}"))?;
+    stateful
+        .resume()
+        .await
+        .map_err(|error| format!("resume failed: {error}"))?;
+    let ended = received
+        .await
+        .map_err(|_| "the paused call never ended".to_string())?;
+    ensure!(
+        ended.is_err(),
+        "an upload across a browser pause completed: {ended:?}"
+    );
+    let sum: i32 = stateful
+        .invoke_with_args("SumStream".to_string(), |c| {
+            c.stream(stream::iter(1..=3));
+        })
+        .await?;
+    ensure!(sum == 6, "SumStream after the resume returned {sum}");
+    stateful.disconnect();
+    Ok(())
+}
+
+/// Transport fallback: against hubs restricted server-side, the default transport set connects
+/// with the first offered transport that carries the protocol (Long Polling where it is the only
+/// one; Server-Sent Events before Long Polling for JSON, Long Polling for MessagePack), as the
+/// hub's `TransportDetails` reports; a WebSockets-only client fails with `TransportUnavailable`
+/// naming the transport it could not use.
+async fn transport_fallback(messagepack: bool) -> Outcome {
+    #[derive(Debug, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct TransportDetails {
+        transport: String,
+    }
+
+    async fn transport_of(hub: &str, messagepack: bool) -> Result<String, String> {
+        let mut client = connect(hub, messagepack, |_| {}).await?;
+        let details = client
+            .invoke::<TransportDetails>("TransportDetails".to_string())
+            .await?;
+        client.disconnect();
+        Ok(details.transport)
+    }
+
+    let only = transport_of("test-longpolling", messagepack).await?;
+    ensure!(only == "LongPolling", "/test-longpolling used {only}");
+    let expected = if messagepack {
+        "LongPolling"
+    } else {
+        "ServerSentEvents"
+    };
+    let fallback = transport_of("test-no-websockets", messagepack).await?;
+    ensure!(
+        fallback == expected,
+        "/test-no-websockets used {fallback} instead of {expected}"
+    );
+
+    let error = match try_connect("test-longpolling", messagepack, |configuration| {
+        configuration.with_transports(rayx_signalr::Transports::WEB_SOCKETS);
+    })
+    .await?
+    {
+        Ok(_) => return Err("a WebSockets-only client connected to a Long Polling hub".to_string()),
+        Err(error) => error,
+    };
+    ensure!(
+        error.kind() == ErrorKind::TransportUnavailable,
+        "unexpected error kind: {error}"
+    );
+    let attempts: Vec<_> = error
+        .attempts()
+        .iter()
+        .map(|attempt| attempt.transport())
+        .collect();
+    ensure!(
+        attempts == [rayx_signalr::TransportKind::LongPolling],
+        "attempts {attempts:?}"
+    );
+    let message = error.to_string();
+    ensure!(
+        message.contains("LongPolling") && message.contains("disabled by the client"),
+        "the error does not name the transport: {message}"
+    );
+    Ok(())
 }
 
 async fn connect_negotiate(messagepack: bool) -> Outcome {
@@ -178,10 +441,12 @@ async fn connect_negotiate(messagepack: bool) -> Outcome {
     );
     client.disconnect();
 
-    match try_connect("no-such-hub", messagepack, |_| {}).await {
+    match try_connect("no-such-hub", messagepack, |_| {}).await? {
         Ok(_) => Err("connecting to an unknown hub succeeded".to_string()),
-        Err(error) if error.contains("404") => Ok(()),
-        Err(error) => Err(format!("unknown hub failed without a 404: {error}")),
+        Err(error) if (error.kind(), error.status()) == (ErrorKind::Negotiate, Some(404)) => Ok(()),
+        Err(error) => Err(format!(
+            "unknown hub failed without a negotiate 404: {error}"
+        )),
     }
 }
 
@@ -220,14 +485,20 @@ async fn authentication(messagepack: bool) -> Outcome {
 
     // Browsers cannot set WebSocket headers: Basic credentials authenticate negotiate and the
     // service binds the connection token to that user; Bearer tokens travel as `access_token`.
+    // Long Polling requests are `fetch` requests, which carry the `Authorization` header.
+    let (basic_source, bearer_source) = if super::long_polling() {
+        ("header", "header")
+    } else {
+        ("token-binding", "access_token")
+    };
     let basic = identity_with(messagepack, Some(("e2e-user", "e2e-password")), None).await?;
     ensure!(
-        basic == ("Basic:e2e-user".to_string(), "token-binding".to_string()),
+        basic == ("Basic:e2e-user".to_string(), basic_source.to_string()),
         "Basic identity {basic:?}"
     );
     let bearer = identity_with(messagepack, None, Some("e2e-token")).await?;
     ensure!(
-        bearer == ("Bearer:e2e-bearer".to_string(), "access_token".to_string()),
+        bearer == ("Bearer:e2e-bearer".to_string(), bearer_source.to_string()),
         "Bearer identity {bearer:?}"
     );
 
@@ -239,17 +510,18 @@ async fn authentication(messagepack: bool) -> Outcome {
         let error = match try_connect("test-auth", messagepack, |configuration| {
             configure(configuration, basic, bearer)
         })
-        .await
+        .await?
         {
             Ok(_) => return Err("connect succeeded without valid credentials".to_string()),
             Err(error) => error,
         };
         ensure!(
-            error.contains("401"),
+            (error.kind(), error.status()) == (ErrorKind::Authentication, Some(401)),
             "expected an authorization error: {error}"
         );
+        let text = format!("{error} {error:?}");
         for secret in ["wrong-token", "e2e-token", "wrong-password", "e2e-password"] {
-            ensure!(!error.contains(secret), "error leaks a credential: {error}");
+            ensure!(!text.contains(secret), "error leaks a credential: {text}");
         }
     }
     Ok(())
@@ -351,16 +623,13 @@ async fn invoke(messagepack: bool) -> Outcome {
         })
         .await
     {
-        Err(error) if error.contains("detailed failure 42") => {}
+        Err(error) if is_hub_error(&error, "detailed failure 42") => {}
         other => return Err(format!("hub exception surfaced as {other:?}")),
     }
-    ensure!(
-        client
-            .invoke::<i32>("NoSuchHubMethod".to_string())
-            .await
-            .is_err(),
-        "an unknown hub method succeeded"
-    );
+    match client.invoke::<i32>("NoSuchHubMethod".to_string()).await {
+        Err(error) if error.kind() == ErrorKind::Hub => {}
+        other => return Err(format!("an unknown hub method returned {other:?}")),
+    }
     let still_serving = client
         .invoke_with_args::<i32, _>("Echo".to_string(), |arguments| {
             arguments.argument(9);
@@ -461,9 +730,9 @@ async fn server_stream(messagepack: bool) -> Outcome {
         delivered == [1, 2, 3],
         "failing stream delivered {delivered:?}"
     );
-    let error = failing.error().unwrap_or_default();
+    let error = failing.error();
     ensure!(
-        error.contains("failed after 3"),
+        error.is_some_and(|error| is_hub_error(error, "failed after 3")),
         "failing stream error {error:?}"
     );
     identity(&mut client).await?;
@@ -585,7 +854,7 @@ async fn callbacks(messagepack: bool) -> Outcome {
     Ok(())
 }
 
-async fn trigger(client: &mut SignalRClient, callback: &str) -> Outcome {
+async fn trigger(client: &mut SignalRClient, callback: &str) -> Result<(), Error> {
     client
         .send_with_args("TriggerCallback".to_string(), |arguments| {
             arguments.argument(callback.to_string());
@@ -615,7 +884,10 @@ async fn concurrency_and_clones(messagepack: bool) -> Outcome {
         }
     });
     for (sent, echoed) in futures::future::join_all(invocations).await {
-        ensure!(echoed == Ok(sent), "Echo({sent}) returned {echoed:?}");
+        ensure!(
+            matches!(&echoed, Ok(value) if *value == sent),
+            "Echo({sent}) returned {echoed:?}"
+        );
     }
 
     let mut first = client;
@@ -626,7 +898,7 @@ async fn concurrency_and_clones(messagepack: bool) -> Outcome {
         "clones must share one connection"
     );
     let mut probe = connect("test", messagepack, |_| {}).await?;
-    first.disconnect();
+    drop(first);
     sleep(750).await;
     ensure!(
         disconnects(&mut probe, &connection_id).await? == 0,
@@ -652,7 +924,7 @@ async fn concurrency_and_clones(messagepack: bool) -> Outcome {
     Ok(())
 }
 
-async fn disconnects(probe: &mut SignalRClient, connection_id: &str) -> Result<i32, String> {
+async fn disconnects(probe: &mut SignalRClient, connection_id: &str) -> Result<i32, Error> {
     probe
         .invoke_with_args::<i32, _>("DisconnectCount".to_string(), |arguments| {
             arguments.argument(connection_id.to_string());
@@ -696,7 +968,7 @@ async fn large_payload(messagepack: bool) -> Outcome {
 }
 
 /// One handler notification: the close kind and the result of reconnecting from the handler.
-type Notification = (bool, Option<Result<(), String>>);
+type Notification = (bool, Option<Result<(), Error>>);
 
 /// Records each notification and, like a typical handler, tries to reconnect.
 #[derive(Clone, Default)]
@@ -710,15 +982,31 @@ impl DisconnectionHandler for RecordingHandler {
             notifications.len() - 1
         };
         let notifications = self.0.clone();
+        // Logged with their timing, so a slow manual reconnect shows where it waited.
+        progress(&format!(
+            "handler: disconnected (reconnect allowed: {})",
+            reconnection.server_allows_reconnect()
+        ));
         spawn_local(async move {
+            let started = js_sys::Date::now();
             let result = reconnection.reconnect().await;
+            progress(&format!(
+                "handler: reconnect ended after {:.0} ms: {}",
+                js_sys::Date::now() - started,
+                match &result {
+                    Ok(()) => "ok".to_string(),
+                    Err(error) => error.to_string(),
+                }
+            ));
             notifications.borrow_mut()[index].1 = Some(result);
         });
     }
 }
 
 async fn handled_once(handler: &RecordingHandler) -> Result<Notification, String> {
-    eventually("the handler's reconnect result", 10_000.0, || {
+    // Long Polling in WebKit on a loaded runner can take more than 10 s to reconnect; the
+    // handler logs how long it took.
+    eventually("the handler's reconnect result", 30_000.0, || {
         let handler = handler.clone();
         async move {
             match handler.0.borrow().as_slice() {
@@ -747,7 +1035,7 @@ async fn schedule_close(
     client: &mut SignalRClient,
     allow_reconnect: bool,
     delay_ms: i32,
-) -> Outcome {
+) -> Result<(), Error> {
     client
         .invoke_with_args::<(), _>("ScheduleServerClose".to_string(), |arguments| {
             arguments.argument(allow_reconnect).argument(delay_ms);
@@ -755,7 +1043,7 @@ async fn schedule_close(
         .await
 }
 
-fn pending_identity(client: &SignalRClient) -> oneshot::Receiver<Result<String, String>> {
+fn pending_identity(client: &SignalRClient) -> oneshot::Receiver<Result<String, Error>> {
     let mut clone = client.clone();
     spawn(async move {
         clone
@@ -764,6 +1052,21 @@ fn pending_identity(client: &SignalRClient) -> oneshot::Receiver<Result<String, 
             })
             .await
     })
+}
+
+/// A Hub error whose server message contains `expected`.
+fn is_hub_error(error: &Error, expected: &str) -> bool {
+    error.kind() == ErrorKind::Hub
+        && error
+            .server_message()
+            .is_some_and(|message| message.contains(expected))
+}
+
+/// A server Close without reconnect permission, carrying the test service's message.
+fn is_final_close(error: &Error) -> bool {
+    error.close_reason() == Some(CloseReason::Server)
+        && error.server_allows_reconnect() == Some(false)
+        && error.server_message() == Some("Server requested close")
 }
 
 async fn server_close(messagepack: bool) -> Outcome {
@@ -775,7 +1078,7 @@ async fn server_close(messagepack: bool) -> Outcome {
         .await
         .map_err(|_| "the pending invocation task was dropped".to_string())?;
     match failure {
-        Err(error) if error.contains("without allowing reconnect") => {}
+        Err(error) if is_final_close(&error) => {}
         other => return Err(format!("pending work after a terminal close: {other:?}")),
     }
     progress("server-close: manual pending work failed");
@@ -785,7 +1088,7 @@ async fn server_close(messagepack: bool) -> Outcome {
         "a final close reported that reconnecting is allowed"
     );
     match reconnect {
-        Some(Err(error)) if error.contains("without allowing reconnect") => {}
+        Some(Err(error)) if is_final_close(&error) => {}
         other => return Err(format!("reconnect after a final close returned {other:?}")),
     }
     sleep(1_500).await;
@@ -917,7 +1220,7 @@ async fn reconnect_exhaustion(messagepack: bool) -> Outcome {
     Ok(())
 }
 
-async fn hub_negotiates(probe: &mut SignalRClient, hub_path: &str) -> Result<i32, String> {
+async fn hub_negotiates(probe: &mut SignalRClient, hub_path: &str) -> Result<i32, Error> {
     probe
         .invoke_with_args::<i32, _>("NegotiateCount".to_string(), |arguments| {
             arguments.argument(hub_path.to_string());
@@ -951,6 +1254,7 @@ async fn negotiate_redirect(messagepack: bool) -> Outcome {
 async fn skip_negotiation(messagepack: bool) -> Outcome {
     let mut client = connect("test-direct", messagepack, |configuration| {
         configuration.skip_negotiation();
+        configuration.with_transports(rayx_signalr::Transports::WEB_SOCKETS);
         configuration.with_reconnection_policy(fast_reconnect());
     })
     .await?;
@@ -1154,7 +1458,7 @@ async fn tls(messagepack: bool) -> Outcome {
     Ok(())
 }
 
-async fn negotiate_count(probe: &mut SignalRClient) -> Result<i32, String> {
+async fn negotiate_count(probe: &mut SignalRClient) -> Result<i32, Error> {
     probe
         .invoke_with_args::<i32, _>("NegotiateCount".to_string(), |arguments| {
             arguments.argument("/test-exhaust".to_string());
@@ -1162,8 +1466,13 @@ async fn negotiate_count(probe: &mut SignalRClient) -> Result<i32, String> {
         .await
 }
 
+/// How long an idle Long Polling client must stay connected (inherent keep-alive: no Pings and
+/// no server timeout over Long Polling).
+const LONG_POLLING_IDLE_MS: u32 = 45_000;
+
 /// Keep-alive: an idle client's Pings keep it connected to a hub that drops clients silent for
-/// 3 s, so after 8 s of idleness the same connection serves an invocation.
+/// 3 s, so after 8 s of idleness the same connection serves an invocation; over Long Polling
+/// (inherent keep-alive) the client stays connected through 45 s of idleness.
 async fn keepalive_idle(messagepack: bool) -> Outcome {
     let mut client = connect("test-keepalive", messagepack, |configuration| {
         configuration.with_keep_alive_interval(Duration::from_secs(1));
@@ -1171,7 +1480,12 @@ async fn keepalive_idle(messagepack: bool) -> Outcome {
     })
     .await?;
     let initial = identity(&mut client).await?;
-    sleep(8_000).await;
+    sleep(if super::long_polling() {
+        LONG_POLLING_IDLE_MS
+    } else {
+        8_000
+    })
+    .await;
     let after_idle = identity(&mut client).await?;
     ensure!(
         after_idle == initial,
@@ -1198,10 +1512,37 @@ impl DisconnectionHandler for TimeoutHandler {
 
 /// Server timeout: against a hub that never pings, a 2 s server timeout treats the silent
 /// transport as dropped; an automatic policy reconnects and a manual handler is invoked with
-/// reconnecting allowed, both within 5 s.
+/// reconnecting allowed, both within 5 s. Over Long Polling the client runs no server timeout,
+/// so the connection and the handler stay untouched through 45 s of idleness.
 async fn server_timeout(messagepack: bool) -> Outcome {
     const SERVER_TIMEOUT_MS: u32 = 2_000;
     const RECONNECT_BOUND_MS: f64 = 5_000.0;
+
+    if super::long_polling() {
+        let handler = TimeoutHandler::default();
+        let mut slot = Some(handler.clone());
+        let mut client = connect("test-silent", messagepack, |configuration| {
+            configuration.with_keep_alive_interval(Duration::from_secs(1));
+            configuration.with_server_timeout(Duration::from_millis(SERVER_TIMEOUT_MS.into()));
+            if let Some(handler) = slot.take() {
+                configuration.with_disconnection_handler(handler);
+            }
+        })
+        .await?;
+        let initial = identity(&mut client).await?;
+        sleep(LONG_POLLING_IDLE_MS).await;
+        ensure!(
+            handler.0.get().is_none(),
+            "Long Polling must run no server timeout"
+        );
+        let after_idle = identity(&mut client).await?;
+        ensure!(
+            after_idle == initial,
+            "the idle connection was replaced ({initial} -> {after_idle})"
+        );
+        client.disconnect();
+        return Ok(());
+    }
 
     let mut client = connect("test-silent", messagepack, |configuration| {
         configuration.with_keep_alive_interval(Duration::from_secs(1));
@@ -1266,13 +1607,21 @@ async fn handshake_timeout(messagepack: bool) -> Outcome {
     let started = js_sys::Date::now();
     let result = try_connect("silent-handshake", messagepack, |configuration| {
         configuration.skip_negotiation();
+        configuration.with_transports(rayx_signalr::Transports::WEB_SOCKETS);
         configuration.with_handshake_timeout(Duration::from_secs(1));
     })
-    .await;
+    .await?;
     let elapsed = js_sys::Date::now() - started;
     match result {
         Ok(_) => Err("connect succeeded although the server never answered".to_string()),
-        Err(error) if !error.contains("handshake timed out") => {
+        Err(error)
+            if (error.kind(), error.timeout_operation(), error.timeout())
+                != (
+                    ErrorKind::Timeout,
+                    Some(TimeoutOperation::Handshake),
+                    Some(Duration::from_secs(1)),
+                ) =>
+        {
             Err(format!("unexpected handshake failure: {error}"))
         }
         Err(_) if !(1_000.0..=3_000.0).contains(&elapsed) => {
@@ -1323,7 +1672,7 @@ async fn pause_resume(messagepack: bool) -> Outcome {
     );
     let paused_at = js_sys::Date::now();
     match pending.await {
-        Ok(Err(error)) if error.contains("paused") => {}
+        Ok(Err(error)) if error.kind() == ErrorKind::Paused => {}
         other => return Err(format!("pending work after pause: {other:?}")),
     }
     ensure!(
@@ -1489,7 +1838,7 @@ async fn pause_resume_stateful(messagepack: bool) -> Outcome {
         "the stream after a browser pause yielded {values:?}"
     );
     match stream.error() {
-        Some(error) if error.contains("paused") => {}
+        Some(error) if error.kind() == ErrorKind::Paused => {}
         other => return Err(format!("the paused stream ended with {other:?}")),
     }
 
@@ -1561,7 +1910,7 @@ async fn unsent_stream_ends(
         Either::Right(_) => return Err(format!("a stream started while {phase} did not end")),
     }
     match unsent.error() {
-        Some(error) if error.contains("not connected") => {}
+        Some(error) if matches!(error.kind(), ErrorKind::Paused | ErrorKind::Transport) => {}
         other => {
             return Err(format!(
                 "a stream started while {phase} ended with {other:?}"
@@ -1651,5 +2000,1980 @@ async fn unsent_stream(messagepack: bool) -> Outcome {
         status.started
     );
     client.disconnect();
+    Ok(())
+}
+
+/// A bearer token the service rejects; no error may repeat it.
+const ERROR_KINDS_TOKEN: &str = "error-kinds-secret-token";
+
+/// Error kinds: every failure class reaches the caller as its `ErrorKind` with its structured
+/// fields (see `tests/e2e/error_kinds.rs`; browsers report an untrusted certificate as a failed
+/// request, so only native targets prove `Tls`). No error repeats the test token.
+async fn error_kinds(messagepack: bool) -> Outcome {
+    let mut errors = vec![hub_failure(messagepack).await?];
+    errors.extend(rejected_credentials(messagepack).await?);
+    errors.push(unknown_hub(messagepack).await?);
+    errors.push(negotiate_timeout(messagepack).await?);
+    errors.push(undecodable_result(messagepack).await?);
+    errors.push(invoke_while_paused(messagepack).await?);
+    errors.push(server_close_with_message(messagepack).await?);
+    errors.push(invoke_after_disconnect(messagepack).await?);
+    for error in &errors {
+        let text = format!("{error} {error:?}");
+        ensure!(
+            !text.contains(ERROR_KINDS_TOKEN),
+            "an error repeats the token: {text}"
+        );
+    }
+    Ok(())
+}
+
+/// A hub method that throws: `Hub` with the server's message.
+async fn hub_failure(messagepack: bool) -> Result<Error, String> {
+    let mut client = connect("test", messagepack, |_| {}).await?;
+    let error = match client
+        .invoke_with_args::<i32, _>("Fail".to_string(), |arguments| {
+            arguments.argument("error-kinds failure".to_string());
+        })
+        .await
+    {
+        Err(error) if is_hub_error(&error, "error-kinds failure") && !error.is_transient() => error,
+        other => return Err(format!("a throwing hub method returned {other:?}")),
+    };
+    client.disconnect();
+    Ok(error)
+}
+
+/// Connecting without credentials and with a rejected token: `Authentication` with 401.
+async fn rejected_credentials(messagepack: bool) -> Result<Vec<Error>, String> {
+    let mut errors = Vec::new();
+    for token in [None, Some(ERROR_KINDS_TOKEN)] {
+        match try_connect("test-auth", messagepack, |configuration| {
+            if let Some(token) = token {
+                configuration.authenticate_bearer(token.to_string());
+            }
+        })
+        .await?
+        {
+            Err(error)
+                if (error.kind(), error.status()) == (ErrorKind::Authentication, Some(401)) =>
+            {
+                errors.push(error)
+            }
+            Err(error) => return Err(format!("rejected credentials failed with {error:?}")),
+            Ok(_) => return Err("connect succeeded without valid credentials".to_string()),
+        }
+    }
+    Ok(errors)
+}
+
+/// An unknown hub path: `Negotiate` with 404.
+async fn unknown_hub(messagepack: bool) -> Result<Error, String> {
+    match try_connect("no-such-hub", messagepack, |configuration| {
+        configuration.authenticate_bearer(ERROR_KINDS_TOKEN.to_string());
+    })
+    .await?
+    {
+        Err(error) if (error.kind(), error.status()) == (ErrorKind::Negotiate, Some(404)) => {
+            Ok(error)
+        }
+        Err(error) => Err(format!("an unknown hub failed with {error:?}")),
+        Ok(_) => Err("connecting to an unknown hub succeeded".to_string()),
+    }
+}
+
+/// A negotiate the service never answers: `Timeout` naming negotiate and the 2 s connect
+/// timeout, within the bound plus 2 s.
+async fn negotiate_timeout(messagepack: bool) -> Result<Error, String> {
+    const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
+    let started = js_sys::Date::now();
+    let result = try_connect("test-hang", messagepack, |configuration| {
+        configuration.with_connect_timeout(CONNECT_TIMEOUT);
+        configuration.authenticate_bearer(ERROR_KINDS_TOKEN.to_string());
+    })
+    .await?;
+    let elapsed = js_sys::Date::now() - started;
+    let error = match result {
+        Err(error)
+            if (error.kind(), error.timeout_operation(), error.timeout())
+                == (
+                    ErrorKind::Timeout,
+                    Some(TimeoutOperation::Negotiate),
+                    Some(CONNECT_TIMEOUT),
+                )
+                && error.is_transient() =>
+        {
+            error
+        }
+        Err(error) => return Err(format!("a hanging negotiate failed with {error:?}")),
+        Ok(_) => return Err("connect succeeded although negotiate never answered".to_string()),
+    };
+    ensure!(
+        (2_000.0..=4_000.0).contains(&elapsed),
+        "the hanging negotiate failed after {elapsed} ms"
+    );
+    Ok(error)
+}
+
+/// A result that cannot be decoded into the requested type: `Serialization`; the connection
+/// keeps working.
+async fn undecodable_result(messagepack: bool) -> Result<Error, String> {
+    let mut client = connect("test", messagepack, |_| {}).await?;
+    let error = match client
+        .invoke_with_args::<String, _>("Echo".to_string(), |arguments| {
+            arguments.argument(7);
+        })
+        .await
+    {
+        Err(error) if error.kind() == ErrorKind::Serialization => error,
+        other => return Err(format!("an undecodable result returned {other:?}")),
+    };
+    let echoed = client
+        .invoke_with_args::<i32, _>("Echo".to_string(), |arguments| {
+            arguments.argument(8);
+        })
+        .await?;
+    ensure!(echoed == 8, "Echo after a decode failure returned {echoed}");
+    client.disconnect();
+    Ok(error)
+}
+
+/// Invoking while paused: `Paused`.
+async fn invoke_while_paused(messagepack: bool) -> Result<Error, String> {
+    let mut client = connect("test", messagepack, |_| {}).await?;
+    client.pause().await?;
+    let error = match identity(&mut client).await {
+        Err(error) if error.kind() == ErrorKind::Paused => error,
+        other => return Err(format!("invoking while paused returned {other:?}")),
+    };
+    client.disconnect();
+    Ok(error)
+}
+
+/// A server close with an error message: pending work fails with `ConnectionClosed` carrying the
+/// message and the server's refusal to reconnect.
+async fn server_close_with_message(messagepack: bool) -> Result<Error, String> {
+    let mut client = connect("test", messagepack, |_| {}).await?;
+    schedule_close(&mut client, false, 500).await?;
+    let error = match client
+        .invoke_with_args::<String, _>("DelayedConnectionIdentity".to_string(), |arguments| {
+            arguments.argument(10_000);
+        })
+        .await
+    {
+        Err(error) if error.kind() == ErrorKind::ConnectionClosed && is_final_close(&error) => {
+            error
+        }
+        other => return Err(format!("pending work after a server close: {other:?}")),
+    };
+    client.disconnect();
+    Ok(error)
+}
+
+/// Invoking after `disconnect`: `ConnectionClosed`, local, through every handle.
+async fn invoke_after_disconnect(messagepack: bool) -> Result<Error, String> {
+    let client = connect("test", messagepack, |_| {}).await?;
+    let mut clone = client.clone();
+    client.disconnect();
+    match identity(&mut clone).await {
+        Err(error) if closed_locally(&error) => Ok(error),
+        other => Err(format!("invoking after disconnect returned {other:?}")),
+    }
+}
+
+fn closed_locally(error: &Error) -> bool {
+    (error.kind(), error.close_reason()) == (ErrorKind::ConnectionClosed, Some(CloseReason::Local))
+}
+
+/// Disconnect stops the connection for every handle, as the official .NET client's
+/// `HubConnection.StopAsync` does (see `tests/e2e/disconnect_every_handle.rs`).
+async fn disconnect_every_handle(messagepack: bool) -> Outcome {
+    use rayx_signalr::ConnectionStatus;
+
+    let mut first = connect("test", messagepack, |_| {}).await?;
+    let mut second = first.clone();
+    let connection_id = identity(&mut first).await?;
+
+    // Work held by the second handle: a callback, an open stream and a pending invocation (the
+    // stream starts first because the hub runs ordinary invocations one at a time).
+    let registration = second.register("Notify".to_string(), |_| {});
+    let mut stream = second
+        .enumerate_with_args::<i32, _>("CancellationProbeStream".to_string(), |arguments| {
+            arguments.argument(50);
+        })
+        .await;
+    let first_item = stream.next().await;
+    ensure!(
+        first_item == Some(1),
+        "the stream started with {first_item:?}"
+    );
+    let pending = pending_identity(&second);
+    sleep(300).await;
+
+    let mut probe = connect("test", messagepack, |_| {}).await?;
+    let started = js_sys::Date::now();
+    first.disconnect();
+
+    match pending.await {
+        Ok(Err(error)) if closed_locally(&error) => {}
+        other => return Err(format!("pending work after disconnect: {other:?}")),
+    }
+    while stream.next().await.is_some() {}
+    ensure!(
+        stream.error().is_some_and(closed_locally),
+        "the stream ended with {:?}",
+        stream.error()
+    );
+    ensure!(
+        (js_sys::Date::now() - started).total_cmp(&5_000.0).is_lt(),
+        "work held by another handle did not end at once"
+    );
+
+    for client in [&mut first, &mut second] {
+        ensure!(
+            client.status() == ConnectionStatus::Closed,
+            "status after disconnect: {:?}",
+            client.status()
+        );
+        match identity(client).await {
+            Err(error) if closed_locally(&error) => {}
+            other => return Err(format!("a call after disconnect returned {other:?}")),
+        }
+    }
+    match second.resume().await {
+        Err(error) if closed_locally(&error) => {}
+        other => return Err(format!("resume after disconnect returned {other:?}")),
+    }
+
+    eventually("the hub disconnect", 10_000.0, || {
+        let mut probe = probe.clone();
+        let connection_id = connection_id.clone();
+        async move { (disconnects(&mut probe, &connection_id).await.ok() == Some(1)).then_some(()) }
+    })
+    .await?;
+    sleep(500).await;
+    ensure!(
+        disconnects(&mut probe, &connection_id).await? == 1,
+        "the hub must observe exactly one disconnect"
+    );
+    registration.unregister();
+
+    disconnect_from_a_callback(messagepack, &mut probe).await?;
+    probe.disconnect();
+    Ok(())
+}
+
+/// A callback that calls `disconnect` on the client it was registered on: the call returns and the
+/// hub sees the disconnect.
+async fn disconnect_from_a_callback(messagepack: bool, probe: &mut SignalRClient) -> Outcome {
+    use rayx_signalr::ConnectionStatus;
+
+    let mut client = connect("test", messagepack, |_| {}).await?;
+    let connection_id = identity(&mut client).await?;
+    let called = Rc::new(Cell::new(false));
+    let flag = called.clone();
+    let registration = client.register("Disconnect".to_string(), move |context| {
+        context.client.disconnect();
+        flag.set(true);
+    });
+    trigger(&mut client, "Disconnect").await?;
+    eventually("the disconnecting callback", 5_000.0, || {
+        let called = called.clone();
+        async move { called.get().then_some(()) }
+    })
+    .await?;
+    ensure!(
+        client.status() == ConnectionStatus::Closed,
+        "status after a callback disconnected: {:?}",
+        client.status()
+    );
+    eventually("the hub disconnect", 10_000.0, || {
+        let mut probe = probe.clone();
+        let connection_id = connection_id.clone();
+        async move { (disconnects(&mut probe, &connection_id).await.ok() == Some(1)).then_some(()) }
+    })
+    .await?;
+    registration.unregister();
+    Ok(())
+}
+
+/// The hub's `DateTime(2024, 1, 2, 3, 4, 5, DateTimeKind.Utc)` in Unix seconds.
+const FIDELITY_TIMESTAMP_SECONDS: i64 = 1_704_164_645;
+
+/// A byte buffer that accepts MessagePack binary (as `serde_bytes::ByteBuf` does).
+#[derive(Debug)]
+struct FidelityBytes(Vec<u8>);
+
+impl<'de> Deserialize<'de> for FidelityBytes {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Visitor;
+        impl serde::de::Visitor<'_> for Visitor {
+            type Value = FidelityBytes;
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("bytes")
+            }
+            fn visit_bytes<E>(self, bytes: &[u8]) -> Result<FidelityBytes, E> {
+                Ok(FidelityBytes(bytes.to_vec()))
+            }
+        }
+        deserializer.deserialize_bytes(Visitor)
+    }
+}
+
+/// A MessagePack extension value: its type and bytes (`rmp_serde`'s extension convention).
+#[derive(Debug, Deserialize)]
+#[serde(rename = "_ExtStruct")]
+struct FidelityExtension((i8, FidelityBytes));
+
+/// The Unix seconds of a MessagePack timestamp (extension type -1, in its 32-, 64- or 96-bit form).
+fn timestamp_seconds(extension: &FidelityExtension) -> Option<i64> {
+    let (kind, FidelityBytes(data)) = &extension.0;
+    if *kind != -1 {
+        return None;
+    }
+    match data.len() {
+        4 => Some(i64::from(u32::from_be_bytes(
+            data.as_slice().try_into().ok()?,
+        ))),
+        8 => {
+            let value = u64::from_be_bytes(data.as_slice().try_into().ok()?);
+            i64::try_from(value & 0x3_ffff_ffff).ok()
+        }
+        12 => Some(i64::from_be_bytes(data.get(4..)?.try_into().ok()?)),
+        _ => None,
+    }
+}
+
+/// Callback arguments decode from the server's original MessagePack values, as the .NET binder
+/// does: `byte[]`, `DateTime` and `Dictionary<int, string>` survive. MessagePack only.
+async fn msgpack_fidelity(messagepack: bool) -> Outcome {
+    use std::collections::HashMap;
+
+    ensure!(messagepack, "msgpack-fidelity runs only with MessagePack");
+    let mut client = connect("test", messagepack, |_| {}).await?;
+    type Received = (
+        Result<Vec<u8>, Error>,
+        Result<Option<i64>, Error>,
+        Result<HashMap<i32, String>, Error>,
+    );
+    let received = Rc::new(RefCell::new(None::<Received>));
+    let captured = received.clone();
+    let registration = client.register("fidelity".to_string(), move |context| {
+        *captured.borrow_mut() = Some((
+            context.argument::<FidelityBytes>(0).map(|bytes| bytes.0),
+            context
+                .argument::<FidelityExtension>(1)
+                .map(|extension| timestamp_seconds(&extension)),
+            context.argument::<HashMap<i32, String>>(2),
+        ));
+    });
+    client
+        .send_with_args("TriggerFidelityCallback".to_string(), |arguments| {
+            arguments.argument("fidelity".to_string());
+        })
+        .await
+        .map_err(|error| format!("TriggerFidelityCallback failed: {error}"))?;
+    let (bytes, timestamp, map) = eventually("the fidelity callback", 5_000.0, || {
+        let received = received.clone();
+        async move { received.borrow_mut().take() }
+    })
+    .await?;
+
+    let bytes = bytes.map_err(|error| format!("byte[] argument: {error}"))?;
+    ensure!(bytes == [0, 1, 2, 255], "byte[] argument was {bytes:?}");
+    let timestamp = timestamp.map_err(|error| format!("DateTime argument: {error}"))?;
+    ensure!(
+        timestamp == Some(FIDELITY_TIMESTAMP_SECONDS),
+        "DateTime argument was {timestamp:?} seconds"
+    );
+    let map = map.map_err(|error| format!("Dictionary<int,string> argument: {error}"))?;
+    ensure!(
+        map.len() == 2
+            && map.get(&1).map(String::as_str) == Some("one")
+            && map.get(&2).map(String::as_str) == Some("two"),
+        "Dictionary<int,string> argument was {map:?}"
+    );
+    registration.unregister();
+    client.disconnect();
+    Ok(())
+}
+
+/// Server-to-client calls run on the client's dispatch task, one at a time and in arrival order,
+/// as in the official .NET client, so a slow callback never delays an invoke completion.
+async fn callback_dispatch(messagepack: bool) -> Outcome {
+    let mut client = connect("test", messagepack, |_| {}).await?;
+    let events = Rc::new(RefCell::new(Vec::<String>::new()));
+    let (release, released) = oneshot::channel::<()>();
+    let released = Rc::new(RefCell::new(Some(released)));
+    let recorded = events.clone();
+    let registration = client.register_async("dispatchProbe".to_string(), move |context| {
+        let events = recorded.clone();
+        // The first call waits until the scenario releases it.
+        let wait = released.borrow_mut().take();
+        async move {
+            let value = context.argument::<i32>(0).unwrap_or(-1);
+            events.borrow_mut().push(format!("start {value}"));
+            if let Some(wait) = wait {
+                let _ = wait.await;
+            }
+            events.borrow_mut().push(format!("end {value}"));
+        }
+    });
+
+    client
+        .send_with_args("TriggerOrderedCallbacks".to_string(), |arguments| {
+            arguments.argument("dispatchProbe".to_string());
+            arguments.argument(3);
+        })
+        .await
+        .map_err(|error| format!("TriggerOrderedCallbacks failed: {error}"))?;
+    eventually("the first callback", 5_000.0, || {
+        let events = events.clone();
+        async move { (!events.borrow().is_empty()).then_some(()) }
+    })
+    .await?;
+
+    // The first callback still runs; an invoke completes regardless.
+    let started = js_sys::Date::now();
+    let echoed = client
+        .invoke_with_args::<i32, _>("Echo".to_string(), |arguments| {
+            arguments.argument(7);
+        })
+        .await
+        .map_err(|error| format!("Echo failed behind a callback: {error}"))?;
+    let waited = js_sys::Date::now() - started;
+    ensure!(echoed == 7, "Echo returned {echoed}");
+    ensure!(
+        waited.total_cmp(&2_000.0).is_lt(),
+        "the invoke waited {waited} ms behind a callback"
+    );
+    let so_far = events.borrow().clone();
+    ensure!(
+        so_far == ["start 1"],
+        "callbacks did not run one at a time: {so_far:?}"
+    );
+
+    let _ = release.send(());
+    let all = eventually("every callback", 5_000.0, || {
+        let events = events.clone();
+        async move {
+            let events = events.borrow();
+            (events.len() == 6).then(|| events.clone())
+        }
+    })
+    .await?;
+    ensure!(
+        all == ["start 1", "end 1", "start 2", "end 2", "start 3", "end 3"],
+        "callbacks ran out of order: {all:?}"
+    );
+    registration.unregister();
+    client.disconnect();
+    Ok(())
+}
+
+const MISSING_RESULT: &str = "Client didn't provide a result.";
+const BINDING_FAILURE: &str = "Client failed to parse argument(s).";
+
+/// Asks the hub to call `callback` with a result expected.
+async fn request_client_result(client: &mut SignalRClient, callback: &str) -> Outcome {
+    client
+        .invoke_with_args::<(), _>("RequestClientResult".to_string(), |arguments| {
+            arguments.argument(callback.to_string()).argument(21);
+        })
+        .await
+        .map_err(|error| format!("RequestClientResult({callback}) failed: {error}"))
+}
+
+/// The error text the hub's `InvokeAsync` saw for `callback`.
+async fn hub_client_result_error(
+    client: &mut SignalRClient,
+    callback: &str,
+) -> Result<String, String> {
+    request_client_result(client, callback).await?;
+    eventually("the hub's client-result error", 10_000.0, || {
+        let mut probe = client.clone();
+        async move {
+            probe
+                .invoke::<Option<String>>("TakeClientResultError".to_string())
+                .await
+                .ok()
+                .flatten()
+        }
+    })
+    .await
+}
+
+/// Client-result errors as in the official .NET client: missing result, `fail`, a dropped
+/// context, a binding failure, and a second completion that stays local.
+async fn client_result_errors(messagepack: bool) -> Outcome {
+    let mut client = connect("test", messagepack, |_| {}).await?;
+
+    let missing = hub_client_result_error(&mut client, "resultMissing").await?;
+    ensure!(
+        missing == MISSING_RESULT,
+        "missing callback produced {missing:?}"
+    );
+
+    let failing = client.register("resultFail".to_string(), |mut context| {
+        InvocationContext::spawn(async move {
+            let _ = context.fail("declined by the client").await;
+        });
+    });
+    let failed = hub_client_result_error(&mut client, "resultFail").await?;
+    ensure!(
+        failed == "declined by the client",
+        "fail produced {failed:?}"
+    );
+
+    let dropping = client.register("resultDrop".to_string(), |_context| {});
+    let dropped = hub_client_result_error(&mut client, "resultDrop").await?;
+    ensure!(
+        dropped == MISSING_RESULT,
+        "a dropped context produced {dropped:?}"
+    );
+
+    let typed_ran = Rc::new(Cell::new(false));
+    let ran = typed_ran.clone();
+    let typed = client.register_typed("resultTyped", move |_context, (_text,): (String,)| {
+        ran.set(true);
+    });
+    let unbound = hub_client_result_error(&mut client, "resultTyped").await?;
+    ensure!(
+        unbound == BINDING_FAILURE,
+        "a binding failure produced {unbound:?}"
+    );
+    ensure!(
+        !typed_ran.get(),
+        "a callback whose arguments do not bind ran"
+    );
+
+    let second = Rc::new(RefCell::new(None::<Result<(), Error>>));
+    let recorded = second.clone();
+    let twice = client.register("resultTwice".to_string(), move |mut context| {
+        let value = context.argument::<i32>(0).unwrap_or_default();
+        let recorded = recorded.clone();
+        InvocationContext::spawn(async move {
+            let _ = context.complete(value * 2).await;
+            let again = context.complete(0).await;
+            *recorded.borrow_mut() = Some(again);
+        });
+    });
+    request_client_result(&mut client, "resultTwice").await?;
+    let result = eventually("the client result at the hub", 10_000.0, || {
+        let mut probe = client.clone();
+        async move {
+            probe
+                .invoke::<Option<i32>>("ClientResult".to_string())
+                .await
+                .ok()
+                .flatten()
+        }
+    })
+    .await?;
+    ensure!(result == 42, "the hub received {result}");
+    let again = eventually("the second completion", 5_000.0, || {
+        let second = second.clone();
+        async move { second.borrow_mut().take() }
+    })
+    .await?;
+    ensure!(
+        matches!(&again, Err(error) if error.kind() == ErrorKind::Protocol),
+        "a second completion returned {again:?}"
+    );
+    let leftover = client
+        .invoke::<Option<String>>("TakeClientResultError".to_string())
+        .await
+        .map_err(|error| format!("TakeClientResultError failed: {error}"))?;
+    ensure!(
+        leftover.is_none(),
+        "a second completion reached the hub: {leftover:?}"
+    );
+
+    failing.unregister();
+    dropping.unregister();
+    typed.unregister();
+    twice.unregister();
+    client.disconnect();
+
+    client_result_after_a_stateful_resume(messagepack).await?;
+    client_result_after_an_ordinary_reconnect(messagepack).await
+}
+
+/// After an ordinary reconnect (a new logical connection) the server has forgotten the call, so
+/// completing it fails locally, as in the .NET client.
+async fn client_result_after_an_ordinary_reconnect(messagepack: bool) -> Outcome {
+    let mut client = connect("test", messagepack, |configuration| {
+        configuration.with_reconnection_policy(fast_reconnect());
+    })
+    .await?;
+    let initial = identity(&mut client).await?;
+    let (release, released) = oneshot::channel::<()>();
+    let released = Rc::new(RefCell::new(Some(released)));
+    let started = Rc::new(Cell::new(false));
+    let started_flag = started.clone();
+    let outcome = Rc::new(RefCell::new(None::<Result<(), Error>>));
+    let recorded = outcome.clone();
+    let registration = client.register_async("resultReplaced".to_string(), move |mut context| {
+        let released = released.borrow_mut().take();
+        let started = started_flag.clone();
+        let recorded = recorded.clone();
+        async move {
+            started.set(true);
+            if let Some(released) = released {
+                let _ = released.await;
+            }
+            *recorded.borrow_mut() = Some(context.complete(1).await);
+        }
+    });
+    request_client_result(&mut client, "resultReplaced").await?;
+    eventually("the result callback", 10_000.0, || {
+        let started = started.clone();
+        async move { started.get().then_some(()) }
+    })
+    .await?;
+
+    client
+        .send("AbortPhysicalTransport".to_string())
+        .await
+        .map_err(|error| format!("AbortPhysicalTransport failed: {error}"))?;
+    eventually("a fresh logical connection", 20_000.0, || {
+        let mut probe = client.clone();
+        let initial = initial.clone();
+        async move {
+            match identity(&mut probe).await {
+                Ok(id) if id != initial => Some(()),
+                _ => None,
+            }
+        }
+    })
+    .await?;
+
+    let _ = release.send(());
+    let completed = eventually("the late completion", 5_000.0, || {
+        let outcome = outcome.clone();
+        async move { outcome.borrow_mut().take() }
+    })
+    .await?;
+    ensure!(
+        matches!(&completed, Err(error) if error.kind() == ErrorKind::Transport),
+        "completing after an ordinary reconnect returned {completed:?}"
+    );
+    registration.unregister();
+    client.disconnect();
+    Ok(())
+}
+
+/// With stateful reconnect, a result completed after the transport was lost and resumed still
+/// reaches the hub: the reply follows the logical connection the call arrived on.
+async fn client_result_after_a_stateful_resume(messagepack: bool) -> Outcome {
+    let mut client = connect("test-stateful", messagepack, |configuration| {
+        configuration.with_stateful_reconnect(rayx_signalr::StatefulReconnectConfig::default());
+        configuration.with_reconnection_policy(fast_reconnect());
+    })
+    .await?;
+    let connection_id = identity(&mut client).await?;
+    let (release, released) = oneshot::channel::<()>();
+    let released = Rc::new(RefCell::new(Some(released)));
+    let started = Rc::new(Cell::new(false));
+    let started_flag = started.clone();
+    let registration = client.register_async("resultResume".to_string(), move |mut context| {
+        let released = released.borrow_mut().take();
+        let started = started_flag.clone();
+        async move {
+            let value = context.argument::<i32>(0).unwrap_or_default();
+            started.set(true);
+            if let Some(released) = released {
+                let _ = released.await;
+            }
+            let _ = context.complete(value * 2).await;
+        }
+    });
+    request_client_result(&mut client, "resultResume").await?;
+    eventually("the result callback", 10_000.0, || {
+        let started = started.clone();
+        async move { started.get().then_some(()) }
+    })
+    .await?;
+
+    client
+        .send("AbortPhysicalTransport".to_string())
+        .await
+        .map_err(|error| format!("AbortPhysicalTransport failed: {error}"))?;
+    eventually("the transport abort", 10_000.0, || {
+        let mut probe = client.clone();
+        async move {
+            (probe
+                .invoke::<i32>("TransportAbortCount".to_string())
+                .await
+                .ok()?
+                == 1)
+                .then_some(())
+        }
+    })
+    .await?;
+    let resumed = identity(&mut client).await?;
+    ensure!(
+        resumed == connection_id,
+        "the stateful resume changed the connection: {resumed} != {connection_id}"
+    );
+
+    let _ = release.send(());
+    let result = eventually("the client result after the resume", 10_000.0, || {
+        let mut probe = client.clone();
+        async move {
+            probe
+                .invoke::<Option<i32>>("ClientResult".to_string())
+                .await
+                .ok()
+                .flatten()
+        }
+    })
+    .await?;
+    ensure!(result == 42, "the hub received {result} after the resume");
+    registration.unregister();
+    client.disconnect();
+    Ok(())
+}
+
+/// Builds a client for `hub` on the test service that is not started yet.
+fn unstarted(hub: &str, messagepack: bool) -> Result<SignalRClient, String> {
+    let endpoint = super::service().map_err(|error| format!("{error:?}"))?;
+    SignalRClient::new(&endpoint.host, hub, |configuration| {
+        endpoint.apply(configuration);
+        if messagepack {
+            configuration.with_messagepack_protocol();
+        }
+    })
+    .map_err(|error| format!("the client for {hub} was rejected: {error}"))
+}
+
+/// Registers a recorder of the `/test-connected` greetings (the connection ids).
+fn record_greetings(
+    client: &mut SignalRClient,
+) -> (Rc<RefCell<Vec<String>>>, impl CallbackHandler) {
+    let greetings = Rc::new(RefCell::new(Vec::<String>::new()));
+    let recorded = greetings.clone();
+    let registration = client.register_typed("connected", move |_context, (id,): (String,)| {
+        recorded.borrow_mut().push(id);
+    });
+    (greetings, registration)
+}
+
+/// Waits for greeting number `count` and checks that it names the current connection.
+async fn greeted(
+    client: &mut SignalRClient,
+    greetings: &Rc<RefCell<Vec<String>>>,
+    count: usize,
+) -> Result<String, String> {
+    let greeting = eventually("the greeting", 5_000.0, || {
+        let greetings = greetings.clone();
+        async move { greetings.borrow().get(count - 1).cloned() }
+    })
+    .await?;
+    let identity = identity(client)
+        .await
+        .map_err(|error| format!("ConnectionIdentity failed: {error}"))?;
+    ensure!(
+        greeting == identity,
+        "greeting {count} names {greeting}, not the current connection {identity}"
+    );
+    Ok(identity)
+}
+
+async fn status_becomes(client: &SignalRClient, status: ConnectionStatus) -> Outcome {
+    eventually("the status", 10_000.0, || {
+        let current = client.status();
+        async move { (current == status).then_some(()) }
+    })
+    .await
+    .map_err(|error| {
+        format!(
+            "{error}: the status is {:?}, not {status:?}",
+            client.status()
+        )
+    })
+}
+
+async fn connected_callback(messagepack: bool) -> Outcome {
+    let mut client = unstarted("test-connected", messagepack)?;
+    ensure!(
+        client.status() == ConnectionStatus::Disconnected,
+        "an unstarted client reports {:?}",
+        client.status()
+    );
+    let (greetings, registration) = record_greetings(&mut client);
+    client
+        .start()
+        .await
+        .map_err(|error| format!("start failed: {error}"))?;
+    ensure!(
+        client.status() == ConnectionStatus::Connected,
+        "a started client reports {:?}",
+        client.status()
+    );
+    greeted(&mut client, &greetings, 1).await?;
+    let count = greetings.borrow().len();
+    ensure!(count == 1, "{count} greetings arrived");
+    registration.unregister();
+    client.disconnect();
+    Ok(())
+}
+
+async fn restart_after_stop(messagepack: bool) -> Outcome {
+    let mut client = unstarted("test-connected", messagepack)?;
+    let (greetings, registration) = record_greetings(&mut client);
+    client
+        .start()
+        .await
+        .map_err(|error| format!("start failed: {error}"))?;
+    let first = greeted(&mut client, &greetings, 1).await?;
+
+    // A connected client refuses another start and stays connected.
+    match client.start().await {
+        Err(error) if error.kind() == ErrorKind::InvalidState => {}
+        other => return Err(format!("a second start returned {other:?}")),
+    }
+    ensure!(
+        client.status() == ConnectionStatus::Connected,
+        "a refused start changed the status to {:?}",
+        client.status()
+    );
+
+    // Restart after a local stop.
+    client.disconnect();
+    ensure!(
+        client.status() == ConnectionStatus::Closed,
+        "a stopped client reports {:?}",
+        client.status()
+    );
+    match identity(&mut client).await {
+        Err(error) if error.close_reason() == Some(CloseReason::Local) => {}
+        other => return Err(format!("a call on a stopped client returned {other:?}")),
+    }
+    client
+        .start()
+        .await
+        .map_err(|error| format!("the restart failed: {error}"))?;
+    let second = greeted(&mut client, &greetings, 2).await?;
+    ensure!(second != first, "the restart kept the connection {first}");
+
+    // Restart after the server ended the connection.
+    client
+        .invoke_with_args::<(), _>("ScheduleServerClose".to_string(), |arguments| {
+            arguments.argument(false).argument(200);
+        })
+        .await
+        .map_err(|error| format!("ScheduleServerClose failed: {error}"))?;
+    status_becomes(&client, ConnectionStatus::Disconnected).await?;
+    client
+        .start()
+        .await
+        .map_err(|error| format!("the restart after a server close failed: {error}"))?;
+    let third = greeted(&mut client, &greetings, 3).await?;
+    ensure!(third != second, "the restart kept the connection {second}");
+    registration.unregister();
+    client.disconnect();
+
+    // `disconnect` cancels a start whose negotiation never answers.
+    let hanging = unstarted("test-hang", messagepack)?;
+    let (finished, outcome) = oneshot::channel();
+    let starting = hanging.clone();
+    spawn_local(async move {
+        let _ = finished.send(starting.start().await);
+    });
+    status_becomes(&hanging, ConnectionStatus::Connecting).await?;
+    hanging.disconnect();
+    let timer = std::pin::pin!(sleep(5_000));
+    let canceled = match futures::future::select(outcome, timer).await {
+        Either::Left((Ok(result), _)) => result,
+        Either::Left((Err(_), _)) => return Err("the start task ended without a result".into()),
+        Either::Right(_) => return Err("disconnect did not cancel the start".into()),
+    };
+    match canceled {
+        Err(error) if error.close_reason() == Some(CloseReason::Local) => {}
+        other => return Err(format!("the canceled start returned {other:?}")),
+    }
+    ensure!(
+        hanging.status() == ConnectionStatus::Closed,
+        "a canceled start left {:?}",
+        hanging.status()
+    );
+    Ok(())
+}
+
+/// Builds a client for `hub` on the test service that is not started yet, with extra settings.
+fn unstarted_with(
+    hub: &str,
+    messagepack: bool,
+    configure: impl FnOnce(&mut ConnectionConfiguration),
+) -> Result<SignalRClient, String> {
+    let endpoint = super::service().map_err(|error| format!("{error:?}"))?;
+    SignalRClient::new(&endpoint.host, hub, |configuration| {
+        endpoint.apply(configuration);
+        if messagepack {
+            configuration.with_messagepack_protocol();
+        }
+        configure(configuration);
+    })
+    .map_err(|error| format!("the client for {hub} was rejected: {error}"))
+}
+
+async fn events_reach(
+    events: &Rc<RefCell<Vec<String>>>,
+    count: usize,
+) -> Result<Vec<String>, String> {
+    eventually("the lifecycle events", 20_000.0, || {
+        let events = events.clone();
+        async move {
+            let events = events.borrow();
+            (events.len() >= count).then(|| events.clone())
+        }
+    })
+    .await
+}
+
+async fn lifecycle_events(messagepack: bool) -> Outcome {
+    let mut client = unstarted_with("test", messagepack, |configuration| {
+        configuration.with_reconnection_policy(fast_reconnect());
+    })?;
+    let events = Rc::new(RefCell::new(Vec::<String>::new()));
+    let recorded = events.clone();
+    let reconnecting = client.on_reconnecting(move |error| {
+        recorded
+            .borrow_mut()
+            .push(format!("reconnecting {:?}", error.kind()));
+    });
+    let recorded = events.clone();
+    let reconnected = client.on_reconnected(move |id| {
+        recorded
+            .borrow_mut()
+            .push(format!("reconnected {}", id.unwrap_or("-")));
+    });
+    let recorded = events.clone();
+    let closed = client.on_closed(move |error| {
+        recorded.borrow_mut().push(match error {
+            Some(error) => format!("closed {:?} {:?}", error.kind(), error.close_reason()),
+            None => "closed".to_string(),
+        });
+    });
+    client
+        .start()
+        .await
+        .map_err(|error| format!("start failed: {error}"))?;
+    let first = identity(&mut client)
+        .await
+        .map_err(|error| format!("ConnectionIdentity failed: {error}"))?;
+
+    // A dropped transport: pending ordinary work fails, then Reconnecting and Reconnected.
+    let pending = spawn({
+        let mut clone = client.clone();
+        async move {
+            clone
+                .invoke_with_args::<String, _>(
+                    "DelayedConnectionIdentity".to_string(),
+                    |arguments| {
+                        arguments.argument(10_000);
+                    },
+                )
+                .await
+        }
+    });
+    client
+        .send("AbortPhysicalTransport".to_string())
+        .await
+        .map_err(|error| format!("AbortPhysicalTransport failed: {error}"))?;
+    match pending.await {
+        Ok(Err(error)) if error.kind() == ErrorKind::Transport => {}
+        other => return Err(format!("the pending invocation returned {other:?}")),
+    }
+    events_reach(&events, 2).await?;
+    let second = identity(&mut client)
+        .await
+        .map_err(|error| format!("ConnectionIdentity after the reconnect failed: {error}"))?;
+    ensure!(second != first, "the reconnect kept the connection {first}");
+    let so_far = events.borrow().clone();
+    ensure!(
+        so_far
+            == [
+                "reconnecting Transport".to_string(),
+                format!("reconnected {second}")
+            ],
+        "unexpected events after the drop: {so_far:?}"
+    );
+
+    // A server close without reconnect permission ends the connection.
+    client
+        .invoke_with_args::<(), _>("ScheduleServerClose".to_string(), |arguments| {
+            arguments.argument(false).argument(200);
+        })
+        .await
+        .map_err(|error| format!("ScheduleServerClose failed: {error}"))?;
+    let ended = events_reach(&events, 3).await?;
+    ensure!(
+        ended.get(2).map(String::as_str) == Some("closed ConnectionClosed Some(Server)"),
+        "unexpected events after the server close: {ended:?}"
+    );
+
+    // Hooks stay across a restart; `disconnect` raises Closed without an error.
+    client
+        .start()
+        .await
+        .map_err(|error| format!("the restart failed: {error}"))?;
+    client.disconnect();
+    let stopped = events_reach(&events, 4).await?;
+    ensure!(
+        stopped.get(3).map(String::as_str) == Some("closed"),
+        "unexpected events after disconnect: {stopped:?}"
+    );
+    sleep(200).await;
+    let count = events.borrow().len();
+    ensure!(count == 4, "{count} events were raised");
+    reconnecting.unregister();
+    reconnected.unregister();
+    closed.unregister();
+    Ok(())
+}
+
+/// Aborts the transport and waits until an automatic reconnect (or stateful resume) completed.
+async fn drop_transport(client: &mut SignalRClient) -> Outcome {
+    let reconnects = Rc::new(Cell::new(0));
+    let counted = reconnects.clone();
+    let hook = client.on_reconnected(move |_| counted.set(counted.get() + 1));
+    client
+        .send("AbortPhysicalTransport".to_string())
+        .await
+        .map_err(|error| format!("AbortPhysicalTransport failed: {error}"))?;
+    eventually("the reconnect", 20_000.0, || {
+        let done = reconnects.get() == 1;
+        async move { done.then_some(()) }
+    })
+    .await?;
+    hook.unregister();
+    Ok(())
+}
+
+async fn connection_id(messagepack: bool) -> Outcome {
+    // Ordinary reconnects negotiate a new connection id.
+    let mut client = unstarted_with("test", messagepack, |configuration| {
+        configuration.with_reconnection_policy(fast_reconnect());
+    })?;
+    ensure!(client.connection_id().is_none(), "an id before start");
+    client
+        .start()
+        .await
+        .map_err(|error| format!("start failed: {error}"))?;
+    let first = client
+        .connection_id()
+        .ok_or("no id after a negotiated start")?;
+    let hub = identity(&mut client)
+        .await
+        .map_err(|error| format!("ConnectionIdentity failed: {error}"))?;
+    ensure!(hub == first, "the client reports {first}, the hub {hub}");
+    drop_transport(&mut client).await?;
+    let second = client.connection_id().ok_or("no id after the reconnect")?;
+    ensure!(second != first, "an ordinary reconnect kept the id {first}");
+    let hub = identity(&mut client)
+        .await
+        .map_err(|error| format!("ConnectionIdentity failed: {error}"))?;
+    ensure!(hub == second, "the client reports {second}, the hub {hub}");
+    client.disconnect();
+    ensure!(client.connection_id().is_none(), "an id after disconnect");
+
+    // A stateful resume keeps the logical connection and its id.
+    let mut stateful = unstarted_with("test-stateful", messagepack, |configuration| {
+        configuration.with_reconnection_policy(fast_reconnect());
+        configuration.with_stateful_reconnect(rayx_signalr::StatefulReconnectConfig::default());
+    })?;
+    stateful
+        .start()
+        .await
+        .map_err(|error| format!("the stateful start failed: {error}"))?;
+    let resumable = stateful
+        .connection_id()
+        .ok_or("no id after a stateful start")?;
+    // The resume is transparent (no `Reconnected`); a call made meanwhile waits for it.
+    stateful
+        .send("AbortPhysicalTransport".to_string())
+        .await
+        .map_err(|error| format!("AbortPhysicalTransport failed: {error}"))?;
+    eventually("the stateful resume", 20_000.0, || {
+        let mut probe = stateful.clone();
+        async move {
+            (probe
+                .invoke::<i32>("TransportAbortCount".to_string())
+                .await
+                .ok()?
+                == 1)
+                .then_some(())
+        }
+    })
+    .await?;
+    let resumed = stateful.connection_id();
+    ensure!(
+        resumed.as_deref() == Some(resumable.as_str()),
+        "the stateful resume changed the id from {resumable} to {resumed:?}"
+    );
+    stateful.disconnect();
+
+    // Without negotiation there is no connection id.
+    let direct = unstarted_with("test-direct", messagepack, |configuration| {
+        configuration.skip_negotiation();
+        configuration.with_transports(rayx_signalr::Transports::WEB_SOCKETS);
+    })?;
+    direct
+        .start()
+        .await
+        .map_err(|error| format!("the direct start failed: {error}"))?;
+    ensure!(
+        direct.connection_id().is_none(),
+        "a direct connection reports an id"
+    );
+    direct.disconnect();
+    Ok(())
+}
+
+/// How the hub's `OnDisconnectedAsync` saw `connection_id` end (empty when graceful).
+async fn disconnect_error(observer: &SignalRClient, connection_id: &str) -> Result<String, String> {
+    eventually("the hub's OnDisconnectedAsync", 10_000.0, || {
+        let mut observer = observer.clone();
+        let connection_id = connection_id.to_string();
+        async move {
+            observer
+                .invoke_with_args::<Option<String>, _>("DisconnectError".to_string(), |arguments| {
+                    arguments.argument(connection_id.clone());
+                })
+                .await
+                .ok()
+                .flatten()
+        }
+    })
+    .await
+}
+
+/// The SignalR Close messages clients sent, as the hub counted them.
+async fn close_messages(observer: &SignalRClient) -> Result<i32, String> {
+    observer
+        .clone()
+        .invoke::<i32>("ClientCloseMessages".to_string())
+        .await
+        .map_err(|error| format!("ClientCloseMessages failed: {error}"))
+}
+
+async fn close_messages_reach(observer: &SignalRClient, count: i32) -> Outcome {
+    eventually("the client's Close message", 10_000.0, || async move {
+        close_messages(observer)
+            .await
+            .ok()
+            .filter(|counted| *counted >= count)
+            .map(|_| ())
+    })
+    .await
+}
+
+async fn graceful_stop(messagepack: bool) -> Outcome {
+    let observer = connect("test", messagepack, |_| {}).await?;
+
+    let mut client = unstarted_with("test", messagepack, |configuration| {
+        configuration.with_close_timeout(Duration::from_secs(5));
+    })?;
+    let before = close_messages(&observer).await?;
+    client
+        .start()
+        .await
+        .map_err(|error| format!("start failed: {error}"))?;
+    let stopped = identity(&mut client)
+        .await
+        .map_err(|error| format!("ConnectionIdentity failed: {error}"))?;
+    let started = js_sys::Date::now();
+    client.stop().await;
+    let waited = js_sys::Date::now() - started;
+    ensure!(
+        waited.total_cmp(&5_000.0).is_lt(),
+        "stop waited {waited} ms"
+    );
+    ensure!(
+        client.status() == ConnectionStatus::Closed,
+        "a stopped client reports {:?}",
+        client.status()
+    );
+    let error = disconnect_error(&observer, &stopped).await?;
+    ensure!(error.is_empty(), "the hub saw an error after stop: {error}");
+    close_messages_reach(&observer, before + 1).await?;
+
+    // `disconnect` stops gracefully too; a stopped client stops at once.
+    client
+        .start()
+        .await
+        .map_err(|error| format!("the restart failed: {error}"))?;
+    let disconnected = identity(&mut client)
+        .await
+        .map_err(|error| format!("ConnectionIdentity failed: {error}"))?;
+    client.disconnect();
+    client.stop().await;
+    let error = disconnect_error(&observer, &disconnected).await?;
+    ensure!(
+        error.is_empty(),
+        "the hub saw an error after disconnect: {error}"
+    );
+    close_messages_reach(&observer, before + 2).await?;
+    observer.disconnect();
+    Ok(())
+}
+
+fn reconnecting_client(messagepack: bool, attempts: u32) -> Result<SignalRClient, String> {
+    unstarted_with("test", messagepack, |configuration| {
+        configuration.with_reconnection_policy(ReconnectionConfig {
+            policy: Arc::new(ConstantDelayPolicy::new(Duration::ZERO, Some(attempts))),
+        });
+    })
+}
+
+/// Holds the next negotiation of `/test` and drops the transport; returns once the client is
+/// reconnecting and its attempt is in flight.
+async fn drop_with_held_negotiation(client: &mut SignalRClient, reject: bool) -> Outcome {
+    client
+        .invoke_with_args::<(), _>("DelayNextNegotiation".to_string(), |arguments| {
+            arguments.argument("/test").argument(3_000);
+        })
+        .await
+        .map_err(|error| format!("DelayNextNegotiation failed: {error}"))?;
+    if reject {
+        client
+            .invoke_with_args::<(), _>("RejectNegotiation".to_string(), |arguments| {
+                arguments.argument("/test").argument(10_000);
+            })
+            .await
+            .map_err(|error| format!("RejectNegotiation failed: {error}"))?;
+    }
+    client
+        .send("AbortPhysicalTransport".to_string())
+        .await
+        .map_err(|error| format!("AbortPhysicalTransport failed: {error}"))?;
+    status_becomes(client, ConnectionStatus::Reconnecting).await?;
+    // The attempt starts at once (no policy delay) and waits for its negotiation.
+    sleep(300).await;
+    Ok(())
+}
+
+async fn reconnect_call_wait(messagepack: bool) -> Outcome {
+    // The call waits for the attempt and runs on the new connection.
+    let mut waiting = reconnecting_client(messagepack, 10)?;
+    waiting
+        .start()
+        .await
+        .map_err(|error| format!("start failed: {error}"))?;
+    let first = identity(&mut waiting)
+        .await
+        .map_err(|error| format!("ConnectionIdentity failed: {error}"))?;
+    drop_with_held_negotiation(&mut waiting, false).await?;
+    let started = js_sys::Date::now();
+    let second = identity(&mut waiting)
+        .await
+        .map_err(|error| format!("the call during the attempt failed: {error}"))?;
+    let waited = js_sys::Date::now() - started;
+    ensure!(
+        waited.total_cmp(&500.0).is_gt(),
+        "the call did not wait for the attempt ({waited} ms)"
+    );
+    ensure!(
+        second != first,
+        "the call did not run on the new connection"
+    );
+    ensure!(
+        waiting.status() == ConnectionStatus::Connected,
+        "the client reports {:?}",
+        waiting.status()
+    );
+    waiting.disconnect();
+
+    // The call fails with the attempt's error.
+    let mut failing = reconnecting_client(messagepack, 1)?;
+    failing
+        .start()
+        .await
+        .map_err(|error| format!("start failed: {error}"))?;
+    drop_with_held_negotiation(&mut failing, true).await?;
+    match identity(&mut failing).await {
+        Err(error) if error.kind() == ErrorKind::Negotiate && error.status() == Some(503) => {}
+        other => {
+            return Err(format!(
+                "the call during a failed attempt returned {other:?}"
+            ))
+        }
+    }
+    failing.disconnect();
+    Ok(())
+}
+
+/// The value of `name` in the lines the test service describes a request with.
+fn described_value<'a>(lines: &'a [String], name: &str) -> Option<&'a str> {
+    let prefix = format!("{name}: ");
+    lines.iter().find_map(|line| line.strip_prefix(&prefix))
+}
+
+async fn request_headers(messagepack: bool) -> Outcome {
+    let mut client = connect("test", messagepack, |configuration| {
+        configuration.authenticate_bearer("e2e-token".to_string());
+        configuration.with_header("X-Tenant", "blue");
+        // The request hook sees every fetch (negotiate here), not the browser WebSocket.
+        configuration.with_request_hook(|request| {
+            let tag = match request.transport() {
+                Some(transport) => format!("{transport:?} {}", request.method()),
+                None => format!("negotiate {}", request.method()),
+            };
+            let _ = request.set_header("X-Hook", tag);
+        });
+    })
+    .await?;
+
+    let negotiate = client
+        .invoke_with_args::<Vec<String>, _>("NegotiateRequest".to_string(), |arguments| {
+            arguments.argument("/test");
+        })
+        .await
+        .map_err(|error| format!("NegotiateRequest failed: {error}"))?;
+    // Browsers forbid `User-Agent`: the official format travels in `X-SignalR-User-Agent`.
+    ensure!(
+        described_value(&negotiate, "x-signalr-user-agent")
+            .is_some_and(|agent| agent.starts_with("RayX SignalR/")),
+        "negotiate lacks X-SignalR-User-Agent: {negotiate:?}"
+    );
+    ensure!(
+        described_value(&negotiate, "x-requested-with") == Some("XMLHttpRequest"),
+        "negotiate lacks X-Requested-With: {negotiate:?}"
+    );
+    ensure!(
+        described_value(&negotiate, "x-tenant") == Some("blue"),
+        "negotiate lacks the application header: {negotiate:?}"
+    );
+    ensure!(
+        described_value(&negotiate, "x-hook") == Some("negotiate POST"),
+        "negotiate lacks the request hook's header: {negotiate:?}"
+    );
+    ensure!(
+        described_value(&negotiate, "authorization") == Some("present"),
+        "negotiate lacks Authorization: {negotiate:?}"
+    );
+
+    // Browsers cannot set WebSocket headers: the bearer token travels as `access_token`.
+    let transport = client
+        .invoke::<Vec<String>>("TransportRequest".to_string())
+        .await
+        .map_err(|error| format!("TransportRequest failed: {error}"))?;
+    ensure!(
+        described_value(&transport, "access_token") == Some("present"),
+        "the browser WebSocket URL lacks access_token: {transport:?}"
+    );
+    ensure!(
+        described_value(&transport, "x-hook").is_none(),
+        "a browser WebSocket carries no hook header: {transport:?}"
+    );
+    client.disconnect();
+
+    // Long Polling requests are `fetch` requests: the hook sees them.
+    let mut client = connect("test", messagepack, |configuration| {
+        configuration.with_transports(rayx_signalr::Transports::LONG_POLLING);
+        configuration.with_request_hook(|request| {
+            if let Some(transport) = request.transport() {
+                let _ = request.set_header("X-Hook", format!("{transport:?} {}", request.method()));
+            }
+        });
+    })
+    .await?;
+    let transport = client
+        .invoke::<Vec<String>>("TransportRequest".to_string())
+        .await
+        .map_err(|error| format!("TransportRequest failed: {error}"))?;
+    ensure!(
+        described_value(&transport, "x-hook") == Some("LongPolling GET"),
+        "a Long Polling request lacks the hook's header: {transport:?}"
+    );
+    client.disconnect();
+    Ok(())
+}
+
+/// How many negotiate requests the stateful hub received in this cell.
+async fn stateful_negotiate_count(client: &mut SignalRClient) -> Result<i32, String> {
+    client
+        .invoke_with_args::<i32, _>("NegotiateCount".to_string(), |arguments| {
+            arguments.argument("/test-stateful".to_string());
+        })
+        .await
+        .map_err(|error| format!("NegotiateCount failed: {error}"))
+}
+
+/// Unregisters a lifecycle hook when called.
+type Unregister = Box<dyn FnOnce()>;
+
+/// Records every lifecycle event of `client`.
+fn lifecycle_log(client: &SignalRClient) -> (Rc<RefCell<Vec<String>>>, Vec<Unregister>) {
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let (reconnecting, reconnected, closed) = (events.clone(), events.clone(), events.clone());
+    let hooks: Vec<Unregister> = vec![
+        unregistering(client.on_reconnecting(move |_| {
+            reconnecting.borrow_mut().push("reconnecting".to_string());
+        })),
+        unregistering(client.on_reconnected(move |_| {
+            reconnected.borrow_mut().push("reconnected".to_string());
+        })),
+        unregistering(client.on_closed(move |_| closed.borrow_mut().push("closed".to_string()))),
+    ];
+    (events, hooks)
+}
+
+/// Transparent stateful resume, as the .NET client's WebSocket transport: after a server-side
+/// transport abort a stateful client without a reconnection policy resumes the same logical
+/// connection once and at once, stays `Connected`, raises no lifecycle event and negotiates
+/// nothing; a call pending across the loss completes on the resumed transport.
+async fn stateful_transparent_resume(messagepack: bool) -> Outcome {
+    let mut client = connect("test-stateful", messagepack, |configuration| {
+        configuration.with_stateful_reconnect(rayx_signalr::StatefulReconnectConfig::default());
+    })
+    .await?;
+    let (events, hooks) = lifecycle_log(&client);
+    let connection_id = identity(&mut client)
+        .await
+        .map_err(|error| format!("ConnectionIdentity failed: {error}"))?;
+    let negotiates = stateful_negotiate_count(&mut client).await?;
+
+    let done = Rc::new(Cell::new(false));
+    let unexpected = Rc::new(RefCell::new(Vec::new()));
+    let sampled = {
+        let (client, done, unexpected) = (client.clone(), done.clone(), unexpected.clone());
+        spawn(async move {
+            while !done.get() {
+                let status = client.status();
+                if status != ConnectionStatus::Connected {
+                    unexpected.borrow_mut().push(status);
+                }
+                sleep(5).await;
+            }
+        })
+    };
+
+    client
+        .send("AbortPhysicalTransport".to_string())
+        .await
+        .map_err(|error| format!("AbortPhysicalTransport failed: {error}"))?;
+    let pending = client
+        .invoke_with_args::<String, _>("DelayedConnectionIdentity".to_string(), |arguments| {
+            arguments.argument(2_500);
+        })
+        .await
+        .map_err(|error| format!("the call pending across the loss failed: {error}"))?;
+    ensure!(
+        pending == connection_id,
+        "the pending call ran on {pending}"
+    );
+    let aborts = client
+        .invoke::<i32>("TransportAbortCount".to_string())
+        .await
+        .map_err(|error| format!("TransportAbortCount failed: {error}"))?;
+    ensure!(aborts == 1, "{aborts} transport aborts");
+
+    done.set(true);
+    let _ = sampled.await;
+    ensure!(
+        unexpected.borrow().is_empty(),
+        "the client left Connected: {:?}",
+        unexpected.borrow()
+    );
+    ensure!(
+        client.connection_id().as_deref() == Some(connection_id.as_str()),
+        "the connection id changed to {:?}",
+        client.connection_id()
+    );
+    let after = stateful_negotiate_count(&mut client).await?;
+    ensure!(
+        after == negotiates,
+        "the resume negotiated ({negotiates} -> {after})"
+    );
+    ensure!(
+        events.borrow().is_empty(),
+        "lifecycle events were raised: {:?}",
+        events.borrow()
+    );
+    for unregister in hooks {
+        unregister();
+    }
+    client.disconnect();
+    Ok(())
+}
+
+/// Stateful resume fallback, as the .NET client: when the one transparent resume fails (the
+/// server answers it with 404), the logical connection ends, a pending call fails, and the policy
+/// reconnects with a fresh negotiate and a new connection id.
+async fn stateful_resume_fallback(messagepack: bool) -> Outcome {
+    let mut client = connect("test-stateful", messagepack, |configuration| {
+        configuration.with_stateful_reconnect(rayx_signalr::StatefulReconnectConfig::default());
+        configuration.with_reconnection_policy(fast_reconnect());
+    })
+    .await?;
+    let (events, hooks) = lifecycle_log(&client);
+    let connection_id = identity(&mut client)
+        .await
+        .map_err(|error| format!("ConnectionIdentity failed: {error}"))?;
+    let negotiates = stateful_negotiate_count(&mut client).await?;
+
+    client
+        .send("AbortPhysicalTransportAndRejectResume".to_string())
+        .await
+        .map_err(|error| format!("AbortPhysicalTransportAndRejectResume failed: {error}"))?;
+    let pending = client
+        .invoke_with_args::<String, _>("DelayedConnectionIdentity".to_string(), |arguments| {
+            arguments.argument(2_500);
+        })
+        .await;
+    ensure!(
+        pending.is_err(),
+        "a call pending when the logical connection ended succeeded: {pending:?}"
+    );
+    eventually("the policy reconnect", 20_000.0, || {
+        let done = events.borrow().len() >= 2;
+        async move { done.then_some(()) }
+    })
+    .await?;
+    ensure!(
+        *events.borrow() == ["reconnecting", "reconnected"],
+        "lifecycle events: {:?}",
+        events.borrow()
+    );
+    let fresh = identity(&mut client)
+        .await
+        .map_err(|error| format!("ConnectionIdentity failed: {error}"))?;
+    ensure!(fresh != connection_id, "the logical connection was kept");
+    ensure!(
+        client.connection_id().as_deref() == Some(fresh.as_str()),
+        "the client reports {:?}, the hub {fresh}",
+        client.connection_id()
+    );
+    let after = stateful_negotiate_count(&mut client).await?;
+    ensure!(
+        after == negotiates + 1,
+        "negotiations went from {negotiates} to {after}"
+    );
+    let rejections = client
+        .invoke::<i32>("ResumeRejections".to_string())
+        .await
+        .map_err(|error| format!("ResumeRejections failed: {error}"))?;
+    ensure!(rejections == 1, "{rejections} resumes were attempted");
+    for unregister in hooks {
+        unregister();
+    }
+    client.disconnect();
+    Ok(())
+}
+
+/// Unregisters `handler` when called.
+fn unregistering(handler: impl CallbackHandler + 'static) -> Unregister {
+    Box::new(move || handler.unregister())
+}
+
+/// Access-token factory, as the .NET client's `AccessTokenProvider` (see
+/// `tests/e2e/token_factory.rs`): two calls per connect (negotiate and the WebSocket's
+/// `access_token`), a rotated token rejected, a fresh token after a reconnect, and a factory error
+/// failing `connect` with an authentication error.
+async fn token_factory(messagepack: bool) -> Outcome {
+    let mut probe = connect("test", messagepack, |_| {}).await?;
+    let calls = Rc::new(Cell::new(0u32));
+    let factory = {
+        let (probe, calls) = (probe.clone(), calls.clone());
+        move || {
+            calls.set(calls.get() + 1);
+            let mut probe = probe.clone();
+            async move {
+                probe
+                    .invoke::<String>("IssueToken".to_string())
+                    .await
+                    .map_err(|error| error.to_string())
+            }
+        }
+    };
+    let mut client = connect("test-token", messagepack, |configuration| {
+        configuration.with_access_token_factory(factory.clone());
+        configuration.with_reconnection_policy(fast_reconnect());
+    })
+    .await?;
+    // One token for negotiate and one for the WebSocket; the HTTP transports keep the negotiate
+    // token, as the .NET client's `AccessTokenHttpMessageHandler`.
+    let per_connect = if super::http_transport() { 1 } else { 2 };
+    ensure!(
+        calls.get() == per_connect,
+        "{} factory calls for one connect",
+        calls.get()
+    );
+    let generation = client
+        .invoke::<i32>("TokenGeneration".to_string())
+        .await
+        .map_err(|error| format!("TokenGeneration failed: {error}"))?;
+    ensure!(generation == 1, "token generation {generation}");
+
+    let stale = probe
+        .invoke::<String>("IssueToken".to_string())
+        .await
+        .map_err(|error| format!("IssueToken failed: {error}"))?;
+    let rotated = probe
+        .invoke::<i32>("RotateTokens".to_string())
+        .await
+        .map_err(|error| format!("RotateTokens failed: {error}"))?;
+    ensure!(rotated == 2, "rotated to generation {rotated}");
+    let rejected = try_connect("test-token", messagepack, |configuration| {
+        let stale = stale.clone();
+        configuration.with_access_token_factory(move || {
+            let stale = stale.clone();
+            async move { Ok(stale) }
+        });
+    })
+    .await?;
+    let Err(error) = rejected else {
+        return Err("a rotated token was accepted".into());
+    };
+    ensure!(
+        error.kind() == ErrorKind::Authentication,
+        "a rotated token failed with {error}"
+    );
+
+    let reconnects = Rc::new(Cell::new(0u32));
+    let counted = reconnects.clone();
+    let reconnected = client.on_reconnected(move |_| counted.set(counted.get() + 1));
+    client
+        .send("Abort".to_string())
+        .await
+        .map_err(|error| format!("Abort failed: {error}"))?;
+    eventually("the reconnect", 20_000.0, || {
+        let done = reconnects.get() == 1;
+        async move { done.then_some(()) }
+    })
+    .await?;
+    let generation = client
+        .invoke::<i32>("TokenGeneration".to_string())
+        .await
+        .map_err(|error| format!("TokenGeneration failed: {error}"))?;
+    ensure!(
+        generation == 2,
+        "the reconnect used generation {generation}"
+    );
+    // The HTTP transports authenticate every request, so the first one after the rotation is
+    // refused and retried with a fresh token (as the .NET client's `AccessTokenHttpMessageHandler`).
+    let expected = if super::http_transport() { 3 } else { 4 };
+    ensure!(
+        calls.get() == expected,
+        "{} factory calls after the reconnect",
+        calls.get()
+    );
+    reconnected.unregister();
+
+    let failed = try_connect("test-token", messagepack, |configuration| {
+        configuration.with_access_token_factory(|| async {
+            Err::<String, _>("the identity provider is down".to_string())
+        });
+    })
+    .await?;
+    let Err(error) = failed else {
+        return Err("a failing factory connected".into());
+    };
+    ensure!(
+        error.kind() == ErrorKind::Authentication
+            && error.to_string().contains("the identity provider is down"),
+        "a factory error failed with {error}"
+    );
+
+    client.disconnect();
+    probe.disconnect();
+    Ok(())
+}
+
+/// Negotiate timeout in a browser (see `tests/e2e/negotiate_timeout.rs`): the negotiate `fetch` is
+/// aborted after the 2 s connect timeout, the error names the bound and contains neither the URL
+/// nor the token.
+async fn negotiate_timeout_scenario(messagepack: bool) -> Outcome {
+    const TOKEN: &str = "negotiate-timeout-secret-token";
+    let client = unstarted_with("test-hang", messagepack, |configuration| {
+        configuration.authenticate_bearer(TOKEN.to_string());
+        configuration.with_connect_timeout(Duration::from_secs(2));
+    })?;
+    let started = js_sys::Date::now();
+    let Err(error) = client.start().await else {
+        return Err("a hanging negotiate started".into());
+    };
+    let elapsed = js_sys::Date::now() - started;
+    ensure!(
+        elapsed.total_cmp(&4_000.0).is_lt(),
+        "failed after {elapsed} ms"
+    );
+    ensure!(error.kind() == ErrorKind::Timeout, "failed with {error}");
+    ensure!(
+        error.timeout_operation() == Some(TimeoutOperation::Negotiate)
+            && error.timeout() == Some(Duration::from_secs(2)),
+        "the timeout names {:?} {:?}",
+        error.timeout_operation(),
+        error.timeout()
+    );
+    let text = format!("{error} {error:?}");
+    let endpoint = super::service().map_err(|error| format!("{error:?}"))?;
+    ensure!(
+        !text.contains(&endpoint.host),
+        "the error names the host: {text}"
+    );
+    ensure!(
+        !text.contains("test-hang"),
+        "the error names the hub: {text}"
+    );
+    ensure!(!text.contains(TOKEN), "the error carries the token: {text}");
+    client.disconnect();
+    Ok(())
+}
+
+/// Ordinary reconnect on any transport (see `tests/e2e/ordinary_reconnect.rs`): a server-side
+/// transport abort leads to `Reconnecting`, a fresh negotiation with a new hub connection id and
+/// `Reconnected`; callback registrations survive and nothing is replayed. The WebSocket cells use
+/// the Playwright-driven `signalr-reconnect.spec.ts`; this one serves the other transports.
+async fn ordinary_reconnect(messagepack: bool) -> Outcome {
+    let mut client = connect("test", messagepack, |configuration| {
+        configuration.with_reconnection_policy(fast_reconnect());
+    })
+    .await?;
+    let initial = identity(&mut client)
+        .await
+        .map_err(|error| format!("ConnectionIdentity failed: {error}"))?;
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let (reconnecting, reconnected) = (events.clone(), events.clone());
+    let reconnecting = client.on_reconnecting(move |_| {
+        reconnecting.borrow_mut().push("reconnecting".to_string());
+    });
+    let reconnected = client.on_reconnected(move |id| {
+        reconnected
+            .borrow_mut()
+            .push(format!("reconnected {}", id.unwrap_or_default()));
+    });
+    let callbacks = Rc::new(Cell::new(0u32));
+    let observed = callbacks.clone();
+    let registration = client.register("e2eOrdinaryCallback".to_string(), move |_| {
+        observed.set(observed.get() + 1);
+    });
+
+    client
+        .send("AbortPhysicalTransport".to_string())
+        .await
+        .map_err(|error| format!("AbortPhysicalTransport failed: {error}"))?;
+    eventually("Reconnected", 20_000.0, || {
+        let done = events.borrow().len() >= 2;
+        async move { done.then_some(()) }
+    })
+    .await?;
+    let fresh = identity(&mut client)
+        .await
+        .map_err(|error| format!("ConnectionIdentity failed: {error}"))?;
+    ensure!(fresh != initial, "the reconnect kept connection {initial}");
+    ensure!(
+        *events.borrow() == ["reconnecting".to_string(), format!("reconnected {fresh}")],
+        "lifecycle events: {:?}",
+        events.borrow()
+    );
+
+    client
+        .send_with_args("TriggerCallback".to_string(), |arguments| {
+            arguments.argument("e2eOrdinaryCallback".to_string());
+        })
+        .await
+        .map_err(|error| format!("TriggerCallback failed: {error}"))?;
+    eventually("the callback after reconnect", 5_000.0, || {
+        let done = callbacks.get() == 1;
+        async move { done.then_some(()) }
+    })
+    .await?;
+    // Nothing from the old logical connection was replayed: exactly one callback.
+    sleep(200).await;
+    ensure!(callbacks.get() == 1, "{} callbacks", callbacks.get());
+
+    registration.unregister();
+    reconnecting.unregister();
+    reconnected.unregister();
+    client.disconnect();
+    Ok(())
+}
+
+/// Asks the Playwright spec to freeze the page for `seconds` (a console readiness line; the spec
+/// stops the page's JavaScript through CDP `Debugger.pause`) and returns when the page ran again, on
+/// the `Date.now()` clock: a 50 ms sleep loop sees the pause.
+async fn freeze_page(seconds: u32) -> Result<f64, String> {
+    let gap = f64::from(seconds) * 1_000.0 * 0.75;
+    let ready = js_sys::Date::now();
+    progress(&format!("RAYX_SIGNALR_SUSPEND_READY seconds={seconds}"));
+    let mut last = ready;
+    loop {
+        sleep(50).await;
+        let now = js_sys::Date::now();
+        if now - last >= gap {
+            progress(&format!(
+                "frozen for {seconds} s: resumed {:.1} s after the readiness line",
+                (now - ready) / 1_000.0
+            ));
+            return Ok(now);
+        }
+        if now - ready >= f64::from(seconds + 20) * 1_000.0 {
+            return Err(format!("the page was not frozen for {seconds} s"));
+        }
+        last = now;
+    }
+}
+
+/// `DelayedConnectionIdentity(delay)` in the background, with the `Date.now()` time it ended.
+fn pending_identity_after(
+    client: &SignalRClient,
+    delay: i32,
+) -> oneshot::Receiver<(Result<String, Error>, f64)> {
+    let mut clone = client.clone();
+    spawn(async move {
+        let result = clone
+            .invoke_with_args::<String, _>("DelayedConnectionIdentity".to_string(), |arguments| {
+                arguments.argument(delay);
+            })
+            .await;
+        (result, js_sys::Date::now())
+    })
+}
+
+/// Suspension, as the native scenario: a stateful and an ordinary client (both with a
+/// reconnection policy) each leave an invocation pending while the page is frozen. Frozen for
+/// 20 s (shorter than the service's 30-second client timeout), both keep their connections and
+/// their invocations complete; frozen for 40 s (the server then ends both hub connections),
+/// within 5 s of running again both have failed their pending invocations with a connection
+/// error and reconnected on new connections.
+async fn suspend_resume(messagepack: bool) -> Outcome {
+    use rayx_signalr::StatefulReconnectConfig;
+
+    const RECOVERY_MS: f64 = 5_000.0;
+    let stateful = connect("test-stateful", messagepack, |configuration| {
+        configuration.with_stateful_reconnect(StatefulReconnectConfig::default());
+        configuration.with_reconnection_policy(fast_reconnect());
+    })
+    .await?;
+    let ordinary = connect("test", messagepack, |configuration| {
+        configuration.with_reconnection_policy(fast_reconnect());
+    })
+    .await?;
+    let mut clients = [
+        ("stateful", stateful.clone()),
+        ("ordinary", ordinary.clone()),
+    ];
+    let mut identities = Vec::new();
+    let mut events = Vec::new();
+    let mut hooks = Vec::new();
+    for (_, client) in clients.iter_mut() {
+        identities.push(identity(client).await.map_err(|error| error.to_string())?);
+        let recorded = Rc::new(RefCell::new(Vec::<(&'static str, f64)>::new()));
+        let (reconnecting, reconnected, closed) =
+            (recorded.clone(), recorded.clone(), recorded.clone());
+        hooks.push(unregistering(client.on_reconnecting(move |_| {
+            reconnecting
+                .borrow_mut()
+                .push(("reconnecting", js_sys::Date::now()));
+        })));
+        hooks.push(unregistering(client.on_reconnected(move |_| {
+            reconnected
+                .borrow_mut()
+                .push(("reconnected", js_sys::Date::now()));
+        })));
+        hooks.push(unregistering(client.on_closed(move |_| {
+            closed.borrow_mut().push(("closed", js_sys::Date::now()));
+        })));
+        events.push(recorded);
+    }
+
+    // Shorter than the client timeout: both connections survive.
+    let pending = [
+        pending_identity_after(&stateful, 10_000),
+        pending_identity_after(&ordinary, 10_000),
+    ];
+    sleep(1_000).await;
+    freeze_page(20).await?;
+    for (((name, _), pending), expected) in clients.iter().zip(pending).zip(&identities) {
+        let (result, _) = pending
+            .await
+            .map_err(|_| format!("the {name} invocation was dropped"))?;
+        let id = result.map_err(|error| format!("the {name} invocation failed: {error}"))?;
+        ensure!(&id == expected, "{name}: {id} != {expected}");
+    }
+    // Past the moment the server would have timed the clients out without their Pings.
+    sleep(12_000).await;
+    for (((name, client), expected), recorded) in clients.iter_mut().zip(&identities).zip(&events) {
+        ensure!(
+            client.status() == ConnectionStatus::Connected,
+            "the {name} client is {:?}",
+            client.status()
+        );
+        let id = identity(client).await.map_err(|error| error.to_string())?;
+        ensure!(
+            &id == expected,
+            "the {name} client changed connections: {id}"
+        );
+        ensure!(
+            recorded.borrow().is_empty(),
+            "{name}: {:?}",
+            recorded.borrow()
+        );
+    }
+
+    // Longer than the client timeout: the server ends both hub connections.
+    let pending = [
+        pending_identity_after(&stateful, 120_000),
+        pending_identity_after(&ordinary, 120_000),
+    ];
+    sleep(1_000).await;
+    let resumed_at = freeze_page(40).await?;
+    for ((name, _), pending) in clients.iter().zip(pending) {
+        let (result, failed_at) = pending
+            .await
+            .map_err(|_| format!("the {name} invocation was dropped"))?;
+        let error = match result {
+            Ok(id) => return Err(format!("the {name} invocation completed with {id}")),
+            Err(error) => error,
+        };
+        // The closed socket, a server Close, or the server timeout found by suspension detection.
+        ensure!(
+            matches!(
+                error.kind(),
+                ErrorKind::Transport | ErrorKind::ConnectionClosed
+            ) || error.timeout_operation() == Some(TimeoutOperation::ServerTimeout),
+            "{name}: {error}"
+        );
+        if failed_at - resumed_at > RECOVERY_MS {
+            return Err(format!(
+                "the {name} invocation failed {} ms after resuming",
+                failed_at - resumed_at
+            ));
+        }
+    }
+    for (((name, client), expected), recorded) in clients.iter_mut().zip(&identities).zip(&events) {
+        let reconnected_at = eventually("the reconnect after the long freeze", 15_000.0, || {
+            let recorded = recorded.clone();
+            async move {
+                recorded
+                    .borrow()
+                    .iter()
+                    .find(|(event, _)| *event == "reconnected")
+                    .map(|(_, at)| *at)
+            }
+        })
+        .await?;
+        if reconnected_at - resumed_at > RECOVERY_MS {
+            return Err(format!(
+                "the {name} client reconnected {} ms after resuming",
+                reconnected_at - resumed_at
+            ));
+        }
+        let id = identity(client).await.map_err(|error| error.to_string())?;
+        ensure!(
+            &id != expected,
+            "the {name} client kept its old connection {id}"
+        );
+    }
+
+    for unregister in hooks {
+        unregister();
+    }
+    stateful.disconnect();
+    ordinary.disconnect();
     Ok(())
 }

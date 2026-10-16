@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { openFixture, protocols } from "./fixture";
 
-// Browser runs of the lifecycle-control scenarios (pause, resume and status); the scenario logic
+// Browser runs of the lifecycle-control scenarios (pause, resume, status and disconnect); the scenario logic
 // lives in the fixture (`tests/wasm-fixture/src/functional.rs`) and mirrors the native
 // `tests/e2e` scenarios.
-const scenarios = ["pause-resume", "pause-resume-stateful"];
+const scenarios = ["pause-resume", "pause-resume-stateful", "disconnect-every-handle"];
 
 for (const scenario of scenarios) {
   for (const { protocol, title } of protocols) {

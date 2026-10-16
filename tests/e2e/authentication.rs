@@ -36,7 +36,7 @@ async fn identity(protocol: Protocol, credentials: Credentials<'_>) -> (String, 
     (identity, source)
 }
 
-async fn rejected(protocol: Protocol, credentials: Credentials<'_>) -> String {
+async fn rejected(protocol: Protocol, credentials: Credentials<'_>) -> rayx_signalr::Error {
     support::try_connect("test-auth", protocol, |configuration| {
         configure(configuration, credentials)
     })
@@ -62,12 +62,14 @@ async fn scenario(protocol: Protocol) {
         rejected(protocol, (Some(("e2e-user", "wrong-password")), None)).await,
         rejected(protocol, (None, Some("wrong-token"))).await,
     ] {
-        assert!(
-            error.contains("401"),
+        assert_eq!(
+            (error.kind(), error.status()),
+            (rayx_signalr::ErrorKind::Authentication, Some(401)),
             "expected an authorization error: {error}"
         );
+        let text = format!("{error} {error:?}");
         for secret in ["wrong-token", "e2e-token", "wrong-password", "e2e-password"] {
-            assert!(!error.contains(secret), "error leaks a credential: {error}");
+            assert!(!text.contains(secret), "error leaks a credential: {text}");
         }
     }
 }

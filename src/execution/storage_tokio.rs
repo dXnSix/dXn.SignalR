@@ -1,25 +1,73 @@
-use super::{Storage, UpdatableAction};
-use log::{error, info};
+use super::{callback::CallbackRegistry, Storage, UpdatableAction};
+use crate::{error::Error, platform::LockExt};
+use log::{error, info, warn};
 use std::{
     collections::{hash_map::Entry, HashMap},
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, Mutex,
+    },
 };
 
-type StoredAction = (bool, Mutex<Box<dyn UpdatableAction>>);
-type ActionMap = HashMap<String, StoredAction>;
+/// One namespace of shared entries. An entry is cloned out and the map lock released before it
+/// runs: callbacks run user code, which may register, unregister or disconnect.
+struct ActionMap<A: ?Sized>(Arc<Mutex<HashMap<String, Arc<A>>>>);
+
+impl<A: ?Sized> Clone for ActionMap<A> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<A: ?Sized> Default for ActionMap<A> {
+    fn default() -> Self {
+        Self(Arc::new(Mutex::new(HashMap::new())))
+    }
+}
+
+impl<A: ?Sized> ActionMap<A> {
+    fn insert(&self, key: String, action: Arc<A>) {
+        match self.0.locked().entry(key) {
+            Entry::Occupied(entry) => error!("Key {} is already registered", entry.key()),
+            Entry::Vacant(entry) => {
+                entry.insert(action);
+            }
+        }
+    }
+
+    // Only the tests ask whether an action exists.
+    #[cfg_attr(not(test), allow(dead_code))]
+    fn contains(&self, key: &str) -> bool {
+        self.0.locked().contains_key(key)
+    }
+
+    fn get(&self, key: &str) -> Option<Arc<A>> {
+        self.0.locked().get(key).cloned()
+    }
+
+    fn take(&self, key: &str) -> Option<Arc<A>> {
+        self.0.locked().remove(key)
+    }
+
+    fn drain(&self) -> Vec<Arc<A>> {
+        self.0.locked().drain().map(|(_, action)| action).collect()
+    }
+}
 
 #[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone)]
 pub struct UpdatableActionStorage {
-    _data: Arc<Mutex<ActionMap>>,
-    _index: Arc<Mutex<usize>>,
+    pending: ActionMap<dyn UpdatableAction>,
+    callbacks: CallbackRegistry,
+    index: Arc<AtomicUsize>,
 }
 
 impl UpdatableActionStorage {
     pub fn new() -> Self {
         UpdatableActionStorage {
-            _data: Arc::new(Mutex::new(HashMap::new())),
-            _index: Arc::new(Mutex::new(0)),
+            pending: ActionMap::default(),
+            callbacks: CallbackRegistry::new(),
+            index: Arc::new(AtomicUsize::new(0)),
         }
     }
 }
@@ -32,125 +80,64 @@ impl Drop for UpdatableActionStorage {
 
 impl Storage for UpdatableActionStorage {
     fn insert(&mut self, key: String, action: impl UpdatableAction + 'static) {
-        self.insert_internal(key, action, false);
+        self.pending.insert(key, Arc::new(action));
     }
 
-    fn insert_persistent(&mut self, key: String, action: impl UpdatableAction + 'static) {
-        self.insert_internal(key, action, true);
+    fn callbacks(&self) -> &CallbackRegistry {
+        &self.callbacks
     }
 
-    fn contains(&self, key: String) -> bool {
-        if let Ok(data) = self._data.lock() {
-            data.contains_key(&key)
-        } else {
-            error!("Cannot lock storage");
-            false
+    fn contains(&self, key: &str) -> bool {
+        self.pending.contains(key)
+    }
+
+    fn update(&mut self, key: &str, f: impl FnOnce(&dyn UpdatableAction)) {
+        match self.pending.get(key) {
+            Some(action) => f(&*action),
+            None => warn!("Dropped a message for unknown invocation {key}"),
         }
     }
 
-    fn update(&mut self, key: String, mut f: impl FnMut(&mut Box<dyn UpdatableAction>)) {
-        if let Ok(mut data) = self._data.lock() {
-            if let Some((_, action)) = data.get_mut(&key) {
-                if let Ok(a) = action.get_mut() {
-                    (f)(a);
-                } else {
-                    error!("Cannot unlock action");
-                }
-            } else {
-                error!("Key {} is not found in registered actions", key);
-            }
-        } else {
-            error!("Cannot lock storage");
+    fn complete(&mut self, key: &str, f: impl FnOnce(&dyn UpdatableAction)) {
+        // The action completes (and drops) outside the map lock.
+        match self.pending.take(key) {
+            Some(action) => f(&*action),
+            None => warn!("Dropped a completion for unknown invocation {key}"),
         }
     }
 
-    fn remove(&mut self, key: String) {
-        if let Ok(mut data) = self._data.lock() {
-            if let Some((_, ret)) = data.remove(&key) {
-                if let Ok(action) = ret.into_inner() {
-                    drop(action);
-                }
-            }
-        } else {
-            error!("Cannot lock storage");
-        }
+    fn remove(&mut self, key: &str) {
+        // Drop the action (which may complete an awaiter) outside the map lock.
+        drop(self.pending.take(key));
     }
 
     fn dispose(&mut self) {
-        let count = Arc::strong_count(&self._data);
-
-        if count == 1 {
+        if Arc::strong_count(&self.pending.0) == 1 {
             info!("Clearing storage...");
-            if let Ok(mut data) = self._data.lock() {
-                data.clear();
-            } else {
-                error!("Cannot lock storage");
-            }
+            // Actions drop outside the map locks.
+            drop(self.pending.drain());
+            self.callbacks.close();
         }
     }
 
-    fn fail_pending(&mut self, error: &str) {
-        let pending = if let Ok(mut data) = self._data.lock() {
-            let keys = data
-                .iter()
-                .filter_map(|(key, (persistent, _))| (!persistent).then_some(key.clone()))
-                .collect::<Vec<_>>();
-            keys.iter()
-                .filter_map(|key| data.remove(key).map(|(_, action)| action))
-                .collect::<Vec<_>>()
-        } else {
-            error!("Cannot lock storage while failing pending actions");
-            return;
-        };
+    fn fail_pending(&mut self, error: &Error) {
+        // The logical connection ended: its client-to-server streams stop with it.
+        self.callbacks.abort_uploads();
         // Complete awaiters outside the storage lock.
-        for action in pending {
-            if let Ok(mut action) = action.into_inner() {
-                action.fail(error);
-            }
+        for action in self.pending.drain() {
+            action.fail(error);
         }
     }
 
-    fn fail_action(&mut self, key: String, error: &str) {
-        let action = if let Ok(mut data) = self._data.lock() {
-            data.remove(&key).map(|(_, action)| action)
-        } else {
-            error!("Cannot lock storage while failing action {}", key);
-            return;
-        };
+    fn fail_action(&mut self, key: &str, error: &Error) {
         // Complete the awaiter outside the storage lock.
-        if let Some(Ok(mut action)) = action.map(Mutex::into_inner) {
+        if let Some(action) = self.pending.take(key) {
             action.fail(error);
         }
     }
 
     fn increment(&mut self) -> usize {
-        let mut index = self._index.lock().unwrap();
-
-        *index += 1;
-
-        *index
-    }
-}
-
-impl UpdatableActionStorage {
-    fn insert_internal(
-        &mut self,
-        key: String,
-        action: impl UpdatableAction + 'static,
-        persistent: bool,
-    ) {
-        if let Ok(mut data) = self._data.lock() {
-            match data.entry(key) {
-                Entry::Occupied(entry) => {
-                    error!("Key {} is already registered as an action", entry.key());
-                }
-                Entry::Vacant(entry) => {
-                    entry.insert((persistent, Mutex::new(Box::new(action))));
-                }
-            }
-        } else {
-            error!("Cannot lock storage");
-        }
+        self.index.fetch_add(1, Ordering::Relaxed) + 1
     }
 }
 
@@ -158,30 +145,34 @@ impl UpdatableActionStorage {
 mod reconnect_lifecycle_storage {
     use super::UpdatableActionStorage;
     use crate::execution::{Storage, UpdatableAction};
-    use crate::protocol::{hub_protocol::MessagePayload, negotiate::MessageType};
 
     struct TestAction;
 
-    impl UpdatableAction for TestAction {
-        fn update_with(&mut self, _message: &MessagePayload, _message_type: MessageType) {}
-
-        fn is_completed(&self) -> bool {
-            false
-        }
-
-        fn dispose(self) {}
-    }
+    impl UpdatableAction for TestAction {}
 
     #[test]
     fn reconnect_lifecycle_retains_callbacks_and_drops_pending_work() {
         let mut storage = UpdatableActionStorage::new();
-        storage.insert_persistent("callback".to_string(), TestAction);
+        let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let counted = calls.clone();
+        storage.add_callback(
+            "callback".to_string(),
+            crate::execution::Callback::sync(move |_| {
+                counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            }),
+            crate::client::SignalRClient::detached(storage.clone()).downgrade(),
+        );
         storage.insert("invocation".to_string(), TestAction);
 
-        storage.fail_pending("transport replaced");
+        storage.fail_pending(&crate::Error::paused());
 
-        assert!(storage.contains("callback".to_string()));
-        assert!(!storage.contains("invocation".to_string()));
+        storage.dispatch(
+            crate::protocol::codec::decode_json(r#"{"type":1,"target":"callback","arguments":[]}"#)
+                .unwrap(),
+        );
+        storage.callbacks().run_queued();
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert!(!storage.contains("invocation"));
     }
 
     #[test]
@@ -192,13 +183,13 @@ mod reconnect_lifecycle_storage {
         let cancellation_key = key.clone();
         let stream = storage.add_stream::<i32>(
             key.clone(),
-            Box::new(move || cancellation_storage.remove(cancellation_key)),
+            Box::new(move || cancellation_storage.remove(&cancellation_key)),
         );
-        assert!(storage.contains(key.clone()));
+        assert!(storage.contains(&key));
 
         drop(stream);
 
-        assert!(!storage.contains(key));
+        assert!(!storage.contains(&key));
     }
 }
 
@@ -225,15 +216,21 @@ mod unsent_stream_invocation {
         );
         let _other = storage.add_stream::<i32>("Stream_2".to_string(), Box::new(|| {}));
 
-        storage.fail_action("Stream_1".to_string(), "not sent");
+        storage.fail_action(
+            "Stream_1",
+            &crate::Error::transport_failure(None, "not sent"),
+        );
 
         assert_eq!(
             futures::executor::block_on(futures::StreamExt::next(&mut stream)),
             None
         );
-        assert_eq!(stream.error(), Some("not sent".to_string()));
-        assert!(!storage.contains("Stream_1".to_string()));
-        assert!(storage.contains("Stream_2".to_string()));
+        assert_eq!(
+            stream.error().map(ToString::to_string),
+            Some("not sent".to_string())
+        );
+        assert!(!storage.contains("Stream_1"));
+        assert!(storage.contains("Stream_2"));
         drop(stream);
         assert_eq!(cancellations.load(Ordering::SeqCst), 0);
     }
@@ -249,13 +246,13 @@ mod pending_failure_completion {
         let mut storage = UpdatableActionStorage::new();
         let pending = storage.add_invocation::<i32>("Probe_1".to_string());
 
-        storage.fail_pending("transport replaced");
+        storage.fail_pending(&crate::Error::paused());
 
         assert_eq!(
-            futures::executor::block_on(pending),
-            Err("transport replaced".to_string())
+            futures::executor::block_on(pending).unwrap_err().kind(),
+            crate::ErrorKind::Paused
         );
-        assert!(!storage.contains("Probe_1".to_string()));
+        assert!(!storage.contains("Probe_1"));
     }
 
     #[test]
@@ -263,13 +260,10 @@ mod pending_failure_completion {
         let mut storage = UpdatableActionStorage::new();
         let pending = storage.add_invocation::<i32>("Probe_2".to_string());
 
-        storage.remove("Probe_2".to_string());
+        storage.remove("Probe_2");
 
         let error = futures::executor::block_on(pending).unwrap_err();
-        assert!(
-            error.contains("ended before the server completed it"),
-            "{error}"
-        );
+        assert_eq!(error.kind(), crate::ErrorKind::Canceled, "{error}");
     }
 
     #[test]
@@ -277,11 +271,101 @@ mod pending_failure_completion {
         let mut storage = UpdatableActionStorage::new();
         let mut stream = storage.add_stream::<i32>("Stream_3".to_string(), Box::new(|| {}));
 
-        storage.fail_pending("transport replaced");
+        storage.fail_pending(&crate::Error::paused());
 
         assert_eq!(
             futures::executor::block_on(futures::StreamExt::next(&mut stream)),
             None
         );
+    }
+}
+
+/// Invocation ids are per-connection counters in their own namespace, separate from callbacks
+/// (R16.C12), as in the official .NET client.
+#[cfg(test)]
+mod invocation_ids {
+    use super::UpdatableActionStorage;
+    use crate::{
+        client::SignalRClient,
+        execution::{Callback, Storage},
+        protocol::codec::{self, decode_json},
+    };
+    use futures::FutureExt;
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+
+    #[test]
+    fn invocation_ids_are_per_connection_counters() {
+        let mut first = UpdatableActionStorage::new();
+        let mut second = UpdatableActionStorage::new();
+        let mut clone = first.clone();
+        assert_eq!(first.create_key(), "1");
+        assert_eq!(clone.create_key(), "2");
+        assert_eq!(first.create_key(), "3");
+        assert_eq!(second.create_key(), "1");
+    }
+
+    /// Counts the calls of a callback registered for `target`.
+    fn counted(storage: &mut UpdatableActionStorage, target: &str) -> Arc<AtomicUsize> {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let counted = calls.clone();
+        storage.add_callback(
+            target.to_string(),
+            Callback::sync(move |_| {
+                counted.fetch_add(1, Ordering::SeqCst);
+            }),
+            SignalRClient::detached(storage.clone()).downgrade(),
+        );
+        calls
+    }
+
+    fn invoke(storage: &mut UpdatableActionStorage, target: &str) {
+        let record = format!(r#"{{"type":1,"target":"{target}","arguments":[]}}"#);
+        storage.dispatch(decode_json(&record).unwrap());
+        storage.callbacks().run_queued();
+    }
+
+    /// A callback registered for target "1" and the pending invocation "1" coexist: the
+    /// invocation reaches the callback, the completion reaches the invocation.
+    #[test]
+    fn invocation_ids_and_callback_targets_never_collide() {
+        let mut storage = UpdatableActionStorage::new();
+        let calls = counted(&mut storage, "1");
+        let id = storage.create_key();
+        let pending = storage.add_invocation::<i32>(id.clone());
+
+        invoke(&mut storage, "1");
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert!(storage.contains(&id));
+
+        storage.dispatch(decode_json(r#"{"type":3,"invocationId":"1","result":7}"#).unwrap());
+        assert_eq!(pending.now_or_never().unwrap().unwrap(), 7);
+        assert!(!storage.contains(&id));
+        invoke(&mut storage, "1");
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            2,
+            "the callback stays registered"
+        );
+    }
+
+    #[test]
+    fn invocation_ids_completions_and_removing_touch_only_their_namespace() {
+        let mut storage = UpdatableActionStorage::new();
+        let calls = counted(&mut storage, "Notify");
+        // A completion addressed to a callback target is dropped; the callback stays.
+        storage.dispatch(codec::decode_json(r#"{"type":3,"invocationId":"Notify"}"#).unwrap());
+        invoke(&mut storage, "Notify");
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+        let pending = storage.add_invocation::<i32>("Notify".to_string());
+        storage.callbacks().remove("Notify".to_string());
+        invoke(&mut storage, "Notify");
+        assert_eq!(calls.load(Ordering::SeqCst), 1, "the callback was removed");
+        assert!(storage.contains("Notify"));
+        storage.fail_pending(&crate::Error::paused());
+        assert!(pending.now_or_never().unwrap().is_err());
     }
 }

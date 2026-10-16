@@ -9,6 +9,12 @@ public sealed partial class RepositoryTests(AspireEnvironment environment)
 {
   static readonly string[] _scriptExtensions = [".ps1", ".sh", ".mjs", ".cmd", ".bat"];
 
+  /// <summary>
+  /// The Gradle wrapper of the test-only Android app: Gradle's own launcher, which the Aspire
+  /// runner invokes (it is not a test script).
+  /// </summary>
+  static readonly string[] _gradleWrapper = ["tests/android-app/gradlew.bat"];
+
   static readonly string[] _removedHooks =
   [
     "TEST_CLIENT",
@@ -27,6 +33,7 @@ public sealed partial class RepositoryTests(AspireEnvironment environment)
     IReadOnlyList<string> files = await RepositoryFiles.ListAsync(environment.RepositoryRoot);
     string[] scripts = files
                        .Where(file => !file.StartsWith("tools-node/node_modules/", StringComparison.Ordinal))
+                       .Where(file => !_gradleWrapper.Contains(file, StringComparer.Ordinal))
                        .Where(file => _scriptExtensions.Contains(Path.GetExtension(file), StringComparer.OrdinalIgnoreCase))
                        .ToArray();
     Assert.Empty(scripts);
@@ -110,7 +117,9 @@ public sealed partial class RepositoryTests(AspireEnvironment environment)
 
     string limitations = await File.ReadAllTextAsync(Path.Combine(root, "docs", "12-limitations.md"));
     Assert.Contains("## Not covered by tests", limitations, StringComparison.Ordinal);
-    Assert.Contains("Long Polling", limitations, StringComparison.Ordinal);
+    string connecting = await File.ReadAllTextAsync(Path.Combine(root, "docs", "02-connecting.md"));
+    Assert.Contains("### Long Polling", connecting, StringComparison.Ordinal);
+    Assert.Contains("### Server-Sent Events", connecting, StringComparison.Ordinal);
 
     foreach(string text in new[] { readme, documentation })
     {

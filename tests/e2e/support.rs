@@ -3,7 +3,7 @@
 use std::{future::Future, sync::Arc, time::Duration};
 
 use rayx_signalr::{
-    ConnectionConfiguration, ConstantDelayPolicy, ReconnectionConfig, SignalRClient,
+    ConnectionConfiguration, ConstantDelayPolicy, Error, ReconnectionConfig, SignalRClient,
 };
 use serde::{Deserialize, Serialize};
 
@@ -16,6 +16,14 @@ pub struct TestEntity {
 
 /// Upper bound for one scenario; the runner kills the process after 60 seconds.
 pub const SCENARIO_TIMEOUT: Duration = Duration::from_secs(50);
+
+/// How long an idle Long Polling client must stay connected: Long Polling keeps itself alive, so
+/// the client sends no keep-alive Pings and runs no server timeout over it.
+pub const LONG_POLLING_IDLE: Duration = Duration::from_secs(45);
+
+/// The bound of the liveness scenarios, which idle for [`LONG_POLLING_IDLE`] over Long Polling
+/// (the catalog bounds those cells at 120 seconds).
+pub const LIVENESS_SCENARIO_TIMEOUT: Duration = Duration::from_secs(110);
 
 /// Wire protocol selected by the scenario's test name.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -105,6 +113,31 @@ pub fn apply_protocol(configuration: &mut ConnectionConfiguration, protocol: Pro
     }
 }
 
+/// Restricts a connection to the cell's transport (`RAYX_SIGNALR_TRANSPORT`, which the runner
+/// passes); WebSockets cells keep the default transports.
+pub fn apply_transport(configuration: &mut ConnectionConfiguration) {
+    let transports = match std::env::var("RAYX_SIGNALR_TRANSPORT").as_deref() {
+        Ok("long-polling") => rayx_signalr::Transports::LONG_POLLING,
+        Ok("server-sent-events") => rayx_signalr::Transports::SERVER_SENT_EVENTS,
+        _ => return,
+    };
+    configuration.with_transports(transports);
+}
+
+/// Whether the cell runs over Long Polling (`RAYX_SIGNALR_TRANSPORT`).
+pub fn long_polling() -> bool {
+    std::env::var("RAYX_SIGNALR_TRANSPORT").as_deref() == Ok("long-polling")
+}
+
+/// Whether the cell runs over an HTTP transport (Long Polling or Server-Sent Events), whose
+/// requests keep the token negotiate fetched.
+pub fn http_transport() -> bool {
+    matches!(
+        std::env::var("RAYX_SIGNALR_TRANSPORT").as_deref(),
+        Ok("long-polling" | "server-sent-events")
+    )
+}
+
 /// A fast bounded reconnect policy for scenarios that drop the transport.
 pub fn fast_reconnect() -> ReconnectionConfig {
     ReconnectionConfig {
@@ -120,7 +153,7 @@ pub async fn try_connect<F>(
     hub: &str,
     protocol: Protocol,
     mut configure: F,
-) -> Result<SignalRClient, String>
+) -> Result<SignalRClient, Error>
 where
     F: FnMut(&mut ConnectionConfiguration),
 {
@@ -128,6 +161,7 @@ where
     SignalRClient::connect_with(&endpoint.host, hub, |configuration| {
         endpoint.apply(configuration);
         apply_protocol(configuration, protocol);
+        apply_transport(configuration);
         configure(configuration);
     })
     .await
@@ -144,33 +178,66 @@ where
     SignalRClient::connect_with(&endpoint.host, hub, |configuration| {
         endpoint.apply(configuration);
         apply_protocol(configuration, protocol);
+        apply_transport(configuration);
         configure(configuration);
     })
     .await
     .unwrap_or_else(|error| panic!("connect to {hub} failed: {error}"))
 }
 
+/// Builds a client for `hub` on the test service that is not started yet.
+pub fn unstarted<F>(hub: &str, protocol: Protocol, configure: F) -> SignalRClient
+where
+    F: FnOnce(&mut ConnectionConfiguration),
+{
+    let _ = env_logger::builder().is_test(true).try_init();
+    let endpoint = service();
+    SignalRClient::new(&endpoint.host, hub, |configuration| {
+        endpoint.apply(configuration);
+        apply_protocol(configuration, protocol);
+        apply_transport(configuration);
+        configure(configuration);
+    })
+    .unwrap_or_else(|error| panic!("the client for {hub} was rejected: {error}"))
+}
+
 /// Runs a scenario under the scenario bound. A watchdog on a plain OS thread reports a scenario
 /// that outlives the bound, which can only happen when the runtime thread itself is blocked (the
 /// bound is a Tokio timer), and ends the process so the cell fails with that diagnosis.
 pub async fn bounded<F: Future<Output = ()>>(name: &str, scenario: F) {
+    bounded_within(name, SCENARIO_TIMEOUT, scenario).await;
+}
+
+/// How long soak scenarios run: `RAYX_SIGNALR_SOAK_SECONDS` (the runner forwards it), 120 seconds
+/// by default.
+pub fn soak_duration() -> Duration {
+    std::env::var("RAYX_SIGNALR_SOAK_SECONDS")
+        .ok()
+        .and_then(|seconds| seconds.parse::<u64>().ok())
+        .filter(|seconds| *seconds > 0)
+        .map_or(Duration::from_secs(120), Duration::from_secs)
+}
+
+/// [`bounded`] with a scenario-specific bound (soak scenarios: the runner allows the soak
+/// duration plus 60 seconds).
+pub async fn bounded_within<F: Future<Output = ()>>(name: &str, limit: Duration, scenario: F) {
     raise_scenario_thread_priority();
     let finished = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let watched = finished.clone();
     let label = name.to_string();
     std::thread::spawn(move || {
-        std::thread::sleep(SCENARIO_TIMEOUT + Duration::from_secs(3));
+        std::thread::sleep(limit + Duration::from_secs(3));
         if !watched.load(std::sync::atomic::Ordering::Acquire) {
             eprintln!(
                 "watchdog: {label} is still running {:?} after its start; the Tokio timer did not fire, so the runtime thread is blocked",
-                SCENARIO_TIMEOUT + Duration::from_secs(3)
+                limit + Duration::from_secs(3)
             );
             std::process::exit(102);
         }
     });
-    let result = tokio::time::timeout(SCENARIO_TIMEOUT, scenario).await;
+    let result = tokio::time::timeout(limit, scenario).await;
     finished.store(true, std::sync::atomic::Ordering::Release);
-    result.unwrap_or_else(|_| panic!("{name} exceeded {SCENARIO_TIMEOUT:?}"));
+    result.unwrap_or_else(|_| panic!("{name} exceeded {limit:?}"));
 }
 
 /// On the iOS simulator the scenario binary is launched with `xcrun simctl spawn`, not as a
@@ -216,10 +283,14 @@ where
 #[macro_export]
 macro_rules! protocol_tests {
     ($name:literal) => {
+        $crate::protocol_tests!($name, $crate::support::SCENARIO_TIMEOUT);
+    };
+    ($name:literal, $limit:expr) => {
         #[tokio::test]
         async fn json() {
-            $crate::support::bounded(
+            $crate::support::bounded_within(
                 concat!($name, " json"),
+                $limit,
                 scenario($crate::support::Protocol::Json),
             )
             .await;
@@ -228,8 +299,9 @@ macro_rules! protocol_tests {
         #[cfg(feature = "messagepack")]
         #[tokio::test]
         async fn messagepack() {
-            $crate::support::bounded(
+            $crate::support::bounded_within(
                 concat!($name, " messagepack"),
+                $limit,
                 scenario($crate::support::Protocol::MessagePack),
             )
             .await;
@@ -238,7 +310,7 @@ macro_rules! protocol_tests {
 }
 
 /// Returns the hub-side connection id of the current logical connection.
-pub async fn connection_identity(client: &mut SignalRClient) -> Result<String, String> {
+pub async fn connection_identity(client: &mut SignalRClient) -> Result<String, Error> {
     client
         .invoke::<String>("ConnectionIdentity".to_string())
         .await

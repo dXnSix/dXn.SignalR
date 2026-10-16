@@ -13,6 +13,7 @@ namespace RayX.SignalR.TestService
     {
         static readonly ConcurrentDictionary<string, CancellationProbeState> _cancellationProbes = new();
         static readonly ConcurrentDictionary<string, int> _transportAborts = new();
+        static readonly ConcurrentDictionary<string, string> _streamOutcomes = new();
 
         public async Task<TestEntity> SingleEntity()
         {
@@ -31,10 +32,25 @@ namespace RayX.SignalR.TestService
         {
             ConnectionId = Context.ConnectionId,
             TransportId = Context.GetHttpContext()?.Request.Query["id"].ToString() ?? string.Empty,
-            TransferFormat = Context.Features.Get<ITransferFormatFeature>()?.ActiveFormat.ToString() ?? string.Empty
+            TransferFormat = Context.Features.Get<ITransferFormatFeature>()?.ActiveFormat.ToString() ?? string.Empty,
+            Transport = Context.Features.Get<Microsoft.AspNetCore.Http.Connections.Features.IHttpTransportFeature>()?.TransportType.ToString() ?? string.Empty
         };
 
         public int Echo(int value) => value;
+
+        /// <summary>The remote port of the request that carries this connection (a proxy's tunnel port when proxied).</summary>
+        public int PeerPort() => Context.GetHttpContext()?.Connection.RemotePort ?? 0;
+
+        /// <summary>The affinity cookie the transport request carried (see AffinityCookies).</summary>
+        public string AffinityCookie() =>
+            Context.GetHttpContext()?.Request.Cookies[AffinityCookies.Name] ?? string.Empty;
+
+        /// <summary>The subject of the client certificate the transport's TLS connection presented.</summary>
+        public string ClientCertificateSubject() =>
+            Context.GetHttpContext()?.Connection.ClientCertificate?.Subject ?? string.Empty;
+
+        /// <summary>How many /test-affinity requests arrived without an issued affinity cookie.</summary>
+        public int AffinityRejections() => AffinityCookies.Rejections;
 
         /// <summary>The access token the transport request carried (Bearer header, else access_token query).</summary>
         public string AccessTokenProbe()
@@ -93,8 +109,21 @@ namespace RayX.SignalR.TestService
             Clients.Caller.SendAsync(callback, "alpha", 42, new TestEntity { Text = "multi", Number = 7 });
 
         /// <summary>
+        /// Calls <paramref name="callback"/> with values whose MessagePack form has no JSON
+        /// equivalent: binary data, a timestamp and integer map keys.
+        /// </summary>
+        public Task TriggerFidelityCallback(string callback) =>
+            Clients.Caller.SendAsync(
+                callback,
+                new byte[] { 0, 1, 2, 255 },
+                new DateTime(2024, 1, 2, 3, 4, 5, DateTimeKind.Utc),
+                new Dictionary<int, string> { [1] = "one", [2] = "two" });
+
+        /// <summary>
         /// Asks the caller for a client result outside this invocation (the hub processes one
-        /// invocation per connection at a time) and records the value for <see cref="ClientResult"/>.
+        /// invocation per connection at a time) and records the value for <see cref="ClientResult"/>,
+        /// or the <see cref="HubException"/> text an error Completion produced for
+        /// <see cref="TakeClientResultError"/>.
         /// </summary>
         public void RequestClientResult(string callback, int value)
         {
@@ -102,14 +131,42 @@ namespace RayX.SignalR.TestService
             _ = Task.Run(async () =>
             {
                 using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(20));
-                int result = await hubContext.Clients.Client(connectionId).InvokeAsync<int>(callback, value, timeout.Token);
-                TestControls.RecordClientResult(connectionId, result);
+                try
+                {
+                    int result = await hubContext.Clients.Client(connectionId).InvokeAsync<int>(callback, value, timeout.Token);
+                    TestControls.RecordClientResult(connectionId, result);
+                }
+                catch (HubException exception)
+                {
+                    TestControls.RecordClientResultError(connectionId, exception.Message);
+                }
             });
         }
 
         public int? ClientResult() => TestControls.ClientResult(Context.ConnectionId);
 
+        /// <summary>Returns and clears the caller's last client-result error text.</summary>
+        public string? TakeClientResultError() => TestControls.TakeClientResultError(Context.ConnectionId);
+
         public int DisconnectCount(string connectionId) => TestControls.DisconnectCount(connectionId);
+
+        /// <summary>How <c>OnDisconnectedAsync</c> saw another connection end: empty when graceful, null while it is connected.</summary>
+        public string? DisconnectError(string connectionId) => TestControls.DisconnectError(connectionId);
+
+        /// <summary>The last negotiate request of a hub path (headers and token placement).</summary>
+        public string[] NegotiateRequest(string hubPath) => TestControls.NegotiateRequest(hubPath);
+
+        /// <summary>This connection's transport request (headers and token placement).</summary>
+        public string[] TransportRequest() =>
+            TestControls.DescribeRequest(
+                (Context.GetHttpContext() ?? throw new InvalidOperationException("no HTTP context")).Request);
+
+        /// <summary>How many SignalR Close messages clients sent since the last reset.</summary>
+        public int ClientCloseMessages() => TestControls.ClientCloseMessages();
+
+        /// <summary>Holds the next negotiate request of a hub path, so a connection attempt stays in flight.</summary>
+        public void DelayNextNegotiation(string hubPath, int milliseconds) =>
+            TestControls.DelayNextNegotiation(hubPath, TimeSpan.FromMilliseconds(milliseconds));
 
         public string EchoText(string payload) => payload;
 
@@ -160,18 +217,135 @@ namespace RayX.SignalR.TestService
 
         public async Task AbortPhysicalTransport()
         {
+            // Let the stateful protocol acknowledge the test command before severing only the
+            // underlying HTTP transport (the current poll over Long Polling). The logical
+            // SignalR connection remains resumable.
+            await Task.Delay(1200, Context.ConnectionAborted);
+            _transportAborts.AddOrUpdate(Context.ConnectionId, 1, static (_, count) => count + 1);
+            TransportFaults.Sever(Context);
+        }
+
+        /// <summary>
+        /// Severs the transport as <see cref="AbortPhysicalTransport"/> does, and answers the
+        /// client's resume with 404, so the client must end the logical connection and negotiate
+        /// a new one.
+        /// </summary>
+        public async Task AbortPhysicalTransportAndRejectResume()
+        {
             var httpContext = Context.GetHttpContext()
                 ?? throw new InvalidOperationException("SignalR transport has no HTTP context");
-
-            // Let the stateful protocol acknowledge the test command before severing only the
-            // underlying HTTP transport. The logical SignalR connection remains resumable.
+            string token = httpContext.Request.Query["id"].ToString();
             await Task.Delay(1200, Context.ConnectionAborted);
+            TestControls.RejectNextResume(token);
             _transportAborts.AddOrUpdate(Context.ConnectionId, 1, static (_, count) => count + 1);
             httpContext.Abort();
         }
 
+        public int ResumeRejections() => TestControls.ResumeRejections();
+
+        /// <summary>Issues a rotating token, as <c>/e2e/token</c> does (for clients without an HTTP client).</summary>
+        public string IssueToken() => RotatingTokens.Issue();
+
+        /// <summary>Rotates the tokens, as <c>/e2e/rotate-token</c> does; returns the new generation.</summary>
+        public int RotateTokens() => RotatingTokens.Rotate();
+
         public int TransportAbortCount() =>
             _transportAborts.TryGetValue(Context.ConnectionId, out var count) ? count : 0;
+
+        /// <summary>Sums a client-to-server stream (an <c>IAsyncEnumerable</c> parameter).</summary>
+        public async Task<int> SumStream(IAsyncEnumerable<int> numbers)
+        {
+            int sum = 0;
+            await foreach (int number in numbers)
+            {
+                sum += number;
+            }
+
+            return sum;
+        }
+
+        /// <summary>Sums a client-to-server stream (a <c>ChannelReader</c> parameter).</summary>
+        public async Task<int> SumChannel(System.Threading.Channels.ChannelReader<int> numbers)
+        {
+            int sum = 0;
+            await foreach (int number in numbers.ReadAllAsync())
+            {
+                sum += number;
+            }
+
+            return sum;
+        }
+
+        /// <summary>Adds an ordinary argument to the sum of a client-to-server stream.</summary>
+        public async Task<int> SumWithOffset(int offset, IAsyncEnumerable<int> numbers) =>
+            offset + await SumStream(numbers);
+
+        /// <summary>Streams back every item of a client-to-server stream, doubled.</summary>
+        public async IAsyncEnumerable<int> DoubleStream(IAsyncEnumerable<int> numbers)
+        {
+            await foreach (int number in numbers)
+            {
+                yield return number * 2;
+            }
+        }
+
+        /// <summary>
+        /// Reads a client-to-server stream to its end and records how it ended for
+        /// <see cref="StreamOutcome"/>: <c>completed:&lt;sum&gt;</c>, or <c>error:&lt;message&gt;</c>
+        /// when the client ended it with an error Completion.
+        /// </summary>
+        public async Task<int> ObserveStream(IAsyncEnumerable<int> numbers)
+        {
+            string connectionId = Context.ConnectionId;
+            int sum = 0;
+            try
+            {
+                await foreach (int number in numbers)
+                {
+                    sum += number;
+                }
+            }
+            catch (Exception exception)
+            {
+                _streamOutcomes[connectionId] = $"error:{exception.Message}";
+                throw;
+            }
+
+            _streamOutcomes[connectionId] = $"completed:{sum}";
+            return sum;
+        }
+
+        /// <summary>
+        /// A streaming method that streams nothing and records, for <see cref="StreamOutcome"/>,
+        /// how its client-to-server stream ended, read apart from the call so that canceling the
+        /// call does not decide the outcome.
+        /// </summary>
+        public System.Threading.Channels.ChannelReader<int> ObserveUpload(System.Threading.Channels.ChannelReader<int> numbers)
+        {
+            string connectionId = Context.ConnectionId;
+            _ = Task.Run(async () =>
+            {
+                int sum = 0;
+                try
+                {
+                    await foreach (int number in numbers.ReadAllAsync())
+                    {
+                        sum += number;
+                    }
+
+                    _streamOutcomes[connectionId] = $"completed:{sum}";
+                }
+                catch (Exception exception)
+                {
+                    _streamOutcomes[connectionId] = $"error:{exception.Message}";
+                }
+            });
+            return System.Threading.Channels.Channel.CreateUnbounded<int>().Reader;
+        }
+
+        /// <summary>How the last stream <see cref="ObserveStream"/> read on this connection ended.</summary>
+        public string StreamOutcome() =>
+            _streamOutcomes.TryGetValue(Context.ConnectionId, out string? outcome) ? outcome : "none";
 
         public async Task<string> DelayedConnectionIdentity(int delayMilliseconds)
         {
@@ -293,6 +467,7 @@ namespace RayX.SignalR.TestService
 
             _cancellationProbes.TryRemove(Context.ConnectionId, out _);
             _transportAborts.TryRemove(Context.ConnectionId, out _);
+            TestControls.RecordDisconnectError(Context.ConnectionId, exception);
 
             return base.OnDisconnectedAsync(exception);
         }
@@ -368,6 +543,9 @@ namespace RayX.SignalR.TestService
         public string ConnectionId { get; set; } = string.Empty;
         public string TransportId { get; set; } = string.Empty;
         public string TransferFormat { get; set; } = string.Empty;
+
+        /// <summary>Gets or sets the transport the connection uses (<c>WebSockets</c>, <c>ServerSentEvents</c>, <c>LongPolling</c>).</summary>
+        public string Transport { get; set; } = string.Empty;
     }
 
     /// <summary>A DTO whose wire names are snake_case on both protocols, matching Serde renames.</summary>

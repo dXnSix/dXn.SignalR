@@ -8,6 +8,7 @@ use crate::support::{self, Protocol};
 async fn scenario(protocol: Protocol) {
     let mut client = support::connect("test-direct", protocol, |configuration| {
         configuration.skip_negotiation();
+        configuration.with_transports(rayx_signalr::Transports::WEB_SOCKETS);
         configuration.with_reconnection_policy(support::fast_reconnect());
     })
     .await;

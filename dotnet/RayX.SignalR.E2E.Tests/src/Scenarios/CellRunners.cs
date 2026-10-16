@@ -31,10 +31,22 @@ public static partial class CellExecution
   /// <c>--all-features</c> would select <c>aws-lc-rs</c> and leave the default provider without
   /// a real handshake.
   /// </summary>
-  public static readonly string[] E2EFeatures = ["--features", "messagepack"];
+  public static readonly string[] E2EFeatures = ["--features", "messagepack,proxy-pac,http3"];
 
-  /// <summary>The hard bound for one cell's process.</summary>
+  /// <summary>The hard bound for one cell's process (soak scenarios: see <see cref="Scenario.Bound"/>).</summary>
   public static readonly TimeSpan CellTimeout = TimeSpan.FromSeconds(60);
+
+  /// <summary>The transport a cell's scenario must use (<c>websockets</c>, <c>long-polling</c>, <c>server-sent-events</c>).</summary>
+  public const string TransportVariable = "RAYX_SIGNALR_TRANSPORT";
+
+  /// <summary>The variable that sets how long soak scenarios run, in seconds.</summary>
+  public const string SoakSecondsVariable = "RAYX_SIGNALR_SOAK_SECONDS";
+
+  /// <summary>How long soak scenarios run: <c>RAYX_SIGNALR_SOAK_SECONDS</c>, 120 seconds by default.</summary>
+  public static TimeSpan SoakDuration =>
+    int.TryParse(Environment.GetEnvironmentVariable(SoakSecondsVariable), out int seconds) && seconds > 0
+      ? TimeSpan.FromSeconds(seconds)
+      : TimeSpan.FromSeconds(120);
 
   /// <summary>
   /// The libtest arguments of a Rust cell: one exact test, uncaptured output, so a cell killed at
@@ -50,15 +62,24 @@ public static partial class CellExecution
   /// <returns>The variables.</returns>
   public static Dictionary<string, string> ScenarioVariables(AspireEnvironment environment, E2ECell cell)
   {
-    Dictionary<string, string> variables = new(StringComparer.Ordinal)
+    Dictionary<string, string> variables = CellVariables(cell);
+    variables["RAYX_SIGNALR_E2E_SERVICE_URL"] = Origin(environment.ServiceUrl);
+    variables["RAYX_SIGNALR_E2E_TLS_URL"] = Origin(environment.TlsServiceUrl);
+    variables["RAYX_SIGNALR_E2E_H2C_URL"] = Origin(environment.H2cServiceUrl);
+    variables["RAYX_SIGNALR_E2E_HTTP1_TLS_URL"] = Origin(environment.Http1TlsServiceUrl);
+    if(environment.Http3ServiceUrl is { } http3)
     {
-      ["RAYX_SIGNALR_E2E_SERVICE_URL"] = Origin(environment.ServiceUrl),
-      ["RAYX_SIGNALR_E2E_TLS_URL"] = Origin(environment.TlsServiceUrl),
-      ["RAYX_SIGNALR_E2E_TLS_CA_PEM_BASE64"] = Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(environment.TlsCaPem)),
-      ["RAYX_SIGNALR_E2E_PROTOCOL"] = cell.Protocol,
-      // Rust cells log the client's lifecycle (diagnostics keep a bounded, redacted tail).
-      ["RUST_LOG"] = "rayx_signalr=info"
-    };
+      variables["RAYX_SIGNALR_E2E_HTTP3_URL"] = Origin(http3);
+    }
+    variables["RAYX_SIGNALR_E2E_TLS_CA_PEM_BASE64"] =
+      Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(environment.TlsCaPem));
+    variables["RAYX_SIGNALR_E2E_UNTRUSTED_TLS_URL"] = Origin(environment.UntrustedTlsUrl);
+    variables["RAYX_SIGNALR_E2E_CLIENT_CERT_PEM_BASE64"] =
+      Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(environment.ClientCertificatePem));
+    variables["RAYX_SIGNALR_E2E_CLIENT_KEY_PEM_BASE64"] =
+      Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes(environment.ClientKeyPem));
+    variables["RAYX_SIGNALR_E2E_PROXY_URL"] = Origin(environment.ProxyUrl);
+    variables["RAYX_SIGNALR_E2E_PROXY_CREDENTIALS"] = $"{AspireEnvironment.ProxyUser}:{environment.ProxyPassword}";
     if(environment.FixtureEnabled)
     {
       variables["RAYX_SIGNALR_E2E_FIXTURE_URL"] = Origin(environment.FixtureUrl);
@@ -71,6 +92,21 @@ public static partial class CellExecution
 
     return variables;
   }
+
+  /// <summary>
+  /// The variables of a cell that do not depend on the running AppHost: the protocol, the soak
+  /// duration and the scenario's <c>RUST_LOG</c> filter.
+  /// </summary>
+  /// <param name="cell">The cell.</param>
+  /// <returns>The variables.</returns>
+  public static Dictionary<string, string> CellVariables(E2ECell cell) => new(StringComparer.Ordinal)
+  {
+    ["RAYX_SIGNALR_E2E_PROTOCOL"] = cell.Protocol,
+    [TransportVariable] = cell.Transport,
+    [SoakSecondsVariable] = $"{SoakDuration.TotalSeconds:0}",
+    // Rust cells log the client's lifecycle (diagnostics keep a bounded, redacted tail).
+    ["RUST_LOG"] = cell.Scenario.LogFilter
+  };
 
   /// <summary>Judges a libtest run that must have executed exactly one passing test.</summary>
   /// <param name="command">The command.</param>
@@ -119,7 +155,7 @@ public static partial class CellExecution
   {
     if(result.TimedOut)
     {
-      return new CellOutcome(command, result, false, $"exceeded the {CellTimeout.TotalSeconds:0}-second cell bound");
+      return new CellOutcome(command, result, false, "exceeded its cell bound");
     }
 
     if(result.ExitCode != 0)
@@ -164,15 +200,11 @@ public static class NativeE2EBinary
         return _executable;
       }
 
-      ProcessCommand build = new(
-        "cargo",
-        ["test", "--test", "e2e", .. CellExecution.E2EFeatures, "--no-run", "--message-format=json"],
-        repositoryRoot);
+      ProcessCommand build = BuildCommand(repositoryRoot, TlsProvider.Current);
       ProcessResult result = await ProcessRunner.RunAsync(build, TimeSpan.FromMinutes(20), cancellationToken);
       if(!result.Succeeded)
       {
-        throw new InvalidOperationException(
-          $"{build.Display} failed with exit code {result.ExitCode}:\n{Redaction.SafeTail(CompilerErrors(result.StandardOutput) + result.StandardError)}");
+        throw BuildFailure(build, result);
       }
 
       _executable = ParseExecutable(result.StandardOutput);
@@ -182,6 +214,39 @@ public static class NativeE2EBinary
     {
       _gate.Release();
     }
+  }
+
+  /// <summary>
+  /// The cargo command that builds the host <c>e2e</c> binary with <paramref name="provider"/>'s
+  /// features, into that provider's target directory.
+  /// </summary>
+  /// <param name="repositoryRoot">The repository root.</param>
+  /// <param name="provider">The TLS provider (<see cref="TlsProvider"/>).</param>
+  /// <returns>The command.</returns>
+  public static ProcessCommand BuildCommand(string repositoryRoot, string provider) =>
+    new(
+      "cargo",
+      ["test", "--test", "e2e", .. TlsProvider.HostFeatures(provider), "--no-run", "--message-format=json"],
+      repositoryRoot)
+    {
+      Environment = TlsProvider.TargetEnvironment(repositoryRoot, "target", provider)
+    };
+
+  /// <summary>
+  /// The error of a failed <c>e2e</c> build: an environment error naming the prerequisites when a
+  /// toolchain is missing (<see cref="TlsProvider.MissingToolchain"/>), else the compiler errors.
+  /// </summary>
+  /// <param name="build">The build command.</param>
+  /// <param name="result">Its result.</param>
+  /// <returns>The exception to throw.</returns>
+  public static InvalidOperationException BuildFailure(ProcessCommand build, ProcessResult result)
+  {
+    string output = Redaction.SafeTail(CompilerErrors(result.StandardOutput) + result.StandardError);
+    string failure = $"{build.Display} failed with exit code {result.ExitCode}:\n{output}";
+    return new InvalidOperationException(
+      TlsProvider.MissingToolchain(result.CombinedOutput) is string environment
+        ? $"{environment}\n{failure}"
+        : failure);
   }
 
   /// <summary>
@@ -217,10 +282,11 @@ public static class NativeE2EBinary
     return errors.ToString();
   }
 
-  /// <summary>Finds the <c>e2e</c> test executable in <c>cargo --message-format=json</c> output.</summary>
+  /// <summary>Finds a test target's executable in <c>cargo --message-format=json</c> output.</summary>
   /// <param name="messages">The JSON lines.</param>
+  /// <param name="target">The test target name.</param>
   /// <returns>The executable path.</returns>
-  public static string ParseExecutable(string messages)
+  public static string ParseExecutable(string messages, string target = "e2e")
   {
     foreach(string line in messages.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
     {
@@ -233,7 +299,7 @@ public static class NativeE2EBinary
       JsonElement root = message.RootElement;
       if(root.TryGetProperty("reason", out JsonElement reason)
          && reason.GetString() == "compiler-artifact"
-         && root.GetProperty("target").GetProperty("name").GetString() == "e2e"
+         && root.GetProperty("target").GetProperty("name").GetString() == target
          && root.TryGetProperty("executable", out JsonElement executable)
          && executable.ValueKind == JsonValueKind.String)
       {
@@ -241,7 +307,7 @@ public static class NativeE2EBinary
       }
     }
 
-    throw new InvalidOperationException("cargo did not report an executable for the e2e test target.");
+    throw new InvalidOperationException($"cargo did not report an executable for the {target} test target.");
   }
 }
 
@@ -260,9 +326,27 @@ public sealed class NativeCellRunner : ICellRunner
       CellExecution.LibtestArguments(cell.Scenario.RustTest(cell.Protocol)),
       environment.RepositoryRoot)
     {
-      Environment = CellExecution.ScenarioVariables(environment, cell)
+      Environment = CellExecution.ScenarioVariables(environment, cell),
+      IsolateFromProxy = true
     };
-    ProcessResult result = await ProcessRunner.RunAsync(command, CellExecution.CellTimeout, cancellationToken);
+    // The host's proxy points at the test proxy for a system-proxy cell, which is selected only
+    // where the host may change its settings (`SystemProxy.HostAllowed`), and is restored after it.
+    await using IAsyncDisposable? systemProxy = cell.Scenario.SystemProxy
+      ? await SystemProxy.ApplyToHostAsync(
+        await SystemProxy.OpenPortAsync(environment.ProxyUrl, cancellationToken),
+        environment.RepositoryRoot)
+      : null;
+    SuspensionController? suspension = cell.Scenario.Suspends ? Suspension.Host() : null;
+    ProcessResult result = await ProcessRunner.RunAsync(
+      command,
+      cell.Scenario.Bound,
+      suspension is null ? null : suspension.OnOutputLine,
+      cancellationToken);
+    if(suspension is not null)
+    {
+      result = await suspension.CompleteAsync(result);
+    }
+
     return CellExecution.JudgeLibtest(command, result);
   }
 }
@@ -295,9 +379,11 @@ public sealed class BrowserCellRunner : ICellRunner
 
     if(title is not null)
     {
-      // Playwright matches against "<project> <file> <title>"; anchor on the whole title.
+      // Playwright matches against "<project> <file> <title>" (no spec uses describe blocks);
+      // anchor on the spec file and the whole title, so "server stream" never also selects
+      // "client to server stream".
       arguments.Add("--grep");
-      arguments.Add($"/ {EscapeJavaScriptRegex(title)}$/");
+      arguments.Add($@"/\.spec\.ts {EscapeJavaScriptRegex(title)}$/");
     }
 
     return new ProcessCommand("node", arguments, Path.Combine(repositoryRoot, "tools-node"))
@@ -318,7 +404,7 @@ public sealed class BrowserCellRunner : ICellRunner
     ProcessCommand template = Command(
       environment.RepositoryRoot,
       cell.Target.Name,
-      cell.Scenario.PlaywrightTitle(cell.Protocol));
+      cell.Scenario.PlaywrightTitle(cell.Protocol, cell.Transport));
     Dictionary<string, string> variables = CellExecution.ScenarioVariables(environment, cell);
     foreach((string key, string value) in template.Environment)
     {
@@ -326,7 +412,7 @@ public sealed class BrowserCellRunner : ICellRunner
     }
 
     ProcessCommand command = template with { Environment = variables };
-    ProcessResult result = await ProcessRunner.RunAsync(command, CellExecution.CellTimeout, cancellationToken);
+    ProcessResult result = await ProcessRunner.RunAsync(command, cell.Scenario.Bound, cancellationToken);
     return CellExecution.JudgePlaywright(command, result);
   }
 }

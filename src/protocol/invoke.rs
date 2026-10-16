@@ -1,71 +1,91 @@
-use super::{messages::MessageParser, negotiate::MessageType};
+use super::{hub_protocol::HubProtocolKind, negotiate::MessageType};
+use crate::error::Error;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fmt::Debug};
+use serde_json::value::RawValue;
+use std::{collections::BTreeMap, fmt::Debug};
 
 /// Indicates a request to invoke a particular method (the Target) with provided Arguments on the remote endpoint.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+///
+/// Each argument is encoded once, when it is added, in the connection's hub protocol; the
+/// message is then written around the encoded arguments.
+#[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Invocation {
     r#type: MessageType,
     #[serde(skip_serializing_if = "Option::is_none")]
-    headers: Option<HashMap<String, String>>,
+    headers: Option<BTreeMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     invocation_id: Option<String>,
     target: String,
+    /// The JSON-encoded arguments.
+    arguments: Vec<Box<RawValue>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub arguments: Option<Vec<serde_json::Value>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub stream_ids: Option<Vec<String>>,
-    /// Raw MessagePack bytes for each argument (array format for .NET StandardResolver compatibility).
+    stream_ids: Option<Vec<String>>,
+    /// The protocol the arguments are encoded in.
+    #[serde(skip)]
+    protocol: HubProtocolKind,
+    /// The MessagePack-encoded arguments (named maps, so serde renames reach the server).
     #[serde(skip)]
     #[cfg(feature = "messagepack")]
-    pub(crate) msgpack_args: Option<Vec<Vec<u8>>>,
+    msgpack_arguments: Vec<Vec<u8>>,
 }
 
 impl Invocation {
-    pub fn create_single(target: impl Into<String>) -> Self {
+    fn create(message_type: MessageType, target: String, protocol: HubProtocolKind) -> Self {
         Invocation {
-            r#type: MessageType::Invocation,
+            r#type: message_type,
             headers: None,
             invocation_id: None,
-            target: target.into(),
-            arguments: Some(Vec::new()),
+            target,
+            arguments: Vec::new(),
             stream_ids: None,
+            protocol,
             #[cfg(feature = "messagepack")]
-            msgpack_args: Some(Vec::new()),
+            msgpack_arguments: Vec::new(),
         }
     }
 
-    pub fn create_multiple(target: impl Into<String>) -> Self {
-        Invocation {
-            r#type: MessageType::StreamInvocation,
-            headers: None,
-            invocation_id: None,
-            target: target.into(),
-            arguments: Some(Vec::new()),
-            stream_ids: None,
-            #[cfg(feature = "messagepack")]
-            msgpack_args: Some(Vec::new()),
-        }
+    pub fn create_single(target: impl Into<String>, protocol: HubProtocolKind) -> Self {
+        Self::create(MessageType::Invocation, target.into(), protocol)
     }
 
-    pub fn with_argument<T: Serialize>(&mut self, data: T) -> Result<(), String> {
-        // Serialize to msgpack bytes (named map format) for MessagePack protocol.
-        #[cfg(feature = "messagepack")]
-        {
-            let msgpack_bytes = rmp_serde::to_vec_named(&data)
-                .map_err(|e| format!("MessagePack serialization error: {}", e))?;
-            if let Some(ref mut vec) = self.msgpack_args {
-                vec.push(msgpack_bytes);
-            } else {
-                self.msgpack_args = Some(vec![msgpack_bytes]);
+    pub fn create_multiple(target: impl Into<String>, protocol: HubProtocolKind) -> Self {
+        Self::create(MessageType::StreamInvocation, target.into(), protocol)
+    }
+
+    /// Encodes `data` in the invocation's protocol and appends it.
+    pub fn with_argument<T: Serialize>(&mut self, data: T) -> Result<(), Error> {
+        match self.protocol {
+            HubProtocolKind::Json => {
+                let json = serde_json::value::to_raw_value(&data).map_err(|error| {
+                    Error::serialization(format!("cannot encode an argument as JSON: {error}"))
+                })?;
+                self.arguments.push(json);
+            }
+            #[cfg(feature = "messagepack")]
+            HubProtocolKind::MessagePack => {
+                let bytes = rmp_serde::to_vec_named(&data).map_err(|error| {
+                    Error::serialization(format!(
+                        "cannot encode an argument as MessagePack: {error}"
+                    ))
+                })?;
+                self.msgpack_arguments.push(bytes);
             }
         }
-
-        let json = MessageParser::to_json_value(&data)
-            .map_err(|error| format!("Serialization error: {error}"))?;
-        self.arguments.get_or_insert_with(Vec::new).push(json);
         Ok(())
+    }
+
+    /// Sets the message headers (none when `headers` is empty), as the .NET client adds them to
+    /// Invocation and StreamInvocation messages.
+    pub fn with_headers(&mut self, headers: BTreeMap<String, String>) -> &mut Self {
+        self.headers = (!headers.is_empty()).then_some(headers);
+        self
+    }
+
+    /// The message headers, if any.
+    #[cfg_attr(not(feature = "messagepack"), allow(dead_code))]
+    pub fn headers(&self) -> &Option<BTreeMap<String, String>> {
+        &self.headers
     }
 
     pub fn with_invocation_id(&mut self, invocation_id: impl ToString) -> &mut Self {
@@ -81,17 +101,32 @@ impl Invocation {
         self
     }
 
-    pub(crate) fn get_invocation_id(&self) -> Option<String> {
-        self.invocation_id.clone()
+    pub(crate) fn protocol(&self) -> HubProtocolKind {
+        self.protocol
     }
 
-    pub(crate) fn get_target(&self) -> String {
-        self.target.clone()
+    pub(crate) fn message_type(&self) -> MessageType {
+        self.r#type
     }
 
     #[cfg(feature = "messagepack")]
-    pub(crate) fn get_message_type(&self) -> u8 {
-        self.r#type as u8
+    pub(crate) fn invocation_id(&self) -> Option<&str> {
+        self.invocation_id.as_deref()
+    }
+
+    #[cfg(feature = "messagepack")]
+    pub(crate) fn target(&self) -> &str {
+        &self.target
+    }
+
+    #[cfg(feature = "messagepack")]
+    pub(crate) fn msgpack_arguments(&self) -> &[Vec<u8>] {
+        &self.msgpack_arguments
+    }
+
+    #[cfg(feature = "messagepack")]
+    pub(crate) fn stream_ids(&self) -> &[String] {
+        self.stream_ids.as_deref().unwrap_or_default()
     }
 }
 
@@ -104,7 +139,7 @@ impl Invocation {
 pub struct Completion<R> {
     r#type: MessageType,
     #[serde(skip_serializing_if = "Option::is_none")]
-    headers: Option<HashMap<String, String>>,
+    headers: Option<BTreeMap<String, String>>,
     invocation_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     result: Option<R>,
@@ -122,27 +157,48 @@ impl<R> Completion<R> {
             headers: None,
         }
     }
+}
 
-    #[allow(dead_code)]
-    pub fn is_error(&self) -> bool {
-        self.error.is_some()
+impl Completion<()> {
+    /// A Completion with neither result nor error: the end of a client-to-server stream.
+    pub fn create_void(invocation_id: String) -> Self {
+        Completion {
+            r#type: MessageType::Completion,
+            invocation_id,
+            result: None,
+            error: None,
+            headers: None,
+        }
     }
 
-    pub fn is_result(&self) -> bool {
-        self.result.is_some()
+    /// An error Completion: the server's `InvokeAsync` throws a `HubException` with `message`.
+    pub fn create_error(invocation_id: String, message: String) -> Self {
+        Completion {
+            r#type: MessageType::Completion,
+            invocation_id,
+            result: None,
+            error: Some(message),
+            headers: None,
+        }
     }
+}
 
-    /// A completion without result or error, sent by void hub methods.
-    pub fn is_void(&self) -> bool {
-        self.result.is_none() && self.error.is_none()
-    }
+/// One item of a client-to-server stream (`invocationId` is the stream id).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct StreamItem<'a, T> {
+    r#type: MessageType,
+    invocation_id: &'a str,
+    item: &'a T,
+}
 
-    pub fn unwrap_error(self) -> String {
-        self.error.unwrap()
-    }
-
-    pub fn unwrap_result(self) -> R {
-        self.result.unwrap()
+impl<'a, T> StreamItem<'a, T> {
+    pub(crate) fn new(stream_id: &'a str, item: &'a T) -> Self {
+        Self {
+            r#type: MessageType::StreamItem,
+            invocation_id: stream_id,
+            item,
+        }
     }
 }
 
@@ -152,7 +208,7 @@ impl<R> Completion<R> {
 pub(crate) struct CancelInvocation {
     r#type: MessageType,
     #[serde(skip_serializing_if = "Option::is_none")]
-    headers: Option<HashMap<String, String>>,
+    headers: Option<BTreeMap<String, String>>,
     invocation_id: String,
 }
 
@@ -164,18 +220,6 @@ impl CancelInvocation {
             invocation_id,
         }
     }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-/// Sent by the client to cancel a streaming invocation on the server.
-pub struct PossibleInvocation {
-    r#type: MessageType,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    headers: Option<HashMap<String, String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub invocation_id: Option<String>,
-    pub target: Option<String>,
 }
 
 #[cfg(test)]

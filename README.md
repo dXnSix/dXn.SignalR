@@ -18,23 +18,48 @@ use it from any UI, a game loop, a service, or a test.
 
 - **Every SignalR call style.** `invoke` waits for a typed result, `send` fires and forgets,
   `enumerate` returns a `Stream` of server items (dropping it cancels the server side), and
-  `register` handles server calls, including client results for `InvokeAsync`.
+  `register` (several callbacks per target, `register_async`, typed `register_typed`) handles
+  server calls on a dispatch task, including client results for `InvokeAsync`.
 - **JSON and MessagePack.** Your Serde types travel unchanged on both protocols; the MessagePack
-  encoder keeps your field names.
+  encoder keeps your field names. As in the .NET client, JSON payloads are read
+  case-insensitively, a hub message may span WebSocket messages (`with_maximum_message_size` caps
+  it), and a protocol violation ends the transport so the reconnection policy runs.
 - **Reconnection that matches the official clients.** Automatic retry policies (including the
   official 0/2/10/30 s schedule), manual reconnection through a handler, and ASP.NET Core
   **stateful reconnect**, which replays unacknowledged messages so in-flight calls survive short
   drops.
-- **Lifecycle control.** `status()`, `pause()` and `resume()` for mobile backgrounding, keep-alive
-  pings, server timeouts and a bounded handshake.
+- **The .NET client's lifecycle.** Build with `new`, register callbacks and the `on_closed`,
+  `on_reconnecting` and `on_reconnected` hooks, then `start`; `stop` closes gracefully and `start`
+  restarts. `connection_id()`, `status()`, and `pause()`/`resume()` for mobile backgrounding,
+  keep-alive pings, server timeouts, a bounded handshake, and suspension detection that recovers
+  at once when a suspended app or frozen page runs again.
 - **Native TLS with rustls.** No OpenSSL. The platform trust store or bundled roots, `ring` or
-  `aws-lc-rs`, and per-connection private CAs.
+  `aws-lc-rs`, per-connection private CAs, and client certificates (`with_client_certificate`).
+- **All three transports, chosen as .NET chooses them.** WebSockets, Server-Sent Events and Long
+  Polling on every target, tried in the server's order with fallback (`with_transports`).
+- **Proxies as the .NET client uses them.** Native clients use the system proxy by default: the
+  environment variables, WinHTTP, CFNetwork or Android's `ProxySelector`, including auto-config
+  scripts. Explicit HTTP, HTTPS and SOCKS4/5 proxies (`with_proxy`), PAC files
+  (`with_proxy_auto_config`) and `without_proxy()` override it.
+- **Fast.** Measured against the official .NET client in the same run: server streams run at 1.5–2.6×
+  its throughput and fan-in at about 1.4×, while invoke latency and send throughput are on par
+  ([measured performance](docs/13-architecture.md#measured-performance)).
 - **Runtime-independent native futures.** Each connection runs on its own Tokio runtime, and its
   futures can be awaited from any executor.
 - **A browser transport for threads.** Event-driven, so it runs on the main thread, in Web Workers
   and in multithreaded (atomics) builds.
-- **Negotiation as the official clients do it.** Redirects with access tokens (Azure SignalR
-  Service), and `skip_negotiation()` for direct WebSocket connections.
+- **Negotiation and headers as the official clients do it.** Redirects with access tokens (Azure
+  SignalR Service), `skip_negotiation()` with `with_transports(Transports::WEB_SOCKETS)` for direct
+  WebSocket connections, transport selection (`with_transports`), the official
+  `User-Agent`, application request headers (`with_header`), a cookie jar for load-balancer
+  affinity (`with_cookie_jar`, native), invocation headers such as W3C
+  `traceparent` (`with_invocation_headers`), refreshable access tokens
+  (`with_access_token_factory`, asked before every negotiate and WebSocket), integrated Windows
+  authentication (`with_default_credentials`, `with_credentials`, native), HTTP/2 as the .NET
+  client negotiates it (`with_http_version`, native; experimental HTTP/3 with the `http3`
+  feature), a configurable connect bound (`with_connect_timeout`, 120 s as .NET), and transport
+  hooks for every request
+  (`with_request_hook`) and the rustls configuration (`with_tls_config_hook`, native).
 
 ## Platform support
 
@@ -46,7 +71,7 @@ use it from any UI, a game loop, a service, or a test.
 | Browser `wasm32-unknown-unknown`: main thread, Web Workers, multithreaded | Supported, end-to-end tested in Chromium, Firefox and WebKit |
 | WASI and other `wasm32` targets | Not supported (compile error) |
 
-The transport is WebSockets; Server-Sent Events and Long Polling are not implemented. See
+The transports are WebSockets, Server-Sent Events and Long Polling, as in the official clients. See
 [Platforms](docs/09-platforms.md) and [Limitations](docs/12-limitations.md).
 
 - **Rust:** edition 2021, MSRV **1.92**.
@@ -68,11 +93,14 @@ rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR", features = ["m
 | `tls-webpki-roots` | off | Bundled Mozilla roots, selected per connection with `use_webpki_roots()`. |
 | `tls-ring` | on | `ring` crypto provider. |
 | `tls-aws-lc-rs` | off | `aws-lc-rs` crypto provider (wins over `ring`). |
+| `proxy-pac` | off | Proxy auto-config scripts (`with_proxy_auto_config`), run in the pure-Rust Boa engine. |
+| `http3` | off | Experimental HTTP/3 over QUIC (`HttpVersion::Http3`, `Http3Preferred`), native with TLS. |
 
 ## A quick tour
 
-The snippets assume an `async fn` that returns `Result<(), String>`, inside a Tokio runtime natively
-or `wasm_bindgen_futures::spawn_local` in the browser.
+The snippets assume an `async fn` that returns `Result<(), Box<dyn std::error::Error>>`, inside a
+Tokio runtime natively or `wasm_bindgen_futures::spawn_local` in the browser. Snippets that use
+`client` without creating it use the one the first snippet creates.
 
 ### Connect and invoke
 
@@ -135,6 +163,27 @@ if let Some(error) = ticks.error() {
 }
 ```
 
+### Handle errors
+
+Every fallible call returns `rayx_signalr::Error`; branch on its `ErrorKind` and structured fields,
+never on message text:
+
+```rust
+use rayx_signalr::ErrorKind;
+
+match client.invoke::<i32>("Total".to_string()).await {
+    Ok(total) => println!("{total}"),
+    Err(error) if error.kind() == ErrorKind::Hub => {
+        eprintln!("the hub failed: {}", error.server_message().unwrap_or(""));
+    }
+    Err(error) if error.is_transient() => eprintln!("try again later: {error}"),
+    Err(error) => return Err(error.into()),
+}
+```
+
+Version 0.2 replaced the `String` errors of 0.1; see
+[migrating from `String` errors](docs/11-errors-and-logging.md#migrating-from-string-errors).
+
 ### Reconnect and replay
 
 ```rust
@@ -155,6 +204,29 @@ let client = SignalRClient::connect_with("chat.example.com", "chat", move |c| {
 // A mobile app going to the background and back:
 client.pause().await?;
 client.resume().await?;
+```
+
+### Start, observe and stop
+
+Build the client first when the hub sends right after connecting, so callbacks and lifecycle hooks
+are registered before `start`, as with the official .NET client:
+
+```rust
+use rayx_signalr::SignalRClient;
+
+let mut client = SignalRClient::new("localhost", "chat", |c| {
+    c.with_port(5000);
+})?;
+let _welcome = client.register_typed("Welcome", |_ctx, (text,): (String,)| println!("{text}"));
+let _reconnected = client.on_reconnected(|id| println!("reconnected as {id:?}"));
+let _closed = client.on_closed(|error| println!("closed: {error:?}"));
+
+client.start().await?;
+println!("connection id: {:?}", client.connection_id());
+
+// A graceful stop; `start` connects again with a fresh negotiation.
+client.stop().await;
+client.start().await?;
 ```
 
 ## Documentation

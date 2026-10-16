@@ -1,6 +1,6 @@
 [package]
 name = "rayx-signalr"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.92"
 authors = ["dXnSix", "Daniel Leiszen <daniel.leiszen@gmail.com> (original signalr-client author)"]
@@ -22,23 +22,35 @@ messagepack = ["rmp", "rmp-serde", "rmpv"]
 # Native TLS (rustls). A secure endpoint needs one verifier feature and one provider feature;
 # without them the crate builds a plaintext-only client. Browsers always use the platform's TLS.
 # Verifier: the operating system's trust store (default).
-tls-platform-verifier = ["dep:rustls-platform-verifier", "_rustls"]
+tls-platform-verifier = ["dep:rustls-platform-verifier", "dep:jni", "_rustls"]
 # Verifier: the bundled Mozilla roots (also selectable per connection with `use_webpki_roots`).
 tls-webpki-roots = ["dep:webpki-roots", "_rustls"]
 # Provider: ring (default).
-tls-ring = ["rustls?/ring", "_rustls"]
+tls-ring = ["rustls?/ring", "quinn?/rustls-ring", "_rustls"]
 # Provider: aws-lc-rs (prebuilt NASM); takes precedence over ring when both are enabled.
-tls-aws-lc-rs = ["rustls?/aws_lc_rs", "_rustls"]
+tls-aws-lc-rs = ["rustls?/aws_lc_rs", "quinn?/rustls-aws-lc-rs", "_rustls"]
 # Internal: rustls plumbing shared by the TLS features.
 _rustls = ["dep:rustls", "dep:tokio-rustls", "dep:rustls-pki-types", "tokio-websockets/rustls-bring-your-own-connector"]
+# Proxy auto-config (`with_proxy_auto_config`): PAC scripts run in the pure-Rust Boa JavaScript
+# engine (no C toolchain), bounded and without network or file access.
+proxy-pac = ["dep:boa_engine"]
+# Experimental HTTP/3 (`HttpVersion::Http3`, `Http3Preferred`): QUIC (quinn) with the connection's
+# own rustls configuration and provider, and h3. Native targets with a TLS verifier and provider
+# (the `rayx_http3` cfg in build.rs).
+http3 = ["dep:quinn", "dep:h3", "dep:h3-quinn", "_rustls"]
+# Unstable, for the crate's own benchmarks only: exposes the hidden `bench_support` module over the
+# internal codec and action storage. Never enable it in applications; it changes no behavior.
+bench-internals = []
 
 [dependencies]
 log = "0.4.29"
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
+serde_json = { version = "1.0.149", features = ["raw_value"] }
 serde_repr = "0.1.20"
 futures = "0.3.32"
+bytes = "1.7"
 base64 = "0.22.1"
+thiserror = "2.0.17"
 rmp = { version = "0.8", optional = true }
 rmp-serde = { version = "1.3", optional = true }
 rmpv = { version = "1.3", optional = true }
@@ -49,13 +61,15 @@ gloo-timers = { version = "0.3", features = ["futures"] }
 js-sys = "0.3"
 wasm-bindgen = "0.2.108"
 wasm-bindgen-futures = "0.4.58"
-web-sys = { version = "0.3", features = ["BinaryType", "CloseEvent", "Event", "MessageEvent", "WebSocket"] }
+web-sys = { version = "0.3", features = ["AbortController", "AbortSignal", "BinaryType", "CloseEvent", "Event", "EventSource", "MessageEvent", "WebSocket"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1.49.0", default-features = false, features = ["rt", "net", "time", "sync"] }
 tokio-websockets = { version = "0.13.3", default-features = false, features = ["sha1_smol", "fastrand", "client"] }
 http = { version = "1.4.0", default-features = false, features = ["std"] }
-hyper = { version = "1.11", default-features = false, features = ["client", "http1"] }
+hyper = { version = "1.11", default-features = false, features = ["client", "http1", "http2"] }
+# The reason of an HTTP/2 stream reset (a refused RFC 8441 extended CONNECT); hyper's own h2.
+h2 = { version = "0.4", default-features = false }
 hyper-util = { version = "0.1.21", default-features = false, features = ["tokio"] }
 http-body-util = "0.1.3"
 rustls = { version = "0.23.45", default-features = false, features = ["std", "tls12", "logging"], optional = true }
@@ -63,13 +77,71 @@ tokio-rustls = { version = "0.26.4", default-features = false, optional = true }
 rustls-pki-types = { version = "1.12", features = ["std"], optional = true }
 rustls-platform-verifier = { version = "0.7.1", optional = true }
 webpki-roots = { version = "1.0.8", optional = true }
+# Integrated authentication (`with_credentials` NTLMv2 outside Windows) and the Sec-WebSocket-Accept
+# check of the upgrade it drives through hyper.
+md4 = "0.10"
+md-5 = "0.10"
+hmac = "0.12"
+# NTLM key exchange and the RFC 5929 channel binding of integrated authentication; the OS random
+# source for its keys and challenges.
+rc4 = "0.1"
+sha2 = "0.10"
+getrandom = "0.3"
+sha1_smol = "1"
+
+# HTTP/3 (feature `http3`): QUIC with the connection's rustls configuration; the provider
+# features select quinn's matching crypto.
+quinn = { version = "0.11.12", default-features = false, features = ["runtime-tokio"], optional = true }
+h3 = { version = "0.0.8", optional = true }
+h3-quinn = { version = "0.0.10", default-features = false, optional = true }
+
+# Proxy auto-config's JavaScript engine; not on iOS, where its `time` dependency (`num_threads`)
+# does not build (the `rayx_pac` cfg in build.rs).
+[target.'cfg(not(any(target_arch = "wasm32", target_os = "ios")))'.dependencies]
+boa_engine = { version = "0.22", default-features = false, optional = true }
+
+# Integrated Windows authentication (Negotiate/NTLM through SSPI).
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Networking_WinHttp", "Win32_Networking_WinSock", "Win32_Security_Authentication_Identity", "Win32_Security_Credentials", "Win32_System_Rpc"] }
+
+# The system proxy settings (CFNetwork) on Apple targets.
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+core-foundation = "0.10"
+core-foundation-sys = "0.8"
+
+[target.'cfg(target_os = "android")'.dependencies]
+# Names the JNI types of `tls::android::init_with_env` (the platform verifier's jni version).
+jni = { version = "0.22", default-features = false, optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread", "time"] }
+tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread", "time", "io-util"] }
+# The unit tests' loopback SignalR server.
+tokio-websockets = { version = "0.13.3", default-features = false, features = ["sha1_smol", "fastrand", "server"] }
 env_logger = "0.11"
+criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
+proptest = { version = "1.5", default-features = false, features = ["std"] }
+# The `http2_` group's in-process HTTP/1.1 and HTTP/2 servers.
+hyper = { version = "1.11", default-features = false, features = ["server", "http1", "http2"] }
+# Test certificates generated at test time (the `client_certificates_` group); no key is committed.
+rcgen = { version = "0.14", default-features = false, features = ["crypto", "pem", "ring"] }
 
 # Black-box end-to-end scenarios; run only through the Aspire runner (`dotnet test`).
 [[test]]
 name = "e2e"
 path = "tests/e2e/main.rs"
 test = false
+
+# Performance workloads against the official .NET client; run only through the Aspire runner's
+# `Performance` category, which builds this binary in release.
+[[test]]
+name = "perf"
+path = "tests/perf/main.rs"
+harness = false
+test = false
+
+# Hot-path micro-benchmarks over the internal codec and action storage:
+# `cargo bench --bench hot_paths --features messagepack,bench-internals`.
+[[bench]]
+name = "hot_paths"
+harness = false
+required-features = ["messagepack", "bench-internals"]

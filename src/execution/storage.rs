@@ -1,59 +1,66 @@
 use super::{
-    callback::CallbackAction, enumerable::EnumerableAction, invocation::InvocationAction,
+    callback::{Callback, CallbackRegistry, OwnedInvocation},
+    enumerable::EnumerableAction,
+    invocation::InvocationAction,
     UpdatableAction,
 };
 use crate::{
+    client::WeakSignalRClient,
     completer::{ManualFuture, ManualStream, StreamDropHandler},
-    {
-        client::SignalRClient,
-        protocol::{
-            hub_protocol::MessagePayload,
-            invoke::{Invocation, PossibleInvocation},
-            messages::MessageParser,
-            negotiate::{self, MessageType},
-        },
-        InvocationContext,
-    },
+    error::Error,
+    protocol::codec::InboundMessage,
 };
-use log::{debug, info};
+use log::debug;
 use serde::de::DeserializeOwned;
 
+/// A connection's actions in two namespaces, as in the official .NET client: pending work
+/// (invocations and streams) keyed by invocation id, and callbacks (owned by the dispatch task of
+/// [`CallbackRegistry`]) keyed by target, so a callback target never collides with an invocation
+/// id. Actions run without the storage's lock or borrow.
 pub trait Storage: Clone {
+    /// Adds pending work under its invocation id.
     fn insert(&mut self, key: String, action: impl UpdatableAction + 'static);
-    fn insert_persistent(&mut self, key: String, action: impl UpdatableAction + 'static);
+    /// The callbacks and their dispatch task.
+    fn callbacks(&self) -> &CallbackRegistry;
+    /// Whether pending work with this invocation id exists.
     #[allow(dead_code)]
-    fn contains(&self, key: String) -> bool;
-    fn update(&mut self, key: String, f: impl FnMut(&mut Box<dyn UpdatableAction>));
-    fn remove(&mut self, key: String);
+    fn contains(&self, key: &str) -> bool;
+    /// Runs `f` on the pending work at `key`, with no storage lock or borrow held.
+    fn update(&mut self, key: &str, f: impl FnOnce(&dyn UpdatableAction));
+    /// Removes the pending work at `key` and runs `f` on it.
+    fn complete(&mut self, key: &str, f: impl FnOnce(&dyn UpdatableAction));
+    /// Removes the pending work at `key` (dropping it ends its awaiter).
+    fn remove(&mut self, key: &str);
     fn dispose(&mut self);
-    fn fail_pending(&mut self, error: &str);
-    /// Removes the action at `key` and ends it with `error`, like `fail_pending` for one action.
-    fn fail_action(&mut self, key: String, error: &str);
+    /// Ends every pending work with `error`; callbacks stay registered.
+    fn fail_pending(&mut self, error: &Error);
+    /// Removes the pending work at `key` and ends it with `error`, like `fail_pending` for one.
+    fn fail_action(&mut self, key: &str, error: &Error);
+    /// The connection's next invocation number, from 1.
     fn increment(&mut self) -> usize;
 
-    fn create_key(&mut self, target: String) -> String {
-        let index = self.increment();
-
-        format!("{}_{}", target, index)
+    /// The next invocation id: the connection's invocation counter, as the .NET client's
+    /// `"1"`, `"2"`, ...
+    fn create_key(&mut self) -> String {
+        self.increment().to_string()
     }
 
+    /// Registers `callback` for `target` after the callbacks already registered for it; returns
+    /// the id that unregisters only this one.
     fn add_callback(
         &mut self,
         target: String,
-        callback: impl Fn(InvocationContext) + crate::platform::MaybeSend + 'static,
-        client: SignalRClient,
-    ) {
-        debug!("Adding a callback for key {}", target);
-        self.insert_persistent(
-            target.clone(),
-            CallbackAction::create(target.clone(), callback, client),
-        );
+        callback: Callback,
+        client: WeakSignalRClient,
+    ) -> u64 {
+        debug!("Adding a callback for target {}", target);
+        self.callbacks().register(target, callback, client)
     }
 
     fn add_invocation<R: 'static + DeserializeOwned + Unpin + crate::platform::MaybeSend>(
         &mut self,
         invocation_id: String,
-    ) -> ManualFuture<Result<R, String>> {
+    ) -> ManualFuture<Result<R, Error>> {
         let (invocation, f) = InvocationAction::<R>::new(invocation_id.clone());
 
         debug!("Inserting invocation for key {}", invocation_id);
@@ -74,100 +81,27 @@ pub trait Storage: Clone {
         f
     }
 
-    fn process_message(
-        &mut self,
-        message: MessagePayload,
-        message_type: MessageType,
-    ) -> Result<(), String> {
-        debug!("MESSAGE: {:?} -> {:?}", message_type, message);
-
-        match message_type {
-            negotiate::MessageType::Invocation => {
-                let target = match &message {
-                    MessagePayload::Text(s) => {
-                        debug!("Server invocation {:?} -> {}", message_type, s);
-                        MessageParser::parse_message::<Invocation>(s).map(|inv| inv.get_target())
-                    }
-                    #[cfg(feature = "messagepack")]
-                    MessagePayload::Binary(data) => {
-                        let items = crate::protocol::msgpack::parse_msgpack_message(data)?;
-                        let inv = crate::protocol::msgpack::parse_invocation(&items)?;
-                        Ok(inv.target)
-                    }
-                }?;
-
-                self.update(target, |i| {
-                    i.update_with(&message, message_type);
-                });
+    /// Hands one decoded message to the action it addresses: an invocation to the callback
+    /// registered for its target, a stream item to its stream, and a completion to its pending
+    /// invocation or stream, which leaves storage. Other messages have no action.
+    fn dispatch(&mut self, message: InboundMessage<'_>) {
+        match message {
+            InboundMessage::Invocation(invocation) => self
+                .callbacks()
+                .dispatch(OwnedInvocation::from(&invocation)),
+            InboundMessage::StreamItem {
+                invocation_id,
+                item,
+            } => self.update(&invocation_id, |action| action.on_stream_item(item)),
+            InboundMessage::Completion {
+                invocation_id,
+                outcome,
+            } => {
+                debug!("Completion received for {invocation_id}");
+                self.complete(&invocation_id, |action| action.on_completion(&outcome));
             }
-            negotiate::MessageType::StreamItem => {
-                let invocation_id = match &message {
-                    MessagePayload::Text(s) => {
-                        MessageParser::parse_message::<PossibleInvocation>(s)
-                            .map(|p| p.invocation_id)
-                    }
-                    #[cfg(feature = "messagepack")]
-                    MessagePayload::Binary(data) => {
-                        let items = crate::protocol::msgpack::parse_msgpack_message(data)?;
-                        let si = crate::protocol::msgpack::parse_stream_item(&items)?;
-                        Ok(Some(si.invocation_id))
-                    }
-                }?;
-
-                if let Some(id) = invocation_id {
-                    self.update(id, |i| {
-                        i.update_with(&message, message_type);
-                    });
-                }
-            }
-            negotiate::MessageType::Completion => {
-                let invocation_id = match &message {
-                    MessagePayload::Text(s) => {
-                        info!("Completition received {}", s);
-                        MessageParser::parse_message::<PossibleInvocation>(s)
-                            .map(|p| p.invocation_id)
-                    }
-                    #[cfg(feature = "messagepack")]
-                    MessagePayload::Binary(data) => {
-                        let items = crate::protocol::msgpack::parse_msgpack_message(data)?;
-                        let comp = crate::protocol::msgpack::parse_completion(&items)?;
-                        info!("Completition received for {}", comp.invocation_id);
-                        Ok(Some(comp.invocation_id))
-                    }
-                }?;
-
-                if let Some(key) = invocation_id {
-                    self.update(key.clone(), |i| {
-                        i.update_with(&message, message_type);
-                    });
-
-                    self.remove(key.clone());
-                }
-            }
-            negotiate::MessageType::StreamInvocation => {
-                debug!("Stream invocation is arrived");
-            }
-            negotiate::MessageType::CancelInvocation => {
-                debug!("Cancel invocation is arrived");
-            }
-            negotiate::MessageType::Ping => {
-                debug!("Ping is arrived");
-            }
-            negotiate::MessageType::Close => {
-                debug!("Close is arrived");
-            }
-            negotiate::MessageType::Ack => {
-                debug!("Ack is handled by the stateful transport lifecycle");
-            }
-            negotiate::MessageType::Sequence => {
-                debug!("Sequence is handled by the stateful transport lifecycle");
-            }
-            negotiate::MessageType::Other => {
-                debug!("Other is arrived");
-            }
+            other => debug!("{:?} has no action to dispatch to", other.message_type()),
         }
-
-        Ok(())
     }
 }
 
@@ -175,25 +109,28 @@ pub trait CallbackHandler {
     fn unregister(self);
 }
 
+/// Unregisters one callback registration.
 pub(crate) struct StorageUnregistrationHandler<T>
 where
     T: Storage,
 {
-    _storage: T,
-    _key: String,
+    storage: T,
+    target: String,
+    id: u64,
 }
 
 impl<T: Storage> StorageUnregistrationHandler<T> {
-    pub(crate) fn new(storage: T, key: String) -> Self {
+    pub(crate) fn new(storage: T, target: String, id: u64) -> Self {
         StorageUnregistrationHandler {
-            _key: key,
-            _storage: storage,
+            storage,
+            target,
+            id,
         }
     }
 }
 
 impl<T: Storage> CallbackHandler for StorageUnregistrationHandler<T> {
-    fn unregister(mut self) {
-        self._storage.remove(self._key);
+    fn unregister(self) {
+        self.storage.callbacks().unregister(self.target, self.id);
     }
 }

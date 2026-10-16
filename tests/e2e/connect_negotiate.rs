@@ -13,7 +13,7 @@ struct TransportDetails {
     transfer_format: String,
 }
 
-async fn scenario(protocol: Protocol) {
+pub(crate) async fn scenario(protocol: Protocol) {
     let mut client = support::connect("test", protocol, |_| {}).await;
     let details = client
         .invoke::<TransportDetails>("TransportDetails".to_string())
@@ -39,7 +39,11 @@ async fn scenario(protocol: Protocol) {
         .await
         .err()
         .expect("connecting to an unknown hub must fail");
-    assert!(error.contains("404"), "{error}");
+    assert_eq!(
+        (error.kind(), error.status()),
+        (rayx_signalr::ErrorKind::Negotiate, Some(404)),
+        "{error}"
+    );
 }
 
 crate::protocol_tests!("connect-negotiate");

@@ -18,3 +18,4 @@ agentx:
 - 2026-10-06 current [Treat RayX.SignalR as an independent library](fork-policy/2026-10-06-repository-governance-fork-policy-independent-library.md)
 - 2026-08-09 superseded [Use the direct source URL for upstream updates](fork-policy/2026-08-09-repository-governance-fork-policy-use-direct-source-url.md)
 - 2026-10-06 current [Express static and platform gates as .NET test categories and keep WASM browser-only](quality-gates/2026-10-06-repository-governance-quality-gates-verification-as-dotnet-categories.md)
+- 2026-10-09 current [Run CI on pull requests only; soak and performance on demand](quality-gates/2026-10-09-repository-governance-quality-gates-pull-request-only-ci.md)

@@ -5,15 +5,35 @@
 //! a non-shared JavaScript buffer before sending, because browsers reject `WebSocket.send` with a
 //! view of shared memory, which is what wasm memory is in threaded (atomics) builds.
 
+// Decoding and transport code must not panic on peer input; tests may.
+#![cfg_attr(
+    not(test),
+    deny(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing
+    )
+)]
+
 use futures::channel::mpsc;
 use wasm_bindgen::{prelude::Closure, JsCast};
 use web_sys::{BinaryType, CloseEvent, Event, MessageEvent, WebSocket};
+
+use super::transport::TransportKind;
+use crate::error::Error;
+
+fn websocket_error(message: impl Into<String>) -> Error {
+    Error::transport_failure(Some(TransportKind::WebSockets), message)
+}
 
 /// One socket event, in arrival order.
 pub(crate) enum SocketEvent {
     Open,
     Text(String),
     Binary(Vec<u8>),
+    /// The error that ended the transport, before its `Closed` (HTTP transports report why).
+    Failed(Error),
     /// The socket closed (or failed); no further events follow.
     Closed,
 }
@@ -29,12 +49,12 @@ pub(crate) struct BrowserSocket {
 impl BrowserSocket {
     /// Opens a socket; its events (starting with `Open`) arrive on the returned channel. The URL
     /// is never repeated in errors because it can carry an access token.
-    pub(crate) fn open(url: &str) -> Result<(Self, mpsc::UnboundedReceiver<SocketEvent>), String> {
+    pub(crate) fn open(url: &str) -> Result<(Self, mpsc::UnboundedReceiver<SocketEvent>), Error> {
         let socket = WebSocket::new(url).map_err(|error| {
-            format!(
-                "Cannot open the WebSocket: {}",
+            websocket_error(format!(
+                "cannot open the WebSocket: {}",
                 error.as_string().unwrap_or_default()
-            )
+            ))
         })?;
         socket.set_binary_type(BinaryType::Arraybuffer);
         let (events, receiver) = mpsc::unbounded();
@@ -79,23 +99,33 @@ impl BrowserSocket {
         ))
     }
 
-    pub(crate) fn send_text(&self, text: &str) -> Result<(), String> {
+    pub(crate) fn send_text(&self, text: &str) -> Result<(), Error> {
         self.socket
             .send_with_str(text)
-            .map_err(|_| "The WebSocket send failed".to_string())
+            .map_err(|_| websocket_error("the WebSocket send failed"))
     }
 
-    pub(crate) fn send_binary(&self, bytes: &[u8]) -> Result<(), String> {
+    pub(crate) fn send_binary(&self, bytes: &[u8]) -> Result<(), Error> {
         // Copy into a fresh, non-shared buffer (wasm memory may be a SharedArrayBuffer).
         let array = js_sys::Uint8Array::new_with_length(bytes.len() as u32);
         array.copy_from(bytes);
         self.socket
             .send_with_array_buffer_view(&array)
-            .map_err(|_| "The WebSocket send failed".to_string())
+            .map_err(|_| websocket_error("the WebSocket send failed"))
     }
 
     pub(crate) fn close(&self) {
         let _ = self.socket.close();
+    }
+
+    /// Bytes queued by `send` that the browser has not transmitted yet.
+    pub(crate) fn buffered_amount(&self) -> u32 {
+        self.socket.buffered_amount()
+    }
+
+    /// Whether the closing handshake completed (or the socket failed).
+    pub(crate) fn is_closed(&self) -> bool {
+        self.socket.ready_state() == WebSocket::CLOSED
     }
 }
 

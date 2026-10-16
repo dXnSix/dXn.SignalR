@@ -13,7 +13,7 @@ use tokio::task::JoinHandle;
 use crate::support::{self, Protocol};
 
 /// One handler notification: the close kind and the result of reconnecting from the handler.
-type Notification = (bool, Option<Result<(), String>>);
+type Notification = (bool, Option<Result<(), rayx_signalr::Error>>);
 
 /// Records each notification and, like a typical handler, tries to reconnect.
 #[derive(Clone, Default)]
@@ -49,7 +49,7 @@ async fn schedule_close(client: &mut SignalRClient, allow_reconnect: bool, delay
         .unwrap();
 }
 
-fn pending_identity(client: &SignalRClient) -> JoinHandle<Result<String, String>> {
+fn pending_identity(client: &SignalRClient) -> JoinHandle<Result<String, rayx_signalr::Error>> {
     let mut clone = client.clone();
     tokio::spawn(async move {
         clone
@@ -87,6 +87,20 @@ async fn manual_client(protocol: Protocol, handler: &RecordingHandler) -> Signal
     .await
 }
 
+/// A server Close without reconnect permission, carrying the test service's message.
+fn assert_final_close(error: &rayx_signalr::Error) {
+    assert_eq!(
+        (error.close_reason(), error.server_allows_reconnect()),
+        (Some(rayx_signalr::CloseReason::Server), Some(false)),
+        "{error}"
+    );
+    assert_eq!(
+        error.server_message(),
+        Some("Server requested close"),
+        "{error}"
+    );
+}
+
 async fn scenario(protocol: Protocol) {
     // Manual mode, final close: pending work fails, the handler learns that reconnecting is not
     // allowed, a reconnect from the handler is refused, and the client stays disconnected.
@@ -94,14 +108,14 @@ async fn scenario(protocol: Protocol) {
     let mut manual = manual_client(protocol, &handler).await;
     schedule_close(&mut manual, false, 1_000).await;
     let failure = pending_identity(&manual).await.unwrap().unwrap_err();
-    assert!(failure.contains("without allowing reconnect"), "{failure}");
+    assert_final_close(&failure);
     let (allowed, reconnect) = handled_once(&handler).await;
     assert!(
         !allowed,
         "a final close must report that reconnecting is not allowed"
     );
     let refusal = reconnect.unwrap().unwrap_err();
-    assert!(refusal.contains("without allowing reconnect"), "{refusal}");
+    assert_final_close(&refusal);
     tokio::time::sleep(Duration::from_millis(1_500)).await;
     assert!(support::connection_identity(&mut manual).await.is_err());
     assert_eq!(handler.notifications().len(), 1);

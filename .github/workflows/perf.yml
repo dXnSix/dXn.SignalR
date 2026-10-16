@@ -1,0 +1,54 @@
+name: Performance
+
+on:
+  # On demand only: release builds of the Rust client against the official .NET client in one
+  # Aspire run, with the full-scale budgets.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: perf-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+  DOTNET_NOLOGO: true
+  RAYX_SIGNALR_PERF_WORKLOADS: all
+  RAYX_SIGNALR_PERF_SCALE: full
+
+jobs:
+  compare:
+    name: perf / compare
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Install Aspire CLI
+        run: dotnet tool install --global Aspire.Cli --version 13.5.3
+      - name: Install pinned Rust
+        run: rustup toolchain install 1.92.0 --profile minimal
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: perf-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
+      - name: Compare the Rust and .NET clients through Aspire and enforce the budgets
+        run: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter "Category=Performance|Category=ReferenceClientBudget"
+      - name: Upload the performance report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: perf-report
+          path: artifacts-temp/perf
+          if-no-files-found: warn
+          retention-days: 30

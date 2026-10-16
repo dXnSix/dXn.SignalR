@@ -22,18 +22,23 @@ public sealed class ChatHub : Hub
 
 The client connects with `SignalRClient::connect_with("host", "chat", ...)`.
 
-## WebSockets
+## Transports
 
-The client only implements the WebSockets transport. ASP.NET Core enables all transports by
-default; if you restrict them, keep `HttpTransportType.WebSockets`. With `skip_negotiation()`, the
-hub must accept WebSocket-only connections:
+The client implements all three transports: WebSockets, Server-Sent Events and Long Polling. ASP.NET
+Core enables all of them by default, and the client tries those the server offers in the server's
+order, falling back to the next when one fails to start (see
+[Transports](02-connecting.md#transports)). If you restrict the server's transports, keep at least
+one that the client's `with_transports` set allows and that carries the hub protocol: Server-Sent
+Events carry JSON only. Stateful reconnect needs WebSockets. With `skip_negotiation()`, the hub must
+accept WebSocket-only connections:
 
 ```csharp
 app.MapHub<ChatHub>("/chat", options =>
     options.Transports = HttpTransportType.WebSockets);
 ```
 
-Reverse proxies and load balancers in front of the server must forward WebSocket upgrades.
+Reverse proxies and load balancers in front of the server must forward WebSocket upgrades for the
+WebSockets transport.
 
 ## MessagePack
 
@@ -62,9 +67,11 @@ ordinary reconnect.
 
 ## Authentication
 
-Native clients send `Authorization` on negotiate and on the WebSocket request. Browsers send it on
-negotiate only, and pass Bearer tokens as the `access_token` query parameter. For JWT Bearer, read
-the query parameter for hub requests:
+Native clients send `Authorization` on negotiate and on every transport request: the WebSocket
+upgrade, Long Polling and Server-Sent Events. Browsers send it on negotiate and on the Long Polling
+and Server-Sent Events `fetch` requests, and pass Bearer tokens as the `access_token` query
+parameter on the WebSocket and event-stream URLs. For JWT Bearer, read the query parameter for hub
+requests:
 
 ```csharp
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -85,18 +92,21 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 ```
 
-Basic authentication works for native clients. Browser clients cannot authenticate the WebSocket
-with Basic credentials on a standard server; give them Bearer tokens.
+Basic authentication works for native clients, and for browser clients over Long Polling. Browser
+clients cannot authenticate a WebSocket with Basic credentials on a standard server; give them
+Bearer tokens.
 
 ## CORS
 
-Browser pages on another origin need CORS for the negotiate request:
+Browser pages on another origin need CORS for the negotiate request and, over Long Polling, for
+the `GET` polls, `POST` sends and the closing `DELETE` (over Server-Sent Events, for the event
+stream's `GET` and the `POST` sends):
 
 ```csharp
 builder.Services.AddCors(cors => cors.AddDefaultPolicy(policy =>
     policy.WithOrigins("https://app.example.com")
           .AllowAnyHeader()
-          .WithMethods("POST")
+          .WithMethods("GET", "POST", "DELETE")
           .AllowCredentials()));
 
 app.UseCors();

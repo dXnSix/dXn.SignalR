@@ -1,17 +1,21 @@
 name: End-to-end
 
+# Pull requests and manual dispatch only: a merge to master re-runs nothing the pull request
+# already proved, and nothing runs on a schedule. Pushes that only change the AgentX epic state
+# and memory run nothing.
 on:
   pull_request:
     branches: [master]
-  push:
-    branches: [master]
+    paths-ignore:
+      - ".agentx/**"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: e2e-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # Per event, so a pull request run and a dispatch never cancel each other.
+  group: e2e-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -21,12 +25,13 @@ env:
   PLAYWRIGHT_BROWSERS_PATH: "0"
   RAYX_SIGNALR_E2E_PROTOCOLS: json,messagepack
   RAYX_SIGNALR_E2E_SCENARIOS: all
+  RAYX_SIGNALR_E2E_TRANSPORTS: all
 
 jobs:
   native:
     name: e2e / native (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -44,6 +49,20 @@ jobs:
         run: dotnet tool install --global Aspire.Cli --version 13.5.3
       - name: Install pinned Rust
         run: rustup toolchain install 1.92.0 --profile minimal
+      - name: Install libmsquic for the HTTP/3 cells
+        if: runner.os == 'Linux'
+        # A stalled package mirror fails the step instead of holding the runner to the job timeout.
+        timeout-minutes: 10
+        run: |
+          echo 'Acquire::Retries "3"; Acquire::http::Timeout "30"; Acquire::https::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/99rayx-timeouts
+          # The runner image may already list packages.microsoft.com; add it only when it does not.
+          if ! grep -rqs "packages.microsoft.com/ubuntu" /etc/apt/sources.list /etc/apt/sources.list.d; then
+            curl -sSLo packages-microsoft-prod.deb "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
+            sudo dpkg -i packages-microsoft-prod.deb
+            rm packages-microsoft-prod.deb
+          fi
+          sudo apt-get update
+          sudo apt-get install -y libmsquic
       - uses: actions/cache@v6
         with:
           path: |
@@ -65,7 +84,7 @@ jobs:
   browser:
     name: e2e / browser (${{ matrix.engine }})
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -120,7 +139,7 @@ jobs:
   android:
     name: e2e / android
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 150
     env:
       RAYX_SIGNALR_E2E_TARGETS: android
     steps:
@@ -134,6 +153,19 @@ jobs:
         run: dotnet tool install --global Aspire.Cli --version 13.5.3
       - name: Install pinned Rust with the emulator target
         run: rustup toolchain install 1.92.0 --profile minimal --target x86_64-linux-android
+      - name: Install libmsquic for the HTTP/3 cells
+        # A stalled package mirror fails the step instead of holding the runner to the job timeout.
+        timeout-minutes: 10
+        run: |
+          echo 'Acquire::Retries "3"; Acquire::http::Timeout "30"; Acquire::https::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/99rayx-timeouts
+          # The runner image may already list packages.microsoft.com; add it only when it does not.
+          if ! grep -rqs "packages.microsoft.com/ubuntu" /etc/apt/sources.list /etc/apt/sources.list.d; then
+            curl -sSLo packages-microsoft-prod.deb "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
+            sudo dpkg -i packages-microsoft-prod.deb
+            rm packages-microsoft-prod.deb
+          fi
+          sudo apt-get update
+          sudo apt-get install -y libmsquic
       - uses: actions/cache@v6
         with:
           path: |
@@ -148,7 +180,7 @@ jobs:
       - name: Build the Android end-to-end binary before the emulator starts
         env:
           CARGO_TARGET_DIR: target/android-e2e
-        run: cargo ndk -t x86_64 -P 24 test --test e2e --features messagepack,tls-webpki-roots --no-run
+        run: cargo ndk -t x86_64 -P 24 test --test e2e --features messagepack,proxy-pac,http3,tls-webpki-roots --no-run
       - name: Enable KVM for the emulator
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -173,10 +205,67 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  android-app:
+    name: e2e / android-app
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      # The test app (debug and minified release APKs) as device owner; its emulator's global
+      # proxy is set and restored around the os-proxy cells.
+      RAYX_SIGNALR_E2E_TARGETS: android-app,android-app-release
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Install Aspire CLI
+        run: dotnet tool install --global Aspire.Cli --version 13.5.3
+      - name: Install pinned Rust with the emulator target
+        run: rustup toolchain install 1.92.0 --profile minimal --target x86_64-linux-android
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: e2e-android-app-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml', 'tests/android-app/**/*.gradle*') }}
+      - name: Free disk space for the emulator
+        run: sudo rm -rf /usr/share/swift /usr/local/.ghcup /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --version 4.1.2 --locked
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run the Android app cells through Aspire on an x86_64 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disk-size: 4096M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          disable-animations: true
+          # The image's JDK 17 for the Gradle build.
+          script: JAVA_HOME=$JAVA_HOME_17_X64 dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+      - name: Upload redacted end-to-end diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-android-app
+          path: artifacts-temp/e2e
+          if-no-files-found: ignore
+          retention-days: 7
+
   ios:
     name: e2e / ios
     runs-on: macos-latest
-    timeout-minutes: 60
+    timeout-minutes: 150
     env:
       RAYX_SIGNALR_E2E_TARGETS: ios
     steps:
@@ -204,6 +293,220 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: e2e-ios
+          path: artifacts-temp/e2e
+          if-no-files-found: ignore
+          retention-days: 7
+
+  os-proxy:
+    name: e2e / os-proxy (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    env:
+      # Ephemeral runners only: the runner points the host's proxy at the test proxy around each
+      # cell and restores it.
+      RAYX_SIGNALR_E2E_TARGETS: native
+      RAYX_SIGNALR_E2E_SCENARIOS: os-proxy,error-kinds
+      RAYX_SIGNALR_E2E_ALLOW_SYSTEM_CHANGES: "1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Install Aspire CLI
+        run: dotnet tool install --global Aspire.Cli --version 13.5.3
+      - name: Install pinned Rust
+        run: rustup toolchain install 1.92.0 --profile minimal
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: e2e-native-${{ matrix.os }}-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
+      - name: Run the OS proxy cells through Aspire
+        run: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+      - name: Upload redacted end-to-end diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-os-proxy-${{ matrix.os }}
+          path: artifacts-temp/e2e
+          if-no-files-found: ignore
+          retention-days: 7
+
+  tls-aws-lc-native:
+    name: e2e / tls-aws-lc (native, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    env:
+      RAYX_SIGNALR_E2E_TARGETS: native
+      RAYX_SIGNALR_E2E_TLS_PROVIDER: aws-lc-rs
+      RAYX_SIGNALR_E2E_SCENARIOS: tls,connect-negotiate,negotiate-redirect,proxy,error-kinds
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Install Aspire CLI
+        run: dotnet tool install --global Aspire.Cli --version 13.5.3
+      - name: Install pinned Rust
+        run: rustup toolchain install 1.92.0 --profile minimal
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/e2e-aws-lc
+          key: e2e-aws-lc-${{ matrix.os }}-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
+      - name: Run the aws-lc-rs native cells through Aspire
+        run: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+      - name: Upload redacted end-to-end diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-tls-aws-lc-${{ matrix.os }}
+          path: artifacts-temp/e2e
+          if-no-files-found: ignore
+          retention-days: 7
+
+  tls-aws-lc-android:
+    name: e2e / tls-aws-lc (android)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      RAYX_SIGNALR_E2E_TARGETS: android
+      RAYX_SIGNALR_E2E_TLS_PROVIDER: aws-lc-rs
+      RAYX_SIGNALR_E2E_SCENARIOS: tls,connect-negotiate,negotiate-redirect,proxy,error-kinds
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Install Aspire CLI
+        run: dotnet tool install --global Aspire.Cli --version 13.5.3
+      - name: Install pinned Rust with the emulator target
+        run: rustup toolchain install 1.92.0 --profile minimal --target x86_64-linux-android
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/android-e2e-aws-lc
+          key: e2e-aws-lc-android-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
+      - name: Free disk space for the emulator
+        run: sudo rm -rf /usr/share/swift /usr/local/.ghcup /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --version 4.1.2 --locked
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run the aws-lc-rs Android cells through Aspire on an x86_64 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disk-size: 2048M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          disable-animations: true
+          script: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+      - name: Upload redacted end-to-end diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-tls-aws-lc-android
+          path: artifacts-temp/e2e
+          if-no-files-found: ignore
+          retention-days: 7
+
+  tls-aws-lc-ios:
+    name: e2e / tls-aws-lc (ios)
+    runs-on: macos-latest
+    timeout-minutes: 90
+    env:
+      RAYX_SIGNALR_E2E_TARGETS: ios
+      RAYX_SIGNALR_E2E_TLS_PROVIDER: aws-lc-rs
+      RAYX_SIGNALR_E2E_SCENARIOS: tls,connect-negotiate,negotiate-redirect,proxy,error-kinds
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Install Aspire CLI
+        run: dotnet tool install --global Aspire.Cli --version 13.5.3
+      - name: Install pinned Rust with the simulator target
+        run: rustup toolchain install 1.92.0 --profile minimal --target aarch64-apple-ios-sim
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/e2e-aws-lc
+          key: e2e-aws-lc-ios-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
+      - name: Run the aws-lc-rs iOS simulator cells through Aspire
+        run: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+      - name: Upload redacted end-to-end diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-tls-aws-lc-ios
+          path: artifacts-temp/e2e
+          if-no-files-found: ignore
+          retention-days: 7
+
+  soak:
+    name: e2e / soak
+    # Only on demand: the 900-second soak is too long for every pull request.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      RAYX_SIGNALR_E2E_TARGETS: native
+      RAYX_SIGNALR_E2E_SCENARIOS: soak-chaos,error-kinds
+      RAYX_SIGNALR_SOAK_SECONDS: "900"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Install Aspire CLI
+        run: dotnet tool install --global Aspire.Cli --version 13.5.3
+      - name: Install pinned Rust
+        run: rustup toolchain install 1.92.0 --profile minimal
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: e2e-native-ubuntu-latest-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
+      - name: Run the 900-second soak through Aspire
+        run: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+      - name: Upload redacted end-to-end diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-soak
           path: artifacts-temp/e2e
           if-no-files-found: ignore
           retention-days: 7

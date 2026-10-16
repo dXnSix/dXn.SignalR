@@ -26,20 +26,71 @@ let registration = client.register("ReceiveMessage".to_string(), |ctx| {
 registration.unregister();
 ```
 
-- `register(target, callback)` takes `&mut self`, a `String` target, and a callback
-  `Fn(InvocationContext)`. Natively the callback must be `Send + 'static`; in the browser only
+- `register(target, callback)` takes `&mut self`, a target (`impl Into<String>`), and a callback
+  `Fn(InvocationContext)`. Natively the callback must be `Send + Sync + 'static` (it can run on any
+  thread of the connection's runtime); in the browser only
   `'static`.
 - The target name matches exactly (case-sensitive) the name the server passes to `SendAsync`.
-- It returns an `impl CallbackHandler`; `unregister(self)` removes the callback. Import the
-  `CallbackHandler` trait to call it.
-- One callback per target. Registering a second callback for a target that already has one is
-  ignored and logged as an error; unregister the first one before replacing it.
-- Server calls for a target without a callback are dropped and logged as an error.
+- It returns an `impl CallbackHandler`; `unregister(self)` removes this callback only. Import the
+  `CallbackHandler` trait to call it. `client.remove("ReceiveMessage")` removes every callback of a
+  target, as the .NET client's `HubConnection.Remove` does.
+- A target can have several callbacks, as with the .NET client's `HubConnection.On`: they run in
+  registration order for every call. Registering and unregistering take effect at once, also for
+  calls that arrived but were not dispatched yet.
+- Server calls for a target without a callback are dropped and logged as a warning (a call that
+  expects a result is answered with an error, see [Client results](#client-results)).
 - Callbacks survive reconnects: they belong to the client, not to a physical connection.
 
-Callbacks run synchronously on the connection's receive path: natively on the connection runtime's
-receiver task, in the browser on the socket's receiver task. Keep them short and move slow work
-elsewhere (spawn it, or hand it to a channel). A blocking callback delays every message behind it.
+### Where callbacks run
+
+As in the .NET client, server calls run on the client's dispatch task, separately from message
+processing: natively on the connection's runtime, in the browser on the event loop. Calls run one at
+a time in arrival order, and the callbacks of one call run one after the other. A slow callback
+therefore delays the server calls behind it, but never completions, stream items or keep-alives:
+an `invoke` still completes while a callback runs. A call that expects a result (`InvokeAsync`) is
+the exception, as in the .NET client: it starts in arrival order, and once one of its asynchronous
+callbacks waits (for user input, say), the rest continues on its own task and later calls go on. A
+synchronous callback that blocks still holds later calls, as a blocking .NET handler does. Callbacks may register, unregister or disconnect. Natively, a
+panicking callback is caught and logged, and the connection keeps working; when its call expects a
+result and no other callback answers it, the answer is an error with the panic message, as the .NET
+client sends a throwing handler's exception message.
+
+### Asynchronous callbacks
+
+`register_async` takes a callback that returns a future; the dispatch task awaits it before it runs
+the next callback or the next call, as the .NET client awaits asynchronous handlers:
+
+```rust
+use rayx_signalr::CallbackHandler;
+
+let registration = client.register_async("Refresh".to_string(), |ctx| async move {
+    let mut hub = ctx.client.clone();
+    if let Ok(latest) = hub.invoke::<String>("Latest".to_string()).await {
+        println!("latest: {latest}");
+    }
+});
+```
+
+Natively the closure must be `Send + Sync` and its future `Send`. Awaiting an `invoke` inside the
+callback is fine: completions are processed while the callback waits.
+
+### Typed callbacks
+
+`register_typed` decodes the server's arguments into a tuple before the callback runs, as the .NET
+client binds the parameters of `On<T1, T2>`:
+
+```rust
+use rayx_signalr::CallbackHandler;
+
+let registration = client.register_typed("PriceChanged", |_ctx, (symbol, price): (String, f64)| {
+    println!("{symbol} = {price}");
+});
+```
+
+When the arguments do not bind (another count, or a value that does not decode into its type), the
+callback is not called and the failure is logged; a call that expects a result is answered with the
+.NET client's error `Client failed to parse argument(s).`. The tuple can have up to 12 elements;
+`()` takes calls without arguments.
 
 ## Reading arguments
 
@@ -57,9 +108,9 @@ let registration = client.register("PriceChanged".to_string(), |ctx| {
 });
 ```
 
-It returns `Err(String)` when the call has no arguments, when the index is out of range, or when the
-value does not deserialize into `T`. MessagePack arguments are converted to JSON values before
-deserialization, so the same `T` works on both protocols (see
+It returns an `ErrorKind::Serialization` error when the call has no arguments, when the index is out
+of range, or when the value does not deserialize into `T`. MessagePack arguments are decoded from the server's
+original MessagePack values, so binary data, timestamps and integer map keys survive (see
 [Hub protocols](05-hub-protocols.md#how-values-cross-the-wire)).
 
 ## Client results
@@ -84,17 +135,28 @@ let registration = client.register("ConfirmPurchase".to_string(), |mut ctx| {
 ```
 
 - `complete` is `async` and needs `&mut self`, so move the context into a spawned task.
-- Call it once, and only for server calls that wait for a result. Plain `SendAsync` calls have no
-  invocation id; `complete` then returns an error.
-- If the client never completes, the server's `InvokeAsync` waits until its cancellation token or
-  the connection ends.
+- `fail(message)` answers with an error instead: the server's `InvokeAsync` throws a `HubException`
+  with `message`, as when a .NET client handler throws.
+- A call gets exactly one answer, as in the .NET client: the first `complete` or `fail` of any of
+  its callbacks. A second one returns an `ErrorKind::Protocol` error and sends nothing.
+- When every context of a call is dropped without an answer (or no callback is registered), the
+  client sends the .NET client's error `Client didn't provide a result.`, so the server's
+  `InvokeAsync` never waits for a client that will not answer.
+- `expects_result()` tells whether the server waits for an answer. Plain `SendAsync` calls have no
+  invocation id; `complete` and `fail` then return an `ErrorKind::Protocol` error.
+- The answer goes to the logical connection the call arrived on. With stateful reconnect it survives
+  a resume; after an ordinary reconnect (a new logical connection) the server has forgotten the
+  call, so `complete` returns an `ErrorKind::Transport` error.
 
 ## `InvocationContext`
 
 | Member | Description |
 |---|---|
-| `argument::<T>(index)` | Deserializes one positional argument. |
-| `complete(result).await` | Sends a client result for an `InvokeAsync` call. |
+| `argument::<T>(index)` | Deserializes one positional argument; `ErrorKind::Serialization` when it is missing or does not match `T`. |
+| `argument_count()` | The number of arguments the server sent. |
+| `expects_result()` | Whether the server waits for an answer (`InvokeAsync`). |
+| `complete(result).await` | Sends a client result for an `InvokeAsync` call; the first answer wins. |
+| `fail(message).await` | Answers an `InvokeAsync` call with an error. |
 | `client` (public field) | A clone of the `SignalRClient`, for calling the hub from inside the callback. |
 | `InvocationContext::spawn(future)` | Spawns a future: `tokio::spawn` natively (the future must be `Send`), `spawn_local` in the browser. |
 
@@ -121,15 +183,25 @@ let registration = client.register("Joined".to_string(), |ctx| {
 });
 ```
 
-## Registrations keep the connection alive
+## Registrations do not keep a client alive
 
-Each registration holds a clone of the client. The connection closes only when the last clone is
-disconnected or dropped (see
-[Connection lifecycle](06-connection-lifecycle.md#clones-and-ownership)), so an active registration
-keeps it open. Unregister every callback before calling `disconnect()`:
+Registrations hold the client only weakly: the `client` an `InvocationContext` receives is a
+handle made for that call. Dropping the last `SignalRClient` handle stops the connection (see
+[Connection lifecycle](06-connection-lifecycle.md#clones-and-ownership)) even while callbacks are
+registered, and a stopped client keeps its registrations for a later `start`. A callback that needs
+the client outside the call should capture a `WeakSignalRClient` (`client.downgrade()`), not a
+`SignalRClient`, which would form a reference cycle that keeps the client from ever stopping on
+drop. Call `disconnect()` or `stop()` when you are done, and unregister callbacks you no longer
+need:
 
 ```rust
+use rayx_signalr::CallbackHandler;
+
+let on_message = client.register_typed("ReceiveMessage", |_ctx, (text,): (String,)| {
+    println!("{text}");
+});
+
+// Later, when the application is done with the hub:
 on_message.unregister();
-on_presence.unregister();
 client.disconnect();
 ```

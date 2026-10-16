@@ -12,14 +12,55 @@ TestCertificateFiles certificates = TestCertificates.Generate(
   ?? Path.Combine(repositoryRoot, "artifacts-temp", "tls", $"{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Environment.ProcessId}"));
 
 // The ASP.NET Core SignalR test service. Its launch profile is excluded so Aspire owns the ports.
-builder
+IResourceBuilder<ProjectResource> service = builder
   .AddProject<Projects.RayX_SignalR_TestService>(
     "signalr-test-service",
     options => options.ExcludeLaunchProfile = true)
   .WithHttpEndpoint(name: "http")
   .WithHttpsEndpoint(name: "https")
+  // HTTP/2 only over plaintext (h2c with prior knowledge) and HTTP/1.1 only over TLS, for the
+  // `http2` scenario; the service pins each one's protocols by its target port.
+  .WithHttpEndpoint(name: "h2c")
+  .WithHttpsEndpoint(name: "https-http1")
   .WithEnvironment("TestTls__CertificatePath", certificates.ServerCertificate)
   .WithEnvironment("TestTls__KeyPath", certificates.ServerKey)
+  .WithEnvironment("TestTls__CaPath", certificates.CaCertificate)
+  .WithEnvironment("TestTls__UntrustedCertificatePath", certificates.UntrustedServerCertificate)
+  .WithEnvironment("TestTls__UntrustedKeyPath", certificates.UntrustedServerKey)
+  .WithHttpHealthCheck("/health", endpointName: "http");
+service
+  .WithEnvironment("TestService__Http2OnlyPort", service.GetEndpoint("h2c").Property(EndpointProperty.TargetPort))
+  .WithEnvironment("TestService__Http1OnlyPort", service.GetEndpoint("https-http1").Property(EndpointProperty.TargetPort));
+// HTTP/3 (QUIC over UDP) for the `http3` scenario where the host has msquic. Aspire's endpoint
+// proxy forwards TCP only, so Kestrel binds this endpoint's (dynamically allocated) port itself.
+if(QuicSupport.IsSupported)
+{
+  service
+    .WithHttpsEndpoint(name: "http3", isProxied: false)
+    .WithEnvironment("TestService__Http3Port", service.GetEndpoint("http3").Property(EndpointProperty.TargetPort));
+}
+
+// The test-only HTTP CONNECT proxy of the `proxy` scenario: tunnels need the run's credentials
+// (the test runner passes the password as a secret parameter), and `denied.invalid:80` is on its
+// deny list.
+IResourceBuilder<ParameterResource> proxyPassword = builder.AddParameter("test-proxy-password", secret: true);
+builder
+  .AddProject<Projects.RayX_SignalR_TestProxy>(
+    "test-proxy",
+    options => options.ExcludeLaunchProfile = true)
+  .WithHttpEndpoint(name: "http")
+  .WithEnvironment("TestProxy__User", "rayx")
+  .WithEnvironment("TestProxy__Password", proxyPassword)
+  .WithEnvironment("TestProxy__Deny", "denied.invalid:80")
+  // The run's test certificate for the TLS listener of `https://` proxies (proxy-https).
+  .WithEnvironment("TestProxy__CertificatePath", certificates.ServerCertificate)
+  .WithEnvironment("TestProxy__KeyPath", certificates.ServerKey)
+  // Tunnels to the service's allocated ports go straight to the ports it listens on (which it
+  // reports at /e2e/listening), past Aspire's own endpoint proxy, so the service sees this proxy's
+  // tunnels as its peers.
+  .WithEnvironment("TestProxy__Service", service.GetEndpoint("http"))
+  .WithEnvironment("TestProxy__ServicePorts__http", service.GetEndpoint("http").Property(EndpointProperty.Port))
+  .WithEnvironment("TestProxy__ServicePorts__https", service.GetEndpoint("https").Property(EndpointProperty.Port))
   .WithHttpHealthCheck("/health", endpointName: "http");
 
 // Native-only runs disable the browser fixture to skip the WASM build.

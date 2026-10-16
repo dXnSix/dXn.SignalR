@@ -1,9 +1,17 @@
 # Connecting
 
-## The two entry points
+## The entry points
 
 ```rust
 use rayx_signalr::SignalRClient;
+
+// Build without I/O, register callbacks and hooks, then start (`HubConnectionBuilder.Build()`
+// and `StartAsync` in the official .NET client).
+let client = SignalRClient::new("localhost", "hubs/chat", |c| {
+    c.unsecure();
+    c.with_port(5000);
+})?;
+client.start().await?;
 
 // Default configuration: https, default port, JSON, no authentication, no reconnection.
 let client = SignalRClient::connect("api.example.com", "hubs/chat").await?;
@@ -16,8 +24,13 @@ let client = SignalRClient::connect_with("localhost", "hubs/chat", |c| {
 .await?;
 ```
 
-Both are `async` and return `Result<SignalRClient, String>`. `connect_with` takes any
-`FnMut(&mut ConnectionConfiguration)`, so you can also pass a named function. That is how adapter
+`connect` and `connect_with` are `new` followed by `start`: they are `async` and return
+`Result<SignalRClient, rayx_signalr::Error>` (see
+[Errors](11-errors-and-logging.md#negotiation-and-transport)). Prefer `new` when the hub sends
+right after connecting (from `OnConnectedAsync`): callbacks registered before `start` receive those
+messages (see [Connection lifecycle](06-connection-lifecycle.md#building-and-starting)).
+`connect_with` takes any `FnMut(&mut ConnectionConfiguration)` and `new` any
+`FnOnce(&mut ConnectionConfiguration)`, so you can also pass a named function. That is how adapter
 layers forward options (`ConnectionConfiguration` is exported from the crate root for this):
 
 ```rust
@@ -34,9 +47,11 @@ let client = SignalRClient::connect_with("api.example.com", "hubs/chat", product
 Configuration methods return `&ConnectionConfiguration`, not `&mut`, so they do not chain. Write one
 statement per option.
 
-Everything that can be validated without the network is validated before any I/O: liveness
-durations, the stateful buffer size, PEM roots, TLS feature availability, the Tokio runtime, and
-the `skip_negotiation` + stateful conflict. Such errors return from `connect` immediately.
+Everything that can be validated without the network is validated by `new` (and so by
+`connect`) before any I/O: the stateful buffer size, PEM roots, TLS feature availability, the
+Tokio runtime and the `with_header` names and values. Liveness durations are accepted as
+the .NET client accepts them; values that cannot work are logged as warnings (see
+[Liveness](06-connection-lifecycle.md#liveness)).
 
 ## Endpoint
 
@@ -44,7 +59,7 @@ The hub URL is `{scheme}://{domain}[:{port}]/{hub}`.
 
 | Method | Default | Effect |
 |---|---|---|
-| `secure()` | on | `https` for negotiation and `wss` for the WebSocket. |
+| `secure()` | on | `https` for negotiation, Long Polling and Server-Sent Events, and `wss` for the WebSocket. |
 | `unsecure()` | | `http` and `ws`. Use it for local development servers. |
 | `with_port(i32)` | none | Appends `:port`. Without it, the scheme's default port is used. |
 | `with_hub(String)` | the `hub` argument | Replaces the hub path given to `connect_with`. |
@@ -60,42 +75,177 @@ servers usually need `unsecure()` and `with_port(...)`.
 
 | Method | Native | Browser |
 |---|---|---|
-| `authenticate_bearer(token)` | `Authorization: Bearer` on negotiate and on the WebSocket upgrade, plus `access_token` on the WebSocket URL | `Authorization: Bearer` on negotiate, `access_token` on the WebSocket URL |
-| `authenticate_basic(user, Some(password))` | `Authorization: Basic` on negotiate and on the WebSocket upgrade | `Authorization: Basic` on negotiate only |
+| `authenticate_bearer(token)` | `Authorization: Bearer` on negotiate, on the WebSocket upgrade and on every Long Polling and Server-Sent Events request; never on the URL, as the .NET client outside browsers | `Authorization: Bearer` on negotiate and on Long Polling and Server-Sent Events `fetch` requests, `access_token` on the WebSocket and event-stream URLs |
+| `authenticate_basic(user, Some(password))` | `Authorization: Basic` on negotiate, on the WebSocket upgrade and on every Long Polling and Server-Sent Events request | `Authorization: Basic` on negotiate and on Long Polling and Server-Sent Events `fetch` requests; a WebSocket or `EventSource` cannot carry it (a warning is logged) |
+| `with_access_token_factory(f)` | a fresh token from `f` as `Authorization: Bearer` on every negotiate and every WebSocket upgrade; Long Polling and Server-Sent Events keep the negotiate token until a 401 | a fresh token on every negotiate (`Authorization`) and every WebSocket (`access_token`); Long Polling and Server-Sent Events keep the negotiate token (`Authorization`, and `access_token` on the event-stream URL) until a 401 |
 
-`authenticate_basic(user, None)` sends `user:` with an empty password. The last call wins: a
-connection has one authentication mode.
+`authenticate_basic(user, None)` sends `user:` with an empty password. Between Basic and Bearer the
+last call wins: a connection has one authentication mode. An access-token factory cannot be
+combined with either: `new`/`connect` then fail before any I/O with `ErrorKind::Configuration`
+naming `with_access_token_factory`.
+
+### Access-token factory
+
+`with_access_token_factory(|| async { ... })` takes an async function returning
+`Result<String, String>`, like the .NET client's `HttpConnectionOptions.AccessTokenProvider`. It is
+called before every negotiate request (the initial connect, every reconnect that negotiates, and
+each redirect hop) and again whenever a WebSocket is opened, including every stateful resume, so a
+token can be refreshed between them. Long Polling keeps the token negotiate fetched for all its
+requests and asks again only after a 401, as the .NET client's `AccessTokenHttpMessageHandler`. A
+token that a negotiate redirect issued (Azure SignalR Service) is used instead, for every
+transport of that connection, resumes included. An
+`Err` fails that attempt with `ErrorKind::Authentication`, `access token factory failed: <message>`
+(with anything token-shaped in the message redacted); a reconnection policy then tries again.
+
+```rust
+let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+    c.with_access_token_factory(|| async {
+        // Fetch or refresh the token here.
+        Ok::<_, String>(std::env::var("API_TOKEN").unwrap_or_default())
+    });
+})?;
+```
 
 Browsers cannot set headers on a WebSocket. A standard ASP.NET Core server authenticates the
 WebSocket request separately from negotiate, so in the browser:
 
 - **Bearer** works when the server reads the `access_token` query parameter for hub requests (the
   usual JWT `OnMessageReceived` hook; see [Server setup](10-server-setup.md#authentication)).
-- **Basic** reaches only the negotiate request. A standard server does not authenticate the
-  WebSocket from it, so browser clients should use Bearer tokens.
+- **Basic** reaches only the negotiate request, as with the .NET client. A standard server does
+  not authenticate the WebSocket from it; building a browser client with Basic credentials logs a
+  warning that names `authenticate_bearer` and `with_access_token_factory`.
 
-Tokens are fixed for the lifetime of the client: every reconnect reuses the configured token. If a
-token expires, disconnect and connect again with a new one.
+A token from `authenticate_bearer` is fixed for the lifetime of the client and reused by every
+reconnect; use `with_access_token_factory` for tokens that expire.
 
-Negotiation errors name the endpoint without its query string, which may carry tokens.
+Negotiation errors name the endpoint without its query string, which may carry tokens; a negotiate
+timeout names only the bound (`negotiate timed out after 2s`).
+
+### Integrated Windows authentication
+
+`with_default_credentials()` authenticates with the current Windows account, and
+`with_credentials(user, password, domain)` with explicit ones, as the .NET client's
+`UseDefaultCredentials` and `Credentials` do:
+
+```rust
+let client = rayx_signalr::SignalRClient::new("intranet.example.com", "chat", |c| {
+    // The signed-in Windows account (Kerberos, or NTLM where Kerberos is unavailable).
+    c.with_default_credentials();
+    // Or explicit credentials: c.with_credentials("user", "password", "CORP");
+})?;
+```
+
+As with `SocketsHttpHandler`, a request goes out without credentials first. When the server answers
+a native negotiate request, WebSocket upgrade, Long Polling or Server-Sent Events request with a
+401 offering `Negotiate` (preferred) or `NTLM`, the client sends it again with the account's tokens
+until the server accepts or rejects them. Each leg reuses the connection, or opens a new one when
+the server sends `Connection: close`, and carries the cookies the earlier legs set. A challenge whose
+body is larger than 1 MiB fails the request, because its connection cannot be reused. A rejection
+fails with `ErrorKind::Authentication` and status 401. When the server's success carries a final
+token (Kerberos mutual authentication), the client verifies it, and a token that does not verify
+fails with 401 as well.
+
+As .NET does, the client names the service `HTTP/<host>`, with the host's canonical DNS name on Windows
+(an IP address as is). It requires integrity protection from the security context, and over TLS it
+binds the tokens to the server's certificate (RFC 5929 `tls-server-end-point`), so servers that
+require Extended Protection accept them. On Windows the client authenticates through SSPI, so
+Negotiate picks Kerberos or NTLM as .NET does. On other native targets, `with_credentials` answers
+with NTLMv2, as .NET's managed NTLM does: signing and key exchange, the target name, the channel
+bindings and the message integrity code. `with_default_credentials`
+there fails `new` with `ErrorKind::Configuration`, because the client has no GSSAPI integration
+(see [Limitations](12-limitations.md)). The password never appears in logs, errors or `Debug`
+output. Browsers use the browser's own integrated authentication and have neither option.
+
+## Request headers
+
+Every request carries the official clients' headers:
+
+| Header | Native | Browser |
+|---|---|---|
+| `User-Agent` in the official format, `RayX SignalR/<major.minor> (<version>; <OS>; Rust; Unknown Runtime Version)` | negotiate, WebSocket upgrade, Long Polling and Server-Sent Events | not settable; sent as `X-SignalR-User-Agent` on `fetch` requests (negotiate, Long Polling, Server-Sent Events sends) |
+| `X-Requested-With: XMLHttpRequest` | negotiate, WebSocket upgrade, Long Polling and Server-Sent Events | `fetch` requests (negotiate, Long Polling, Server-Sent Events sends) |
+| `Accept: */*` | negotiate | browser default |
+
+`with_header(name, value)` adds an application header, as the .NET client's
+`HttpConnectionOptions.Headers`: natively to negotiate, the WebSocket upgrade and every Long Polling
+and Server-Sent Events request; in browsers to every `fetch` request (negotiate, Long Polling,
+Server-Sent Events sends), never to a WebSocket or `EventSource`, which cannot carry headers
+(building the client logs a warning). The headers are composed as the .NET client composes them, the
+same way on every request:
+
+1. The defaults above.
+2. The application headers, each replacing a header of the same name (so `User-Agent` or `Accept`
+   can be overridden, never duplicated); an empty `User-Agent` removes it.
+3. `X-Requested-With: XMLHttpRequest`, always.
+4. The credentials' `Authorization`, over an application `Authorization` header.
+
+An invalid name or value, or a header the transport owns (`Host`, `Content-Length`, `Connection`,
+`Upgrade`, `Transfer-Encoding`, `TE`, `Trailer`, `Keep-Alive`, `Proxy-Connection`,
+`Sec-WebSocket-*`), fails `new`/`connect` before any I/O with `ErrorKind::Configuration` naming
+`with_header`; the value is never repeated in the error.
+
+```rust
+let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+    c.with_header("X-Tenant", "blue");
+})?;
+```
+
+### Request hooks
+
+`with_request_hook` gives the application every request before it is sent, as the .NET client's
+`HttpMessageHandlerFactory` (and, for the WebSocket upgrade, `WebSocketConfiguration`) does.
+Natively the hook sees negotiate, the WebSocket upgrade and every Long Polling and Server-Sent
+Events request, every poll included. In browsers it sees every `fetch` (negotiate, Long Polling,
+Server-Sent Events sends), but not the WebSocket or the `EventSource` stream, which carry no
+application headers. As a .NET handler sees one `SendAsync` per request, the hook runs once per
+request, with the defaults, `with_header` values, the credentials' `Authorization` and the body's
+`Content-Type`. The cookie jar's cookies and integrated-authentication tokens are added after it,
+on every leg, and a request retried on a fresh connection keeps the hook's changes, as
+`SocketsHttpHandler` adds and retries them inside the handler chain:
+
+```rust
+let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+    c.with_request_hook(|request| {
+        // `transport()` is `None` for negotiate; `method()` and `url()` name the request.
+        if request.transport().is_none() {
+            let _ = request.set_header("X-Negotiate-Source", "rayx");
+        }
+    });
+})?;
+```
+
+`HttpRequest` reads headers with `header(name)` and `headers()`, and changes them with
+`set_header(name, value)` (replacing a header of the same name) and `remove_header(name)`. As with
+`with_header`, `set_header` refuses invalid names and values and headers the transport owns, with
+`ErrorKind::Configuration` naming `with_request_hook`, and leaves the request unchanged. Its
+`Debug` output shows header names only, never their values, and redacts tokens in the URL. The TLS
+options of native connections have their own hook, `with_tls_config_hook`
+([TLS](08-tls.md#adjusting-the-rustls-configuration)).
 
 ## Negotiation
 
-By default the client negotiates before opening the WebSocket:
+By default the client negotiates before starting a transport:
 
 1. `POST {hub}/negotiate?negotiateVersion=1` (plus `useStatefulReconnect=true` when stateful
    reconnect is configured).
 2. A **redirect** response (`url` and optional `accessToken`, as Azure SignalR Service returns)
    restarts negotiation at the new URL. Its access token replaces the configured credentials for
-   the next negotiate and for the WebSocket. At most 100 redirects are followed.
-3. An **error** response (`{"error": "..."}`) fails `connect` with the server's message.
-4. A **connection** response must offer the `WebSockets` transport with the protocol's transfer
-   format (`Text` for JSON, `Binary` for MessagePack). The WebSocket URL is the final negotiate URL
-   with `ws`/`wss` and the connection token as `id`.
+   the next negotiate and for the transport. At most 100 redirects are followed.
+3. An **error** response (`{"error": "..."}`) fails `connect` with the server's message. A classic
+   ASP.NET SignalR server (not ASP.NET Core) gets the official clients' explanation as an
+   `ErrorKind::Negotiate` error.
+4. A **connection** response lists the transports the server offers. The client tries those it
+   allows that carry the protocol's transfer format (`Text` for JSON, `Binary` for MessagePack),
+   in the server's order (see [Transports](#transports)). The transport URL is the final
+   negotiate URL with the connection token as `id`, with `ws`/`wss` for WebSockets (a response
+   without `negotiateVersion` is version 0, whose connection id is the `id`).
 
-Native negotiate and connection setup (TCP, TLS and the WebSocket upgrade) are bounded by a fixed
-15-second timeout. Non-2xx negotiate responses fail with the status and a short, credential-redacted
-excerpt of the body.
+Each negotiate request and the transport start (natively TCP, TLS and the WebSocket upgrade, the
+first poll or the event stream; in browsers opening the WebSocket, the first poll or the
+`EventSource`) are bounded by `with_connect_timeout`, 120 s by default like the
+official .NET client; browsers abort a negotiate `fetch` that exceeds it. Non-2xx negotiate
+responses fail with the status (`ErrorKind::Authentication` for 401 and 403, otherwise
+`ErrorKind::Negotiate`) and a short, credential-redacted excerpt of the body.
 
 ### Skipping negotiation
 
@@ -104,15 +254,308 @@ let client = rayx_signalr::SignalRClient::connect_with("localhost", "chat", |c| 
     c.unsecure();
     c.with_port(5000);
     c.skip_negotiation();
+    c.with_transports(rayx_signalr::Transports::WEB_SOCKETS);
 })
 .await?;
 ```
 
 `skip_negotiation()` connects the WebSocket directly to `ws(s)://host[:port]/hub`, like the official
-clients' `skipNegotiation`. A Bearer token goes on the URL as `access_token`. Ordinary reconnects
-connect directly too. The server must accept WebSocket connections without a connection token, and
-the option cannot be combined with stateful reconnect, which needs the token that negotiation
-issues: `connect` then fails before any I/O.
+clients' `skipNegotiation`. As in the .NET client it needs the WebSockets transport alone:
+without `with_transports(Transports::WEB_SOCKETS)`, `new`/`connect` fail before any I/O with
+`ErrorKind::Configuration` naming `skip_negotiation`. A Bearer token goes in the `Authorization` header natively and on the
+URL as `access_token` in browsers. Ordinary reconnects connect directly too. The server must accept
+WebSocket connections without a connection token. As in the .NET client, it disables stateful
+reconnect, which needs the token that negotiation issues, and logs a warning.
+
+## Transports
+
+`with_transports(Transports)` restricts the transports a connection may use, as the .NET client's
+`HttpConnectionOptions.Transports`; every transport is allowed by default. Negotiation tries the
+transports the server offers in the server's order, keeping those in the set that carry the hub
+protocol's transfer format (Server-Sent Events carry text only, so never MessagePack). A transport
+that fails to start is followed by the next one with a fresh negotiation. When one transport was
+tried, its own error is returned; when several were tried, or none could be, `connect` fails with
+`ErrorKind::TransportUnavailable`, whose `attempts()` lists every transport with why it was skipped
+or failed; its message names each of them with its reason, as the .NET client's error lists every
+`TransportFailedException` (for example `the server offers no transport this client can use
+(LongPolling: the transport is disabled by the client)`). Stateful reconnect runs only over WebSockets and needs WebSockets in the set.
+
+All three transports start on both targets. With MessagePack, Server-Sent Events are skipped
+(listed in `attempts()`); restricting a MessagePack connection to Server-Sent Events alone fails
+`new` and `connect` before any I/O with `ErrorKind::Configuration` naming `with_transports`.
+
+```rust
+let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+    c.with_transports(rayx_signalr::Transports::WEB_SOCKETS | rayx_signalr::Transports::LONG_POLLING);
+})?;
+```
+
+### Long Polling
+
+Long Polling works as in the official clients, on both targets and with both hub protocols:
+
+- **Receiving.** The client polls with `GET` requests, one at a time. The server holds each poll
+  until it has messages or its poll timeout (90 s in ASP.NET Core) ends. A 200 answer delivers zero
+  or more messages, a 204 ends the connection, and any other status or a network error drops the
+  transport, so the reconnect path runs.
+- **Sending.** Sends are `POST` requests, one in flight at a time, in call order. Messages queued
+  while a `POST` is in flight go together in the next one.
+- **Closing.** When the sending side ends first (the connection stops, or a send fails), the poll
+  is cancelled and a `DELETE` tells the server, as the .NET client's `LongPollingTransport` does.
+  After the server ended the connection no `DELETE` is sent.
+- **Credentials.** Every request carries the credentials in the `Authorization` header, in browsers
+  too, never in the URL. With an access-token factory, the requests keep the token negotiate
+  fetched; a 401 sent with it asks the factory once for a fresh one and retries, as the .NET
+  client's `AccessTokenHttpMessageHandler` does. A refused request (401 or 403) is an
+  `ErrorKind::Authentication` error with its status. `with_header` headers go with every request.
+- **Bounds.** Starting the transport (the first poll, any token refresh included) is bounded by the
+  connect timeout and fails with `ErrorKind::Timeout` naming `Connect`. Each poll is bounded by
+  `with_long_polling_timeout` (100 s by default, the JavaScript client's poll timeout) plus the
+  connect timeout, and a poll that exceeds it is reissued, as the .NET client reissues a poll its
+  `HttpClient` timed out. Sends and the `DELETE` are bounded by the connect timeout; a send that
+  exceeds it ends the transport.
+- **Native connections.** Natively the requests run over the client's own TCP and TLS stream, with
+  the HTTP version `with_http_version` selects (see [HTTP versions](#http-versions)): by default
+  HTTP/2 over TLS when the server agrees through ALPN, otherwise HTTP/1.1. A request that fails on
+  a reused HTTP/1.1 connection before any answer is sent once more on a fresh connection, as
+  .NET's `SocketsHttpHandler` does.
+
+Long Polling keeps itself alive. As in the .NET client and ASP.NET Core, the client sends no
+keep-alive Pings over it, runs no server timeout, and sends no Ping after the handshake. That Ping
+would make the server start its client timeout, so an idle Long Polling client is never timed out
+by either side. Stateful reconnect does not run over Long Polling.
+
+```rust
+use std::time::Duration;
+
+let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+    c.with_transports(rayx_signalr::Transports::LONG_POLLING);
+    c.with_long_polling_timeout(Duration::from_secs(60));
+})?;
+```
+
+### Server-Sent Events
+
+Server-Sent Events work as in the official clients, on both targets, with JSON only (they carry
+text):
+
+- **Receiving.** One `GET` with `Accept: text/event-stream` stays open; every event carries one or
+  more messages. Natively the stream is parsed per the HTML event-stream rules (multi-line `data:`,
+  comments, CRLF, LF or CR line endings, events split across reads; comments are not liveness,
+  and with `with_maximum_message_size` an unfinished record larger than that fails the transport
+  with `ErrorKind::Protocol`); browsers use `EventSource`,
+  whose automatic reconnection is disabled, so the client's own reconnect logic owns retries. The
+  stream ending or failing drops the transport, so the reconnect path runs.
+- **Sending.** As for Long Polling: ordered `POST` requests, one in flight, queued messages batched.
+- **Closing.** Ending the connection closes the stream; there is no `DELETE`.
+- **Credentials.** Natively every request carries the `Authorization` header (the negotiate token,
+  refreshed once after a 401). `EventSource` cannot set headers, so browsers put the Bearer token
+  on the stream URL as `access_token` and send `Authorization` on the `POST` requests.
+- **Bounds.** Opening the stream is bounded by the connect timeout (`ErrorKind::Timeout` naming
+  `Connect`); sends by the connect timeout.
+
+Unlike Long Polling, Server-Sent Events use the keep-alive Pings and the server timeout, as over
+WebSockets. Stateful reconnect does not run over them.
+
+```rust
+let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+    c.with_transports(rayx_signalr::Transports::SERVER_SENT_EVENTS);
+})?;
+```
+
+### HTTP versions
+
+Native clients choose the HTTP version as the .NET client does, with `with_http_version`:
+
+| `HttpVersion` | Negotiate, Long Polling, Server-Sent Events | WebSockets |
+|---|---|---|
+| `Auto` (default) | HTTP/2 over TLS when the server agrees through ALPN (`h2, http/1.1`), else HTTP/1.1; plaintext uses HTTP/1.1 | HTTP/1.1 |
+| `Http1` | HTTP/1.1 | HTTP/1.1 |
+| `Http2` | HTTP/2 only: ALPN `h2` over TLS, h2c with prior knowledge over plaintext | HTTP/2 through RFC 8441 extended CONNECT |
+| `Http3` (feature `http3`, experimental) | HTTP/3 only, over QUIC | unavailable (skipped in transport selection) |
+| `Http3Preferred` (feature `http3`, experimental) | HTTP/3 when QUIC connects within half the connect timeout, else as `Auto` | as `Auto` |
+
+```rust
+let client = rayx_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
+    c.with_http_version(rayx_signalr::HttpVersion::Http2);
+})?;
+```
+
+Over HTTP/2, negotiate, Long Polling and the Server-Sent Events stream of one connection, and an
+extended-CONNECT WebSocket, share one multiplexed connection per endpoint, as the .NET client's
+`HttpClient` does; each `start` and each reconnect attempt opens new ones, as a new .NET
+`HttpConnection` does (a stateful resume keeps them). A request the server never processed (a
+refused stream, or one a graceful `GOAWAY` excluded) is sent once more on a new connection; any
+other failed request is not repeated. With `Http2`, an endpoint that does not negotiate HTTP/2,
+or a server that does not enable extended CONNECT for WebSockets, fails with
+`ErrorKind::Transport`. A server whose TLS answers the ALPN mismatch with a `protocol_version`
+alert instead, such as Kestrel on macOS, fails with `ErrorKind::Tls`. Integrated Windows authentication cannot run over HTTP/2, so with
+`with_default_credentials` or `with_credentials` every request uses HTTP/1.1 whatever the
+version, as the .NET client turns HTTP/2 off with credentials. HTTP/2 also works through
+proxies' tunnels. Browsers choose the HTTP version themselves.
+
+#### Experimental HTTP/3
+
+The non-default `http3` feature adds HTTP/3 over QUIC (quinn and h3), which the .NET SignalR client
+does not offer. QUIC uses the connection's own rustls configuration, with its provider, verifier,
+extra roots and `with_tls_config_hook`, offering ALPN `h3`. Certificates are verified as over TCP.
+
+- `HttpVersion::Http3` carries negotiate, Long Polling and Server-Sent Events over HTTP/3. A
+  connect attempt's requests share one QUIC connection per endpoint, which sends keep-alive pings
+  so long polls outlive QUIC's idle timeout.
+- QUIC runs only to secure endpoints reached directly. A plaintext endpoint, an endpoint behind a
+  proxy (proxies carry TCP only), or one QUIC cannot reach fails with `ErrorKind::Transport` (or
+  `ErrorKind::Timeout` when the connect timeout runs out first).
+- WebSockets are unavailable over HTTP/3. Bootstrapping them needs RFC 9220, and ASP.NET Core's
+  Kestrel does not offer it, so transport selection skips WebSockets with that reason. WebSockets
+  alone then fail with `ErrorKind::TransportUnavailable`.
+- `HttpVersion::Http3Preferred` gives QUIC half of the connect timeout. If QUIC fails, the rest of
+  the attempt uses TCP to that endpoint, as `Auto` does. WebSockets always use TCP, as with `Auto`.
+- Integrated Windows authentication keeps HTTP/1.1, as with HTTP/2.
+
+```rust
+// Requires the `http3` feature.
+let client = rayx_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
+    c.with_http_version(rayx_signalr::HttpVersion::Http3Preferred);
+})?;
+```
+
+Kestrel serves HTTP/3 through msquic: on Windows 11 and Windows Server 2022, and on Linux with
+`libmsquic`. Enable it with `HttpProtocols.Http1AndHttp2AndHttp3` on an HTTPS endpoint.
+
+## Proxies
+
+Native clients use the system's proxy settings by default, as the .NET client's default proxy,
+read each time a connection is opened. When a proxy environment variable names a proxy, the
+environment decides (`HttpEnvironmentProxy`); otherwise the operating system's settings do:
+
+| Platform | System settings |
+|---|---|
+| Windows | The current user's settings through WinHTTP (manual proxy and bypass list, automatic detection, auto-config script), as .NET's `HttpWindowsProxy`. Loopback hosts are never proxied. |
+| macOS, iOS | CFNetwork's system settings (`CFNetworkCopyProxiesForURL`): HTTP, HTTPS and SOCKS proxies, and auto-config scripts, which CFNetwork runs, as .NET's `MacProxy`. |
+| Android | `java.net.ProxySelector`, which follows the device's proxy, once `tls::android::init_with_env` has stored the Java VM; otherwise the environment variables. |
+| Linux and others | The environment variables. |
+
+`with_os_proxy()` uses the operating system's settings alone, ignoring the environment variables.
+Settings that cannot be read (an account without Internet settings, an unreachable auto-config
+script) connect directly, as .NET does. When the system lists several proxies, the next one is
+tried only when a proxy cannot be reached; a proxy that answers decides, so its refusal (a 407, a
+denied target) is the connection's error.
+The environment variables are read as .NET reads them: `https_proxy`, then
+`HTTPS_PROXY`, for secure endpoints; `http_proxy`, then `HTTP_PROXY`, for plain ones (a CGI
+process, with `GATEWAY_INTERFACE` set, ignores `HTTP_PROXY`, which a request's `Proxy:` header
+could set); `all_proxy`, then `ALL_PROXY`, when neither applies. A variable that is empty or not
+a proxy URL the client supports (`http://`, `https://`, `socks4://`, `socks4a://`, `socks5://`,
+`socks5h://`) is skipped.
+`no_proxy` (else `NO_PROXY`) exempts hosts with curl's rules: host names with their subdomains
+(`example.com`, `.example.com`), IP addresses, CIDR ranges (`10.0.0.0/8`), entries with a port
+(`example.com:8443`), and `*` for every host. Browsers always use the browser's proxy settings and
+have none of these options.
+
+```rust
+let client = rayx_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
+    // An explicit proxy instead of the system's; credentials are optional.
+    c.with_proxy("http://user:password@proxy.example.com:3128");
+    // Or a SOCKS proxy: c.with_proxy("socks5://user:password@proxy.example.com:1080");
+    // Or: c.without_proxy(); to connect directly, or c.with_system_proxy(); (the default).
+})?;
+```
+
+Every native connection (negotiate, the WebSocket, Long Polling and Server-Sent Events) to a
+proxied endpoint opens a tunnel through the proxy (an HTTP `CONNECT`, or a SOCKS handshake for the
+SOCKS proxies below), and runs TLS with the
+connection's own configuration inside the tunnel for secure endpoints, so the proxy never sees the
+traffic or terminates TLS. As in the .NET client, the URL's credentials (percent-encode `:` and
+`@` in them) go out only when the proxy asks for them: after a 407 that offers the Basic scheme,
+the tunnel request is sent again with Basic `Proxy-Authorization`. A tunnel that fails fails the
+connection with `ErrorKind::Proxy`, with `status()` when the proxy answered: 407 (no or refused
+credentials, or no Basic scheme offered) and 403 are not transient, an unreachable proxy (no
+status) and 5xx are. Proxy credentials never appear in logs or errors. A proxy URL other than
+`scheme://[user:password@]host[:port]` with one of the schemes above fails `new` and `connect`
+with `ErrorKind::Configuration` naming `with_proxy`.
+
+An `https://` proxy (port 443 by default) is reached over TLS, as the .NET client (since .NET 8)
+does. The client verifies the proxy's certificate with the connection's own TLS configuration (its
+trust roots, `with_additional_root_certificates_pem` included, and its rustls provider; never an
+accept-all verifier). It then sends the `CONNECT` request, with the same 407 and Basic flow, inside
+that TLS session, and runs a secure endpoint's own TLS inside the tunnel. A proxy certificate that
+does not verify fails the connection with `ErrorKind::Proxy` naming the proxy.
+
+### SOCKS proxies
+
+SOCKS proxies work as in the .NET client's `SocksHelper`, for every native connection, with TLS
+inside the tunnel:
+
+| Scheme | Destination | Credentials |
+|---|---|---|
+| `socks5://`, `socks5h://` | a host name goes to the proxy, which resolves it; an IP literal goes as an IPv4 or IPv6 address | user name and password (RFC 1929), offered alongside no authentication when the URL has them |
+| `socks4a://` | resolved by the proxy | the user name as the SOCKS4 user id |
+| `socks4://` | resolved locally to IPv4 (IPv6 destinations are not possible) | the user name as the SOCKS4 user id |
+
+The default port is 1080. A SOCKS failure is `ErrorKind::Proxy`, and its message names the
+proxy's reply code. As with HTTP proxies, refused or missing credentials report status 407 and a
+destination the proxy's ruleset forbids reports 403; neither is transient. A proxy that is
+unreachable, answers something other than SOCKS, or closes the connection mid-reply has no
+status and is transient. The user name and password are at most 255 bytes each.
+
+### Proxy auto-config
+
+With the `proxy-pac` feature, `with_proxy_auto_config(url)` chooses proxies with a proxy
+auto-config (PAC) script, as WinHTTP and browsers do:
+
+```rust
+let client = rayx_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
+    c.with_proxy_auto_config("http://wpad.example.com/proxy.pac");
+})?;
+```
+
+The script comes from an `http`, `https` or `file` URL. It is loaded directly (never through a
+proxy) at each `start`, within the connect timeout, and serves every connection of that start.
+For each native connection, `FindProxyForURL(url, host)` receives the endpoint as
+`http(s)://host[:port]/` and returns routes to try in order: `PROXY` and `HTTP` (an HTTP proxy),
+`HTTPS` (an HTTPS proxy), `SOCKS` (SOCKS4), `SOCKS4`, `SOCKS5` and `DIRECT`. A route that cannot
+be reached passes to the next, and the last failure is reported; a proxy that answers decides.
+Unknown or malformed entries are skipped, and a result without a usable route connects
+directly. The standard helpers are available: `isPlainHostName`, `dnsDomainIs`,
+`localHostOrDomainIs`, `isResolvable`, `isInNet`, `dnsResolve`, `myIpAddress`, `dnsDomainLevels`,
+`shExpMatch`, `weekdayRange`, `dateRange` and `timeRange`.
+
+The script runs in the pure-Rust Boa JavaScript engine on a blocking thread. It has no network or
+file access beyond the DNS lookups of the helpers: each host is resolved at most once per
+evaluation, and a lookup waits at most 2 seconds and never past the deadline (it answers `null`
+then). One evaluation
+is bounded at 5 seconds: the deadline is checked between short instruction budgets, calls
+included, so a runaway script ends with its thread; a single builtin call (such as a regular
+expression) runs to its end before the next check. At most eight evaluations run at once; a
+further one waits for a slot within its deadline. A script that cannot be loaded, has no
+`FindProxyForURL`, throws or runs too long fails the connection with `ErrorKind::Proxy`. A URL that is not `http`, `https` or `file`
+fails `new` with `ErrorKind::Configuration` naming `with_proxy_auto_config`. PAC routes carry no
+credentials, so their proxies must not require authentication.
+
+## Cookies
+
+Native clients keep cookies as the .NET client's `HttpConnectionOptions.Cookies`
+(`CookieContainer`): every negotiate response, the WebSocket upgrade and every Long Polling or
+Server-Sent Events response store their `Set-Cookie` headers, and every native request sends the
+cookies that match its URL, across reconnects. A load balancer's affinity cookie (for example
+Azure App Service's `ARRAffinity`) therefore keeps the connection on the server that negotiated
+it. Each client has its own jar; pass a `CookieJar` to share one
+between clients, or keep a clone to read or seed it:
+
+```rust
+let jar = rayx_signalr::CookieJar::new();
+jar.set_cookie("https://hub.example.com/chat", "tenant=blue; Path=/");
+let client = rayx_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
+    c.with_cookie_jar(jar.clone());
+})?;
+// After connecting: jar.cookie_header("https://hub.example.com/chat")
+```
+
+The jar follows RFC 6265 for host-only and `Domain` cookies, `Path`, `Secure` (sent only over
+`https`/`wss` and accepted only from them), `Expires` and `Max-Age`, with the .NET container's
+limits (4096 bytes per cookie, 20 per domain, 300 in all). A `Cookie` header set with
+`with_header` goes first, followed by the jar's cookies. Browsers manage cookies themselves:
+`fetch` and the `WebSocket` send the browser's cookies for the hub's origin.
 
 ## Hub protocol
 
@@ -140,8 +583,8 @@ let client = rayx_signalr::SignalRClient::connect_with("localhost", "chat", move
 ```
 
 Every native connection belongs to one Tokio runtime: the handle passed to `with_runtime_handle`,
-otherwise the runtime `connect` is called from, otherwise `connect` fails before any I/O with an
-error that names both options. The client's futures can then be awaited from any executor. See
+otherwise the runtime `connect` is called from, otherwise `connect` fails before any I/O with a
+`Configuration` error that names both options. The client's futures can then be awaited from any executor. See
 [Platforms](09-platforms.md#native-runtime-ownership).
 
 ## Configuration reference
@@ -153,11 +596,28 @@ error that names both options. The client's futures can then be awaited from any
 | `with_hub(String)` | all | `hub` argument | [Endpoint](#endpoint) |
 | `authenticate_basic(String, Option<String>)` | all | none | [Authentication](#authentication) |
 | `authenticate_bearer(String)` | all | none | [Authentication](#authentication) |
+| `with_access_token_factory(async fn)` | all | none | [Access-token factory](#access-token-factory) |
 | `skip_negotiation()` | all | negotiate | [Skipping negotiation](#skipping-negotiation) |
+| `with_transports(Transports)` | all | `Transports::all()` | [Transports](#transports) |
+| `with_http_version(HttpVersion)` | native | `HttpVersion::Auto` | [HTTP versions](#http-versions) |
+| `with_header(name, value)` | all (browsers: `fetch` requests only) | none | [Request headers](#request-headers) |
+| `with_request_hook(Fn(&mut HttpRequest))` | all (browsers: `fetch` requests only) | none | [Request hooks](#request-hooks) |
+| `with_tls_config_hook(Fn(&mut rustls::ClientConfig))` | native, TLS features | none | [TLS](08-tls.md#adjusting-the-rustls-configuration) |
+| `with_invocation_headers(hook)` | all | none | [Calling the hub](03-calling-the-hub.md#invocation-headers) |
+| `with_maximum_message_size(usize)` | all | unbounded | [Hub protocols](05-hub-protocols.md#framing) |
 | `with_messagepack_protocol()` | all, `messagepack` feature | JSON | [Hub protocols](05-hub-protocols.md) |
 | `with_keep_alive_interval(Duration)` | all | 15 s | [Lifecycle](06-connection-lifecycle.md#liveness) |
 | `with_server_timeout(Duration)` | all | 30 s | [Lifecycle](06-connection-lifecycle.md#liveness) |
 | `with_handshake_timeout(Duration)` | all | 15 s | [Lifecycle](06-connection-lifecycle.md#liveness) |
+| `with_connect_timeout(Duration)` | all | 120 s | [Lifecycle](06-connection-lifecycle.md#liveness) |
+| `with_close_timeout(Duration)` | all | 5 s | [Lifecycle](06-connection-lifecycle.md#stopping) |
+| `with_long_polling_timeout(Duration)` | all | 100 s | [Long Polling](#long-polling) |
+| `with_proxy_auto_config(url)` | native, `proxy-pac` (not iOS) | none | [Proxy auto-config](#proxy-auto-config) |
+| `with_os_proxy()` | native | (the default also reads the operating system's settings) | [Proxies](#proxies) |
+| `with_proxy(url)`, `with_system_proxy()`, `without_proxy()` | native | the system proxy | [Proxies](#proxies) |
+| `with_cookie_jar(CookieJar)` | native | a jar per client | [Cookies](#cookies) |
+| `with_default_credentials()`, `with_credentials(user, password, domain)` | native | none | [Integrated Windows authentication](#integrated-windows-authentication) |
+| `with_client_certificate(chain_pem, key_pem)` | native | none | [TLS](08-tls.md#client-certificates) |
 | `with_reconnection_policy(ReconnectionConfig)` | all | never reconnect | [Reconnection](07-reconnection.md) |
 | `with_disconnection_handler(handler)` | all | none | [Manual reconnection](07-reconnection.md#manual-reconnection) |
 | `with_stateful_reconnect(StatefulReconnectConfig)` | all | off | [Stateful reconnect](07-reconnection.md#stateful-reconnect) |

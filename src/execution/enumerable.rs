@@ -1,12 +1,10 @@
-use log::error;
+use log::{error, trace};
 use serde::de::DeserializeOwned;
 
 use crate::{
     completer::{ManualStream, ManualStreamCompleter, StreamDropHandler},
-    protocol::{
-        hub_protocol::MessagePayload, invoke::Completion, messages::MessageParser,
-        negotiate::MessageType, streaming::StreamItem,
-    },
+    error::Error,
+    protocol::codec::{CompletionOutcome, Payload},
 };
 
 use super::actions::UpdatableAction;
@@ -14,7 +12,6 @@ use super::actions::UpdatableAction;
 pub(crate) struct EnumerableAction<R: DeserializeOwned + Unpin> {
     invocation_id: String,
     completer: ManualStreamCompleter<R>,
-    completed: bool,
 }
 
 impl<R: DeserializeOwned + Unpin> EnumerableAction<R> {
@@ -25,109 +22,50 @@ impl<R: DeserializeOwned + Unpin> EnumerableAction<R> {
             EnumerableAction {
                 invocation_id,
                 completer: c,
-                completed: false,
             },
             s,
         )
-    }
-
-    fn dispose_internal(&mut self) {
-        self.completed = true;
-        self.completer.close();
     }
 }
 
 impl<R: DeserializeOwned + Unpin> Drop for EnumerableAction<R> {
     fn drop(&mut self) {
-        self.dispose_internal();
+        self.completer.close();
     }
 }
 
 impl<R: DeserializeOwned + Unpin + crate::platform::MaybeSend> UpdatableAction
     for EnumerableAction<R>
 {
-    fn update_with(&mut self, message: &MessagePayload, message_type: MessageType) {
-        match message_type {
-            MessageType::StreamItem => match message {
-                MessagePayload::Text(s) => {
-                    if let Ok(item) = MessageParser::parse_message::<StreamItem<R>>(s) {
-                        self.completer.push(item.item);
-                    } else {
-                        error!(
-                            "Cannot update stream {} with unparseable item {}",
-                            self.invocation_id, s
-                        );
-                    }
-                }
-                #[cfg(feature = "messagepack")]
-                MessagePayload::Binary(data) => {
-                    match crate::protocol::msgpack::parse_msgpack_message(data) {
-                        Ok(items) => match crate::protocol::msgpack::parse_stream_item(&items) {
-                            Ok(si) => {
-                                match crate::protocol::msgpack::value_to_type::<R>(&si.item) {
-                                    Ok(item) => self.completer.push(item),
-                                    Err(e) => error!("Cannot deserialize stream item: {}", e),
-                                }
-                            }
-                            Err(e) => error!("Cannot parse msgpack stream item: {}", e),
-                        },
-                        Err(e) => error!("Cannot parse msgpack message: {}", e),
-                    }
-                }
-            },
-            MessageType::Completion => match message {
-                MessagePayload::Text(s) => {
-                    match MessageParser::parse_message::<Completion<serde_json::Value>>(s) {
-                        Ok(completion) if completion.is_error() => {
-                            self.completer.fail(completion.unwrap_error())
-                        }
-                        Ok(_) => self.completer.close(),
-                        Err(_) => {
-                            error!("Cannot parse completition: {}", s);
-                            self.completer.fail(format!(
-                                "Stream {} ended with an unparseable completion",
-                                self.invocation_id
-                            ));
-                        }
-                    }
-                }
-                #[cfg(feature = "messagepack")]
-                MessagePayload::Binary(data) => {
-                    let error = crate::protocol::msgpack::parse_msgpack_message(data)
-                        .and_then(|items| crate::protocol::msgpack::parse_completion(&items))
-                        .ok()
-                        .filter(|completion| completion.result_kind == 1)
-                        .map(|completion| {
-                            completion
-                                .payload
-                                .and_then(|value| value.as_str().map(str::to_string))
-                                .unwrap_or_else(|| "Unknown stream error".to_string())
-                        });
-                    match error {
-                        Some(error) => self.completer.fail(error),
-                        None => self.completer.close(),
-                    }
-                }
-            },
-            _ => error!(
-                "Cannot update stream {} with message type {:?}",
-                self.invocation_id, message_type
-            ),
+    fn on_stream_item(&self, item: Payload<'_>) {
+        match item.decode::<R>() {
+            Ok(item) => self.completer.push(item),
+            Err(error) => {
+                // The decode error can quote the item, so its text is logged only at trace.
+                error!(
+                    "Cannot decode an item of stream {}: {:?}",
+                    self.invocation_id,
+                    error.kind()
+                );
+                trace!("Stream {} item: {error}", self.invocation_id);
+            }
         }
     }
 
-    fn fail(&mut self, error: &str) {
+    fn on_completion(&self, outcome: &CompletionOutcome<'_>) {
+        match outcome {
+            CompletionOutcome::Error(message) => self.completer.fail(Error::hub(message.as_ref())),
+            CompletionOutcome::Result(payload) => match payload.server_error() {
+                Some(message) => self.completer.fail(Error::hub(message)),
+                None => self.completer.close(),
+            },
+            CompletionOutcome::Void => self.completer.close(),
+        }
+    }
+
+    fn fail(&self, error: &Error) {
         error!("Ending stream {}: {}", self.invocation_id, error);
-        self.completed = true;
-        self.completer.fail(error.to_string());
-    }
-
-    fn is_completed(&self) -> bool {
-        self.completed
-    }
-
-    fn dispose(mut self) {
-        self.dispose_internal();
+        self.completer.fail(error.clone());
     }
 }
 
@@ -135,43 +73,50 @@ impl<R: DeserializeOwned + Unpin + crate::platform::MaybeSend> UpdatableAction
 mod functional_baseline_stream_errors {
     use super::EnumerableAction;
     use crate::execution::UpdatableAction;
-    use crate::protocol::{hub_protocol::MessagePayload, negotiate::MessageType};
+    use crate::protocol::codec::{self, InboundMessage};
     use futures::StreamExt;
+
+    fn deliver(action: &EnumerableAction<i32>, message: InboundMessage<'_>) {
+        match message {
+            InboundMessage::StreamItem { item, .. } => action.on_stream_item(item),
+            InboundMessage::Completion { outcome, .. } => action.on_completion(&outcome),
+            other => panic!("expected a stream message, got {other:?}"),
+        }
+    }
 
     #[test]
     fn json_error_completion_ends_the_stream_with_the_server_error() {
-        let (mut action, mut stream) =
-            EnumerableAction::<i32>::new("S_1".to_string(), Box::new(|| {}));
-        action.update_with(
-            &MessagePayload::Text(r#"{"type":2,"invocationId":"S_1","item":1}"#.to_string()),
-            MessageType::StreamItem,
+        let (action, mut stream) = EnumerableAction::<i32>::new("S_1".to_string(), Box::new(|| {}));
+        deliver(
+            &action,
+            codec::decode_json(r#"{"type":2,"invocationId":"S_1","item":1}"#).unwrap(),
         );
-        action.update_with(
-            &MessagePayload::Text(r#"{"type":3,"invocationId":"S_1","error":"boom"}"#.to_string()),
-            MessageType::Completion,
+        deliver(
+            &action,
+            codec::decode_json(r#"{"type":3,"invocationId":"S_1","error":"boom"}"#).unwrap(),
         );
         assert_eq!(futures::executor::block_on(stream.next()), Some(1));
         assert_eq!(futures::executor::block_on(stream.next()), None);
-        assert_eq!(stream.error(), Some("boom".to_string()));
+        let error = stream.error().expect("the server error ends the stream");
+        assert_eq!(error.kind(), crate::ErrorKind::Hub);
+        assert_eq!(error.server_message(), Some("boom"));
     }
 
     #[test]
     fn normal_completion_leaves_no_stream_error() {
-        let (mut action, mut stream) =
-            EnumerableAction::<i32>::new("S_1".to_string(), Box::new(|| {}));
-        action.update_with(
-            &MessagePayload::Text(r#"{"type":3,"invocationId":"S_1"}"#.to_string()),
-            MessageType::Completion,
+        let (action, mut stream) = EnumerableAction::<i32>::new("S_1".to_string(), Box::new(|| {}));
+        deliver(
+            &action,
+            codec::decode_json(r#"{"type":3,"invocationId":"S_1"}"#).unwrap(),
         );
         assert_eq!(futures::executor::block_on(stream.next()), None);
-        assert_eq!(stream.error(), None);
+        assert!(stream.error().is_none());
     }
 
     #[cfg(feature = "messagepack")]
     #[test]
     fn messagepack_error_completion_ends_the_stream_with_the_server_error() {
-        let (mut action, mut stream) =
-            EnumerableAction::<i32>::new("S_1".to_string(), Box::new(|| {}));
+        let (action, mut stream) = EnumerableAction::<i32>::new("S_1".to_string(), Box::new(|| {}));
         let mut bytes = Vec::new();
         rmpv::encode::write_value(
             &mut bytes,
@@ -184,17 +129,22 @@ mod functional_baseline_stream_errors {
             ]),
         )
         .unwrap();
-        action.update_with(&MessagePayload::Binary(bytes), MessageType::Completion);
+        deliver(&action, codec::decode_messagepack(&bytes).unwrap());
         assert_eq!(futures::executor::block_on(stream.next()), None);
-        assert_eq!(stream.error(), Some("boom".to_string()));
+        assert_eq!(
+            stream.error().and_then(crate::Error::server_message),
+            Some("boom")
+        );
     }
 
     #[test]
     fn failing_pending_streams_reports_the_failure() {
-        let (mut action, mut stream) =
-            EnumerableAction::<i32>::new("S_1".to_string(), Box::new(|| {}));
-        action.fail("transport replaced");
+        let (action, mut stream) = EnumerableAction::<i32>::new("S_1".to_string(), Box::new(|| {}));
+        action.fail(&crate::Error::paused());
         assert_eq!(futures::executor::block_on(stream.next()), None);
-        assert_eq!(stream.error(), Some("transport replaced".to_string()));
+        assert_eq!(
+            stream.error().map(crate::Error::kind),
+            Some(crate::ErrorKind::Paused)
+        );
     }
 }

@@ -1,36 +1,75 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::io::Cursor;
 
+#[cfg(test)]
 use base64::Engine;
 
-use crate::protocol::negotiate::MessageType;
+use crate::{error::Error, protocol::negotiate::MessageType};
+
+fn encoding(error: impl std::fmt::Display) -> Error {
+    Error::serialization(format!("cannot encode a MessagePack message: {error}"))
+}
 
 // ── VarInt Framing ──────────────────────────────────────────────────────
 
-/// Encode a length as a VarInt (LEB128-style, MSB continuation bit).
-pub fn encode_varint(mut value: usize) -> Vec<u8> {
-    let mut buf = Vec::new();
-    loop {
+/// The longest VarInt length prefix a frame needs (a `u32` length).
+const MAX_PREFIX: usize = 5;
+
+/// Writes `value` as a VarInt (LEB128-style, MSB continuation bit) into `prefix`; returns how
+/// many bytes it took.
+fn write_varint(mut value: usize, prefix: &mut [u8; MAX_PREFIX]) -> usize {
+    let mut written = 0;
+    for slot in prefix.iter_mut() {
         let mut byte = (value & 0x7F) as u8;
         value >>= 7;
         if value > 0 {
             byte |= 0x80;
         }
-        buf.push(byte);
+        *slot = byte;
+        written += 1;
         if value == 0 {
             break;
         }
     }
+    written
+}
+
+/// Encode a length as a VarInt (LEB128-style, MSB continuation bit).
+#[cfg(test)]
+pub fn encode_varint(value: usize) -> Vec<u8> {
+    let mut prefix = [0; MAX_PREFIX];
+    let written = write_varint(value, &mut prefix);
+    prefix.iter().take(written).copied().collect()
+}
+
+/// A buffer for one message with room for its length prefix in front ([`finish_frame`]), so a
+/// frame is written with one allocation and no copy into a second buffer.
+fn frame_buffer(capacity: usize) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(MAX_PREFIX + capacity);
+    buf.resize(MAX_PREFIX, 0);
+    buf
+}
+
+/// Frames the message written after [`frame_buffer`]'s reserved prefix, in place.
+fn finish_frame(mut buf: Vec<u8>) -> Vec<u8> {
+    let mut prefix = [0; MAX_PREFIX];
+    let written = write_varint(buf.len() - MAX_PREFIX, &mut prefix);
+    let start = MAX_PREFIX - written;
+    for (slot, byte) in buf.iter_mut().skip(start).zip(prefix.iter().take(written)) {
+        *slot = *byte;
+    }
+    buf.drain(..start);
     buf
 }
 
 /// Decode a VarInt from a byte slice. Returns (value, bytes_consumed).
-pub fn decode_varint(data: &[u8]) -> Result<(usize, usize), String> {
+#[cfg(any(test, all(feature = "bench-internals", not(target_arch = "wasm32"))))]
+pub fn decode_varint(data: &[u8]) -> Result<(usize, usize), Error> {
     let mut result: usize = 0;
     let mut shift = 0;
     for (i, &byte) in data.iter().enumerate() {
         if i >= 5 {
-            return Err("VarInt too long".to_string());
+            return Err(Error::protocol("the MessagePack length prefix is too long"));
         }
         result |= ((byte & 0x7F) as usize) << shift;
         if byte & 0x80 == 0 {
@@ -38,25 +77,33 @@ pub fn decode_varint(data: &[u8]) -> Result<(usize, usize), String> {
         }
         shift += 7;
     }
-    Err("Unexpected end of VarInt".to_string())
+    Err(Error::protocol(
+        "the MessagePack length prefix is truncated",
+    ))
 }
 
 /// Frame a MessagePack message with VarInt length prefix.
 pub fn frame_message(payload: &[u8]) -> Vec<u8> {
-    let mut framed = encode_varint(payload.len());
+    let mut prefix = [0; MAX_PREFIX];
+    let written = write_varint(payload.len(), &mut prefix);
+    let mut framed = Vec::with_capacity(written + payload.len());
+    framed.extend(prefix.iter().take(written));
     framed.extend_from_slice(payload);
     framed
 }
 
+#[cfg(test)]
 /// Extract individual messages from a binary buffer with VarInt length prefixes.
-pub fn split_framed_messages(data: &[u8]) -> Result<Vec<Vec<u8>>, String> {
+pub fn split_framed_messages(data: &[u8]) -> Result<Vec<Vec<u8>>, Error> {
     let mut messages = Vec::new();
     let mut offset = 0;
     while offset < data.len() {
         let (len, varint_size) = decode_varint(&data[offset..])?;
         offset += varint_size;
         if offset + len > data.len() {
-            return Err("Incomplete message in frame".to_string());
+            return Err(Error::protocol(
+                "the frame ends inside a MessagePack message",
+            ));
         }
         messages.push(data[offset..offset + len].to_vec());
         offset += len;
@@ -66,13 +113,14 @@ pub fn split_framed_messages(data: &[u8]) -> Result<Vec<Vec<u8>>, String> {
 
 // ── Message Type Extraction ─────────────────────────────────────────────
 
+#[cfg(test)]
 /// Read the message type from the first element of a MessagePack array.
-pub fn read_message_type(data: &[u8]) -> Result<MessageType, String> {
+pub fn read_message_type(data: &[u8]) -> Result<MessageType, Error> {
     let mut cursor = Cursor::new(data);
     let _array_len = rmp::decode::read_array_len(&mut cursor)
-        .map_err(|e| format!("Not a MessagePack array: {}", e))?;
+        .map_err(|e| Error::protocol(format!("the message is not a MessagePack array: {e}")))?;
     let msg_type = rmp::decode::read_int::<u8, _>(&mut cursor)
-        .map_err(|e| format!("Cannot read message type: {}", e))?;
+        .map_err(|e| Error::protocol(format!("cannot read the message type: {e}")))?;
 
     match msg_type {
         1 => Ok(MessageType::Invocation),
@@ -93,60 +141,125 @@ pub fn read_message_type(data: &[u8]) -> Result<MessageType, String> {
 /// Encode headers as a MessagePack map. Empty headers = fixmap 0 (0x80).
 fn encode_headers(
     buf: &mut Vec<u8>,
-    headers: &Option<HashMap<String, String>>,
-) -> Result<(), String> {
+    headers: &Option<BTreeMap<String, String>>,
+) -> Result<(), Error> {
     match headers {
         Some(h) if !h.is_empty() => {
-            rmp::encode::write_map_len(buf, h.len() as u32).map_err(|e| e.to_string())?;
+            rmp::encode::write_map_len(buf, h.len() as u32).map_err(encoding)?;
             for (k, v) in h {
-                rmp::encode::write_str(buf, k).map_err(|e| e.to_string())?;
-                rmp::encode::write_str(buf, v).map_err(|e| e.to_string())?;
+                rmp::encode::write_str(buf, k).map_err(encoding)?;
+                rmp::encode::write_str(buf, v).map_err(encoding)?;
             }
         }
         _ => {
-            rmp::encode::write_map_len(buf, 0).map_err(|e| e.to_string())?;
+            rmp::encode::write_map_len(buf, 0).map_err(encoding)?;
         }
     }
     Ok(())
 }
 
-/// Encode an Invocation (type 1) or StreamInvocation (type 4).
+/// Writes an Invocation (type 1) or StreamInvocation (type 4) around arguments that are already
+/// MessagePack-encoded, without decoding them again.
 /// Layout: [Type, Headers, InvocationId?, Target, Arguments, StreamIds]
 /// Always writes 6 elements to match the .NET SignalR MessagePack protocol.
+fn write_invocation(
+    buf: &mut Vec<u8>,
+    msg_type: u8,
+    headers: &Option<BTreeMap<String, String>>,
+    invocation_id: Option<&str>,
+    target: &str,
+    arguments: &[impl AsRef<[u8]>],
+    stream_ids: &[String],
+) -> Result<(), Error> {
+    let length = |count: usize| {
+        u32::try_from(count).map_err(|_| Error::serialization("too many MessagePack items"))
+    };
+
+    // Always 6 elements - .NET SignalR MessagePack protocol expects exactly 6
+    rmp::encode::write_array_len(buf, 6).map_err(encoding)?;
+    rmp::encode::write_uint(buf, msg_type as u64).map_err(encoding)?;
+    encode_headers(buf, headers)?;
+
+    // InvocationId (nil if absent)
+    match invocation_id {
+        Some(id) => rmp::encode::write_str(buf, id).map_err(encoding)?,
+        None => rmp::encode::write_nil(buf).map_err(encoding)?,
+    }
+
+    rmp::encode::write_str(buf, target).map_err(encoding)?;
+
+    // Arguments array, each argument copied as encoded
+    rmp::encode::write_array_len(buf, length(arguments.len())?).map_err(encoding)?;
+    for argument in arguments {
+        buf.extend_from_slice(argument.as_ref());
+    }
+
+    // StreamIds (always present, empty array if none)
+    rmp::encode::write_array_len(buf, length(stream_ids.len())?).map_err(encoding)?;
+    for id in stream_ids {
+        rmp::encode::write_str(buf, id).map_err(encoding)?;
+    }
+
+    Ok(())
+}
+
+/// The bytes an invocation needs beyond its encoded arguments (a capacity hint).
+fn invocation_capacity(arguments: &[impl AsRef<[u8]>], target: &str) -> usize {
+    arguments
+        .iter()
+        .map(|argument| argument.as_ref().len())
+        .sum::<usize>()
+        + target.len()
+        + 64
+}
+
+/// Encodes and frames an Invocation or StreamInvocation from its encoded arguments, into one
+/// buffer.
+pub(crate) fn encode_invocation_frame(
+    invocation: &crate::protocol::invoke::Invocation,
+) -> Result<Vec<u8>, Error> {
+    let arguments = invocation.msgpack_arguments();
+    let mut buf = frame_buffer(invocation_capacity(arguments, invocation.target()));
+    write_invocation(
+        &mut buf,
+        invocation.message_type() as u8,
+        invocation.headers(),
+        invocation.invocation_id(),
+        invocation.target(),
+        arguments,
+        invocation.stream_ids(),
+    )?;
+    Ok(finish_frame(buf))
+}
+
+/// Encode an Invocation (type 1) or StreamInvocation (type 4) from argument values.
+#[cfg(test)]
 pub fn encode_invocation(
     msg_type: u8,
-    headers: &Option<HashMap<String, String>>,
+    headers: &Option<BTreeMap<String, String>>,
     invocation_id: &Option<String>,
     target: &str,
     arguments: &[rmpv::Value],
     stream_ids: &Option<Vec<String>>,
-) -> Result<Vec<u8>, String> {
-    let mut buf = Vec::new();
-
-    // Always 6 elements - .NET SignalR MessagePack protocol expects exactly 6
-    rmp::encode::write_array_len(&mut buf, 6).map_err(|e| e.to_string())?;
-    rmp::encode::write_uint(&mut buf, msg_type as u64).map_err(|e| e.to_string())?;
-    encode_headers(&mut buf, headers)?;
-
-    // InvocationId (nil if absent)
-    match invocation_id {
-        Some(id) => rmp::encode::write_str(&mut buf, id).map_err(|e| e.to_string())?,
-        None => rmp::encode::write_nil(&mut buf).map_err(|e| e.to_string())?,
-    }
-
-    rmp::encode::write_str(&mut buf, target).map_err(|e| e.to_string())?;
-
-    // Arguments array
-    rmpv::encode::write_value(&mut buf, &rmpv::Value::Array(arguments.to_vec()))
-        .map_err(|e| e.to_string())?;
-
-    // StreamIds (always present, empty array if none)
-    let ids = stream_ids.as_deref().unwrap_or(&[]);
-    rmp::encode::write_array_len(&mut buf, ids.len() as u32).map_err(|e| e.to_string())?;
-    for id in ids {
-        rmp::encode::write_str(&mut buf, id).map_err(|e| e.to_string())?;
-    }
-
+) -> Result<Vec<u8>, Error> {
+    let arguments = arguments
+        .iter()
+        .map(|argument| {
+            let mut bytes = Vec::new();
+            rmpv::encode::write_value(&mut bytes, argument).map(|()| bytes)
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(encoding)?;
+    let mut buf = Vec::with_capacity(invocation_capacity(&arguments, target));
+    write_invocation(
+        &mut buf,
+        msg_type,
+        headers,
+        invocation_id.as_deref(),
+        target,
+        &arguments,
+        stream_ids.as_deref().unwrap_or_default(),
+    )?;
     Ok(buf)
 }
 
@@ -155,32 +268,79 @@ pub fn encode_invocation(
 pub fn encode_completion<T: serde::Serialize>(
     invocation_id: &str,
     result: &T,
-) -> Result<Vec<u8>, String> {
-    let encoded = rmp_serde::to_vec_named(result)
-        .map_err(|error| format!("MessagePack completion serialization failed: {error}"))?;
-    let value = rmpv::decode::read_value(&mut Cursor::new(encoded))
-        .map_err(|error| format!("MessagePack completion value failed: {error}"))?;
+) -> Result<Vec<u8>, Error> {
+    let encoded = rmp_serde::to_vec_named(result).map_err(|error| {
+        Error::serialization(format!("cannot encode the completion result: {error}"))
+    })?;
 
-    let mut payload = Vec::new();
-    rmp::encode::write_array_len(&mut payload, 5).map_err(|error| error.to_string())?;
+    let mut payload = frame_buffer(encoded.len() + invocation_id.len() + 16);
+    rmp::encode::write_array_len(&mut payload, 5).map_err(encoding)?;
     rmp::encode::write_uint(&mut payload, MessageType::Completion as u8 as u64)
-        .map_err(|error| error.to_string())?;
+        .map_err(encoding)?;
     encode_headers(&mut payload, &None)?;
-    rmp::encode::write_str(&mut payload, invocation_id).map_err(|error| error.to_string())?;
-    rmp::encode::write_uint(&mut payload, 3).map_err(|error| error.to_string())?;
-    rmpv::encode::write_value(&mut payload, &value).map_err(|error| error.to_string())?;
+    rmp::encode::write_str(&mut payload, invocation_id).map_err(encoding)?;
+    rmp::encode::write_uint(&mut payload, 3).map_err(encoding)?;
+    payload.extend_from_slice(&encoded);
+    Ok(finish_frame(payload))
+}
+
+/// Encode and frame an error Completion (type 3).
+/// Layout: [3, Headers, InvocationId, ResultKind=1, Error]
+pub fn encode_completion_error(invocation_id: &str, message: &str) -> Result<Vec<u8>, Error> {
+    let mut payload = Vec::with_capacity(invocation_id.len() + message.len() + 16);
+    rmp::encode::write_array_len(&mut payload, 5).map_err(encoding)?;
+    rmp::encode::write_uint(&mut payload, MessageType::Completion as u8 as u64)
+        .map_err(encoding)?;
+    encode_headers(&mut payload, &None)?;
+    rmp::encode::write_str(&mut payload, invocation_id).map_err(encoding)?;
+    rmp::encode::write_uint(&mut payload, 1).map_err(encoding)?;
+    rmp::encode::write_str(&mut payload, message).map_err(encoding)?;
+    Ok(frame_message(&payload))
+}
+
+/// Encode and frame a void Completion (type 3), the end of a client-to-server stream.
+/// Layout: [3, Headers, InvocationId, ResultKind=2]
+pub fn encode_completion_void(invocation_id: &str) -> Result<Vec<u8>, Error> {
+    let mut payload = Vec::with_capacity(invocation_id.len() + 8);
+    rmp::encode::write_array_len(&mut payload, 4).map_err(encoding)?;
+    rmp::encode::write_uint(&mut payload, MessageType::Completion as u8 as u64)
+        .map_err(encoding)?;
+    encode_headers(&mut payload, &None)?;
+    rmp::encode::write_str(&mut payload, invocation_id).map_err(encoding)?;
+    rmp::encode::write_uint(&mut payload, 2).map_err(encoding)?;
+    Ok(frame_message(&payload))
+}
+
+/// Encode and frame a StreamItem (type 2) of a client-to-server stream.
+/// Layout: [2, Headers, InvocationId, Item]
+pub fn encode_stream_item<T: serde::Serialize>(
+    stream_id: &str,
+    item: &T,
+) -> Result<Vec<u8>, Error> {
+    let encoded = rmp_serde::to_vec_named(item).map_err(|error| {
+        Error::serialization(format!(
+            "cannot encode a stream item as MessagePack: {error}"
+        ))
+    })?;
+    let mut payload = Vec::with_capacity(encoded.len() + stream_id.len() + 8);
+    rmp::encode::write_array_len(&mut payload, 4).map_err(encoding)?;
+    rmp::encode::write_uint(&mut payload, MessageType::StreamItem as u8 as u64)
+        .map_err(encoding)?;
+    encode_headers(&mut payload, &None)?;
+    rmp::encode::write_str(&mut payload, stream_id).map_err(encoding)?;
+    payload.extend_from_slice(&encoded);
     Ok(frame_message(&payload))
 }
 
 /// Encode and frame CancelInvocation (type 5).
 /// Layout: [5, Headers, InvocationId]
-pub fn encode_cancel_invocation(invocation_id: &str) -> Result<Vec<u8>, String> {
+pub fn encode_cancel_invocation(invocation_id: &str) -> Result<Vec<u8>, Error> {
     let mut payload = Vec::new();
-    rmp::encode::write_array_len(&mut payload, 3).map_err(|error| error.to_string())?;
+    rmp::encode::write_array_len(&mut payload, 3).map_err(encoding)?;
     rmp::encode::write_uint(&mut payload, MessageType::CancelInvocation as u8 as u64)
-        .map_err(|error| error.to_string())?;
+        .map_err(encoding)?;
     encode_headers(&mut payload, &None)?;
-    rmp::encode::write_str(&mut payload, invocation_id).map_err(|error| error.to_string())?;
+    rmp::encode::write_str(&mut payload, invocation_id).map_err(encoding)?;
     Ok(frame_message(&payload))
 }
 
@@ -190,19 +350,25 @@ pub fn encode_ping() -> Vec<u8> {
     vec![0x91, 0x06]
 }
 
+/// A client's Close message without an error: fixarray(3), fixint(7), nil, false.
+pub fn encode_close() -> Vec<u8> {
+    vec![0x93, 0x07, 0xc0, 0xc2]
+}
+
 // ── Inbound Decoding ────────────────────────────────────────────────────
 
 /// Parse a full MessagePack message into an rmpv::Value array.
-pub fn parse_msgpack_message(data: &[u8]) -> Result<Vec<rmpv::Value>, String> {
+pub fn parse_msgpack_message(data: &[u8]) -> Result<Vec<rmpv::Value>, Error> {
     let value = rmpv::decode::read_value(&mut Cursor::new(data))
-        .map_err(|e| format!("Failed to parse MessagePack: {}", e))?;
+        .map_err(|e| Error::protocol(format!("cannot parse the MessagePack message: {e}")))?;
 
     match value {
         rmpv::Value::Array(items) => Ok(items),
-        _ => Err("MessagePack message is not an array".to_string()),
+        _ => Err(Error::protocol("the MessagePack message is not an array")),
     }
 }
 
+#[cfg(test)]
 /// Parsed Invocation from MessagePack.
 pub struct MsgpackInvocation {
     pub invocation_id: Option<String>,
@@ -210,22 +376,29 @@ pub struct MsgpackInvocation {
     pub arguments: Vec<rmpv::Value>,
 }
 
+#[cfg(test)]
 /// Parse Invocation or StreamInvocation.
 /// Layout: [Type, Headers, InvocationId?, Target, Arguments, StreamIds?]
-pub fn parse_invocation(items: &[rmpv::Value]) -> Result<MsgpackInvocation, String> {
+pub fn parse_invocation(items: &[rmpv::Value]) -> Result<MsgpackInvocation, Error> {
     if items.len() < 5 {
-        return Err(format!("Invocation array too short: {}", items.len()));
+        return Err(Error::protocol(format!(
+            "the Invocation array has {} items, fewer than 5",
+            items.len()
+        )));
     }
 
     let invocation_id = match &items[2] {
         rmpv::Value::Nil => None,
         rmpv::Value::String(s) => s.as_str().map(|s| s.to_string()),
-        _ => return Err("Invalid invocation_id type".to_string()),
+        _ => return Err(Error::protocol("the invocation id is not a string")),
     };
-    let target = items[3].as_str().ok_or("Invalid target")?.to_string();
+    let target = items[3]
+        .as_str()
+        .ok_or_else(|| Error::protocol("the invocation target is not a string"))?
+        .to_string();
     let arguments = match &items[4] {
         rmpv::Value::Array(args) => args.clone(),
-        _ => return Err("Invalid arguments".to_string()),
+        _ => return Err(Error::protocol("the invocation arguments are not an array")),
     };
 
     Ok(MsgpackInvocation {
@@ -235,6 +408,7 @@ pub fn parse_invocation(items: &[rmpv::Value]) -> Result<MsgpackInvocation, Stri
     })
 }
 
+#[cfg(test)]
 /// Parsed Completion from MessagePack.
 pub struct MsgpackCompletion {
     pub invocation_id: String,
@@ -242,18 +416,22 @@ pub struct MsgpackCompletion {
     pub payload: Option<rmpv::Value>,
 }
 
+#[cfg(test)]
 /// Parse Completion.
 /// Layout: [3, Headers, InvocationId, ResultKind, Result?]
 /// ResultKind: 1=Error, 2=Void, 3=NonVoid
-pub fn parse_completion(items: &[rmpv::Value]) -> Result<MsgpackCompletion, String> {
+pub fn parse_completion(items: &[rmpv::Value]) -> Result<MsgpackCompletion, Error> {
     if items.len() < 4 {
-        return Err("Completion array too short".to_string());
+        return Err(Error::protocol("the Completion array is too short"));
     }
     let invocation_id = items[2]
         .as_str()
-        .ok_or("Invalid invocation_id")?
+        .ok_or_else(|| Error::protocol("the completion's invocation id is not a string"))?
         .to_string();
-    let result_kind = items[3].as_u64().ok_or("Invalid ResultKind")? as u8;
+    let result_kind = items[3]
+        .as_u64()
+        .ok_or_else(|| Error::protocol("the completion's result kind is not an integer"))?
+        as u8;
     let payload = if items.len() > 4 {
         Some(items[4].clone())
     } else {
@@ -267,32 +445,9 @@ pub fn parse_completion(items: &[rmpv::Value]) -> Result<MsgpackCompletion, Stri
     })
 }
 
-/// Parsed StreamItem from MessagePack.
-pub struct MsgpackStreamItem {
-    pub invocation_id: String,
-    pub item: rmpv::Value,
-}
-
-/// Parse StreamItem.
-/// Layout: [2, Headers, InvocationId, Item]
-pub fn parse_stream_item(items: &[rmpv::Value]) -> Result<MsgpackStreamItem, String> {
-    if items.len() < 4 {
-        return Err("StreamItem array too short".to_string());
-    }
-    let invocation_id = items[2]
-        .as_str()
-        .ok_or("Invalid invocation_id")?
-        .to_string();
-    let item = items[3].clone();
-
-    Ok(MsgpackStreamItem {
-        invocation_id,
-        item,
-    })
-}
-
 // ── Value Conversion ────────────────────────────────────────────────────
 
+#[cfg(test)]
 /// Convert a serde_json::Value to an rmpv::Value.
 pub fn json_value_to_msgpack(value: &serde_json::Value) -> rmpv::Value {
     match value {
@@ -326,6 +481,7 @@ pub fn json_value_to_msgpack(value: &serde_json::Value) -> rmpv::Value {
     }
 }
 
+#[cfg(test)]
 /// Convert an rmpv::Value to a serde_json::Value.
 pub fn msgpack_value_to_json(value: &rmpv::Value) -> serde_json::Value {
     match value {
@@ -406,14 +562,28 @@ fn normalize_keys_to_camel(value: &rmpv::Value) -> rmpv::Value {
     transform_keys(value, to_camel_case)
 }
 
+/// Decodes one MessagePack payload into `T`: directly, and if that fails once more with map keys
+/// converted from PascalCase to camelCase (as servers using .NET property names send them).
+pub(crate) fn decode_payload<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> Result<T, Error> {
+    if let Ok(value) = rmp_serde::from_slice::<T>(bytes) {
+        return Ok(value);
+    }
+    let value = rmpv::decode::read_value(&mut Cursor::new(bytes)).map_err(|error| {
+        Error::serialization(format!(
+            "cannot decode the payload into {}: {error}",
+            std::any::type_name::<T>()
+        ))
+    })?;
+    value_to_type(&value)
+}
+
 /// Deserialize an rmpv::Value into a concrete Rust type via rmp-serde.
 /// Handles both array format (.NET StandardResolver) and map format (ContractlessStandardResolver).
 /// For maps, normalizes PascalCase keys to camelCase for serde compatibility.
-pub fn value_to_type<T: serde::de::DeserializeOwned>(value: &rmpv::Value) -> Result<T, String> {
+pub fn value_to_type<T: serde::de::DeserializeOwned>(value: &rmpv::Value) -> Result<T, Error> {
     // First, try direct deserialization (works for arrays and primitive types)
     let mut buf = Vec::new();
-    rmpv::encode::write_value(&mut buf, value)
-        .map_err(|e| format!("Failed to encode value: {}", e))?;
+    rmpv::encode::write_value(&mut buf, value).map_err(encoding)?;
 
     if let Ok(result) = rmp_serde::from_slice::<T>(&buf) {
         return Ok(result);
@@ -422,10 +592,13 @@ pub fn value_to_type<T: serde::de::DeserializeOwned>(value: &rmpv::Value) -> Res
     // If direct deserialization fails, try normalizing map keys (PascalCase → camelCase)
     let normalized = normalize_keys_to_camel(value);
     let mut buf = Vec::new();
-    rmpv::encode::write_value(&mut buf, &normalized)
-        .map_err(|e| format!("Failed to encode value: {}", e))?;
-    rmp_serde::from_slice::<T>(&buf)
-        .map_err(|e| format!("Failed to deserialize from MessagePack: {}", e))
+    rmpv::encode::write_value(&mut buf, &normalized).map_err(encoding)?;
+    rmp_serde::from_slice::<T>(&buf).map_err(|e| {
+        Error::serialization(format!(
+            "cannot decode the payload into {}: {e}",
+            std::any::type_name::<T>()
+        ))
+    })
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────

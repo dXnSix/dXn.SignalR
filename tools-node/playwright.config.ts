@@ -25,10 +25,22 @@ export default defineConfig({
     {
       name: "firefox",
       use: { ...devices["Desktop Firefox"] },
+      // The soak and the stress run in one engine, and the suspension needs CDP (see the
+      // catalog's exclusions).
+      testIgnore: [
+        "signalr-soak.spec.ts",
+        "signalr-stress.spec.ts",
+        "signalr-suspend.spec.ts",
+      ],
     },
     {
       name: "webkit",
       use: { ...devices["Desktop Safari"] },
+      testIgnore: [
+        "signalr-soak.spec.ts",
+        "signalr-stress.spec.ts",
+        "signalr-suspend.spec.ts",
+      ],
     },
   ],
 });

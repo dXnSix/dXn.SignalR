@@ -1,5 +1,6 @@
 use serde::{de::DeserializeOwned, Serialize};
-use serde_json::Value;
+
+use crate::error::Error;
 
 pub const RECORD_SEPARATOR: &str = "\u{001E}";
 
@@ -11,16 +12,9 @@ impl MessageParser {
         Ok(serialized + RECORD_SEPARATOR)
     }
 
-    pub fn to_json_value<T: ?Sized + Serialize>(value: &T) -> Result<Value, serde_json::Error> {
-        let serialized = serde_json::to_value(value)?;
-        Ok(serialized)
-    }
-
-    pub fn strip_record_separator(input: &str) -> &str {
-        input.trim_end_matches(RECORD_SEPARATOR)
-    }
-
-    pub fn parse_message<T: DeserializeOwned>(message: &str) -> Result<T, String> {
-        serde_json::from_str::<T>(message).map_err(|error| error.to_string())
+    /// Parses a hub message envelope; a record that does not parse is a protocol error.
+    pub fn parse_message<T: DeserializeOwned>(message: &str) -> Result<T, Error> {
+        serde_json::from_str::<T>(message)
+            .map_err(|error| Error::protocol(format!("cannot parse the message: {error}")))
     }
 }

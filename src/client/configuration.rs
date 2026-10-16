@@ -12,6 +12,12 @@ pub(crate) const NO_RUNTIME: &str = "rayx-signalr needs a Tokio runtime for nati
 call connect from within a Tokio runtime, or pass one with \
 ConnectionConfiguration::with_runtime_handle(tokio::runtime::Handle)";
 
+/// The configuration error of a native connection without a Tokio runtime.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn no_runtime() -> crate::Error {
+    crate::Error::configuration("with_runtime_handle", NO_RUNTIME)
+}
+
 #[derive(Clone)]
 pub(crate) enum Authentication {
     None,
@@ -22,7 +28,37 @@ pub(crate) enum Authentication {
     Bearer {
         token: String,
     },
+    /// `with_access_token_factory`: asked for a fresh Bearer token per request (`resolve`).
+    Factory(AccessTokenFactory),
 }
+
+/// Logged when a browser client is configured with Basic credentials: as with the .NET client,
+/// they go with every `fetch` request (negotiate, Long Polling, Server-Sent Events sends), but a
+/// browser WebSocket or `EventSource` cannot carry an `Authorization` header.
+pub(crate) const BROWSER_BASIC_WARNING: &str = "Basic credentials are sent only with fetch \
+requests (negotiate, Long Polling, Server-Sent Events sends): browsers cannot set the \
+Authorization header of a WebSocket or an EventSource, so the server must authenticate those \
+otherwise; use authenticate_bearer or with_access_token_factory, which browsers send there as \
+access_token";
+
+/// Logs [`BROWSER_BASIC_WARNING`] when a browser (`browser`) is configured with Basic credentials;
+/// shared by both targets so the decision is tested natively. Returns whether it warned.
+pub(crate) fn warn_browser_basic(authentication: &Authentication, browser: bool) -> bool {
+    let warn = browser && matches!(authentication, Authentication::Basic { .. });
+    if warn {
+        log::warn!("{BROWSER_BASIC_WARNING}");
+    }
+    warn
+}
+
+/// The access-token factory of `with_access_token_factory`.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) type AccessTokenFactory = std::sync::Arc<
+    dyn Fn() -> futures::future::BoxFuture<'static, Result<String, String>> + Send + Sync,
+>;
+#[cfg(target_arch = "wasm32")]
+pub(crate) type AccessTokenFactory =
+    std::rc::Rc<dyn Fn() -> futures::future::LocalBoxFuture<'static, Result<String, String>>>;
 
 pub struct ConnectionConfiguration {
     _secure: bool,
@@ -30,6 +66,7 @@ pub struct ConnectionConfiguration {
     _hub: String,
     _port: Option<i32>,
     _authentication: Authentication,
+    _access_token_factory: Option<AccessTokenFactory>,
     #[cfg(not(target_arch = "wasm32"))]
     _disconnection: Option<Box<dyn DisconnectionHandler + Send + Sync>>,
     #[cfg(target_arch = "wasm32")]
@@ -38,11 +75,29 @@ pub struct ConnectionConfiguration {
     _protocol: HubProtocolKind,
     _stateful_reconnect: Option<StatefulReconnectConfig>,
     _skip_negotiation: bool,
+    _transports: crate::Transports,
     _liveness: LivenessConfig,
+    _headers: Vec<(String, String)>,
+    _invocation_headers: Option<InvocationHeaders>,
+    _maximum_message_size: Option<usize>,
     #[cfg(not(target_arch = "wasm32"))]
     _tls: crate::communication::tls::TlsSettings,
     #[cfg(not(target_arch = "wasm32"))]
     _runtime: Option<tokio::runtime::Handle>,
+    /// The proxy of native connections, or the error of an invalid `with_proxy` URL.
+    #[cfg(not(target_arch = "wasm32"))]
+    _proxy: Result<crate::communication::proxy::ProxyConfig, crate::Error>,
+    /// The cookie jar of every native request and upgrade (`with_cookie_jar`).
+    #[cfg(not(target_arch = "wasm32"))]
+    _cookies: crate::CookieJar,
+    /// Integrated authentication (`with_default_credentials`, `with_credentials`).
+    #[cfg(not(target_arch = "wasm32"))]
+    _integrated: Option<crate::communication::integrated_auth::IntegratedCredentials>,
+    /// The HTTP version of native connections (`with_http_version`).
+    #[cfg(not(target_arch = "wasm32"))]
+    _http_version: crate::HttpVersion,
+    /// Sees every HTTP request before it is sent (`with_request_hook`).
+    _request_hook: Option<crate::communication::request_hook::RequestHook>,
 }
 
 impl Authentication {
@@ -62,9 +117,39 @@ impl Authentication {
                 ))
             }
             Authentication::Bearer { token } => Some(format!("Bearer {token}")),
+            // Resolved per request (`resolve`) before any header is built.
+            Authentication::Factory(_) => None,
+        }
+    }
+
+    /// The credentials for one request: a factory is asked for a fresh token, sent as Bearer, as
+    /// the .NET client asks its `AccessTokenProvider`; its error fails the request with the
+    /// factory's message, redacted.
+    pub(crate) async fn resolve(&self) -> Result<Authentication, crate::Error> {
+        match self {
+            Authentication::Factory(factory) => factory()
+                .await
+                .map(|token| Authentication::Bearer { token })
+                .map_err(|message| {
+                    crate::Error::authentication(
+                        None,
+                        format!(
+                            "access token factory failed: {}",
+                            crate::error::redact(&message)
+                        ),
+                    )
+                }),
+            other => Ok(other.clone()),
         }
     }
 }
+
+/// The invocation-header hook of `with_invocation_headers`.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) type InvocationHeaders =
+    std::sync::Arc<dyn Fn(&str) -> Vec<(String, String)> + Send + Sync>;
+#[cfg(target_arch = "wasm32")]
+pub(crate) type InvocationHeaders = std::rc::Rc<dyn Fn(&str) -> Vec<(String, String)>>;
 
 #[derive(Clone)]
 pub(crate) struct ConnectionRecipe {
@@ -76,14 +161,44 @@ pub(crate) struct ConnectionRecipe {
     protocol: HubProtocolKind,
     stateful_reconnect: Option<StatefulReconnectConfig>,
     skip_negotiation: bool,
+    /// The transports the connection may use (`with_transports`).
+    transports: crate::Transports,
     liveness: LivenessConfig,
+    /// Application headers for every HTTP request and the native WebSocket upgrade.
+    headers: Vec<(String, String)>,
+    /// Headers for Invocation and StreamInvocation messages, per target.
+    invocation_headers: Option<InvocationHeaders>,
+    /// The largest inbound hub message accepted (`None`: unbounded).
+    maximum_message_size: Option<usize>,
     /// Credentials for the transport when negotiation replaced them (a redirect access token).
     transport_authentication: Option<Authentication>,
+    /// The resolved credentials of the negotiate request that produced this connection (an
+    /// access-token factory's token), which HTTP transports keep using, as the .NET client's
+    /// `AccessTokenHttpMessageHandler` caches the token negotiate fetched.
+    negotiated_authentication: Option<Authentication>,
     #[cfg(not(target_arch = "wasm32"))]
     tls: crate::communication::tls::TlsContext,
+    /// The proxy of every native connection.
+    #[cfg(not(target_arch = "wasm32"))]
+    proxy: crate::communication::proxy::ProxyConfig,
+    /// The cookies of every native request and upgrade, shared by every connection of the client.
+    #[cfg(not(target_arch = "wasm32"))]
+    cookies: crate::CookieJar,
+    /// Answers integrated-authentication challenges (`with_default_credentials`,
+    /// `with_credentials`).
+    #[cfg(not(target_arch = "wasm32"))]
+    integrated: Option<std::sync::Arc<dyn crate::communication::integrated_auth::SecurityProvider>>,
     /// The Tokio runtime that owns this connection's I/O, timers and tasks.
     #[cfg(not(target_arch = "wasm32"))]
     runtime: Option<tokio::runtime::Handle>,
+    /// The configured HTTP version (`with_http_version`).
+    #[cfg(not(target_arch = "wasm32"))]
+    http_version: crate::HttpVersion,
+    /// The HTTP/2 connections of this logical connection.
+    #[cfg(not(target_arch = "wasm32"))]
+    http2: crate::communication::http2::Pool,
+    /// Sees every HTTP request before it is sent (`with_request_hook`).
+    request_hook: Option<crate::communication::request_hook::RequestHook>,
 }
 
 impl ConnectionRecipe {
@@ -98,8 +213,38 @@ impl ConnectionRecipe {
         self
     }
 
+    /// The headers the invocation-header hook gives a message to `target`.
+    pub(crate) fn invocation_headers(
+        &self,
+        target: &str,
+    ) -> std::collections::BTreeMap<String, String> {
+        self.invocation_headers
+            .as_ref()
+            .map(|hook| hook(target).into_iter().collect())
+            .unwrap_or_default()
+    }
+
+    /// The largest inbound hub message accepted (`None`: unbounded).
+    pub(crate) fn maximum_message_size(&self) -> Option<usize> {
+        self.maximum_message_size
+    }
+
+    /// The request hook (`with_request_hook`), when the application set one.
+    pub(crate) fn request_hook(&self) -> Option<&crate::communication::request_hook::RequestHook> {
+        self.request_hook.as_ref()
+    }
+
+    /// The application headers (`with_header`), validated when the client was built.
+    pub(crate) fn headers(&self) -> &[(String, String)] {
+        &self.headers
+    }
+
     pub(crate) fn skips_negotiation(&self) -> bool {
         self.skip_negotiation
+    }
+
+    pub(crate) fn transports(&self) -> crate::Transports {
+        self.transports
     }
 
     pub(crate) fn liveness(&self) -> LivenessConfig {
@@ -112,7 +257,7 @@ impl ConnectionRecipe {
     }
 
     /// The `Authorization` value for the WebSocket: negotiated credentials, else configured ones.
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(all(not(target_arch = "wasm32"), test))]
     pub(crate) fn transport_authorization(&self) -> Option<String> {
         self.transport_authentication
             .as_ref()
@@ -120,9 +265,110 @@ impl ConnectionRecipe {
             .header_value()
     }
 
+    /// Records the resolved credentials the negotiate request used.
+    pub(crate) fn with_negotiated_authentication(mut self, authentication: Authentication) -> Self {
+        self.negotiated_authentication = Some(authentication);
+        self
+    }
+
+    /// The `Authorization` value an HTTP transport (Long Polling, Server-Sent Events) starts with: a negotiate redirect's
+    /// token or the configured credentials, else the token negotiate fetched from an access-token
+    /// factory (the factory is asked again only after a 401, as the .NET client's
+    /// `AccessTokenHttpMessageHandler`).
+    pub(crate) fn http_transport_authorization(&self) -> Option<String> {
+        self.transport_authentication
+            .as_ref()
+            .or(self.negotiated_authentication.as_ref())
+            .unwrap_or(&self.authentication)
+            .header_value()
+    }
+
+    /// Whether an access-token factory provides the credentials (a 401 is then retried once with
+    /// a fresh token).
+    pub(crate) fn has_access_token_factory(&self) -> bool {
+        self.transport_authentication.is_none()
+            && matches!(self.authentication, Authentication::Factory(_))
+    }
+
+    /// The `Authorization` value for a transport being started (a native WebSocket, or a Long
+    /// Polling request): a negotiate redirect's token, else the configured credentials, asking an
+    /// access-token factory for a fresh token, as the .NET client asks its `AccessTokenProvider`.
+    pub(crate) async fn current_transport_authorization(
+        &self,
+    ) -> Result<Option<String>, crate::Error> {
+        match &self.transport_authentication {
+            Some(negotiated) => Ok(negotiated.header_value()),
+            None => Ok(self.authentication.resolve().await?.header_value()),
+        }
+    }
+
+    /// A fresh token for a browser WebSocket's `access_token` query when an access-token factory
+    /// is configured and no negotiate redirect issued the transport's token.
+    #[cfg(any(target_arch = "wasm32", test))]
+    pub(crate) async fn fresh_transport_token(&self) -> Result<Option<String>, crate::Error> {
+        if self.transport_authentication.is_some()
+            || !matches!(self.authentication, Authentication::Factory(_))
+        {
+            return Ok(None);
+        }
+        match self.authentication.resolve().await? {
+            Authentication::Bearer { token } => Ok(Some(token)),
+            _ => Ok(None),
+        }
+    }
+
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn is_secure(&self) -> bool {
         self.secure
+    }
+
+    /// The proxy of every native connection.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn proxy(&self) -> &crate::communication::proxy::ProxyConfig {
+        &self.proxy
+    }
+
+    /// The client's cookie jar.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn cookies(&self) -> &crate::CookieJar {
+        &self.cookies
+    }
+
+    /// The integrated-authentication provider, when the client has one.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn integrated(
+        &self,
+    ) -> Option<&std::sync::Arc<dyn crate::communication::integrated_auth::SecurityProvider>> {
+        self.integrated.as_ref()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn with_integrated(
+        mut self,
+        provider: Option<
+            std::sync::Arc<dyn crate::communication::integrated_auth::SecurityProvider>,
+        >,
+    ) -> Self {
+        self.integrated = provider;
+        self
+    }
+
+    /// The HTTP version of this connection's native requests: the configured one, except that
+    /// integrated authentication, which HTTP/2 cannot carry, keeps them on HTTP/1.1, as the .NET
+    /// client turns HTTP/2 off with credentials.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn http_version(&self) -> crate::HttpVersion {
+        if self.integrated.is_some() {
+            crate::HttpVersion::Http1
+        } else {
+            self.http_version
+        }
+    }
+
+    /// The HTTP/2 connections this logical connection shares.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn http2(&self) -> &crate::communication::http2::Pool {
+        &self.http2
     }
 
     /// The connection's TLS state, shared by negotiate, the WebSocket and reconnects.
@@ -154,6 +400,17 @@ impl ConnectionRecipe {
         self.protocol
     }
 
+    /// The recipe of a fallback negotiation for `transport`: stateful reconnect is requested only
+    /// for WebSockets, as the .NET client stops requesting it before a fallback to another
+    /// transport.
+    pub(crate) fn for_transport(&self, transport: crate::TransportKind) -> ConnectionRecipe {
+        let mut recipe = self.clone();
+        if transport != crate::TransportKind::WebSockets {
+            recipe.stateful_reconnect = None;
+        }
+        recipe
+    }
+
     pub(crate) fn stateful_reconnect(&self) -> Option<StatefulReconnectConfig> {
         self.stateful_reconnect
     }
@@ -166,8 +423,13 @@ impl ConnectionRecipe {
         )
     }
 
+    /// The endpoint for logs and errors: without its query, which may carry a token.
     pub(crate) fn display_endpoint(&self) -> String {
-        self.web_url()
+        let url = self.web_url();
+        match url.split_once('?') {
+            Some((base, _)) => base.to_string(),
+            None => url,
+        }
     }
 
     fn http_schema(&self) -> &'static str {
@@ -199,6 +461,7 @@ impl ConnectionConfiguration {
     pub(crate) fn new(domain: String, hub: String) -> Self {
         ConnectionConfiguration {
             _authentication: Authentication::None,
+            _access_token_factory: None,
             _domain: domain,
             _secure: true,
             _hub: hub,
@@ -208,11 +471,24 @@ impl ConnectionConfiguration {
             _protocol: HubProtocolKind::default(),
             _stateful_reconnect: None,
             _skip_negotiation: false,
+            _transports: crate::Transports::all(),
+            _headers: Vec::new(),
+            _invocation_headers: None,
+            _maximum_message_size: None,
             _liveness: LivenessConfig::default(),
             #[cfg(not(target_arch = "wasm32"))]
             _tls: Default::default(),
             #[cfg(not(target_arch = "wasm32"))]
             _runtime: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            _proxy: Ok(Default::default()),
+            #[cfg(not(target_arch = "wasm32"))]
+            _cookies: crate::CookieJar::new(),
+            #[cfg(not(target_arch = "wasm32"))]
+            _integrated: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            _http_version: crate::HttpVersion::default(),
+            _request_hook: None,
         }
     }
 
@@ -351,6 +627,206 @@ impl ConnectionConfiguration {
         self
     }
 
+    /// Authenticates with Bearer tokens from `factory`, as the official .NET client's
+    /// `HttpConnectionOptions.AccessTokenProvider`: it is called before every negotiate (the
+    /// initial connect, every reconnect that negotiates) and again whenever a WebSocket is opened,
+    /// including every stateful resume, so a token can be refreshed between them. The token is
+    /// sent as `Authorization: Bearer` (natively on negotiate and the WebSocket upgrade; browsers
+    /// send it on negotiate and as the `access_token` query of the WebSocket). A token from a
+    /// negotiate redirect is used instead. An `Err` fails that attempt with
+    /// [`ErrorKind::Authentication`](crate::ErrorKind::Authentication) carrying the message
+    /// (redacted). Combining it with [`authenticate_basic`](Self::authenticate_basic) or
+    /// [`authenticate_bearer`](Self::authenticate_bearer) fails
+    /// [`SignalRClient::new`](crate::SignalRClient::new) with
+    /// [`ErrorKind::Configuration`](crate::ErrorKind::Configuration).
+    ///
+    /// ```no_run
+    /// # async fn example() -> Result<(), rayx_signalr::Error> {
+    /// let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+    ///     c.with_access_token_factory(|| async { Ok::<_, String>("a fresh token".to_string()) });
+    /// })?;
+    /// client.start().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_access_token_factory<F, Fut>(&mut self, factory: F) -> &ConnectionConfiguration
+    where
+        F: Fn() -> Fut + Send + Sync + 'static,
+        Fut: std::future::Future<Output = Result<String, String>> + Send + 'static,
+    {
+        self._access_token_factory = Some(std::sync::Arc::new(move || Box::pin(factory())));
+        self
+    }
+
+    /// Authenticates with Bearer tokens from `factory`, as the official .NET client's
+    /// `HttpConnectionOptions.AccessTokenProvider`: it is called before every negotiate and again
+    /// whenever a WebSocket is opened, including every stateful resume. Browsers send the token
+    /// with negotiate and as the `access_token` query of the WebSocket; a token from a negotiate
+    /// redirect is used instead. An `Err` fails that attempt with
+    /// [`ErrorKind::Authentication`](crate::ErrorKind::Authentication); combining it with Basic or
+    /// Bearer credentials fails [`SignalRClient::new`](crate::SignalRClient::new).
+    #[cfg(target_arch = "wasm32")]
+    pub fn with_access_token_factory<F, Fut>(&mut self, factory: F) -> &ConnectionConfiguration
+    where
+        F: Fn() -> Fut + 'static,
+        Fut: std::future::Future<Output = Result<String, String>> + 'static,
+    {
+        self._access_token_factory = Some(std::rc::Rc::new(move || Box::pin(factory())));
+        self
+    }
+
+    /// Lets `hook` see and change every HTTP request before it is sent, as the .NET client's
+    /// `HttpMessageHandlerFactory` (and, for the WebSocket upgrade, `WebSocketConfiguration`)
+    /// does: natively negotiate, the WebSocket upgrade and every Long Polling and Server-Sent
+    /// Events request, each leg of integrated authentication included; in browsers every `fetch`
+    /// (negotiate, Long Polling, Server-Sent Events sends), as browser WebSockets and
+    /// `EventSource` streams carry no application headers. Like a .NET handler, it runs once per
+    /// request, with the defaults, `with_header` values, the credentials' `Authorization` and the
+    /// body's `Content-Type`; cookies and integrated-authentication tokens are added after it on
+    /// every leg, and a retried request keeps its changes.
+    ///
+    /// ```no_run
+    /// # fn example() -> Result<(), rayx_signalr::Error> {
+    /// let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+    ///     c.with_request_hook(|request| {
+    ///         // A header the application computes per request.
+    ///         let _ = request.set_header("X-Request-Source", "rayx");
+    ///     });
+    /// })?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_request_hook<F>(&mut self, hook: F) -> &ConnectionConfiguration
+    where
+        F: Fn(&mut crate::HttpRequest<'_>) + Send + Sync + 'static,
+    {
+        self._request_hook = Some(std::sync::Arc::new(hook));
+        self
+    }
+
+    /// Lets `hook` see and change every HTTP request before it is sent, as the .NET client's
+    /// `HttpMessageHandlerFactory`: in browsers every `fetch` (negotiate, Long Polling,
+    /// Server-Sent Events sends); browser WebSockets and `EventSource` streams carry no
+    /// application headers. It runs once per request, with the defaults, `with_header` values,
+    /// the credentials' `Authorization` and the body's `Content-Type`.
+    #[cfg(target_arch = "wasm32")]
+    pub fn with_request_hook<F>(&mut self, hook: F) -> &ConnectionConfiguration
+    where
+        F: Fn(&mut crate::HttpRequest<'_>) + 'static,
+    {
+        self._request_hook = Some(std::rc::Rc::new(hook));
+        self
+    }
+
+    /// Lets `hook` adjust the rustls `ClientConfig` of every secure native connection before its
+    /// first use, as the .NET client's `HttpMessageHandlerFactory` and `WebSocketConfiguration`
+    /// expose the TLS options of `SocketsHttpHandler` and `ClientWebSocket`. The hook runs once
+    /// per connection's config (built at `connect`, or on a first redirect to a secure endpoint)
+    /// and its result is shared by negotiate, every transport and every reconnect. The config
+    /// uses [`rayx_signalr::tls::rustls`](crate::tls::rustls).
+    ///
+    /// The hook can weaken security: replacing the certificate verifier (`dangerous()`) or the
+    /// protocol versions is the application's explicit choice. The ALPN offer of negotiate,
+    /// Long Polling and Server-Sent Events comes from
+    /// [`with_http_version`](Self::with_http_version) and replaces the hook's (as does the
+    /// WebSocket's with `Http2`); the HTTP/1.1 WebSocket handshake and `Http1` requests offer the
+    /// hook's `alpn_protocols` (none by default) and speak HTTP/1.1, so a hook that sets them
+    /// must include `http/1.1`.
+    ///
+    /// ```no_run
+    /// # fn example() -> Result<(), rayx_signalr::Error> {
+    /// let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+    ///     c.with_tls_config_hook(|config| {
+    ///         config.enable_sni = false;
+    ///     });
+    /// })?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[cfg(all(not(target_arch = "wasm32"), rayx_tls))]
+    pub fn with_tls_config_hook<F>(&mut self, hook: F) -> &ConnectionConfiguration
+    where
+        F: Fn(&mut crate::tls::rustls::ClientConfig) + Send + Sync + 'static,
+    {
+        self._tls.config_hook = Some(crate::communication::tls::TlsConfigHook(
+            std::sync::Arc::new(hook),
+        ));
+        self
+    }
+
+    /// Sets how long the server may hold a Long Polling poll, 100 s by default (the JavaScript
+    /// client's poll timeout); each poll is bounded by it plus the connect timeout, and a poll that
+    /// exceeds the bound is reissued, as the .NET client reissues a poll its `HttpClient` timed
+    /// out. Like the liveness durations, every value is accepted.
+    pub fn with_long_polling_timeout(&mut self, timeout: Duration) -> &ConnectionConfiguration {
+        self._liveness.long_polling_timeout = timeout;
+        self
+    }
+
+    /// Restricts the transports the connection may use, as the .NET client's
+    /// `HttpConnectionOptions.Transports`: every transport by default. Negotiation tries the ones
+    /// the server offers, in the server's order, keeping those in this set that carry the hub
+    /// protocol's transfer format (Server-Sent Events carry text only, so never MessagePack); a
+    /// transport that fails to start is followed by the next one with a fresh negotiation.
+    /// [`skip_negotiation`](Self::skip_negotiation) needs `Transports::WEB_SOCKETS` alone,
+    /// stateful reconnect needs WebSockets in the set, and the MessagePack protocol cannot use
+    /// Server-Sent Events alone; otherwise [`SignalRClient::new`](crate::SignalRClient::new) fails
+    /// with [`ErrorKind::Configuration`](crate::ErrorKind::Configuration) naming the setting
+    /// (`with_transports` for Server-Sent Events with MessagePack).
+    pub fn with_transports(&mut self, transports: crate::Transports) -> &ConnectionConfiguration {
+        self._transports = transports;
+        self
+    }
+
+    /// Fails for transport sets that cannot work: `skip_negotiation` without WebSockets alone,
+    /// stateful reconnect without WebSockets, as the .NET client rejects them.
+    pub(crate) fn validate_transports(&self) -> Result<(), crate::Error> {
+        use crate::communication::transport::TransportKind;
+        if self._skip_negotiation && !self._transports.is_only(TransportKind::WebSockets) {
+            return Err(crate::Error::configuration(
+                "skip_negotiation",
+                "negotiation can only be skipped with the WebSockets transport alone: add \
+                 with_transports(Transports::WEB_SOCKETS)",
+            ));
+        }
+        if self._stateful_reconnect.is_some()
+            && !self._transports.contains(TransportKind::WebSockets)
+        {
+            return Err(crate::Error::configuration(
+                "with_stateful_reconnect",
+                "stateful reconnect needs the WebSockets transport",
+            ));
+        }
+        // Server-Sent Events carry text only; with other transports in the set selection skips
+        // them instead.
+        if self._transports.is_only(TransportKind::ServerSentEvents)
+            && self._protocol.transfer_format() == "Binary"
+        {
+            return Err(crate::Error::configuration(
+                "with_transports",
+                "Server-Sent Events carry text only, so they cannot carry the MessagePack hub \
+                 protocol: allow another transport or use JSON",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Fails when an access-token factory is combined with static credentials.
+    pub(crate) fn validate_authentication(&self) -> Result<(), crate::Error> {
+        if self._access_token_factory.is_some()
+            && !matches!(self._authentication, Authentication::None)
+        {
+            return Err(crate::Error::configuration(
+                "with_access_token_factory",
+                "an access token factory cannot be combined with authenticate_basic or \
+                 authenticate_bearer",
+            ));
+        }
+        Ok(())
+    }
+
     /// Sets a disconnection handler for the connection.
     ///
     /// # Arguments
@@ -411,10 +887,12 @@ impl ConnectionConfiguration {
     }
 
     /// Connects the WebSocket directly to `ws(s)://host[:port]/hub` without a negotiate request,
-    /// as the official clients' `skipNegotiation` does; a bearer token is sent as `access_token`.
-    /// The server must allow WebSockets-only connections. Ordinary reconnects connect directly
-    /// too. Cannot be combined with [`with_stateful_reconnect`](Self::with_stateful_reconnect),
-    /// which needs the connection token negotiation issues: `connect` then fails before any I/O.
+    /// as the official clients' `skipNegotiation` does; a bearer token is sent in the
+    /// `Authorization` header (browsers, which cannot set WebSocket headers, send it as
+    /// `access_token`). The server must allow WebSockets-only connections. Ordinary reconnects
+    /// connect directly too. As in the .NET client, it disables
+    /// [`with_stateful_reconnect`](Self::with_stateful_reconnect), which needs the connection
+    /// token negotiation issues; a warning is logged.
     pub fn skip_negotiation(&mut self) -> &ConnectionConfiguration {
         self._skip_negotiation = true;
         self
@@ -422,7 +900,9 @@ impl ConnectionConfiguration {
 
     /// Sends a Ping after this long without outbound messages, so the server (whose
     /// `ClientTimeoutInterval` defaults to 30 s) keeps the connection. Defaults to 15 s.
-    /// Must be greater than zero and less than the server timeout, or `connect` fails before I/O.
+    /// Every value is accepted, as the official .NET client accepts it: zero acts as one second
+    /// (the .NET client's timer tick), and a value not below the server timeout is logged as a
+    /// warning when the client is built.
     pub fn with_keep_alive_interval(&mut self, interval: Duration) -> &ConnectionConfiguration {
         self._liveness.keep_alive_interval = interval;
         self
@@ -430,17 +910,102 @@ impl ConnectionConfiguration {
 
     /// Treats the transport as dropped after this long without any inbound message (the server
     /// pings every `KeepAliveInterval`, 15 s by default); the reconnect path then runs as for any
-    /// dropped transport. Defaults to 30 s. Must be greater than the keep-alive interval, or
-    /// `connect` fails before I/O.
+    /// dropped transport. Defaults to 30 s. Every value is accepted: zero acts as one second, and
+    /// a value not above the keep-alive interval is logged as a warning (the connection is then
+    /// considered lost whenever the server is idle).
     pub fn with_server_timeout(&mut self, timeout: Duration) -> &ConnectionConfiguration {
         self._liveness.server_timeout = timeout;
         self
     }
 
     /// Fails `connect` (and ends a reconnect attempt) when the server does not answer the
-    /// handshake within this time. Defaults to 15 s. Must be greater than zero.
+    /// handshake within this time. Defaults to 15 s. Zero is accepted (with a warning): every
+    /// handshake then times out.
     pub fn with_handshake_timeout(&mut self, timeout: Duration) -> &ConnectionConfiguration {
         self._liveness.handshake_timeout = timeout;
+        self
+    }
+
+    /// Bounds connection setup: each negotiate request, and opening the transport (natively the
+    /// TCP connection, TLS and the WebSocket upgrade; in browsers opening the WebSocket). Browsers
+    /// abort a negotiate `fetch` that exceeds it. Applies to `connect` and to every reconnect
+    /// attempt. Defaults to 120 s, the official .NET client's bound. Zero is accepted (with a
+    /// warning): every attempt then times out.
+    ///
+    /// A setup that exceeds the bound fails with [`ErrorKind::Timeout`](crate::ErrorKind::Timeout)
+    /// naming [`TimeoutOperation::Negotiate`](crate::TimeoutOperation::Negotiate) or
+    /// [`TimeoutOperation::Connect`](crate::TimeoutOperation::Connect).
+    pub fn with_connect_timeout(&mut self, timeout: Duration) -> &ConnectionConfiguration {
+        self._liveness.connect_timeout = timeout;
+        self
+    }
+
+    /// Bounds how long [`stop`](crate::SignalRClient::stop) waits for the transport to close after
+    /// the client sent its Close message, as the official .NET client's `CloseTimeout`. Defaults
+    /// to 5 s; when it elapses the transport is dropped.
+    pub fn with_close_timeout(&mut self, timeout: Duration) -> &ConnectionConfiguration {
+        self._liveness.close_timeout = timeout;
+        self
+    }
+
+    /// Adds a header to every HTTP request (negotiate and the HTTP transports) and natively to the
+    /// WebSocket upgrade, as the official .NET client's `HttpConnectionOptions.Headers` does.
+    /// Browsers cannot set headers on a WebSocket or an `EventSource`: there the header reaches
+    /// the `fetch` requests (negotiate, Long Polling, Server-Sent Events sends) only, and building
+    /// the client logs a warning. As in the .NET client, the header replaces a default
+    /// of the same name (an empty `User-Agent` removes it), while `X-Requested-With` and the
+    /// credentials' `Authorization` always win. An invalid name or value, or a header the
+    /// transport owns (`Host`, `Content-Length`, `Connection`, `Upgrade`, `Transfer-Encoding`,
+    /// `TE`, `Trailer`, `Keep-Alive`, `Proxy-Connection`, `Sec-WebSocket-*`), fails
+    /// [`SignalRClient::new`](crate::SignalRClient::new) before any I/O with
+    /// [`ErrorKind::Configuration`](crate::ErrorKind::Configuration) naming `with_header`.
+    pub fn with_header(
+        &mut self,
+        name: impl Into<String>,
+        value: impl Into<String>,
+    ) -> &ConnectionConfiguration {
+        self._headers.push((name.into(), value.into()));
+        self
+    }
+
+    /// Adds headers to every Invocation and StreamInvocation message (`invoke`, `send` and
+    /// `enumerate`), as the official .NET client adds the W3C `traceparent` and `tracestate`
+    /// headers of the current activity. The hook receives the hub method's name and runs on the
+    /// calling task each time a message is built. ASP.NET Core uses `traceparent` and `tracestate`
+    /// to parent the activity of the hub method's invocation (hub code sees it as
+    /// `Activity.Current`); it does not expose other invocation headers to hub methods.
+    /// Headers with the same name keep the last value.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # fn example(configuration: &mut rayx_signalr::ConnectionConfiguration) {
+    /// configuration.with_invocation_headers(|_target| {
+    ///     vec![(
+    ///         "traceparent".to_string(),
+    ///         "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01".to_string(),
+    ///     )]
+    /// });
+    /// # }
+    /// ```
+    pub fn with_invocation_headers(
+        &mut self,
+        hook: impl Fn(&str) -> Vec<(String, String)> + crate::platform::MaybeSendSync + 'static,
+    ) -> &ConnectionConfiguration {
+        #[cfg(not(target_arch = "wasm32"))]
+        let hook: InvocationHeaders = std::sync::Arc::new(hook);
+        #[cfg(target_arch = "wasm32")]
+        let hook: InvocationHeaders = std::rc::Rc::new(hook);
+        self._invocation_headers = Some(hook);
+        self
+    }
+
+    /// Bounds the size of an inbound hub message (a JSON record or a MessagePack message, which may
+    /// span several WebSocket messages); a larger one ends the transport with
+    /// [`ErrorKind::Protocol`](crate::ErrorKind::Protocol) and the reconnection policy runs. Unbounded
+    /// by default, as in the official .NET client.
+    pub fn with_maximum_message_size(&mut self, bytes: usize) -> &ConnectionConfiguration {
+        self._maximum_message_size = Some(bytes);
         self
     }
 
@@ -467,17 +1032,51 @@ impl ConnectionConfiguration {
             domain: self._domain.clone(),
             hub: self._hub.clone(),
             port: self._port,
-            authentication: self._authentication.clone(),
+            authentication: match &self._access_token_factory {
+                Some(factory) => Authentication::Factory(factory.clone()),
+                None => self._authentication.clone(),
+            },
             protocol: self._protocol,
             stateful_reconnect: self._stateful_reconnect,
             skip_negotiation: self._skip_negotiation,
+            transports: self._transports,
             liveness: self._liveness,
+            headers: self._headers.clone(),
+            invocation_headers: self._invocation_headers.clone(),
+            maximum_message_size: self._maximum_message_size,
             transport_authentication: None,
+            negotiated_authentication: None,
             #[cfg(not(target_arch = "wasm32"))]
             tls: Default::default(),
             #[cfg(not(target_arch = "wasm32"))]
             runtime: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            proxy: self._proxy.clone().unwrap_or_default(),
+            #[cfg(not(target_arch = "wasm32"))]
+            cookies: self._cookies.clone(),
+            #[cfg(not(target_arch = "wasm32"))]
+            integrated: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            http_version: self._http_version,
+            #[cfg(not(target_arch = "wasm32"))]
+            http2: Default::default(),
+            request_hook: self._request_hook.clone(),
         }
+    }
+
+    /// The integrated-authentication provider of `with_default_credentials`/`with_credentials`;
+    /// fails where the credentials are not available (the current account outside Windows).
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn integrated_provider(
+        &self,
+    ) -> Result<
+        Option<std::sync::Arc<dyn crate::communication::integrated_auth::SecurityProvider>>,
+        crate::Error,
+    > {
+        self._integrated
+            .as_ref()
+            .map(crate::communication::integrated_auth::provider)
+            .transpose()
     }
 
     pub(crate) fn liveness(&self) -> LivenessConfig {
@@ -492,11 +1091,11 @@ impl ConnectionConfiguration {
     /// The runtime for this connection: the configured handle, else the ambient runtime at
     /// `connect`, else an error that explains both options. Native only.
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn resolve_runtime(&self) -> Result<tokio::runtime::Handle, String> {
+    pub(crate) fn resolve_runtime(&self) -> Result<tokio::runtime::Handle, crate::Error> {
         self._runtime
             .clone()
             .or_else(|| tokio::runtime::Handle::try_current().ok())
-            .ok_or_else(|| NO_RUNTIME.to_string())
+            .ok_or_else(no_runtime)
     }
 
     /// Binds this connection to a Tokio runtime. Native only.
@@ -532,12 +1131,196 @@ impl ConnectionConfiguration {
         self
     }
 
+    /// Presents this client certificate whenever a server asks for one, as the .NET client's
+    /// `HttpConnectionOptions.ClientCertificates`: on every native negotiate, WebSocket, Long
+    /// Polling and Server-Sent Events TLS connection. `chain_pem` holds the certificate and any
+    /// intermediates (`CERTIFICATE` blocks, the leaf first); `key_pem` its private key (PKCS#8,
+    /// PKCS#1 or SEC1 PEM). Invalid PEM or a key that does not match the certificate makes
+    /// [`SignalRClient::new`](crate::SignalRClient::new) fail with
+    /// [`ErrorKind::Configuration`](crate::ErrorKind::Configuration) naming
+    /// `with_client_certificate`; errors never contain the key. Native only: browsers choose
+    /// client certificates from their own store.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_client_certificate(
+        &mut self,
+        chain_pem: impl Into<Vec<u8>>,
+        key_pem: impl Into<Vec<u8>>,
+    ) -> &ConnectionConfiguration {
+        self._tls.client_certificate = Some(crate::communication::tls::ClientCertificatePem {
+            chain: chain_pem.into(),
+            key: key_pem.into(),
+        });
+        self
+    }
+
     /// Verifies secure endpoints of this connection against the bundled Mozilla roots instead of
     /// the operating system's trust store. Requires the `tls-webpki-roots` feature. Native only.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn use_webpki_roots(&mut self) -> &ConnectionConfiguration {
         self._tls.use_webpki_roots = true;
         self
+    }
+
+    /// Connects through this proxy instead of the system's proxy settings:
+    /// `scheme://[user:password@]host[:port]` (user and password may be percent-encoded) with
+    /// `http` (port 80 by default) or `https` (TLS to the proxy with this connection's TLS
+    /// configuration, port 443), which open an HTTP `CONNECT` tunnel with Basic
+    /// `Proxy-Authorization` when the proxy asks and the URL carries credentials, or `socks4`,
+    /// `socks4a`, `socks5` and `socks5h` (port 1080), as the .NET client accepts them. Every
+    /// native connection (negotiate, WebSocket, Long Polling, Server-Sent Events) tunnels through
+    /// it, and runs TLS inside the tunnel for secure endpoints, so the proxy never sees the
+    /// traffic. Credentials never appear in logs or errors. An invalid URL fails
+    /// [`SignalRClient::new`](crate::SignalRClient::new) with
+    /// [`ErrorKind::Configuration`](crate::ErrorKind::Configuration) naming `with_proxy`. Native
+    /// only: browsers use the browser's proxy settings.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_proxy(&mut self, url: impl AsRef<str>) -> &ConnectionConfiguration {
+        self._proxy = crate::communication::proxy::ProxyUrl::parse(url.as_ref())
+            .map(crate::communication::proxy::ProxyConfig::Explicit);
+        self
+    }
+
+    /// Chooses proxies with the proxy auto-config (PAC) script at `url` (`http`, `https` or
+    /// `file`), as WinHTTP and browsers do: the script is loaded directly (never through a proxy)
+    /// at each [`start`](crate::SignalRClient::start), within the connect timeout, and its
+    /// `FindProxyForURL(url, host)` decides for every native connection which of the `PROXY`,
+    /// `HTTPS`, `SOCKS`, `SOCKS4`, `SOCKS5` and `DIRECT` routes it returns to try, in order. The
+    /// script runs in a sandboxed JavaScript engine (no network or file access beyond the DNS
+    /// lookups of the standard helpers), bounded in time. A URL that is not `http`, `https` or
+    /// `file` fails [`SignalRClient::new`](crate::SignalRClient::new) with
+    /// [`ErrorKind::Configuration`](crate::ErrorKind::Configuration) naming
+    /// `with_proxy_auto_config`; a script that cannot be loaded or fails, and a connection no
+    /// route reaches, fail with [`ErrorKind::Proxy`](crate::ErrorKind::Proxy). Native only, with
+    /// the `proxy-pac` feature.
+    #[cfg(rayx_pac)]
+    pub fn with_proxy_auto_config(&mut self, url: impl AsRef<str>) -> &ConnectionConfiguration {
+        self._proxy = crate::communication::pac::PacConfig::new(url.as_ref())
+            .map(crate::communication::proxy::ProxyConfig::AutoConfig);
+        self
+    }
+
+    /// Uses the system's proxy settings, the default, as the .NET client's default proxy, read
+    /// when each connection is opened. When a proxy environment variable names a proxy, the
+    /// environment decides: the `HTTPS_PROXY` (secure endpoints) or `HTTP_PROXY` (plain ones)
+    /// variable, else `ALL_PROXY`, in lower or upper case, except for the hosts `NO_PROXY` lists
+    /// (curl's rules: host names with their subdomains, IP addresses, CIDR ranges, optional ports,
+    /// `*` for every host). Otherwise the operating system's settings decide, as
+    /// [`with_os_proxy`](Self::with_os_proxy) reads them. Native only.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_system_proxy(&mut self) -> &ConnectionConfiguration {
+        self._proxy = Ok(crate::communication::proxy::ProxyConfig::System);
+        self
+    }
+
+    /// Selects the HTTP version of native connections, as the .NET client's HTTP stack chooses
+    /// it. [`HttpVersion::Auto`](crate::HttpVersion::Auto), the default, asks for HTTP/2 over
+    /// TLS through ALPN for negotiate, Long Polling and Server-Sent Events and falls back to
+    /// HTTP/1.1; plaintext endpoints and WebSockets use HTTP/1.1.
+    /// [`HttpVersion::Http2`](crate::HttpVersion::Http2) uses HTTP/2 only, with h2c (prior
+    /// knowledge) for plaintext endpoints and RFC 8441 extended CONNECT for WebSockets; an
+    /// endpoint without it fails with [`ErrorKind::Transport`](crate::ErrorKind::Transport).
+    /// Over HTTP/2 the requests of one connection share one multiplexed connection per endpoint.
+    /// Integrated Windows authentication, which HTTP/2 cannot carry, keeps every request on
+    /// HTTP/1.1 whatever the version, as the .NET client turns HTTP/2 off with credentials.
+    /// Native only: browsers choose the HTTP version themselves.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_http_version(&mut self, version: crate::HttpVersion) -> &ConnectionConfiguration {
+        self._http_version = version;
+        self
+    }
+
+    /// Uses the operating system's proxy settings only, ignoring the proxy environment variables:
+    /// on Windows the current user's WinHTTP settings (with auto-detection and auto-config
+    /// scripts), on macOS and iOS CFNetwork's system settings, on Android `java.net.ProxySelector`
+    /// (after `tls::android::init_with_env`), and elsewhere, where they are the system's settings,
+    /// the environment variables. Loopback hosts are never proxied on Windows. Native only.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_os_proxy(&mut self) -> &ConnectionConfiguration {
+        self._proxy = Ok(crate::communication::proxy::ProxyConfig::Os);
+        self
+    }
+
+    /// Authenticates with the current Windows account, as the .NET client's
+    /// `HttpConnectionOptions.UseDefaultCredentials`: when the server answers a native negotiate
+    /// request, WebSocket upgrade, Long Polling or Server-Sent Events request with a 401 offering
+    /// `Negotiate` (Kerberos or NTLM) or `NTLM`, the request is sent again on the same connection
+    /// with the account's tokens until the server accepts or rejects them. Windows only (SSPI):
+    /// elsewhere [`SignalRClient::new`](crate::SignalRClient::new) fails with
+    /// [`ErrorKind::Configuration`](crate::ErrorKind::Configuration) naming
+    /// `with_default_credentials`. Browsers authenticate with the browser's own integrated
+    /// authentication.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_default_credentials(&mut self) -> &ConnectionConfiguration {
+        self._integrated =
+            Some(crate::communication::integrated_auth::IntegratedCredentials::Default);
+        self
+    }
+
+    /// Authenticates with these credentials, as the .NET client's
+    /// `HttpConnectionOptions.Credentials` (`NetworkCredential(user, password, domain)`): the
+    /// same challenge-response as
+    /// [`with_default_credentials`](Self::with_default_credentials), through SSPI on Windows and
+    /// NTLMv2 on other native targets. `domain` may be empty. The password never appears in logs,
+    /// errors or `Debug` output. Native only.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_credentials(
+        &mut self,
+        user: impl Into<String>,
+        password: impl Into<String>,
+        domain: impl Into<String>,
+    ) -> &ConnectionConfiguration {
+        self._integrated = Some(
+            crate::communication::integrated_auth::IntegratedCredentials::Explicit(
+                crate::communication::integrated_auth::Explicit {
+                    user: user.into(),
+                    password: password.into(),
+                    domain: domain.into(),
+                },
+            ),
+        );
+        self
+    }
+
+    /// Uses `jar` for this client's cookies instead of a jar of its own, as the .NET client's
+    /// `HttpConnectionOptions.Cookies`. Every native negotiate request, WebSocket upgrade and
+    /// Long Polling or Server-Sent Events request stores the `Set-Cookie` headers it receives and
+    /// sends the cookies that match its URL, across reconnects, so a load balancer's affinity
+    /// cookie keeps the connection on one server. Share a jar between clients, or keep a clone to
+    /// read or seed it. Native only: browsers manage cookies themselves.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_cookie_jar(&mut self, jar: crate::CookieJar) -> &ConnectionConfiguration {
+        self._cookies = jar;
+        self
+    }
+
+    /// Connects directly, ignoring the system's proxy settings. Native only.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn without_proxy(&mut self) -> &ConnectionConfiguration {
+        self._proxy = Ok(crate::communication::proxy::ProxyConfig::Disabled);
+        self
+    }
+
+    /// Refuses strict HTTP/3 in a build that cannot run QUIC (feature `http3` without a TLS
+    /// verifier and provider feature).
+    pub(crate) fn validate_http_version(&self) -> Result<(), crate::Error> {
+        #[cfg(all(feature = "http3", not(rayx_http3), not(target_arch = "wasm32")))]
+        if self._http_version == crate::HttpVersion::Http3 {
+            return Err(crate::Error::configuration(
+                "with_http_version",
+                "HTTP/3 needs TLS: enable a TLS verifier feature and a TLS provider feature \
+                 with http3",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Fails when `with_proxy` was given an invalid URL.
+    pub(crate) fn validate_proxy(&self) -> Result<(), crate::Error> {
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Err(error) = &self._proxy {
+            return Err(error.clone());
+        }
+        Ok(())
     }
 }
 
@@ -558,5 +1341,72 @@ mod stateful_configuration_tests {
             .connection_recipe()
             .negotiate_url()
             .ends_with("&useStatefulReconnect=true"));
+    }
+}
+
+/// Browser Basic credentials (R4.C2): sent with negotiate as in the .NET client, with a warning
+/// that names the Bearer alternatives; native clients do not warn.
+#[cfg(test)]
+mod browser_basic {
+    use super::{warn_browser_basic, Authentication, BROWSER_BASIC_WARNING};
+
+    fn basic() -> Authentication {
+        Authentication::Basic {
+            user: "user".into(),
+            password: Some("password".into()),
+        }
+    }
+
+    #[test]
+    fn browser_basic_credentials_warn_in_browsers_only() {
+        let (warned, records) = crate::test_logging::capture(|| warn_browser_basic(&basic(), true));
+        assert!(warned);
+        let warnings: Vec<_> = records
+            .iter()
+            .filter(|record| record.level == log::Level::Warn)
+            .collect();
+        assert_eq!(warnings.len(), 1);
+        assert_eq!(warnings[0].message, BROWSER_BASIC_WARNING);
+        assert!(warnings[0].message.contains("with_access_token_factory"));
+        assert!(warnings[0].message.contains("authenticate_bearer"));
+        assert!(!warnings[0].message.contains("password"), "no credential");
+
+        let (warned, records) =
+            crate::test_logging::capture(|| warn_browser_basic(&basic(), false));
+        assert!(
+            !warned,
+            "native clients send Basic on the WebSocket upgrade too"
+        );
+        assert!(records.is_empty());
+    }
+
+    #[test]
+    fn browser_basic_other_credentials_never_warn() {
+        for authentication in [
+            Authentication::None,
+            Authentication::Bearer {
+                token: "token".into(),
+            },
+        ] {
+            let (warned, records) =
+                crate::test_logging::capture(|| warn_browser_basic(&authentication, true));
+            assert!(!warned);
+            assert!(records.is_empty());
+        }
+    }
+}
+
+#[cfg(test)]
+mod log_redaction_endpoint_tests {
+    use super::ConnectionConfiguration;
+
+    #[test]
+    fn log_redaction_endpoints_drop_their_query() {
+        let configuration = ConnectionConfiguration::new(
+            "hub.example".to_string(),
+            "chat?access_token=secret-token&key=secret-key".to_string(),
+        );
+        let shown = configuration.connection_recipe().display_endpoint();
+        assert_eq!(shown, "https://hub.example/chat");
     }
 }

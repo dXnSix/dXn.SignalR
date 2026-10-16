@@ -32,7 +32,7 @@ async fn scenario(protocol: Protocol) {
         values.push(value);
     }
     assert_eq!(values, (1..=10_000).collect::<Vec<_>>());
-    assert_eq!(sequence.error(), None);
+    assert!(sequence.error().is_none());
 
     let mut failing = client
         .enumerate_with_args::<i32, _>("FailingSequence".to_string(), |arguments| {
@@ -47,7 +47,13 @@ async fn scenario(protocol: Protocol) {
     let error = failing
         .error()
         .expect("the failing stream reports the server error");
-    assert!(error.contains("failed after 3"), "{error}");
+    assert_eq!(error.kind(), rayx_signalr::ErrorKind::Hub, "{error}");
+    assert!(
+        error
+            .server_message()
+            .is_some_and(|message| message.contains("failed after 3")),
+        "{error}"
+    );
 
     assert!(!support::connection_identity(&mut client)
         .await

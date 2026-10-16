@@ -1,13 +1,13 @@
 # Hub protocols and serialization
 
-SignalR separates the transport (WebSockets here) from the hub protocol that encodes messages. The
-client implements both ASP.NET Core hub protocols:
+SignalR separates the transport (WebSockets, Server-Sent Events or Long Polling) from the hub
+protocol that encodes messages. The client implements both ASP.NET Core hub protocols:
 
 | | JSON (default) | MessagePack (`messagepack` feature) |
 |---|---|---|
 | Select with | nothing | `with_messagepack_protocol()` |
 | Server needs | nothing | `.AddMessagePackProtocol()` |
-| WebSocket frames | text, records end with `0x1E` | binary, each message prefixed with a varint length |
+| Messages on the wire | text, records end with `0x1E` | binary, each message prefixed with a varint length |
 | Negotiated transfer format | `Text` | `Binary` |
 | Typical use | readability, browser debugging, widest compatibility | smaller frames and faster encoding |
 
@@ -23,7 +23,10 @@ MessagePack-CSharp (MessagePack). Field names have to agree.
 ### JSON
 
 ASP.NET Core writes camelCase property names and reads property names case-insensitively. Give
-Rust types camelCase wire names:
+Rust types camelCase wire names. Like the .NET client, this client also reads JSON payloads
+case-insensitively: a result, stream item or callback argument that does not decode with the exact
+Serde names is decoded again with member names matched ignoring case (so `"OrderId"` fills
+`order_id` renamed to `orderId`). Outbound names are always the application's.
 
 ```rust
 use serde::{Deserialize, Serialize};
@@ -66,25 +69,43 @@ protocols. Integer keys (`[Key(0)]`, array layout) do not match the map the clie
 
 ### Outbound (client to server)
 
-Each argument passed to `argument(value)` is serialized when it is added: to a JSON value, and with
-the `messagepack` feature also to named MessagePack. The connection's protocol decides which one is
-sent. Client results (`InvocationContext::complete`) are encoded the same way.
+Each argument passed to `argument(value)` is serialized once, when it is added, in the connection's
+protocol: to JSON, or to named MessagePack (`rmp_serde::to_vec_named`). Client results
+(`InvocationContext::complete`) are encoded the same way.
 
 ### Inbound (server to client)
 
 | Value | JSON | MessagePack |
 |---|---|---|
-| `invoke` result, stream item | `serde_json` into `T` | `rmp_serde` into `T`; if that fails, retried once with map keys converted from PascalCase to camelCase |
-| Callback argument (`ctx.argument::<T>`) | `serde_json` into `T` | converted to a JSON value, then `serde_json` into `T` |
+| `invoke` result, stream item | `serde_json` into `T`; if that fails, retried once matching member names case-insensitively | `rmp_serde` into `T`; if that fails, retried once with map keys converted from PascalCase to camelCase |
+| Callback argument (`ctx.argument::<T>`) | like results | like results: `rmp_serde` into `T` from the server's original value, with the same PascalCase retry |
 
-The MessagePack-to-JSON conversion of callback arguments has edge cases:
+MessagePack callback arguments keep the server's encoding, as the .NET binder sees it:
 
-- binary values (`byte[]`) become base64 strings; deserialize them as `String` and decode;
-- extension values, including MessagePack timestamps (`DateTime`), become `null`;
-- map entries with non-string keys are dropped.
+- binary values (`byte[]`) decode into types that accept bytes, such as `serde_bytes::ByteBuf`
+  (a `Vec<u8>` expects an array of numbers);
+- extension values, including MessagePack timestamps (MessagePack-CSharp writes `DateTime` as
+  extension type -1), decode through `rmp_serde`'s extension convention: a newtype struct named
+  `_ExtStruct` around `(i8, ByteBuf)` receives the extension type and its bytes;
+- maps with integer keys (`Dictionary<int, string>`) decode into maps with integer keys, such as
+  `HashMap<i32, String>`.
 
-For values that must survive both protocols, prefer strings (ISO 8601 dates, base64 binary) or
-plain numbers (Unix milliseconds) over `DateTime` and `byte[]`.
+For values that must look the same in both protocols, prefer strings (ISO 8601 dates, base64
+binary) or plain numbers (Unix milliseconds) over `DateTime` and `byte[]`: JSON carries those as
+strings.
+
+### Framing
+
+As in the .NET client, a hub message may span several WebSocket messages: the incomplete rest of a
+WebSocket message (a JSON record without its separator, or a MessagePack message or its length
+prefix) is kept for the next one. There is no size cap by default (natively the WebSocket layer's
+own limit is lifted too); `with_maximum_message_size(bytes)` bounds an inbound hub message, and a
+larger one ends the transport with `ErrorKind::Protocol` (the reconnection policy runs).
+
+A malformed message, or a WebSocket message of the wrong kind (binary on a JSON connection, text
+on a MessagePack one), ends the transport with `ErrorKind::Protocol`, and the reconnection policy
+runs, as in the .NET client; a stateful connection then negotiates afresh. Message types the client
+does not know are ignored, so a newer server can add them.
 
 ## Void, `null` and `Option`
 
