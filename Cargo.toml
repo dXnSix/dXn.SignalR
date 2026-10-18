@@ -1,6 +1,6 @@
 [package]
 name = "rayx-signalr"
-version = "0.2.0"
+version = "1.0.0"
 edition = "2021"
 rust-version = "1.92"
 authors = ["dXnSix", "Daniel Leiszen <daniel.leiszen@gmail.com> (original signalr-client author)"]
