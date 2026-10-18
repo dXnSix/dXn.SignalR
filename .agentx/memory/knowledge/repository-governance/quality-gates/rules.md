@@ -14,6 +14,6 @@ agentx:
 # Rules
 
 - Keep workflow and local verifier commands behaviorally aligned; a CI-only green path is insufficient.
-- Preserve `contents: read`, disabled credential persistence, no secrets, no publishing, and failure-only redacted artifacts.
+- Preserve `contents: read`, disabled credential persistence, no secrets and failure-only redacted artifacts in `quality.yml`, `e2e.yml` and `perf.yml`. `release-plz.yml` is the only exception (owner decision 2026-10-18): job-level `contents`/`pull-requests` write, the `RELEASE_PLZ_TOKEN` secret and checkouts that carry it. No workflow publishes to a registry.
 - Do not reduce the native OS, pinned/stable Rust, default/all-feature WASM, JSON/MessagePack, or ordinary/stateful reconnect matrices to obtain green checks.
 - Resolve warnings through source or precise feature gating; do not add global warning or Clippy suppression.
