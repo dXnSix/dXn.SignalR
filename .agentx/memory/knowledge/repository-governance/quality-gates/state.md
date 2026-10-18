@@ -40,4 +40,5 @@ Consumers on newer toolchains (RayX.GameX pins Rust 1.99) see dead code that 1.9
 
 - Source anchors: [quality workflow](../../../../../.github/workflows/quality.yml), [end-to-end workflow](../../../../../.github/workflows/e2e.yml), [workflow contract tests](../../../../../dotnet/RayX.SignalR.E2E.Tests/src/Contracts/WorkflowContractTests.cs), [production validation docs](../../../../../README.md).
 - 2026-10-06 current [Gates as .NET test categories; browser-only WASM](../../../decisions/repository-governance/quality-gates/2026-10-06-repository-governance-quality-gates-verification-as-dotnet-categories.md).
-- 2026-10-09 current [Pull-request-only CI](../../../decisions/repository-governance/quality-gates/2026-10-09-repository-governance-quality-gates-pull-request-only-ci.md).
+- 2026-10-09 superseded [Pull-request-only CI](../../../decisions/repository-governance/quality-gates/2026-10-09-repository-governance-quality-gates-pull-request-only-ci.md).
+- 2026-10-19 current [Light master CI, release workflow, release-PR guard](../../../decisions/repository-governance/quality-gates/2026-10-19-repository-governance-quality-gates-light-master-ci-and-release-workflow.md).

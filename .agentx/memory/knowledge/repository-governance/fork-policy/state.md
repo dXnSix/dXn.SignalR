@@ -26,3 +26,4 @@ RayX.SignalR is an independent library. It started from `signalr-client` `d32bd0
 
 - Source anchors: [LICENSE](../../../../../LICENSE), [Cargo.toml](../../../../../Cargo.toml), [README.md](../../../../../README.md).
 - 2026-10-06 current [Independent library decision](../../../decisions/repository-governance/fork-policy/2026-10-06-repository-governance-fork-policy-independent-library.md).
+- 2026-10-19 current [Release by git tag with release-plz, 1.x policy](../../../decisions/repository-governance/fork-policy/2026-10-19-repository-governance-fork-policy-release-by-git-tag.md).

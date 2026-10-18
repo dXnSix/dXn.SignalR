@@ -2,7 +2,7 @@
 agentx:
   kind: decision
   scope: repository-governance/quality-gates
-  status: current
+  status: superseded
   created: "2026-10-09T18:00:00+02:00"
   updated: "2026-10-09T18:00:00+02:00"
   topics:
@@ -10,7 +10,8 @@ agentx:
     - github-actions
     - cost
   supersedes: []
-  superseded_by: []
+  superseded_by:
+    - 2026-10-19-repository-governance-quality-gates-light-master-ci-and-release-workflow.md
 ---
 ## Decision: Run CI on pull requests only, every dimension per pull request, and the long soak and the performance comparison on demand
 
