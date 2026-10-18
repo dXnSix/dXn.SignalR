@@ -20,7 +20,7 @@ Read this file before work on package identity, provenance, attribution, remotes
 
 ## Current Technical Shape
 
-RayX.SignalR is an independent library. It started from `signalr-client` `d32bd04` (`v0.3.2`), whose Git history is retained, and has no upstream-import workflow. The package is `rayx-signalr`, the crate `rayx_signalr`, version `0.2.0` (the typed error model was the breaking change from 0.1), `publish = false`. Attribution to the original author stays in `LICENSE` (MIT copyright notice), the `Cargo.toml` authors, and the README acknowledgements. `origin` is the only remote; `master` is the default and integration branch.
+RayX.SignalR is an independent library. It started from `signalr-client` `d32bd04` (`v0.3.2`), whose Git history is retained, and has no upstream-import workflow. The package is `rayx-signalr`, the crate `rayx_signalr`, version `1.0.0` since signalr-releases (2026-10-19; `0.2.0` was never tagged), `publish = false`: releases are git tags `vX.Y.Z` cut by release-plz with a GitHub Release and a root `CHANGELOG.md`, never a registry, and the version stays on 1.x while the owner is the only consumer (see `docs/releasing.md`). Attribution to the original author stays in `LICENSE` (MIT copyright notice), the `Cargo.toml` authors, and the README acknowledgements. `origin` is the only remote; `master` is the default and integration branch.
 
 ## Backlinks
 
