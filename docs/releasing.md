@@ -67,8 +67,10 @@ While the owner is the only consumer, no release leaves 1.x:
   force a major bump.
 - A release pull request that proposes `2.0.0` means a stray `!` or `BREAKING CHANGE:` commit. Do
   not merge it: reword that commit (a force push to `master` is allowed for this), and release-plz
-  updates the pull request. The `Repository` contract `Case=release-consumption` also fails when
-  `Cargo.toml` leaves 1.x.
+  updates the pull request. This manual check is the gate: the `Repository` contract
+  `Case=release-consumption` also fails when `Cargo.toml` leaves 1.x, but it runs only locally and
+  in `quality / contracts` on ordinary pull requests, never on a release pull request or a push to
+  `master`.
 
 The policy ends when a second consumer appears; then `!` and major bumps return, and the contract
 and this section change together.
