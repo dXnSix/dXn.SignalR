@@ -1,7 +1,7 @@
 {
   "schemaVersion": 7,
   "epicId": "signalr-releases",
-  "revision": 4,
+  "revision": 5,
   "title": "rayx-signalr releases by git tag: release-plz, v1.0.0, CHANGELOG, release-PR CI guard, tag-form install docs",
   "validationMode": "sprint",
   "repositories": [
@@ -33,7 +33,8 @@
       "global.json",
       ".github/workflows/perf.yml",
       "dotnet/RayX.SignalR.AppHost/**",
-      "dotnet/RayX.SignalR.TestService/**"
+      "dotnet/RayX.SignalR.TestService/**",
+      "dotnet/RayX.SignalR.FixtureHost/**"
     ]
   },
   "checks": [
