@@ -60,6 +60,29 @@ pub(crate) type AccessTokenFactory = std::sync::Arc<
 pub(crate) type AccessTokenFactory =
     std::rc::Rc<dyn Fn() -> futures::future::LocalBoxFuture<'static, Result<String, String>>>;
 
+/// The settings of one connection: endpoint, authentication, hub protocol, transports, HTTP,
+/// proxy and TLS options, timeouts, and reconnection.
+///
+/// [`SignalRClient::new`](crate::SignalRClient::new) and
+/// [`connect_with`](crate::SignalRClient::connect_with) pass it to a closure. Every method takes
+/// `&mut self` and returns `&ConnectionConfiguration`, so call the methods as separate
+/// statements instead of chaining them:
+///
+/// ```no_run
+/// # async fn example() -> Result<(), rayx_signalr::Error> {
+/// use std::time::Duration;
+///
+/// let client = rayx_signalr::SignalRClient::connect_with("hub.example.com", "chat", |c| {
+///     c.authenticate_bearer("<access token>".to_string());
+///     c.with_server_timeout(Duration::from_secs(60));
+/// })
+/// .await?;
+/// # Ok(())
+/// # }
+/// ```
+///
+/// The defaults are https/wss on the default port, JSON, no authentication, every transport in
+/// the server's order, the system proxy (native), and no automatic reconnection.
 pub struct ConnectionConfiguration {
     _secure: bool,
     _domain: String,
@@ -504,10 +527,14 @@ impl ConnectionConfiguration {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let client = SignalRClient::connect_with("localhost", "test", |c| {
+    /// ```no_run
+    /// # async fn example() -> Result<(), rayx_signalr::Error> {
+    /// let client = rayx_signalr::SignalRClient::connect_with("localhost", "test", |c| {
     ///     c.with_port(5220);
-    /// }).await.unwrap();
+    /// })
+    /// .await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn with_port(&mut self, port: i32) -> &ConnectionConfiguration {
         self._port = Some(port);
@@ -527,10 +554,14 @@ impl ConnectionConfiguration {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let client = SignalRClient::connect_with("localhost", "test", |c| {
+    /// ```no_run
+    /// # async fn example() -> Result<(), rayx_signalr::Error> {
+    /// let client = rayx_signalr::SignalRClient::connect_with("localhost", "test", |c| {
     ///     c.with_hub("myHub".to_string());
-    /// }).await.unwrap();
+    /// })
+    /// .await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn with_hub(&mut self, hub: String) -> &ConnectionConfiguration {
         self._hub = hub;
@@ -546,10 +577,14 @@ impl ConnectionConfiguration {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let client = SignalRClient::connect_with("localhost", "test", |c| {
+    /// ```no_run
+    /// # async fn example() -> Result<(), rayx_signalr::Error> {
+    /// let client = rayx_signalr::SignalRClient::connect_with("localhost", "test", |c| {
     ///     c.secure();
-    /// }).await.unwrap();
+    /// })
+    /// .await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn secure(&mut self) -> &ConnectionConfiguration {
         self._secure = true;
@@ -565,10 +600,14 @@ impl ConnectionConfiguration {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let client = SignalRClient::connect_with("localhost", "test", |c| {
+    /// ```no_run
+    /// # async fn example() -> Result<(), rayx_signalr::Error> {
+    /// let client = rayx_signalr::SignalRClient::connect_with("localhost", "test", |c| {
     ///     c.unsecure();
-    /// }).await.unwrap();
+    /// })
+    /// .await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn unsecure(&mut self) -> &ConnectionConfiguration {
         self._secure = false;
@@ -589,10 +628,14 @@ impl ConnectionConfiguration {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let client = SignalRClient::connect_with("localhost", "test", |c| {
+    /// ```no_run
+    /// # async fn example() -> Result<(), rayx_signalr::Error> {
+    /// let client = rayx_signalr::SignalRClient::connect_with("localhost", "test", |c| {
     ///     c.authenticate_basic("username".to_string(), Some("password".to_string()));
-    /// }).await.unwrap();
+    /// })
+    /// .await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn authenticate_basic(
         &mut self,
@@ -616,10 +659,14 @@ impl ConnectionConfiguration {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let client = SignalRClient::connect_with("localhost", "test", |c| {
+    /// ```no_run
+    /// # async fn example() -> Result<(), rayx_signalr::Error> {
+    /// let client = rayx_signalr::SignalRClient::connect_with("localhost", "test", |c| {
     ///     c.authenticate_bearer("your_bearer_token".to_string());
-    /// }).await.unwrap();
+    /// })
+    /// .await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn authenticate_bearer(&mut self, token: String) -> &ConnectionConfiguration {
         self._authentication = Authentication::Bearer { token };
@@ -746,6 +793,14 @@ impl ConnectionConfiguration {
     /// # }
     /// ```
     #[cfg(all(not(target_arch = "wasm32"), rayx_tls))]
+    #[cfg_attr(
+        docsrs,
+        doc(cfg(all(
+            not(target_arch = "wasm32"),
+            any(feature = "tls-platform-verifier", feature = "tls-webpki-roots"),
+            any(feature = "tls-ring", feature = "tls-aws-lc-rs")
+        )))
+    )]
     pub fn with_tls_config_hook<F>(&mut self, hook: F) -> &ConnectionConfiguration
     where
         F: Fn(&mut crate::tls::rustls::ClientConfig) + Send + Sync + 'static,
@@ -837,10 +892,19 @@ impl ConnectionConfiguration {
     ///
     /// * `&ConnectionConfiguration` - Returns a reference to the updated connection configuration.
     /// # Examples
-    /// ```ignore
-    /// let client = SignalRClient::connect_with("localhost", "test", |c| {
-    ///     c.with_disconnection_handler(MyDisconnectionHandler{});
-    /// }).await.unwrap();
+    /// ```no_run
+    /// # use rayx_signalr::{DisconnectionHandler, ReconnectionHandler};
+    /// # struct MyDisconnectionHandler;
+    /// # impl DisconnectionHandler for MyDisconnectionHandler {
+    /// #     fn on_disconnected(&self, _reconnection: ReconnectionHandler) {}
+    /// # }
+    /// # async fn example() -> Result<(), rayx_signalr::Error> {
+    /// let client = rayx_signalr::SignalRClient::connect_with("localhost", "test", |c| {
+    ///     c.with_disconnection_handler(MyDisconnectionHandler);
+    /// })
+    /// .await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn with_disconnection_handler<
         Handler: DisconnectionHandler + crate::platform::MaybeSendSync + 'static,
@@ -1193,6 +1257,14 @@ impl ConnectionConfiguration {
     /// route reaches, fail with [`ErrorKind::Proxy`](crate::ErrorKind::Proxy). Native only, with
     /// the `proxy-pac` feature.
     #[cfg(rayx_pac)]
+    #[cfg_attr(
+        docsrs,
+        doc(cfg(all(
+            not(target_arch = "wasm32"),
+            not(target_os = "ios"),
+            feature = "proxy-pac"
+        )))
+    )]
     pub fn with_proxy_auto_config(&mut self, url: impl AsRef<str>) -> &ConnectionConfiguration {
         self._proxy = crate::communication::pac::PacConfig::new(url.as_ref())
             .map(crate::communication::proxy::ProxyConfig::AutoConfig);

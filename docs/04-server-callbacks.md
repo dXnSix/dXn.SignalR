@@ -90,7 +90,8 @@ let registration = client.register_typed("PriceChanged", |_ctx, (symbol, price):
 When the arguments do not bind (another count, or a value that does not decode into its type), the
 callback is not called and the failure is logged; a call that expects a result is answered with the
 .NET client's error `Client failed to parse argument(s).`. The tuple can have up to 12 elements;
-`()` takes calls without arguments.
+`()` takes calls without arguments. The tuple types are the implementations of the sealed
+`CallbackArguments` trait: tuples of `DeserializeOwned + Unpin` elements.
 
 ## Reading arguments
 

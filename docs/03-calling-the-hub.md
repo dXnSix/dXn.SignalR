@@ -227,6 +227,11 @@ As in the .NET client:
   resuming, or natively paused and resumed, the stream waits and then continues on the resumed
   transport; a browser `pause()` ends a stateful connection, so its streams end with it.
 
+The crate also exports the future types behind these calls for code that bridges callbacks to
+`async` itself: `ManualFuture<T>` (created with its completer by `ManualFuture::new()`, completed
+from any thread), `ManualStream<T>` (`ManualStream::create()` returns the stream and a completer
+that pushes, closes or fails it), and `CompletedFuture<T>`, a future that is ready at once.
+
 ## Concurrency and clones
 
 The call methods take `&mut self`. To run calls concurrently, clone the client: clones share one

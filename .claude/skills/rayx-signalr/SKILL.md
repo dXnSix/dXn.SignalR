@@ -9,7 +9,8 @@ Inspect the affected current source first; it is the source of truth (`src/`, re
 `src/lib.rs`). Select the reference matching the task, then follow additional links only for a
 concrete need. Paths below are relative to this skill; commands run from the repository root. The
 long-form documentation is in [`docs/`](../../../docs/README.md). Every Rust example in the README
-and `docs/` must compile; nothing compiles them automatically, so check the examples you change.
+and `docs/` must compile; `tests/documentation_examples.rs` holds a compiled copy of each, and
+`cargo test documentation_examples_` fails when a changed block has no matching copy.
 Examples in these references may be fragments that assume a `client` in scope.
 
 The package is `rayx-signalr`, imported as `rayx_signalr`; it is not on crates.io (use a Git or path

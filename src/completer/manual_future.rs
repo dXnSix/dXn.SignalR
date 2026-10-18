@@ -31,20 +31,20 @@ impl<T> State<T> {
 ///
 /// # Examples
 ///
-/// ```ignore
-/// #[tokio::main]
-/// async fn main() {
-///     let (future, completer) = ManualFuture::new();
+/// ```
+/// use rayx_signalr::ManualFuture;
 ///
-///     tokio::spawn(async move {
-///         // Simulate some async work
-///         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-///         completer.complete(42);
-///     });
+/// # futures::executor::block_on(async {
+/// let (future, completer) = ManualFuture::new();
 ///
-///     let result = future.await;
-///     println!("Result: {}", result);
-/// }
+/// std::thread::spawn(move || {
+///     // Some work on another thread
+///     completer.complete(42);
+/// });
+///
+/// let result = future.await;
+/// assert_eq!(result, 42);
+/// # });
 /// ```
 pub struct ManualFuture<T: Unpin> {
     state: Arc<Mutex<State<T>>>,
@@ -59,8 +59,8 @@ impl<T: Unpin> ManualFuture<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let (future, completer) = ManualFuture::new();
+    /// ```
+    /// let (future, completer) = rayx_signalr::ManualFuture::<i32>::new();
     /// ```
     pub fn new() -> (Self, ManualFutureCompleter<T>) {
         let state: State<T> = State::new(None);
@@ -75,11 +75,11 @@ impl<T: Unpin> ManualFuture<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let (future, completer) = ManualFuture::new();
-    /// let mustbefalse = future.is_completed();
+    /// ```
+    /// let (future, completer) = rayx_signalr::ManualFuture::new();
+    /// assert!(!future.is_completed());
     /// completer.complete(42);
-    /// let mustbetrue = future.is_completed();
+    /// assert!(future.is_completed());
     /// ```
     #[allow(dead_code)]
     pub fn is_completed(&self) -> bool {
@@ -105,8 +105,8 @@ impl<T: Unpin> Clone for ManualFuture<T> {
 ///
 /// # Examples
 ///
-/// ```ignore
-/// let (future, completer) = ManualFuture::new();
+/// ```
+/// let (future, completer) = rayx_signalr::ManualFuture::new();
 /// completer.complete(42);
 /// ```
 pub struct ManualFutureCompleter<T: Unpin> {
@@ -124,8 +124,8 @@ impl<T: Unpin> ManualFutureCompleter<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let (future, completer) = ManualFuture::new();
+    /// ```
+    /// let (future, completer) = rayx_signalr::ManualFuture::new();
     /// completer.complete(42);
     /// ```
     pub fn complete(self, value: T) {
@@ -144,8 +144,8 @@ impl<T: Unpin> ManualFutureCompleter<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let (future, completer) = ManualFuture::new();
+    /// ```
+    /// let (future, completer) = rayx_signalr::ManualFuture::<i32>::new();
     /// completer.cancel();
     /// ```
     pub fn cancel(self) {
@@ -161,11 +161,11 @@ impl<T: Unpin> ManualFutureCompleter<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let (future, completer) = ManualFuture::new();
-    /// let mustbefalse = completer.is_completed();
-    /// completer.complete(42);
-    /// let mustbetrue = completer.is_completed();
+    /// ```
+    /// let (future, completer) = rayx_signalr::ManualFuture::new();
+    /// assert!(!completer.is_completed());
+    /// completer.clone().complete(42);
+    /// assert!(completer.is_completed());
     /// ```
     #[allow(dead_code)]
     pub fn is_completed(&self) -> bool {

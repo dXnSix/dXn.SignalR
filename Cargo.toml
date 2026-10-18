@@ -16,6 +16,13 @@ categories = ["network-programming", "web-programming", "asynchronous"]
 [lib]
 crate-type = ["rlib"]
 
+# docs.rs: every feature except the benchmark internals, native and browser documentation, and
+# the `docsrs` cfg that labels feature- and platform-gated items.
+[package.metadata.docs.rs]
+features = ["messagepack", "tls-platform-verifier", "tls-webpki-roots", "tls-ring", "proxy-pac", "http3"]
+targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
 default = ["tls-platform-verifier", "tls-ring"]
 messagepack = ["rmp", "rmp-serde", "rmpv"]

@@ -1,3 +1,98 @@
+//! An ASP.NET Core SignalR client for Rust, native and in the browser.
+//!
+//! `rayx_signalr` connects Tokio applications on Windows, Linux, macOS, Android and iOS, and
+//! WebAssembly applications in the browser (`wasm32-unknown-unknown`), to SignalR hubs. One API
+//! covers request/response calls, fire-and-forget messages, server streams, server-to-client
+//! calls with client results, and reconnection, over the JSON or MessagePack hub protocol and the
+//! WebSockets, Server-Sent Events and Long Polling transports.
+//!
+//! # Quick start
+//!
+//! [`SignalRClient::connect_with`] negotiates and starts a connection; the closure configures it
+//! through [`ConnectionConfiguration`]. [`invoke`](SignalRClient::invoke) waits for a typed
+//! result, [`send`](SignalRClient::send) fires and forgets, [`enumerate`](SignalRClient::enumerate)
+//! returns a [`Stream`](futures::Stream) of server items, and [`register`](SignalRClient::register)
+//! handles the hub's calls to the client.
+//!
+//! ```no_run
+//! use futures::StreamExt;
+//! use rayx_signalr::{CallbackHandler, SignalRClient};
+//!
+//! # async fn example() -> Result<(), rayx_signalr::Error> {
+//! let mut client = SignalRClient::connect_with("localhost", "chat", |c| {
+//!     c.unsecure(); // http/ws; the default is https/wss
+//!     c.with_port(5000);
+//! })
+//! .await?;
+//!
+//! // Server-to-client calls.
+//! let on_message = client.register_typed("ReceiveMessage", |_ctx, (user, text): (String, String)| {
+//!     println!("{user}: {text}");
+//! });
+//!
+//! // Fire and forget, request/response, and a server stream.
+//! client
+//!     .send_with_args("Send".to_string(), |args| {
+//!         args.argument("rust").argument("Hello!");
+//!     })
+//!     .await?;
+//! let total: i32 = client.invoke("Total".to_string()).await?;
+//! let mut prices = client.enumerate::<f64>("Prices".to_string()).await;
+//! while let Some(price) = prices.next().await {
+//!     println!("{price}");
+//! }
+//!
+//! on_message.unregister();
+//! client.disconnect();
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! To register callbacks before the hub can call them, build the client with
+//! [`SignalRClient::new`] and connect with [`start`](SignalRClient::start), as with the official
+//! .NET client's `Build()` and `StartAsync()`.
+//!
+//! # Where to look
+//!
+//! | Topic | API |
+//! |---|---|
+//! | Endpoint, authentication, transports, proxies, timeouts | [`ConnectionConfiguration`] |
+//! | Calls, streams and callbacks | [`SignalRClient`], [`ArgumentConfiguration`], [`InvocationContext`] |
+//! | Lifecycle and status | [`ConnectionStatus`], [`SignalRClient::on_closed`], [`SignalRClient::pause`] |
+//! | Automatic and manual reconnection | [`ReconnectionConfig`], [`ReconnectionPolicy`], [`DisconnectionHandler`], [`StatefulReconnectConfig`] |
+//! | Errors | [`Error`], [`ErrorKind`] |
+//! | Native TLS | the `tls` module, `with_additional_root_certificates_pem` and `with_client_certificate` on [`ConnectionConfiguration`] |
+//!
+//! The [guide](https://github.com/rayx-ui/RayX.SignalR/blob/master/docs/README.md) explains the
+//! connection and reconnection semantics, platform setup (browsers, Web Workers, Android, iOS)
+//! and the ASP.NET Core server configuration in chapters.
+//!
+//! # Cargo features
+//!
+//! | Feature | Default | Effect |
+//! |---|---|---|
+//! | `messagepack` | off | The MessagePack hub protocol ([`ConnectionConfiguration::with_messagepack_protocol`]). |
+//! | `tls-platform-verifier` | on | Native TLS verifies with the operating system's trust store. |
+//! | `tls-webpki-roots` | off | Bundled Mozilla roots, selected per connection with `use_webpki_roots()`. |
+//! | `tls-ring` | on | The `ring` crypto provider. |
+//! | `tls-aws-lc-rs` | off | The `aws-lc-rs` crypto provider (wins over `ring`). |
+//! | `proxy-pac` | off | Proxy auto-config scripts (`with_proxy_auto_config`), in the pure-Rust Boa engine. |
+//! | `http3` | off | Experimental HTTP/3 over QUIC (`HttpVersion::Http3`, `Http3Preferred`), native with TLS. |
+//!
+//! Native secure endpoints need one verifier feature and one provider feature; without them the
+//! crate builds a plaintext-only native client. Browsers always use the platform's TLS.
+//!
+//! # Platforms
+//!
+//! Natively, each connection runs its network work on its own Tokio runtime (or one you pass with
+//! `ConnectionConfiguration::with_runtime_handle`), so its futures can be awaited from any
+//! executor. In the browser the transports are event-driven and run on the main thread, in Web
+//! Workers, and in multithreaded (atomics) builds. WASI and other `wasm32` targets do not compile.
+//! The minimum supported Rust version is 1.92; stateful reconnect needs ASP.NET Core 8 or later.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![warn(missing_docs)]
+
 // Browser WASM (`wasm32-unknown-unknown`) is the only supported wasm target; the browser transport
 // and timers do not exist on WASI or other wasm32 operating systems.
 #[cfg(all(target_arch = "wasm32", not(target_os = "unknown")))]
@@ -44,6 +139,14 @@ pub mod tls {
     /// The rustls version the client builds its `ClientConfig` with, for
     /// [`with_tls_config_hook`](crate::ConnectionConfiguration::with_tls_config_hook).
     #[cfg(rayx_tls)]
+    #[cfg_attr(
+        docsrs,
+        doc(cfg(all(
+            not(target_arch = "wasm32"),
+            any(feature = "tls-platform-verifier", feature = "tls-webpki-roots"),
+            any(feature = "tls-ring", feature = "tls-aws-lc-rs")
+        )))
+    )]
     pub use rustls;
 
     /// Android initialization for the platform certificate verifier. Call one of these once,

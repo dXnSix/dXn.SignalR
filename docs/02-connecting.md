@@ -290,6 +290,12 @@ let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
 })?;
 ```
 
+`Transports` is a set of `TransportKind`s (`WebSockets`, `ServerSentEvents`, `LongPolling`):
+combine the constants with `|`, start from `Transports::all()`, and test it with
+`contains(kind)` or `is_only(kind)`. `TransportKind::name()` is the transport's name in negotiate
+responses (`"WebSockets"`, `"ServerSentEvents"`, `"LongPolling"`); errors and request hooks report
+the transport they concern as a `TransportKind` (`Error::transport()`, `HttpRequest::transport()`).
+
 ### Long Polling
 
 Long Polling works as in the official clients, on both targets and with both hub protocols:
@@ -550,6 +556,9 @@ let client = rayx_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
 })?;
 // After connecting: jar.cookie_header("https://hub.example.com/chat")
 ```
+
+`len()` and `is_empty()` count the stored cookies (expired ones until a request removes them), and
+`clear()` removes them all, for example when the user signs out.
 
 The jar follows RFC 6265 for host-only and `Domain` cookies, `Path`, `Secure` (sent only over
 `https`/`wss` and accepted only from them), `Expires` and `Max-Age`, with the .NET container's

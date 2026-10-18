@@ -105,7 +105,10 @@ pub trait Storage: Clone {
     }
 }
 
+/// A callback registration that [`SignalRClient::register`](crate::SignalRClient::register) and
+/// its variants return. Dropping it keeps the callback registered.
 pub trait CallbackHandler {
+    /// Removes the callback; the hub's later calls to its target no longer reach it.
     fn unregister(self);
 }
 

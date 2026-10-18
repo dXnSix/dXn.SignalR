@@ -72,26 +72,33 @@ impl ArgumentConfiguration {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let client = SignalRClient::connect("localhost", "test").await.unwrap();
-    /// let response: Result<bool, rayx_signalr::Error> = client.invoke_with_args("PushEntity".to_string(), |c| {
-    ///     c.argument(TestEntity {
-    ///         text: "push1".to_string(),
-    ///         number: 100,
-    ///     });
-    /// }).await;
-    /// match response {
-    ///     Ok(success) => {
-    ///         if success {
-    ///             info!("Entity pushed successfully");
-    ///         } else {
-    ///             error!("Failed to push entity");
-    ///         }
-    ///     }
-    ///     Err(e) => {
-    ///         error!("Failed to invoke method: {}", e);
-    ///     }
+    /// ```no_run
+    /// # async fn example() -> Result<(), rayx_signalr::Error> {
+    /// use rayx_signalr::SignalRClient;
+    /// use serde::{Deserialize, Serialize};
+    ///
+    /// #[derive(Deserialize, Serialize)]
+    /// struct Entity {
+    ///     text: String,
+    ///     number: i32,
     /// }
+    ///
+    /// let mut client = SignalRClient::connect("localhost", "test").await?;
+    /// let response = client
+    ///     .invoke_with_args::<bool, _>("PushEntity".to_string(), |c| {
+    ///         c.argument(Entity {
+    ///             text: "push1".to_string(),
+    ///             number: 100,
+    ///         });
+    ///     })
+    ///     .await;
+    /// match response {
+    ///     Ok(true) => println!("Entity pushed successfully"),
+    ///     Ok(false) => eprintln!("The hub rejected the entity"),
+    ///     Err(e) => eprintln!("Failed to invoke method: {e}"),
+    /// }
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn argument<T: Serialize>(&mut self, value: T) -> &mut ArgumentConfiguration {
         if self.error.is_none() {

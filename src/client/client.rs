@@ -35,7 +35,9 @@ use crate::communication::WasmReconnectionContext;
 /// is disabled. You have full control over when and if to reconnect.
 ///
 /// # Example
-/// ```ignore
+/// ```no_run
+/// use rayx_signalr::{DisconnectionHandler, ReconnectionHandler};
+///
 /// struct MyHandler;
 ///
 /// impl DisconnectionHandler for MyHandler {
@@ -47,21 +49,19 @@ use crate::communication::WasmReconnectionContext;
 ///
 ///         eprintln!("Connection lost: {}", handler.reason());
 ///
-///         // Option 1: Reconnect immediately
+///         // Reconnect once now; `reconnect_with_policy` follows the configured backoff instead.
+///         // Not reconnecting at all is also an option.
 ///         tokio::spawn(async move {
 ///             if let Err(e) = handler.reconnect().await {
-///                 eprintln!("Failed to reconnect: {}", e);
+///                 eprintln!("Failed to reconnect: {e}");
 ///             }
 ///         });
-///
-///         // Option 2: Reconnect with policy (uses configured backoff)
-///         // handler.reconnect_with_policy().await;
-///
-///         // Option 3: Don't reconnect at all
 ///     }
 /// }
 /// ```
 pub trait DisconnectionHandler {
+    /// Called once per lost connection with the handle that reconnects it. Return quickly and
+    /// reconnect from a spawned task.
     fn on_disconnected(&self, reconnection: ReconnectionHandler);
 }
 
@@ -132,6 +132,10 @@ impl ReconnectionHandler {
     }
 }
 
+/// Handler for manual reconnection after a connection drops.
+///
+/// This is passed to your `DisconnectionHandler` when the connection is lost.
+/// Use it to manually trigger reconnection attempts.
 #[cfg(target_arch = "wasm32")]
 pub struct ReconnectionHandler {
     context: WasmReconnectionContext,
@@ -161,10 +165,12 @@ impl ReconnectionHandler {
         self.context.reconnect_with_policy().await
     }
 
+    /// Check if currently connected (see the native [`ReconnectionHandler::is_connected`]).
     pub async fn is_connected(&self) -> bool {
         self.context.is_connected().await
     }
 
+    /// Get the endpoint URI as a string (see the native [`ReconnectionHandler::endpoint`]).
     pub fn endpoint(&self) -> String {
         self.context.endpoint()
     }
@@ -180,99 +186,53 @@ impl ReconnectionHandler {
 /// threaded (atomics) builds, keep it on the thread that connected. Natively the client is `Send`
 /// and its tasks run on the connection's Tokio runtime.
 ///
-/// ```ignore
-/// // Unwrap the result and assert the entity's text
-/// let entity = re.unwrap();
-/// assert_eq!(entity.text, "test".to_string());
+/// ```no_run
+/// # async fn example() -> Result<(), rayx_signalr::Error> {
+/// use futures::StreamExt;
+/// use rayx_signalr::{CallbackHandler, InvocationContext, SignalRClient};
+/// use serde::{Deserialize, Serialize};
 ///
-/// // Log the entity's details
-/// info!("Entity {}, {}", entity.text, entity.number);
-///
-/// // Enumerate "HundredEntities" and log each entity
-/// let mut he = client.enumerate::<TestEntity>("HundredEntities".to_string()).await;
-/// while let Some(item) = he.next().await {
-///     info!("Entity {}, {}", item.text, item.number);
+/// #[derive(Deserialize, Serialize)]
+/// struct Entity {
+///     text: String,
+///     number: i32,
 /// }
 ///
-/// info!("Finished fetching entities, calling pushes");
+/// let mut client = SignalRClient::connect("hub.example.com", "entities").await?;
 ///
-/// // Invoke the "PushEntity" method with arguments and assert the result
-/// let push1 = client.invoke_with_args::<bool, _>("PushEntity".to_string(), |c| {
-///     c.argument(TestEntity {
-///         text: "push1".to_string(),
-///         number: 100,
-///     });
-/// }).await;
-/// assert!(push1.unwrap());
-///
-/// // Clone the client and invoke the "PushTwoEntities" method with arguments
-/// let mut secondclient = client.clone();
-/// let push2 = secondclient.invoke_with_args::<TestEntity, _>("PushTwoEntities".to_string(), |c| {
-///     c.argument(TestEntity {
-///         text: "entity1".to_string(),
-///         number: 200,
-///     }).argument(TestEntity {
-///         text: "entity2".to_string(),
-///         number: 300,
-///     });
-/// }).await;
-/// assert!(push2.is_ok());
-///
-/// // Unwrap the result and assert the merged entity's number
-/// let entity = push2.unwrap();
-/// assert_eq!(entity.number, 500);
-/// info!("Merged Entity {}, {}", entity.text, entity.number);
-///
-/// // Drop the second client
-/// drop(secondclient);
-///
-/// // Register callbacks for "callback1" and "callback2"
-/// let c1 = client.register("callback1".to_string(), |ctx| {
-///     let result = ctx.argument::<TestEntity>(0);
-///     if result.is_ok() {
-///         let entity = result.unwrap();
-///         info!("Callback results entity: {}, {}", entity.text, entity.number);
-///     }
-/// });
-///
-/// let c2 = client.register("callback2".to_string(), |mut ctx| {
-///     let result = ctx.argument::<TestEntity>(0);
-///     if result.is_ok() {
-///         let entity = result.unwrap();
-///         info!("Callback2 results entity: {}, {}", entity.text, entity.number);
-///         let e2 = entity.clone();
-///         spawn(async move {
-///             info!("Completing callback2");
-///             let _ = ctx.complete(e2).await;
+/// // Request/response, with and without arguments.
+/// let entity: Entity = client.invoke("SingleEntity".to_string()).await?;
+/// let merged: Entity = client
+///     .invoke_with_args("PushTwoEntities".to_string(), |args| {
+///         args.argument(&entity).argument(Entity {
+///             text: "second".to_string(),
+///             number: 2,
 ///         });
-///     }
+///     })
+///     .await?;
+///
+/// // A server stream.
+/// let mut entities = client.enumerate::<Entity>("HundredEntities".to_string()).await;
+/// while let Some(item) = entities.next().await {
+///     println!("{} {}", item.text, item.number);
+/// }
+///
+/// // Clones share the connection and can call the hub concurrently.
+/// let mut second = client.clone();
+/// second.send("Ping".to_string()).await?;
+///
+/// // A server-to-client call that returns a result to the server.
+/// let approvals = client.register("Approve".to_string(), |mut ctx| {
+///     let entity: Option<Entity> = ctx.argument(0).ok();
+///     InvocationContext::spawn(async move {
+///         let _ = ctx.complete(entity.is_some_and(|e| e.number < 100)).await;
+///     });
 /// });
 ///
-/// // Trigger the callbacks
-/// info!("Calling callback1");
-/// _ = client.send_with_args("TriggerEntityCallback".to_string(), |c| {
-///     c.argument("callback1".to_string());
-/// }).await;
-///
-/// info!("Calling callback2");
-/// let succ = client.invoke_with_args::<bool, _>("TriggerEntityResponse".to_string(), |c| {
-///     c.argument("callback2".to_string());
-/// }).await;
-/// assert!(succ.unwrap());
-///
-/// // Measure the time taken to fetch a million entities
-/// let now = Instant::now();
-/// {
-///     let mut me = client.enumerate::<TestEntity>("MillionEntities".to_string()).await;
-///     while let Some(_) = me.next().await {}
-/// }
-/// let elapsed = now.elapsed();
-/// info!("1 million entities fetched in: {:.2?}", elapsed);
-///
-/// // Unregister the callbacks and disconnect the client
-/// c1.unregister();
-/// c2.unregister();
+/// approvals.unregister();
 /// client.disconnect();
+/// # Ok(())
+/// # }
 /// ```
 pub struct SignalRClient {
     _actions: UpdatableActionStorage,
@@ -536,8 +496,11 @@ impl SignalRClient {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let client = SignalRClient::connect("localhost", "test").await.unwrap();
+    /// ```no_run
+    /// # async fn example() -> Result<(), rayx_signalr::Error> {
+    /// let client = rayx_signalr::SignalRClient::connect("localhost", "test").await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn connect(domain: &str, hub: &str) -> Result<Self, Error> {
         Self::connect_with(domain, hub, |_| {}).await
@@ -590,18 +553,26 @@ impl SignalRClient {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let client = SignalRClient::connect("localhost", "test").await.unwrap();
+    /// ```no_run
+    /// # fn example(mut client: rayx_signalr::SignalRClient) {
+    /// use rayx_signalr::CallbackHandler;
+    /// use serde::{Deserialize, Serialize};
+    ///
+    /// #[derive(Deserialize, Serialize)]
+    /// struct Entity {
+    ///     text: String,
+    ///     number: i32,
+    /// }
+    ///
     /// let handler = client.register("callback1".to_string(), |ctx| {
-    ///     let result = ctx.argument::<TestEntity>(0);
-    ///     if result.is_ok() {
-    ///         let entity = result.unwrap();
-    ///         info!("Callback results entity: {}, {}", entity.text, entity.number);
+    ///     if let Ok(entity) = ctx.argument::<Entity>(0) {
+    ///         println!("Callback results entity: {}, {}", entity.text, entity.number);
     ///     }
     /// });
     ///
     /// // Unregister the callback when it's no longer needed
     /// handler.unregister();
+    /// # }
     /// ```
     pub fn register(
         &mut self,
@@ -619,11 +590,13 @@ impl SignalRClient {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # fn example(mut client: rayx_signalr::SignalRClient) {
     /// let handler = client.register_async("Refresh".to_string(), |mut context| async move {
     ///     let latest = context.client.invoke::<String>("Latest".to_string()).await;
     ///     println!("latest: {latest:?}");
     /// });
+    /// # }
     /// ```
     pub fn register_async<F, Fut>(
         &mut self,
@@ -648,10 +621,12 @@ impl SignalRClient {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # fn example(mut client: rayx_signalr::SignalRClient) {
     /// let handler = client.register_typed("Price", |_context, (symbol, price): (String, f64)| {
     ///     println!("{symbol} = {price}");
     /// });
+    /// # }
     /// ```
     pub fn register_typed<Args, F>(
         &mut self,
@@ -730,17 +705,24 @@ impl SignalRClient {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let client = SignalRClient::connect("localhost", "test").await.unwrap();
-    /// let response: Result<TestEntity, rayx_signalr::Error> = client.invoke("SingleEntity".to_string()).await;
-    /// match response {
-    ///     Ok(entity) => {
-    ///         info!("Received entity: {}, {}", entity.text, entity.number);
-    ///     }
-    ///     Err(e) => {
-    ///         error!("Failed to invoke method: {}", e);
-    ///     }
+    /// ```no_run
+    /// # async fn example() -> Result<(), rayx_signalr::Error> {
+    /// use rayx_signalr::SignalRClient;
+    /// use serde::{Deserialize, Serialize};
+    ///
+    /// #[derive(Deserialize, Serialize)]
+    /// struct Entity {
+    ///     text: String,
+    ///     number: i32,
     /// }
+    ///
+    /// let mut client = SignalRClient::connect("localhost", "test").await?;
+    /// match client.invoke::<Entity>("SingleEntity".to_string()).await {
+    ///     Ok(entity) => println!("Received entity: {}, {}", entity.text, entity.number),
+    ///     Err(e) => eprintln!("Failed to invoke method: {e}"),
+    /// }
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn invoke<T: 'static + DeserializeOwned + Unpin + crate::platform::MaybeSend>(
         &mut self,
@@ -784,25 +766,36 @@ impl SignalRClient {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let client = SignalRClient::connect("localhost", "test").await.unwrap();
-    /// let response: Result<TestEntity, rayx_signalr::Error> = client.invoke_with_args("PushTwoEntities".to_string(), |c| {
-    ///     c.argument(TestEntity {
-    ///         text: "entity1".to_string(),
-    ///         number: 200,
-    ///     }).argument(TestEntity {
-    ///         text: "entity2".to_string(),
-    ///         number: 300,
-    ///     });
-    /// }).await;
-    /// match response {
-    ///     Ok(entity) => {
-    ///         info!("Merged Entity {}, {}", entity.text, entity.number);
-    ///     }
-    ///     Err(e) => {
-    ///         error!("Failed to invoke method: {}", e);
-    ///     }
+    /// ```no_run
+    /// # async fn example() -> Result<(), rayx_signalr::Error> {
+    /// use rayx_signalr::SignalRClient;
+    /// use serde::{Deserialize, Serialize};
+    ///
+    /// #[derive(Deserialize, Serialize)]
+    /// struct Entity {
+    ///     text: String,
+    ///     number: i32,
     /// }
+    ///
+    /// let mut client = SignalRClient::connect("localhost", "test").await?;
+    /// let response = client
+    ///     .invoke_with_args::<Entity, _>("PushTwoEntities".to_string(), |c| {
+    ///         c.argument(Entity {
+    ///             text: "entity1".to_string(),
+    ///             number: 200,
+    ///         })
+    ///         .argument(Entity {
+    ///             text: "entity2".to_string(),
+    ///             number: 300,
+    ///         });
+    ///     })
+    ///     .await;
+    /// match response {
+    ///     Ok(entity) => println!("Merged Entity {}, {}", entity.text, entity.number),
+    ///     Err(e) => eprintln!("Failed to invoke method: {e}"),
+    /// }
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn invoke_with_args<
         T: 'static + DeserializeOwned + Unpin + crate::platform::MaybeSend,
@@ -924,17 +917,15 @@ impl SignalRClient {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let client = SignalRClient::connect("localhost", "test").await.unwrap();
-    /// let result = client.send("TriggerEntityCallback".to_string()).await;
-    /// match result {
-    ///     Ok(_) => {
-    ///         info!("Method called successfully");
-    ///     }
-    ///     Err(e) => {
-    ///         error!("Failed to call method: {}", e);
-    ///     }
+    /// ```no_run
+    /// # async fn example() -> Result<(), rayx_signalr::Error> {
+    /// let mut client = rayx_signalr::SignalRClient::connect("localhost", "test").await?;
+    /// match client.send("TriggerEntityCallback".to_string()).await {
+    ///     Ok(()) => println!("Method called successfully"),
+    ///     Err(e) => eprintln!("Failed to call method: {e}"),
     /// }
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn send(&mut self, target: String) -> Result<(), Error> {
         return self
@@ -966,19 +957,20 @@ impl SignalRClient {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let client = SignalRClient::connect("localhost", "test").await.unwrap();
-    /// let result = client.send_with_args("TriggerEntityCallback".to_string(), |c| {
-    ///     c.argument("callback1".to_string());
-    /// }).await;
+    /// ```no_run
+    /// # async fn example() -> Result<(), rayx_signalr::Error> {
+    /// let mut client = rayx_signalr::SignalRClient::connect("localhost", "test").await?;
+    /// let result = client
+    ///     .send_with_args("TriggerEntityCallback".to_string(), |c| {
+    ///         c.argument("callback1".to_string());
+    ///     })
+    ///     .await;
     /// match result {
-    ///     Ok(_) => {
-    ///         info!("Method called successfully");
-    ///     }
-    ///     Err(e) => {
-    ///         error!("Failed to call method: {}", e);
-    ///     }
+    ///     Ok(()) => println!("Method called successfully"),
+    ///     Err(e) => eprintln!("Failed to call method: {e}"),
     /// }
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn send_with_args<F>(&mut self, target: String, configuration: F) -> Result<(), Error>
     where
@@ -1030,12 +1022,24 @@ impl SignalRClient {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let client = SignalRClient::connect("localhost", "test").await.unwrap();
-    /// let mut stream = client.enumerate::<TestEntity>("HundredEntities".to_string()).await;
-    /// while let Some(entity) = stream.next().await {
-    ///     info!("Received entity: {}, {}", entity.text, entity.number);
+    /// ```no_run
+    /// # async fn example() -> Result<(), rayx_signalr::Error> {
+    /// use futures::StreamExt;
+    /// use serde::{Deserialize, Serialize};
+    ///
+    /// #[derive(Deserialize, Serialize)]
+    /// struct Entity {
+    ///     text: String,
+    ///     number: i32,
     /// }
+    ///
+    /// let mut client = rayx_signalr::SignalRClient::connect("localhost", "test").await?;
+    /// let mut stream = client.enumerate::<Entity>("HundredEntities".to_string()).await;
+    /// while let Some(entity) = stream.next().await {
+    ///     println!("Received entity: {}, {}", entity.text, entity.number);
+    /// }
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn enumerate<T: 'static + DeserializeOwned + Unpin + crate::platform::MaybeSend>(
         &mut self,
@@ -1067,14 +1071,28 @@ impl SignalRClient {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let client = SignalRClient::connect("localhost", "test").await.unwrap();
-    /// let mut stream = client.enumerate_with_args::<TestEntity, _>("HundredEntities".to_string(), |c| {
-    ///     c.argument("some_argument".to_string());
-    /// }).await;
-    /// while let Some(entity) = stream.next().await {
-    ///     info!("Received entity: {}, {}", entity.text, entity.number);
+    /// ```no_run
+    /// # async fn example() -> Result<(), rayx_signalr::Error> {
+    /// use futures::StreamExt;
+    /// use serde::{Deserialize, Serialize};
+    ///
+    /// #[derive(Deserialize, Serialize)]
+    /// struct Entity {
+    ///     text: String,
+    ///     number: i32,
     /// }
+    ///
+    /// let mut client = rayx_signalr::SignalRClient::connect("localhost", "test").await?;
+    /// let mut stream = client
+    ///     .enumerate_with_args::<Entity, _>("HundredEntities".to_string(), |c| {
+    ///         c.argument("some_argument".to_string());
+    ///     })
+    ///     .await;
+    /// while let Some(entity) = stream.next().await {
+    ///     println!("Received entity: {}, {}", entity.text, entity.number);
+    /// }
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn enumerate_with_args<
         T: 'static + DeserializeOwned + Unpin + crate::platform::MaybeSend,

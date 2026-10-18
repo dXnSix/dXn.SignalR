@@ -24,7 +24,7 @@ that carry them:
 | `Tls` | The TLS handshake or certificate verification failed (native). | |
 | `Proxy` | A proxy refused or failed the tunnel (an HTTP `CONNECT` or a SOCKS handshake; native), could not be reached, or a proxy auto-config script could not be loaded or failed. | `status()` when the proxy answered (407, 403, 5xx); 407 and 403 are not transient. |
 | `Transport` | The network or the transport failed or dropped. | `transport()` when one was involved; `server_allows_reconnect()`. |
-| `TransportUnavailable` | No transport could be used: the server offers none the client can use, or several were tried and each failed to start (a single failed transport returns its own error). | `attempts()`: each transport with why it was skipped or failed. |
+| `TransportUnavailable` | No transport could be used: the server offers none the client can use, or several were tried and each failed to start (a single failed transport returns its own error). | `attempts()`: a `TransportAttempt` per transport, with its `transport()` and the `error()` that skipped or failed it. |
 | `Handshake` | The SignalR handshake failed. | |
 | `Protocol` | The server sent a malformed or unexpected message, or one larger than `with_maximum_message_size`; the transport ends and the reconnection policy runs. | |
 | `Serialization` | An argument could not be encoded, or a result or callback argument could not be decoded into the requested type. (A stream item that does not decode is logged and skipped; the stream continues.) | |
@@ -194,7 +194,7 @@ env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("rayx
 
 Browser, with `console_log`:
 
-```rust
+```rust,ignore
 console_log::init_with_level(log::Level::Info).expect("logger");
 ```
 

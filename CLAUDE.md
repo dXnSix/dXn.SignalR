@@ -34,7 +34,8 @@ The [documentation](docs/README.md) is the long-form reference.
 - Keep native and browser behavior aligned, with JSON and MessagePack.
 - A public API or behavior change updates the README examples, the matching `docs/` chapter, and
   the skill references in the same change. Every Rust example in the README and `docs/` must
-  compile.
+  compile: `tests/documentation_examples.rs` holds a compiled copy of each, and its
+  `documentation_examples_` test fails when a block has no matching copy.
 
 ## Validation
 

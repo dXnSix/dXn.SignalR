@@ -10,13 +10,22 @@ the receive loop, and names the invariants that the tests protect.
 | `src/lib.rs` | Public re-exports, `StatefulReconnectConfig`, the Android TLS re-exports, and the compile error for non-browser `wasm32` targets. |
 | `src/error.rs` | The public `Error` and `ErrorKind`: structured fields, `is_transient`, `Arc`-backed sources, and redaction when an error is built. |
 | `src/platform.rs` | `MaybeSend`/`MaybeSendSync`: `Send`/`Sync` bounds natively, none in the browser. |
-| `src/client/client.rs` | `SignalRClient`, `DisconnectionHandler`, `ReconnectionHandler`: the public call surface. |
+| `src/bench_support.rs` | The hidden `bench_support` module of the `bench-internals` feature: the internal codec and action storage, for `benches/hot_paths.rs` only. |
+| `src/client/client.rs` | `SignalRClient`, `WeakSignalRClient`, `DisconnectionHandler`, `ReconnectionHandler`: the public call surface (compiled as `client::runtime`). |
 | `src/client/configuration.rs` | `ConnectionConfiguration` (the public builder) and `ConnectionRecipe` (the validated, cloneable connection description every attempt is built from). |
-| `src/client/context.rs` | `InvocationContext` for server-to-client calls. |
+| `src/client/context.rs` | `InvocationContext` and `CallbackArguments` for server-to-client calls. |
 | `src/communication/negotiation.rs` | The negotiate state machine shared by both targets: request, redirect, error and connection outcomes, URL building, `skip_negotiation`. The HTTP request is injected. Transport selection (`select_transports`: the server's order, the configured set and the transfer format) and the fallback errors (`transports_failed`). |
 | `src/communication/negotiate_http.rs` | Native negotiate: one hyper POST over the connection's own TCP or rustls stream (HTTP/2 or HTTP/1.1 as `HttpVersion` and ALPN select, HTTP/3 with the `http3` feature), bounded by the connect timeout, with redacted error excerpts. |
 | `src/communication/common.rs` | `HttpClient` (negotiate per target, browser `fetch`), `ConnectionData`, Close-message parsing. |
 | `src/communication/proxy.rs` | Native proxies: `ProxyConfig` (an explicit `http`, `https`, `socks4`, `socks4a`, `socks5` or `socks5h` URL, disabled, the system's settings, the operating system's only, or a PAC script), redacted proxy URLs, and the tunnel every native connection opens before TLS: an HTTP `CONNECT` (to an HTTPS proxy over TLS) or a SOCKS handshake (`socks.rs`). The system's settings are the proxy environment variables with curl's `NO_PROXY` rules, else the operating system's (`os_proxy.rs`: WinHTTP, CFNetwork, `java.net.ProxySelector`); `pac.rs` runs auto-config scripts. |
+| `src/communication/transport.rs` | `TransportKind` and the `Transports` set shared by negotiation, the connection loop and the error model. |
+| `src/communication/headers.rs` | The headers every request carries (the official `User-Agent`) and validation of `with_header` values. |
+| `src/communication/request_hook.rs` | `HttpRequest` and the `with_request_hook` hooks over native requests and browser `fetch` calls. |
+| `src/communication/cookies.rs` | The native `CookieJar`: `Set-Cookie` from negotiate, the upgrade and the HTTP transports, sent back on every matching native request. |
+| `src/communication/integrated_auth/` | Integrated authentication (`Negotiate` and `NTLM` challenge-response): Windows SSPI (`sspi.rs`) and NTLMv2 for explicit credentials elsewhere (`ntlm.rs`). |
+| `src/communication/http2.rs` | `HttpVersion` and native HTTP/2: ALPN or h2c prior knowledge, RFC 8441 WebSockets, and the HTTP/2 connections a logical connection shares. |
+| `src/communication/http3.rs` | Experimental native HTTP/3 (feature `http3`): QUIC and h3 with the connection's rustls configuration, and the `Http3Preferred` fallback to TCP. |
+| `src/communication/hooks.rs` | The `on_closed`, `on_reconnecting` and `on_reconnected` hooks, run one at a time on a task of their own. |
 | `src/communication/tls.rs` | Native rustls: feature detection, provider and verifier selection, PEM roots, one `ClientConfig` per connection. |
 | `src/communication/client_tokio.rs` | The native connection: runtime-owned writer and receiver tasks, the reconnect coordinator, pause/resume, stateful resume. |
 | `src/communication/client_wasm.rs` | The browser connection: one generation-checked receiver task per socket, the same lifecycle on a single thread. |
@@ -30,9 +39,11 @@ the receive loop, and names the invariants that the tests protect.
 | `src/communication/liveness.rs` | Keep-alive, server timeout, suspension detection and handshake validation on timestamps from a sleep-inclusive `LivenessClock`, shared by both targets. |
 | `src/communication/reconnection.rs` | The lifecycle state machine, `ConnectionStatus`, the retry policies, and `FirstAttempt` scheduling. |
 | `src/communication/stateful.rs` | The bounded replay buffer: sequence numbers, Ack trimming, duplicate suppression, transport generations, backpressure. |
-| `src/execution/` | Action storage in two namespaces: pending invocations and streams (shared `UpdatableAction`s) by invocation id, and callbacks (`CallbackAction`) by target; `storage_tokio.rs` keeps them in `Arc<Mutex<HashMap>>` maps, `storage_wasm.rs` in `Rc<RefCell<HashMap>>` maps. |
+| `src/communication/loopback_server.rs` | Test-only: a loopback SignalR server for the unit tests (negotiate, the JSON handshake, recorded hub messages, dropped connections on request). |
+| `src/execution/` | Action storage in two namespaces: pending invocations and streams (shared `UpdatableAction`s: `invocation.rs`, `enumerable.rs`) by invocation id in `Arc<Mutex<HashMap>>` maps natively (`storage_tokio.rs`) and `Rc<RefCell<HashMap>>` maps in the browser (`storage_wasm.rs`), and callbacks by target in the `CallbackRegistry` (`callback.rs`), which also owns the dispatch task. `arguments.rs` builds the arguments of outgoing calls. |
 | `src/execution/upload.rs` | Client-to-server streams: stream ids from the connection's id counter, one pump per stream that sends StreamItems and the final Completion through the reply sink of the logical connection the call went out on, cancellation, and aborting the pumps on close or a new logical connection. |
-| `src/completer/` | `ManualFuture` and `ManualStream`: the bridges from incoming messages to caller futures and streams. |
+| `src/completer/` | `ManualFuture` and `ManualStream`: the bridges from incoming messages to caller futures and streams; `CompletedFuture`, an already-resolved future. |
+| `src/test_logging.rs` | Test-only: a capturing logger that records what the calling test thread logs. |
 | `src/protocol/` | Wire types: negotiate, handshake, invocation, completion, cancel, ping, close, Ack, Sequence; `codec.rs` (single-pass inbound decoding and typed outbound messages for both hub protocols) and the MessagePack framing helpers. |
 
 ## The connection pipeline
@@ -106,7 +117,7 @@ the transport with `ErrorKind::Protocol` (the reconnection policy runs), as in t
 ## Action storage
 
 Each pending invocation or stream is an `UpdatableAction`, and each registered callback a
-`CallbackAction`. As in the official .NET client, they live in two namespaces, so a callback target
+`Callback` in the client's `CallbackRegistry`. As in the official .NET client, they live in two namespaces, so a callback target
 never collides with an invocation id: pending work keyed by invocation id, callbacks keyed by
 target. Senders track frames for stateful replay and wait for queue room themselves (see
 [The wire codec](#the-wire-codec)); the writer task only writes.

@@ -146,7 +146,7 @@ pub fn start() {
         {
             Ok(client) => client,
             Err(error) => {
-                web_sys::console::error_1(&error.to_string().into());
+                log::error!("cannot connect: {error}");
                 return;
             }
         };
@@ -160,7 +160,9 @@ pub fn start() {
 }
 ```
 
-The browser client is `!Send`: it belongs to the thread or worker that created it. Browsers cannot
+The example reports a failed connection through the `log` facade; [Errors and
+logging](11-errors-and-logging.md#logging) shows how to send it to the browser console. The
+browser client is `!Send`: it belongs to the thread or worker that created it. Browsers cannot
 set headers on a WebSocket, so use Bearer tokens there; the client sends them as the
 `access_token` query parameter. See [Platforms](09-platforms.md#browsers) and
 [Connecting](02-connecting.md#authentication).

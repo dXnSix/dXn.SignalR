@@ -15,6 +15,10 @@ The handshake (`{"protocol":"json"|"messagepack","version":1}`) is JSON on both.
 callbacks, client results, pings, closes and the stateful `Ack`/`Sequence` messages all use the
 selected protocol, so the rest of the API is identical.
 
+`HubProtocolKind` (`Json`, and `MessagePack` with the feature) names the two protocols, with the
+handshake name (`protocol_name()`: `json`, `messagepack`) and the negotiated transfer format
+(`transfer_format()`: `Text`, `Binary`), for applications that record or display the choice.
+
 ## Matching types on both sides
 
 Your Rust types travel through Serde. The .NET side uses `System.Text.Json` (JSON) or

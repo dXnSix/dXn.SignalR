@@ -1,8 +1,10 @@
 /// Protocol selection for the SignalR hub connection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HubProtocolKind {
+    /// The JSON hub protocol (text frames), the default.
     #[default]
     Json,
+    /// The MessagePack hub protocol (binary frames), with the `messagepack` feature.
     #[cfg(feature = "messagepack")]
     MessagePack,
 }

@@ -15,13 +15,14 @@ use std::{
 ///
 /// # Examples
 ///
-/// ```ignore
-/// #[tokio::main]
-/// async fn main() {
-///     let future = CompletedFuture::new(42);
-///     let result = future.await;
-///     println!("Result: {}", result);
-/// }
+/// ```
+/// use rayx_signalr::CompletedFuture;
+///
+/// # futures::executor::block_on(async {
+/// let future = CompletedFuture::new(42);
+/// let result = future.await;
+/// assert_eq!(result, 42);
+/// # });
 /// ```
 pub struct CompletedFuture<T: Unpin> {
     data: RefCell<Option<T>>,
@@ -36,8 +37,8 @@ impl<T: Unpin> CompletedFuture<T> {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let future = CompletedFuture::new(42);
+    /// ```
+    /// let future = rayx_signalr::CompletedFuture::new(42);
     /// ```
     #[allow(dead_code)]
     pub fn new(data: T) -> Self {

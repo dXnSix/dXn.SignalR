@@ -610,6 +610,7 @@ pub struct ConstantDelayPolicy {
 }
 
 impl ConstantDelayPolicy {
+    /// Retries after `delay` each time, at most `max_attempts` times (`None`: without limit).
     pub fn new(delay: Duration, max_attempts: Option<u32>) -> Self {
         Self {
             delay,
@@ -638,6 +639,8 @@ pub struct LinearBackoffPolicy {
 }
 
 impl LinearBackoffPolicy {
+    /// Waits `initial_delay`, then `increment` longer on each further attempt, capped at
+    /// `max_delay`, for at most `max_attempts` attempts (`None`: no cap or no limit).
     pub fn new(
         initial_delay: Duration,
         increment: Duration,
@@ -682,6 +685,8 @@ pub struct ExponentialBackoffPolicy {
 }
 
 impl ExponentialBackoffPolicy {
+    /// Waits `initial_delay`, then multiplies the delay by `factor` on each further attempt,
+    /// capped at `max_delay`, for at most `max_attempts` attempts (`None`: no cap or no limit).
     pub fn new(
         initial_delay: Duration,
         factor: f64,
@@ -721,6 +726,7 @@ impl ReconnectionPolicy for ExponentialBackoffPolicy {
 /// Configuration for reconnection.
 #[derive(Clone)]
 pub struct ReconnectionConfig {
+    /// The policy that decides whether and when to retry; the default is [`NoReconnectPolicy`].
     pub policy: std::sync::Arc<dyn ReconnectionPolicy>,
 }
 
@@ -741,6 +747,7 @@ pub struct DelayListPolicy {
 }
 
 impl DelayListPolicy {
+    /// Retries once after each of `delays`, in order.
     pub fn new(delays: impl IntoIterator<Item = Duration>) -> Self {
         Self {
             delays: delays.into_iter().collect(),

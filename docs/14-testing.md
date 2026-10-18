@@ -4,7 +4,8 @@
 
 | Layer | Where | Runs with |
 |---|---|---|
-| Unit and contract tests | `#[cfg(test)]` modules beside the code, `tests/public_connection_configuration.rs` | `cargo test` (no server needed) |
+| Unit and contract tests | `#[cfg(test)]` modules beside the code, `tests/public_connection_configuration.rs`, `tests/public_error_types.rs` | `cargo test` (no server needed) |
+| Documentation examples | rustdoc examples in `src/` (doctests), and `tests/documentation_examples.rs`: a compiled copy of every ```` ```rust ```` block of `README.md` and `docs/`, which the `documentation_examples_` test matches against the documents | `cargo test` (browser copies: `cargo check --target wasm32-unknown-unknown --all-features --test documentation_examples`) |
 | End-to-end scenarios (native) | `tests/e2e/<scenario>.rs` | the Aspire runner only |
 | End-to-end scenarios (browser) | `tests/wasm-fixture` (Rust) and `tools-node/tests/*.spec.ts` (Playwright) | the Aspire runner only |
 | Static contracts | `dotnet/RayX.SignalR.E2E.Tests/src/Contracts` | `dotnet test` categories |

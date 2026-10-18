@@ -78,12 +78,19 @@ impl<T> ManualStreamState<T> {
     }
 }
 
+/// The [`Stream`] of server items that [`SignalRClient::enumerate`](crate::SignalRClient::enumerate)
+/// and [`enumerate_with_args`](crate::SignalRClient::enumerate_with_args) return.
+///
+/// It ends when the server completes the stream; [`error`](ManualStream::error) then tells a
+/// failed stream from a completed one. Dropping it before the end cancels the server-side
+/// enumeration.
 pub struct ManualStream<T> {
     state: ManualStreamState<T>,
     terminated: bool,
 }
 
 impl<T> ManualStream<T> {
+    /// Creates a stream and the completer that pushes its items, closes it, or fails it.
     pub fn create() -> (Self, ManualStreamCompleter<T>) {
         Self::create_internal(None)
     }

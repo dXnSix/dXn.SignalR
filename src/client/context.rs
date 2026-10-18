@@ -6,120 +6,48 @@ use crate::execution::ResultHold;
 use crate::protocol::codec::{OutboundMessage, OwnedPayload};
 use serde::{de::DeserializeOwned, Serialize};
 
-/// The context for an invocation, providing access to arguments, the ability to complete the invocation, and a client for additional hub interactions.
+/// The context of one server-to-client call: its arguments, its answer to the server, and a
+/// client for calling the hub back.
 ///
-/// The `InvocationContext` struct is used within callback handlers to retrieve arguments sent by the hub, return results back to the hub, and call other methods on the hub using the cloned client.
-///
-/// # Fields
-///
-/// * `client` - A clone of the original `SignalRClient`, which can be used to call other methods of the hub inside the callback handler block.
+/// Callbacks registered with [`SignalRClient::register`] receive it. Read the arguments with
+/// [`argument`](Self::argument); when the server awaits a result (`InvokeAsync` on the server,
+/// see [`expects_result`](Self::expects_result)), answer with [`complete`](Self::complete) or
+/// [`fail`](Self::fail), usually from a task started with [`spawn`](Self::spawn).
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
+/// # fn example(mut client: rayx_signalr::SignalRClient) {
+/// use rayx_signalr::InvocationContext;
+/// use serde::{Deserialize, Serialize};
+///
+/// #[derive(Clone, Deserialize, Serialize)]
+/// struct Entity {
+///     text: String,
+///     number: i32,
+/// }
+///
+/// // A notification: the server expects no answer.
 /// let c1 = client.register("callback1".to_string(), |ctx| {
-///     // Retrieve the first argument as a TestEntity
-///     let result = ctx.argument::<TestEntity>(0);
-///     match result {
-///         Ok(entity) => {
-///             info!("Callback results entity: {}, {}", entity.text, entity.number);
-///         }
-///         Err(e) => {
-///             error!("Failed to retrieve argument: {}", e);
-///         }
+///     match ctx.argument::<Entity>(0) {
+///         Ok(entity) => println!("Callback results entity: {}, {}", entity.text, entity.number),
+///         Err(e) => eprintln!("Failed to retrieve argument: {e}"),
 ///     }
 /// });
 ///
+/// // A client result: the server awaits the answer.
 /// let c2 = client.register("callback2".to_string(), |mut ctx| {
-///     // Retrieve the first argument as a TestEntity
-///     let result = ctx.argument::<TestEntity>(0);
-///     match result {
-///         Ok(entity) => {
-///             info!("Callback2 results entity: {}, {}", entity.text, entity.number);
-///             let e2 = entity.clone();
-///             spawn(async move {
-///                 // Complete the callback with a result
-///                 let _ = ctx.complete(e2).await;
-///             });
-///         }
-///         Err(e) => {
-///             error!("Failed to retrieve argument: {}", e);
-///         }
+///     if let Ok(entity) = ctx.argument::<Entity>(0) {
+///         InvocationContext::spawn(async move {
+///             let _ = ctx.complete(entity).await;
+///         });
 ///     }
 /// });
-/// ```
-///
-/// # Methods
-///
-/// ## `argument`
-///
-/// Retrieves the argument of the given type from the invocation context.
-///
-/// The argument index should be a zero-based order of the argument provided by the hub call.
-///
-/// ### Arguments
-///
-/// * `index` - A `usize` specifying the zero-based index of the argument to retrieve.
-///
-/// ### Returns
-///
-/// * `Result<T, Error>` - On success, returns the argument of type `T`; an
-///   [`ErrorKind::Serialization`](crate::ErrorKind::Serialization) error when the argument is
-///   missing or cannot be decoded into `T`.
-///
-/// ### Type Parameters
-///
-/// * `T` - The type of the argument, which must implement `DeserializeOwned` and `Unpin`.
-///
-/// ### Examples
-///
-/// ```ignore
-/// let result = ctx.argument::<TestEntity>(0);
-/// match result {
-///     Ok(entity) => {
-///         info!("Received entity: {}, {}", entity.text, entity.number);
-///     }
-///     Err(e) => {
-///         error!("Failed to retrieve argument: {}", e);
-///     }
-/// }
-/// ```
-///
-/// ## `complete`
-///
-/// Returns a specific result from the callback to the hub.
-///
-/// This method should be used only when the hub invokes the callback and awaits the response to arrive.
-///
-/// ### Arguments
-///
-/// * `result` - The result to return, which must implement `Serialize`.
-///
-/// ### Returns
-///
-/// * `Result<(), Error>` - On success, returns `Ok(())`; the send error otherwise.
-///
-/// ### Type Parameters
-///
-/// * `T` - The type of the result, which must implement `Serialize`.
-///
-/// ### Examples
-///
-/// ```ignore
-/// let result = ctx.complete(TestEntity {
-///     text: "completed".to_string(),
-///     number: 123,
-/// }).await;
-/// match result {
-///     Ok(_) => {
-///         info!("Callback completed successfully");
-///     }
-///     Err(e) => {
-///         error!("Failed to complete callback: {}", e);
-///     }
-/// }
+/// # }
 /// ```
 pub struct InvocationContext {
+    /// A handle to the connection that received the call, for calling the hub back from the
+    /// callback (clone it to move it into a spawned task).
     pub client: SignalRClient,
     arguments: Vec<OwnedPayload>,
     /// The call's single Completion, shared with the other callbacks of the same call; `None`
@@ -177,16 +105,22 @@ impl InvocationContext {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let result = ctx.argument::<TestEntity>(0);
-    /// match result {
-    ///     Ok(entity) => {
-    ///         info!("Received entity: {}, {}", entity.text, entity.number);
-    ///     }
-    ///     Err(e) => {
-    ///         error!("Failed to retrieve argument: {}", e);
-    ///     }
+    /// ```no_run
+    /// # async fn example(mut ctx: rayx_signalr::InvocationContext) -> Result<(), rayx_signalr::Error> {
+    /// use serde::{Deserialize, Serialize};
+    ///
+    /// #[derive(Deserialize, Serialize)]
+    /// struct Entity {
+    ///     text: String,
+    ///     number: i32,
     /// }
+    ///
+    /// match ctx.argument::<Entity>(0) {
+    ///     Ok(entity) => println!("Received entity: {}, {}", entity.text, entity.number),
+    ///     Err(e) => eprintln!("Failed to retrieve argument: {e}"),
+    /// }
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn argument<T: DeserializeOwned + Unpin>(&self, index: usize) -> Result<T, Error> {
         if self.arguments.is_empty() {
@@ -234,19 +168,28 @@ impl InvocationContext {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let result = ctx.complete(TestEntity {
-    ///     text: "completed".to_string(),
-    ///     number: 123,
-    /// }).await;
-    /// match result {
-    ///     Ok(_) => {
-    ///         info!("Callback completed successfully");
-    ///     }
-    ///     Err(e) => {
-    ///         error!("Failed to complete callback: {}", e);
-    ///     }
+    /// ```no_run
+    /// # async fn example(mut ctx: rayx_signalr::InvocationContext) -> Result<(), rayx_signalr::Error> {
+    /// use serde::{Deserialize, Serialize};
+    ///
+    /// #[derive(Deserialize, Serialize)]
+    /// struct Entity {
+    ///     text: String,
+    ///     number: i32,
     /// }
+    ///
+    /// let result = ctx
+    ///     .complete(Entity {
+    ///         text: "completed".to_string(),
+    ///         number: 123,
+    ///     })
+    ///     .await;
+    /// match result {
+    ///     Ok(()) => println!("Callback completed successfully"),
+    ///     Err(e) => eprintln!("Failed to complete callback: {e}"),
+    /// }
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn complete<T: Serialize>(&mut self, result: T) -> Result<(), Error> {
         let hold = self.result_hold()?;
@@ -268,12 +211,16 @@ impl InvocationContext {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # fn example(mut client: rayx_signalr::SignalRClient) {
+    /// use rayx_signalr::InvocationContext;
+    ///
     /// client.register("Approve".to_string(), |mut context| {
     ///     InvocationContext::spawn(async move {
     ///         let _ = context.fail("not allowed").await;
     ///     });
     /// });
+    /// # }
     /// ```
     pub async fn fail(&mut self, message: impl Into<String>) -> Result<(), Error> {
         let message = message.into();
@@ -312,10 +259,12 @@ impl InvocationContext {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// use rayx_signalr::InvocationContext;
+    ///
     /// InvocationContext::spawn(async {
     ///     // Your async code here
-    ///     info!("Async block executed");
+    ///     println!("Async block executed");
     /// });
     /// ```
     #[cfg(not(target_arch = "wasm32"))]
@@ -340,10 +289,12 @@ impl InvocationContext {
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// use rayx_signalr::InvocationContext;
+    ///
     /// InvocationContext::spawn(async {
     ///     // Your async code here
-    ///     info!("Async block executed");
+    ///     println!("Async block executed");
     /// });
     /// ```
     #[cfg(target_arch = "wasm32")]

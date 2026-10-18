@@ -16,50 +16,19 @@ use it from any UI, a game loop, a service, or a test.
 
 ## Highlights
 
-- **Every SignalR call style.** `invoke` waits for a typed result, `send` fires and forgets,
-  `enumerate` returns a `Stream` of server items (dropping it cancels the server side), and
-  `register` (several callbacks per target, `register_async`, typed `register_typed`) handles
-  server calls on a dispatch task, including client results for `InvokeAsync`.
-- **JSON and MessagePack.** Your Serde types travel unchanged on both protocols; the MessagePack
-  encoder keeps your field names. As in the .NET client, JSON payloads are read
-  case-insensitively, a hub message may span WebSocket messages (`with_maximum_message_size` caps
-  it), and a protocol violation ends the transport so the reconnection policy runs.
-- **Reconnection that matches the official clients.** Automatic retry policies (including the
-  official 0/2/10/30 s schedule), manual reconnection through a handler, and ASP.NET Core
-  **stateful reconnect**, which replays unacknowledged messages so in-flight calls survive short
-  drops.
-- **The .NET client's lifecycle.** Build with `new`, register callbacks and the `on_closed`,
-  `on_reconnecting` and `on_reconnected` hooks, then `start`; `stop` closes gracefully and `start`
-  restarts. `connection_id()`, `status()`, and `pause()`/`resume()` for mobile backgrounding,
-  keep-alive pings, server timeouts, a bounded handshake, and suspension detection that recovers
-  at once when a suspended app or frozen page runs again.
-- **Native TLS with rustls.** No OpenSSL. The platform trust store or bundled roots, `ring` or
-  `aws-lc-rs`, per-connection private CAs, and client certificates (`with_client_certificate`).
-- **All three transports, chosen as .NET chooses them.** WebSockets, Server-Sent Events and Long
-  Polling on every target, tried in the server's order with fallback (`with_transports`).
-- **Proxies as the .NET client uses them.** Native clients use the system proxy by default: the
-  environment variables, WinHTTP, CFNetwork or Android's `ProxySelector`, including auto-config
-  scripts. Explicit HTTP, HTTPS and SOCKS4/5 proxies (`with_proxy`), PAC files
-  (`with_proxy_auto_config`) and `without_proxy()` override it.
-- **Fast.** Measured against the official .NET client in the same run: server streams run at 1.5–2.6×
-  its throughput and fan-in at about 1.4×, while invoke latency and send throughput are on par
-  ([measured performance](docs/13-architecture.md#measured-performance)).
-- **Runtime-independent native futures.** Each connection runs on its own Tokio runtime, and its
-  futures can be awaited from any executor.
-- **A browser transport for threads.** Event-driven, so it runs on the main thread, in Web Workers
-  and in multithreaded (atomics) builds.
-- **Negotiation and headers as the official clients do it.** Redirects with access tokens (Azure
-  SignalR Service), `skip_negotiation()` with `with_transports(Transports::WEB_SOCKETS)` for direct
-  WebSocket connections, transport selection (`with_transports`), the official
-  `User-Agent`, application request headers (`with_header`), a cookie jar for load-balancer
-  affinity (`with_cookie_jar`, native), invocation headers such as W3C
-  `traceparent` (`with_invocation_headers`), refreshable access tokens
-  (`with_access_token_factory`, asked before every negotiate and WebSocket), integrated Windows
-  authentication (`with_default_credentials`, `with_credentials`, native), HTTP/2 as the .NET
-  client negotiates it (`with_http_version`, native; experimental HTTP/3 with the `http3`
-  feature), a configurable connect bound (`with_connect_timeout`, 120 s as .NET), and transport
-  hooks for every request
-  (`with_request_hook`) and the rustls configuration (`with_tls_config_hook`, native).
+| Area | What you get |
+|---|---|
+| **Every call style** | `invoke` waits for a typed result, `send` fires and forgets, `enumerate` returns a `Stream` of server items (dropping it cancels the server side), and arguments can stream to the server. `register`, `register_async` and `register_typed` handle server calls, including client results for `InvokeAsync`. |
+| **JSON and MessagePack** | Your Serde types travel unchanged on both protocols, and the MessagePack encoder keeps your field names. As in the .NET client, JSON is read case-insensitively, a hub message may span WebSocket messages (`with_maximum_message_size`), and a protocol violation ends the transport so the reconnection policy runs. |
+| **Reconnection** | Automatic retry policies (including the official 0/2/10/30 s schedule), manual reconnection through a handler, and ASP.NET Core **stateful reconnect**, which replays unacknowledged messages so in-flight calls survive short drops. |
+| **The .NET client's lifecycle** | Build with `new`, register callbacks and the `on_closed`, `on_reconnecting` and `on_reconnected` hooks, then `start`; `stop` closes gracefully. `status()`, `connection_id()`, `pause()`/`resume()` for mobile backgrounding, keep-alive pings, server timeouts, a bounded handshake, and recovery as soon as a suspended app or frozen page runs again. |
+| **All three transports** | WebSockets, Server-Sent Events and Long Polling on every target, tried in the server's order with fallback (`with_transports`), or `skip_negotiation()` for a direct WebSocket. |
+| **Negotiation and authentication** | Redirects with access tokens (Azure SignalR Service), Bearer and Basic authentication, refreshable tokens (`with_access_token_factory`, asked before every negotiate and WebSocket), and integrated Windows authentication (`with_default_credentials`, `with_credentials`, native). |
+| **HTTP as the official clients send it** | The official `User-Agent`, request headers (`with_header`), invocation headers such as W3C `traceparent` (`with_invocation_headers`), a cookie jar for load-balancer affinity (`with_cookie_jar`, native), a hook for every request (`with_request_hook`, native), HTTP/2 as the .NET client negotiates it (`with_http_version`, native), experimental HTTP/3 (`http3` feature), and a connect bound (`with_connect_timeout`, 120 s as .NET). |
+| **Proxies** | Native clients use the system proxy by default: the environment variables, WinHTTP, CFNetwork or Android's `ProxySelector`, including auto-config scripts. Explicit HTTP, HTTPS and SOCKS4/5 proxies (`with_proxy`), PAC files (`with_proxy_auto_config`) and `without_proxy()` override it. |
+| **Native TLS with rustls** | No OpenSSL. The platform trust store or bundled roots, `ring` or `aws-lc-rs`, per-connection private CAs, client certificates (`with_client_certificate`), and a hook into the rustls configuration (`with_tls_config_hook`). |
+| **Any executor, any browser thread** | Each native connection runs on its own Tokio runtime, so its futures can be awaited from any executor. The browser transport is event-driven, so it runs on the main thread, in Web Workers and in multithreaded (atomics) builds. |
+| **Fast** | Measured against the official .NET client in the same run: server streams run at 1.5–2.6× its throughput and fan-in at about 1.4×, while invoke latency and send throughput are on par ([measured performance](docs/13-architecture.md#measured-performance)). |
 
 ## Platform support
 
@@ -231,7 +200,8 @@ client.start().await?;
 
 ## Documentation
 
-The [documentation](docs/README.md) covers the whole API in chapters:
+The API reference is the crate's rustdoc (`cargo doc --open`): an overview, the Cargo features,
+and compiled examples. The [guide](docs/README.md) covers the whole API in chapters:
 [getting started](docs/01-getting-started.md), [connecting](docs/02-connecting.md),
 [calling the hub](docs/03-calling-the-hub.md), [server-to-client calls](docs/04-server-callbacks.md),
 [hub protocols](docs/05-hub-protocols.md), [connection lifecycle](docs/06-connection-lifecycle.md),
