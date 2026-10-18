@@ -25,8 +25,8 @@ I/O with an error naming the features. The build script derives the internal `ra
 these features (native targets only); keep `build.rs`.
 
 ```toml
-rayx-signalr = { git = "...", default-features = false, features = ["tls-webpki-roots", "tls-aws-lc-rs"] }
-rayx-signalr = { git = "...", default-features = false } # plaintext-only native client
+rayx-signalr = { git = "...", tag = "v1.0.0", default-features = false, features = ["tls-webpki-roots", "tls-aws-lc-rs"] }
+rayx-signalr = { git = "...", tag = "v1.0.0", default-features = false } # plaintext-only native client
 ```
 
 ## Verifier selection

@@ -13,10 +13,12 @@ and `docs/` must compile; `tests/documentation_examples.rs` holds a compiled cop
 `cargo test documentation_examples_` fails when a changed block has no matching copy.
 Examples in these references may be fragments that assume a `client` in scope.
 
-The package is `rayx-signalr`, imported as `rayx_signalr`; it is not on crates.io (use a Git or path
-dependency). One API covers native Tokio targets and browser `wasm32-unknown-unknown`; WASI and
-other `wasm32` targets do not compile. The transports are WebSockets, Server-Sent Events and Long Polling. RayX (`../RayX`) consumes
-the crate by path (`rayx-signalr = { path = "../RayX.SignalR" }`) through
+The package is `rayx-signalr`, imported as `rayx_signalr`; it is released as git tags `vX.Y.Z`, not
+on crates.io or any registry, so consumers pin a release tag
+(`rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR", tag = "v1.0.0" }`; see
+[releasing](../../../docs/releasing.md)). One API covers native Tokio targets and browser
+`wasm32-unknown-unknown`; WASI and other `wasm32` targets do not compile. The transports are
+WebSockets, Server-Sent Events and Long Polling. RayX (`../RayX`) wraps the crate in
 `rayx_devkit::SignalRService`; compile and test `rayx_devkit` after public API changes.
 
 ## Reference Router

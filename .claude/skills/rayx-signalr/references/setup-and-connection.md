@@ -7,8 +7,8 @@ Full chapters: [Getting started](../../../../docs/01-getting-started.md),
 
 ```toml
 [dependencies]
-rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR", features = ["messagepack"] }
-# or, beside a checkout: rayx-signalr = { path = "../RayX.SignalR" }
+rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR", tag = "v1.0.0", features = ["messagepack"] }
+# pin the latest release tag; releases are git tags only, never a registry
 futures = "0.3"                                         # StreamExt for server streams
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] } # native only

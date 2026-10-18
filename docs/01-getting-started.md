@@ -22,19 +22,16 @@ application-driven `pause`/`resume`.
 
 ## Installation
 
-The crate is not published on crates.io yet. Depend on it from Git:
+The crate is released as git tags `vX.Y.Z`, not on crates.io or any other registry. Depend on a
+release tag, the latest one on the [Releases page](https://github.com/rayx-ui/RayX.SignalR/releases):
 
 ```toml
 [dependencies]
-rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR" }
+rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR", tag = "v1.0.0" }
 ```
 
-or from a local checkout next to your project:
-
-```toml
-[dependencies]
-rayx-signalr = { path = "../RayX.SignalR" }
-```
+`Cargo.lock` records the tagged commit; to upgrade, change the tag. [Releasing](releasing.md)
+explains how releases are cut and versioned.
 
 The package is `rayx-signalr`; Rust code imports it as `rayx_signalr`.
 
@@ -66,7 +63,7 @@ Browsers ignore the TLS features and always use the browser's TLS. See [TLS](08-
 
 ```toml
 # MessagePack, plus bundled roots for Android without JVM setup:
-rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR", features = ["messagepack", "tls-webpki-roots"] }
+rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR", tag = "v1.0.0", features = ["messagepack", "tls-webpki-roots"] }
 ```
 
 ### Toolchain

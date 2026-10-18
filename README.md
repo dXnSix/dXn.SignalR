@@ -48,12 +48,16 @@ The transports are WebSockets, Server-Sent Events and Long Polling, as in the of
 
 ## Installation
 
-The crate is not yet published on crates.io. Depend on it from Git:
+The crate is released as git tags `vX.Y.Z`, not on crates.io or any other registry. Depend on a
+release tag, the latest one on the [Releases page](https://github.com/rayx-ui/RayX.SignalR/releases):
 
 ```toml
 [dependencies]
-rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR", features = ["messagepack"] }
+rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR", tag = "v1.0.0", features = ["messagepack"] }
 ```
+
+`Cargo.lock` records the tagged commit; to upgrade, change the tag. [Releasing](docs/releasing.md)
+explains how releases are cut and versioned.
 
 | Feature | Default | Effect |
 |---|---|---|

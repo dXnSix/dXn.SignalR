@@ -29,10 +29,10 @@ features. A server certificate the verifier does not trust fails `connect` with 
 
 ```toml
 # Bundled roots and aws-lc-rs instead of the defaults:
-rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR", default-features = false, features = ["tls-webpki-roots", "tls-aws-lc-rs"] }
+rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR", tag = "v1.0.0", default-features = false, features = ["tls-webpki-roots", "tls-aws-lc-rs"] }
 
 # Plaintext only (for example, an embedded client on a trusted network):
-rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR", default-features = false }
+rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR", tag = "v1.0.0", default-features = false }
 ```
 
 `aws-lc-rs` compiles C and assembly code, so it needs a working C toolchain for every target you
