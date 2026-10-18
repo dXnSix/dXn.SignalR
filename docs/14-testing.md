@@ -75,7 +75,7 @@ and is the single entry point, locally and in GitHub Actions. There are no test 
 
 ### Prerequisites
 
-- .NET SDK 10.0.100 (pinned by `global.json`) and the Aspire CLI
+- .NET SDK 10.0.402 (pinned by `global.json`) and the Aspire CLI
   (`dotnet tool install --global Aspire.Cli --version 13.5.3`);
 - Rust 1.92.0, with `wasm32-unknown-unknown` for browser cells;
 - browser cells: Node 24 with pnpm and the repository-local Playwright browsers
