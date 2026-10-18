@@ -1,8 +1,10 @@
 name: End-to-end
 
-# Pull requests and manual dispatch only: a merge to master re-runs nothing the pull request
-# already proved, and nothing runs on a schedule. Pushes that only change the AgentX epic state
-# and memory run nothing.
+# Pull requests and manual dispatch only: nothing runs on a push to master or on a schedule
+# (Quality's light jobs check master pushes). A release pull request (a same-repository
+# `release-plz-*` branch, `pr_branch_prefix` in release-plz.toml) changes only Cargo.toml and
+# CHANGELOG.md of code master already holds, so every job skips it. Pushes that only change the
+# AgentX epic state and memory run nothing.
 on:
   pull_request:
     branches: [master]
@@ -31,6 +33,7 @@ jobs:
   native:
     name: e2e / native (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    if: ${{ !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -84,6 +87,7 @@ jobs:
   browser:
     name: e2e / browser (${{ matrix.engine }})
     runs-on: ubuntu-latest
+    if: ${{ !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -139,6 +143,7 @@ jobs:
   android:
     name: e2e / android
     runs-on: ubuntu-latest
+    if: ${{ !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 150
     env:
       RAYX_SIGNALR_E2E_TARGETS: android
@@ -208,6 +213,7 @@ jobs:
   android-app:
     name: e2e / android-app
     runs-on: ubuntu-latest
+    if: ${{ !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 90
     env:
       # The test app (debug and minified release APKs) as device owner; its emulator's global
@@ -265,6 +271,7 @@ jobs:
   ios:
     name: e2e / ios
     runs-on: macos-latest
+    if: ${{ !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 150
     env:
       RAYX_SIGNALR_E2E_TARGETS: ios
@@ -300,6 +307,7 @@ jobs:
   os-proxy:
     name: e2e / os-proxy (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    if: ${{ !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -343,6 +351,7 @@ jobs:
   tls-aws-lc-native:
     name: e2e / tls-aws-lc (native, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    if: ${{ !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -384,6 +393,7 @@ jobs:
   tls-aws-lc-android:
     name: e2e / tls-aws-lc (android)
     runs-on: ubuntu-latest
+    if: ${{ !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 90
     env:
       RAYX_SIGNALR_E2E_TARGETS: android
@@ -438,6 +448,7 @@ jobs:
   tls-aws-lc-ios:
     name: e2e / tls-aws-lc (ios)
     runs-on: macos-latest
+    if: ${{ !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 90
     env:
       RAYX_SIGNALR_E2E_TARGETS: ios

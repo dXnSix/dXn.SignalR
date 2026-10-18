@@ -1,9 +1,17 @@
 name: Quality
 
-# Pull requests only: a merge to master re-runs nothing the pull request already proved. Pushes
-# that only change the AgentX epic state and memory run nothing.
+# Pull requests to master run every job. Pushes to master (implementation is pushed there directly)
+# run only the light ubuntu jobs: rustfmt, clippy and the unit tests (`unit-contract`); every other
+# job carries `github.event_name != 'push'` and stays a pull-request gate. A release pull request
+# (a same-repository `release-plz-*` branch, `pr_branch_prefix` in release-plz.toml) changes only
+# Cargo.toml and CHANGELOG.md, so it runs only rustfmt and clippy. Pushes that only change the
+# AgentX epic state and memory run nothing.
 on:
   pull_request:
+    branches: [master]
+    paths-ignore:
+      - ".agentx/**"
+  push:
     branches: [master]
     paths-ignore:
       - ".agentx/**"
@@ -57,6 +65,7 @@ jobs:
   native:
     name: quality / native (${{ matrix.os }}, Rust ${{ matrix.toolchain }})
     runs-on: ${{ matrix.os }}
+    if: ${{ github.event_name != 'push' && !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -82,6 +91,7 @@ jobs:
   wasm:
     name: quality / wasm (${{ matrix.mode }})
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'push' && !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -110,6 +120,7 @@ jobs:
   unit-contract:
     name: quality / unit-contract (${{ matrix.protocol }})
     runs-on: ubuntu-latest
+    if: ${{ !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -138,6 +149,7 @@ jobs:
   android:
     name: quality / android (cargo ndk)
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'push' && !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
@@ -162,6 +174,7 @@ jobs:
   ios:
     name: quality / ios (${{ matrix.target }})
     runs-on: macos-latest
+    if: ${{ github.event_name != 'push' && !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -188,6 +201,7 @@ jobs:
   threaded-wasm:
     name: quality / threaded-wasm
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'push' && !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 20
     env:
       RUSTFLAGS: -D warnings -C target-feature=+atomics,+bulk-memory,+mutable-globals
@@ -203,6 +217,7 @@ jobs:
   platform:
     name: quality / platform
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'push' && !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 45
     env:
       DOTNET_NOLOGO: true
@@ -240,6 +255,7 @@ jobs:
   rustdoc:
     name: quality / rustdoc
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'push' && !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
@@ -253,6 +269,7 @@ jobs:
   dependency-security:
     name: quality / dependency-security
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'push' && !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
@@ -271,6 +288,7 @@ jobs:
   contracts:
     name: quality / contracts
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'push' && !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 45
     env:
       DOTNET_NOLOGO: true
