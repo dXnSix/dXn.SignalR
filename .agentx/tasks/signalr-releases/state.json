@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 7,
+  "epicId": "signalr-releases",
+  "revision": 3,
+  "planRevision": 4,
+  "specHashes": {
+    "requirements": "791664387286c23fc630160cf672600a96091122a59c4f426278071624950a2c",
+    "design": "fa3f4ca4d7f42eb6656cb2e9e9eb0e5cb804f430b6e7231586a62c13c38977d5",
+    "plan": "40c6c3bb99b8fe739ee18cb15fbab00f70b56b25708612a43552a00737d73345"
+  },
+  "tasks": {
+    "t01-release-plz-config": {
+      "status": "pending"
+    },
+    "t02-release-workflow": {
+      "status": "pending"
+    },
+    "t03-release-pr-ci": {
+      "status": "pending"
+    },
+    "t04-release-plz-proof": {
+      "status": "pending"
+    },
+    "t05-version-changelog": {
+      "status": "pending"
+    },
+    "t06-consumption-docs": {
+      "status": "pending"
+    },
+    "t07-release-docs": {
+      "status": "pending"
+    },
+    "t08-owner-prerequisites": {
+      "status": "pending"
+    },
+    "t09-first-release-push": {
+      "status": "pending"
+    },
+    "t10-consumer-resolves-tag": {
+      "status": "pending"
+    }
+  },
+  "validationBatches": {},
+  "checkResults": {},
+  "reviews": {},
+  "checkpoints": {},
+  "findings": [],
+  "handoffMarkdown": "",
+  "protectedPaths": {
+    "rayx-signalr": {
+      ".agentx/tasks/resilient-reconnect-and-production-gates/**": "9240626eb041360324e8c0773f4ea10eb17c86effa72b065450cc00b3d6247bb",
+      ".agentx/tasks/cross-platform-support/**": "a0d210c29dcacc213c7e33110d5f803ea150afbdbd19934b4400b3a6bb19af97",
+      ".agentx/tasks/production-grade-client/**": "b88fc402d50d81beb682da539e5eb7d90b34c21628a5d7e6f752d5342409ceac",
+      "LICENSE": "420f4ed1dc72e7b490376c48f7de4b5c33dcfa8f9d999675c3bb609d39bb834b",
+      "src/**": "fcd4d03f0d4ec475625fab914f1276ebf0270e38fbcff8673b74c5c528fcd0e9",
+      "build.rs": "bf38a3165113e1592f26ac5d19b978be167e873f950a4495d5a253812382e0a4",
+      "benches/**": "074960f0313bee02478996fcda5f81d6e92bf3cfc4e7a86a24402b4f00ceb2e7",
+      "tests/**": "0dbdf09cfb0c9dd02247ebc7f0a6f2f02ca003d13289e706366481511b0d42ff",
+      "rust-toolchain.toml": "e0c04e409e97567749e26b44bc6cea434b4fc5cc1a139b01bb54e5b263c5e31a",
+      "global.json": "dee6f6e4ce13e01e2d0834c1d39b86d20d0fa330f2d86377c9264288feb9e81f",
+      ".github/workflows/perf.yml": "c5df9c9da26e083ee593af9fea89148d6083201ad6d1d266bbc444c693c16019",
+      "dotnet/RayX.SignalR.AppHost/**": "94a427d36c3b1d2cfdd11603b39f7ee26f8e62425fb8e6cb9a711567b38cde73",
+      "dotnet/RayX.SignalR.TestService/**": "b800eec0bd5b860f5417d9a29729e6455f1a2584e81e7dc4426220099c8b4425"
+    }
+  }
+}

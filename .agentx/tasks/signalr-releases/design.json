@@ -1,0 +1,313 @@
+{
+  "schemaVersion": 7,
+  "epicId": "signalr-releases",
+  "decisions": [
+    {
+      "id": "d-release-plz-config",
+      "requirementIds": [
+        "RPZ"
+      ],
+      "descriptionMarkdown": "release-plz owns versions, the changelog, tags and the GitHub Release; there is no cargo-dist and no registry. `release-plz.toml` follows RayX.CLI's file with the library differences of the 2026-10-18 template:\n\n- `git_only = true` and `publish = false`: versions come from `v*` tags, nothing goes to a registry (`publish = false` also stays in `Cargo.toml`).\n- `git_tag_enable = true`, `git_tag_name = \"v{{ version }}\"`, `git_release_enable = true`: release-plz both tags and creates the GitHub Release, with the new changelog section as notes.\n- `release_commits = \"^(feat|fix|perf)\"` (the CLI's): feat/fix/perf start a release; docs, tests, CI, refactors and AgentX commits ride along.\n- **1.x policy** (amendment 1): `semver_check = false`, and no commit carries `!` or a `BREAKING CHANGE:` footer, because release-plz has no way to cap the major bump that either (or a cargo-semver-checks finding) forces. A breaking change is a `feat` (or `fix`) whose body states the break and bumps the minor. A release PR is merged only while its proposed version is `1.x`; a `2.0.0` proposal means a stray marker, and that commit is reworded (force push allowed) instead.\n- `pr_branch_prefix = \"release-plz-\"` (release-plz's default, written explicitly) is the single source of the prefix the CI guard of `d-release-workflow` keys on.\n- `[changelog]`: the CLI's git-cliff template (Keep a Changelog, `## [X.Y.Z] - YYYY-MM-DD`, grouped, scoped; its breaking marker stays harmlessly unused), header naming `rayx-signalr`, plus a loop over `commit.footers` that prints each `Migration:` footer under its commit (as the Dtcg pilot does), so a consumer sees what to change for a break typed `feat`; parsers skip `chore(agentx)`, `docs(agentx)`, `chore(release)` and `chore(deps)`.\n- `Cargo.lock` stays git-ignored (a library); the local release-plz preview confirms release-plz works without a tracked lockfile and that a release PR then changes only `Cargo.toml` and `CHANGELOG.md`.\n\nThe first release `v1.0.0` needs no PR: with `Cargo.toml` at `1.0.0` and no `v*` tag, the `release` job treats the package as unreleased and tags it on the push.",
+      "invariantsMarkdown": "- Tags have the form `v<semver>` and come from release-plz or the documented by-hand fallback, never from another tool or a moved tag.\n- Nothing is published to a registry: `publish = false` in `Cargo.toml` and in `release-plz.toml`.\n- `CHANGELOG.md` starts with exactly the configured `[changelog] header`, and has a section for the version in `Cargo.toml`.\n- While the 1.x policy holds: versions stay `1.x`, `semver_check = false`, `release_commits = \"^(feat|fix|perf)\"`, and no commit carries `!` or `BREAKING CHANGE:`.",
+      "rationaleMarkdown": "Owner decisions of 2026-10-18 (git tags only, start at 1.0.0, one shared PAT) and amendment 1 of the same day (stay on 1.x while the owner is the only consumer; release-plz bumps the major for `!`, `BREAKING CHANGE:` or a semver-check finding and cannot cap it). RayX.CLI's setup is proven (v1.0.0 to v1.3.0 released from it), including that a `publish = false` package releases in git-only mode and that the initial release is tagged without a PR. Differences from the CLI: `git_release_enable = true` because no cargo-dist owns the Release; `docs(agentx)` skipped because 47 of this repository's AgentX commits use that type. The CLI found (finding F-s2-1) that without `release_commits` every commit, even `chore(agentx)`, opened a patch release PR, so the key is required.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "release-plz.toml"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "Cargo.toml"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "CHANGELOG.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".gitignore"
+        },
+        {
+          "repositoryId": "rayx-cli",
+          "path": "release-plz.toml"
+        },
+        {
+          "repositoryId": "rayx-cli",
+          "path": "CHANGELOG.md"
+        }
+      ],
+      "memoryDecisionRefs": [
+        {
+          "repositoryId": "rayx-cli",
+          "path": ".agentx/memory/decisions/distribution/2026-10-14-distribution-release-plz-tags-dist-releases.md"
+        }
+      ]
+    },
+    {
+      "id": "d-release-workflow",
+      "requirementIds": [
+        "WF",
+        "RPR"
+      ],
+      "descriptionMarkdown": "**Triggers** (amendment 1). Quality runs on pull requests to `master` and on pushes to `master` (both `paths-ignore: .agentx/**`). A push runs only the light ubuntu Rust jobs (rustfmt, clippy, the JSON and MessagePack unit tests); every other Quality job carries `if: ${{ github.event_name != 'push' && !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}` and stays a pull-request gate. So the directly pushed `master` is always checked cheaply; End-to-end runs on pull requests and dispatch; Performance on dispatch; Release-plz on pushes to `master` and dispatch. No workflow has a schedule.\n\n**Release workflow.** `.github/workflows/release-plz.yml` is RayX.CLI's workflow adapted to this repository: jobs `release` and `release-pr` (names `release-plz / release`, `release-plz / release-pr`), on pushes to `master` and `workflow_dispatch`, guarded by `github.repository == 'rayx-ui/RayX.SignalR'`, `ubuntu-latest`, `actions/checkout@v7` with `fetch-depth: 0` and the `RELEASE_PLZ_TOKEN` PAT as `token`, the pinned toolchain installed with `rustup toolchain install 1.92.0 --profile minimal` (no third-party Rust action, so the action allowlist grows only by `release-plz/action@v0.5`), and `release-plz/action@v0.5` with `GITHUB_TOKEN` set to the PAT. `release-pr` declares `needs: release` (consistent with Gpux), so it computes the release PR only after `release` has tagged; on the first push it therefore starts from `v1.0.0` instead of the untagged history with its pre-1.0 `feat(client)!` commits. Job-level `contents: write` (+ `pull-requests: write` for `release-pr`) as on the CLI, top-level `contents: read`, per-job concurrency that never cancels a running release. It needs only Rust and runs no tests.\n\nThe PAT is required because events made with the default `GITHUB_TOKEN` start no workflows: release PRs would get no checks at all and nothing downstream would see the tag.\n\n**Release PRs.** A release PR changes `Cargo.toml` and `CHANGELOG.md` only, and the code it releases was already on `master`. Every heavy job carries the release-PR clause (`if: ${{ !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}` on the `e2e.yml` jobs except `soak` and on `quality / unit-contract`; combined with the push clause on the other Quality jobs): everything except `rustfmt` and `clippy`, which stay as the release PR's cheap proof that the bumped manifest still builds. Job-level `if` keeps job ids and check names stable; paths filters cannot do this because a release PR edits `Cargo.toml` like a real dependency change does. The fork clause keeps a contributor's `release-plz-*` branch from skipping CI.\n\n**Contract.** The `WorkflowContract` governance allows a `push` trigger (only `master`) in exactly `quality.yml` and `release-plz.yml`, treats `release-plz.yml` as the one exception for write permissions, the `RELEASE_PLZ_TOKEN` secret, persisted checkout credentials and the extra action, and keeps every other rule for all four workflows.",
+      "invariantsMarkdown": "- Push triggers exist only in `quality.yml` and `release-plz.yml`, both only for `master`; `e2e.yml` runs on pull requests and dispatch, `perf.yml` on dispatch only; none has a schedule.\n- `release-plz.yml` runs no tests, needs only Rust and references no secret but `RELEASE_PLZ_TOKEN`; its `release-pr` job `needs: release`.\n- A same-repository `release-plz-*` pull request runs only `quality / rustfmt` and `quality / clippy`; a `master` push runs only those two and `quality / unit-contract`; any other pull request and every dispatch runs every job it ran before.\n- Test workflows keep `contents: read`, no secrets, `persist-credentials: false`, failure-only redacted uploads and their job ids and names.\n- No workflow contains the word `publish`, `pull_request_target`, scripts or WebDriver tooling.",
+      "rationaleMarkdown": "Supersedes the 2026-10-09 decision \"Run CI on pull requests only, every dimension per pull request\": its rules that no workflow runs on `push`, that a merge to `master` re-runs nothing, and that every pull request runs every dimension no longer hold. The owner (2026-10-18) pushes implementation straight to `master`, adds release-plz on `master` pushes with a PAT, and (amendment 1) wants Quality to check every `master` push while release PRs start no heavy suite. The successor decision restates what stays (End-to-end on pull requests and dispatch, the dispatch-only soak and performance runs, no schedules, Aspire-only end-to-end jobs that are skipped rather than replaced on release PRs) and records the Quality push trigger, the release workflow and the release-PR guard. The CLI's job-level write permissions and default credential persistence are kept because that exact shape has released four versions; trimming them would add first-release risk for no gain while the PAT carries the authority anyway.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/release-plz.yml"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/quality.yml"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/e2e.yml"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/perf.yml"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/WorkflowContractTests.cs"
+        },
+        {
+          "repositoryId": "rayx-cli",
+          "path": ".github/workflows/release-plz.yml"
+        }
+      ],
+      "memoryDecisionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/memory/decisions/interop-validation/rust-tests/2026-10-06-interop-validation-rust-tests-aspire-is-the-only-test-orchestrator.md"
+        }
+      ],
+      "supersedesMemoryDecisions": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/memory/decisions/repository-governance/quality-gates/2026-10-09-repository-governance-quality-gates-pull-request-only-ci.md"
+        }
+      ]
+    },
+    {
+      "id": "d-release-contracts",
+      "requirementIds": [
+        "RPZ",
+        "WF",
+        "RPR",
+        "VER",
+        "DOC"
+      ],
+      "descriptionMarkdown": "The release rules are xUnit facts in the existing categories, so they run identically locally and in CI's `quality / contracts` job (`Category=WorkflowContract|Category=Repository|Category=Catalog|Category=Toolchain`) with no workflow change:\n\n- `dotnet/RayX.SignalR.E2E.Tests/src/Contracts/ReleaseAutomationTests.cs`, trait `Case=release-automation`: the `release-plz.toml` keys (including `semver_check = false`) and `[changelog]` (category `Repository`), the `release_commits` regex extracted from the file (TOML basic-string unescaped) and executed against accepted and rejected sample messages (`Repository`), the trigger block of each workflow, the `release-plz.yml` structure (including `needs: release`), and the release-PR guards per job with the prefix agreement (`WorkflowContract`).\n- `dotnet/RayX.SignalR.E2E.Tests/src/Contracts/ReleaseConsumptionTests.cs`, trait `Case=release-consumption`, category `Repository`: the manifest version (through the existing `Cargo.PackageAsync`, i.e. `cargo metadata --no-deps`) is `1.x` (≥ 1.0.0, < 2.0.0), `CHANGELOG.md` starts with the configured header and has a dated section for that version, and every consumer dependency snippet in the README, `docs/` and the skill uses the tag form.\n- `WorkflowContractTests.cs` keeps its facts and gains the `release-plz.yml` exceptions (WF-2).\n\nAssertions are text and regex checks like the existing contracts; no TOML or YAML NuGet package (a new package would need the `DependencySecurity` scan), and the YAML duplicate-key check covers what regexes cannot. None of these facts starts the AppHost.",
+      "invariantsMarkdown": "- Static release rules are xUnit facts in `WorkflowContract` or `Repository`, separately selectable by their `Case` trait, and need no running service.\n- The contracts read the files the release tooling reads (`release-plz.toml`, `CHANGELOG.md`, `Cargo.toml` through Cargo); they never duplicate a value without asserting that the copies agree.",
+      "rationaleMarkdown": "The 2026-10-06 decision expresses every static and platform gate as a .NET test category that runs identically locally and in CI; the release rules follow it rather than adding a Rust integration test with TOML/YAML dev-dependencies to a library crate or a script, which the repository forbids. `Case` traits already exist (`manifest-hygiene`) and give each sprint a new, exactly selectable group.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/ReleaseAutomationTests.cs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/ReleaseConsumptionTests.cs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/WorkflowContractTests.cs"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/Cargo.cs",
+          "symbol": "PackageAsync"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/RepositoryTests.cs"
+        }
+      ],
+      "memoryDecisionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/memory/decisions/repository-governance/quality-gates/2026-10-06-repository-governance-quality-gates-verification-as-dotnet-categories.md"
+        }
+      ]
+    },
+    {
+      "id": "d-version-changelog",
+      "requirementIds": [
+        "VER"
+      ],
+      "descriptionMarkdown": "The package keeps its identity (`rayx-signalr`, crate `rayx_signalr`, MIT, both authors, `publish = false`) and starts at `1.0.0`, a clean start: the hand-written `## [1.0.0]` section of the new root `CHANGELOG.md` describes what the client offers instead of reconstructing history from the forked repository's commits. From then on release-plz writes every section; `fix`/`perf` bump the patch and `feat` the minor. Under the 1.x policy (amendment 1) there are no major bumps: a breaking change is a `feat` (or `fix`) whose body states it, and the contract keeps the version below 2.0.0 until the policy ends with a second consumer. The version is wire-visible through the User-Agent (`RayX SignalR/<major>.<minor> (<version>; …)`), which follows `CARGO_PKG_VERSION` with no code change.",
+      "invariantsMarkdown": "- Package `rayx-signalr`, crate `rayx_signalr`, MIT `LICENSE` with the original copyright notice, both `Cargo.toml` authors and the README acknowledgements stay.\n- The manifest version is `1.x` (while the 1.x policy holds) and has a matching dated `CHANGELOG.md` section.",
+      "rationaleMarkdown": "Owner decision 2026-10-18: every library starts at 1.0.0; amendment 1: no repository leaves 1.x while the owner is the only consumer. The independent-library decision keeps the identity and the attribution, which a release must not drop. 0.2.0 was never tagged, so no consumer pins it.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "Cargo.toml"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "CHANGELOG.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/headers.rs",
+          "symbol": "user_agent"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "README.md"
+        }
+      ],
+      "memoryDecisionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/memory/decisions/repository-governance/fork-policy/2026-10-06-repository-governance-fork-policy-independent-library.md"
+        }
+      ]
+    },
+    {
+      "id": "d-consume-by-tag-docs",
+      "requirementIds": [
+        "DOC"
+      ],
+      "descriptionMarkdown": "Every consumer-facing dependency snippet (README `## Installation`, `docs/01-getting-started.md`, `docs/08-tls.md`, the skill's `SKILL.md`, `references/setup-and-connection.md` and `references/tls.md`) uses `{ git = \"https://github.com/rayx-ui/RayX.SignalR\", tag = \"vX.Y.Z\" … }`; the path form and untagged git disappear. `docs/releasing.md` is the one place that explains releasing (linked from the README and `docs/README.md` Part IV). `CLAUDE.md`/`AGENTS.md` carry only a short `## Releases` section with the rules an agent needs and a pointer to `docs/releasing.md`, plus corrected Repository Layout and Consumers paragraphs. `docs/14-testing.md` describes the release workflow and the release-PR guard in its CI section.",
+      "invariantsMarkdown": "- `CLAUDE.md` and `AGENTS.md` stay byte-identical.\n- Consumer documentation never tells a consumer to use a path or an untagged git dependency.\n- The strings `RepositoryTests.DocumentationDescribesTheAspireTestWorkflow` requires stay in `docs/14-testing.md` and the README.",
+      "rationaleMarkdown": "Owner decisions 2026-10-18: consumers pin release tags and no local-override mechanism is documented. The contextual-routing decision keeps shared rules short in the root instructions and puts procedures in their own documents, which `docs/releasing.md` follows.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "README.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/releasing.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/README.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/01-getting-started.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/08-tls.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/14-testing.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "CLAUDE.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "AGENTS.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/SKILL.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/setup-and-connection.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/tls.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/maintaining.md"
+        },
+        {
+          "repositoryId": "rayx-cli",
+          "path": "docs/releasing.md"
+        }
+      ],
+      "memoryDecisionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".agentx/memory/decisions/repository-governance/agent-memory/2026-09-06-repository-governance-agent-memory-contextual-workflow-routing.md"
+        }
+      ]
+    },
+    {
+      "id": "d-first-release",
+      "requirementIds": [
+        "FIRST"
+      ],
+      "descriptionMarkdown": "The first release is cut by the push itself, so the push is the release act: every epic commit reaches `master` in one fetch–rebase–force-with-lease push (pre-approved by the owner). `RELEASE_PLZ_TOKEN` and the `Release tags` ruleset already exist and are only verified. The push's `release` job tags `v1.0.0` and creates the GitHub Release; `release-pr` runs after it (`needs: release`) and finds nothing to propose; the push's light Quality jobs check the new `master`. If the release job fails at checkout or push because the shared PAT lacks access to this repository, the owner fixes the PAT and the run is repeated on the same commit. Proof is read from GitHub (`gh`) and from a scratch consumer outside every repository that resolves `tag = \"v1.0.0\"` and compiles against it.",
+      "invariantsMarkdown": "- `release-plz.yml` never reaches `master` before version `1.0.0` does.\n- The first-release push and release-PR merges are pre-approved (amendment 1) but keep their checks: the light Quality jobs green where they run, the proposed version `1.x`, a release PR changing only `Cargo.toml` and `CHANGELOG.md`. Other outward-facing acts (editing a Release, closing a stray release PR, the by-hand fallback, changing a ruleset or secret) need the owner's go-ahead.\n- The tag ruleset allows creating `v*` tags and blocks updating and deleting them.",
+      "rationaleMarkdown": "Owner push/PR policy of 2026-10-18 and amendment 1 (prerequisites done, blanket go-ahead). A tag cannot be moved once the ruleset exists, so the tagged commit must already hold the complete release (docs, changelog, contracts); a single final push guarantees that.",
+      "sourceRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/release-plz.yml"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/releasing.md"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "CHANGELOG.md"
+        }
+      ]
+    }
+  ],
+  "memoryDecisionsConsidered": [
+    {
+      "repositoryId": "rayx-signalr",
+      "path": ".agentx/memory/decisions/repository-governance/agent-memory/2026-08-09-repository-governance-agent-memory-initial-taxonomy.md"
+    },
+    {
+      "repositoryId": "rayx-signalr",
+      "path": ".agentx/memory/decisions/interop-validation/rust-tests/2026-10-06-interop-validation-rust-tests-playwright-browser-matrix.md"
+    },
+    {
+      "repositoryId": "rayx-signalr",
+      "path": ".agentx/memory/decisions/client-runtime/connection-lifecycle/2026-10-06-client-runtime-connection-lifecycle-liveness-and-lifecycle-controls.md"
+    },
+    {
+      "repositoryId": "rayx-signalr",
+      "path": ".agentx/memory/decisions/client-runtime/connection-lifecycle/2026-10-06-client-runtime-connection-lifecycle-runtime-owned-native-connections.md"
+    },
+    {
+      "repositoryId": "rayx-signalr",
+      "path": ".agentx/memory/decisions/client-runtime/hub-protocol/2026-10-09-client-runtime-hub-protocol-single-pass-wire-codec.md"
+    },
+    {
+      "repositoryId": "rayx-signalr",
+      "path": ".agentx/memory/decisions/client-runtime/public-api/2026-06-24-client-runtime-public-api-backend-network-client.md"
+    },
+    {
+      "repositoryId": "rayx-signalr",
+      "path": ".agentx/memory/decisions/client-runtime/public-api/2026-10-09-client-runtime-public-api-typed-error-model.md"
+    },
+    {
+      "repositoryId": "rayx-signalr",
+      "path": ".agentx/memory/decisions/client-runtime/transport/2026-10-06-client-runtime-transport-rustls-per-connection-tls.md"
+    },
+    {
+      "repositoryId": "rayx-signalr",
+      "path": ".agentx/memory/decisions/client-runtime/transport/2026-10-09-client-runtime-transport-http-versions-as-dotnet.md"
+    },
+    {
+      "repositoryId": "rayx-signalr",
+      "path": ".agentx/memory/decisions/client-runtime/transport/2026-10-09-client-runtime-transport-one-transport-abstraction-per-target.md"
+    },
+    {
+      "repositoryId": "rayx-signalr",
+      "path": ".agentx/memory/decisions/client-runtime/transport/2026-10-09-client-runtime-transport-proxy-route-resolution.md"
+    },
+    {
+      "repositoryId": "rayx-cli",
+      "path": ".agentx/memory/decisions/distribution/2026-10-08-distribution-cargo-dist-and-axoupdater.md"
+    }
+  ]
+}

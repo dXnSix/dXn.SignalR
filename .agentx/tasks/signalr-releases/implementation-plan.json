@@ -1,0 +1,658 @@
+{
+  "schemaVersion": 7,
+  "epicId": "signalr-releases",
+  "revision": 4,
+  "title": "rayx-signalr releases by git tag: release-plz, v1.0.0, CHANGELOG, release-PR CI guard, tag-form install docs",
+  "validationMode": "sprint",
+  "repositories": [
+    {
+      "id": "rayx-signalr",
+      "path": ".",
+      "role": "execution"
+    },
+    {
+      "id": "rayx-cli",
+      "path": "../RayX.CLI",
+      "role": "reference"
+    }
+  ],
+  "boundaries": {
+    "repositoryIds": [
+      "rayx-signalr"
+    ],
+    "forbiddenPaths": [
+      ".agentx/tasks/resilient-reconnect-and-production-gates/**",
+      ".agentx/tasks/cross-platform-support/**",
+      ".agentx/tasks/production-grade-client/**",
+      "LICENSE",
+      "src/**",
+      "build.rs",
+      "benches/**",
+      "tests/**",
+      "rust-toolchain.toml",
+      "global.json",
+      ".github/workflows/perf.yml",
+      "dotnet/RayX.SignalR.AppHost/**",
+      "dotnet/RayX.SignalR.TestService/**"
+    ]
+  },
+  "checks": [
+    {
+      "id": "check-release-automation",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "RPZ-1",
+        "WF-1",
+        "RPR-1",
+        "RPR-2"
+      ],
+      "descriptionMarkdown": "New group `Case=release-automation` (`ReleaseAutomationTests.cs`): `release-plz.toml` keys (`semver_check = false`, `release_commits = \"^(feat|fix|perf)\"`) and `[changelog]`, the `release_commits` regex run against accepted and rejected messages, each workflow's trigger block and the push clause per Quality job, the `Migration` footer loop of the changelog body, the `release-plz.yml` structure (including `release-pr` `needs: release`), the release-PR guard on each job and its prefix agreement with `pr_branch_prefix`. Static facts; no AppHost. Uses the .NET SDK 10.0.402 that `global.json` pins (installed).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Case=release-automation"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 5
+      },
+      "timeoutSeconds": 1800,
+      "inputs": [
+        "release-plz.toml",
+        ".github/workflows/**",
+        "dotnet/**",
+        "global.json",
+        "Directory.Build.props",
+        "aspire.config.json",
+        "RayX.SignalR.slnx"
+      ]
+    },
+    {
+      "id": "check-workflow-contract",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "WF-2",
+        "RPR-1",
+        "RPR-2"
+      ],
+      "descriptionMarkdown": "The touched `WorkflowContract` category: the 16 existing facts (four workflows now; push allowed only in `quality.yml`, whose non-light jobs skip on push, and `release-plz.yml`; the `release-plz.yml` exceptions) plus the new release workflow facts. Static; no AppHost.",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Category=WorkflowContract"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 18
+      },
+      "timeoutSeconds": 1800,
+      "inputs": [
+        "release-plz.toml",
+        ".github/workflows/**",
+        "dotnet/**",
+        "global.json",
+        "Directory.Build.props",
+        "aspire.config.json",
+        "RayX.SignalR.slnx"
+      ]
+    },
+    {
+      "id": "check-workflow-yaml",
+      "repositoryId": "rayx-signalr",
+      "kind": "static",
+      "criterionIds": [
+        "WF-1",
+        "RPR-1"
+      ],
+      "descriptionMarkdown": "AgentX's workflow YAML checker (parse errors and duplicate keys GitHub rejects) over the three touched workflows. The script path is the installed AgentX skill's; adjust it to the local install when resolving the sprint.",
+      "argv": [
+        "ruby",
+        "/Users/dinko/.claude/skills/agentx/scripts/check_workflow_yaml.rb",
+        ".github/workflows/release-plz.yml",
+        ".github/workflows/quality.yml",
+        ".github/workflows/e2e.yml"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "stdoutPattern": "workflow yaml ok"
+      },
+      "inputs": [
+        ".github/workflows/**"
+      ]
+    },
+    {
+      "id": "check-release-consumption",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "VER-1",
+        "DOC-1"
+      ],
+      "descriptionMarkdown": "New group `Case=release-consumption` (`ReleaseConsumptionTests.cs`): manifest version ≥ 1.0.0 via `cargo metadata --no-deps`, `CHANGELOG.md` header equal to the configured one and a dated section for that version, and the tag form in every consumer dependency snippet of the README, `docs/*.md` and the skill.",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "Case=release-consumption"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 3
+      },
+      "timeoutSeconds": 1800,
+      "inputs": [
+        "Cargo.toml",
+        "CHANGELOG.md",
+        "release-plz.toml",
+        "README.md",
+        "docs/**",
+        ".claude/skills/rayx-signalr/**",
+        "dotnet/**",
+        "global.json",
+        "Directory.Build.props",
+        "aspire.config.json",
+        "RayX.SignalR.slnx"
+      ]
+    },
+    {
+      "id": "check-docs-contract",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "DOC-1"
+      ],
+      "descriptionMarkdown": "The existing fact that exercises the touched README and docs: `RepositoryTests.DocumentationDescribesTheAspireTestWorkflow` (README `## Platform support`, the docs index links, the testing chapter's required strings).",
+      "argv": [
+        "dotnet",
+        "test",
+        "dotnet/RayX.SignalR.E2E.Tests/RayX.SignalR.E2E.Tests.csproj",
+        "--filter",
+        "FullyQualifiedName~RepositoryTests.DocumentationDescribesTheAspireTestWorkflow"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 1
+      },
+      "timeoutSeconds": 1800,
+      "inputs": [
+        "README.md",
+        "docs/**",
+        "dotnet/**",
+        "global.json",
+        "Directory.Build.props",
+        "aspire.config.json",
+        "RayX.SignalR.slnx"
+      ]
+    },
+    {
+      "id": "check-user-agent-version",
+      "repositoryId": "rayx-signalr",
+      "kind": "test",
+      "criterionIds": [
+        "VER-1"
+      ],
+      "descriptionMarkdown": "The existing unit test that exercises the version bump: the User-Agent built from `CARGO_PKG_VERSION` keeps the official format at 1.0.0.",
+      "argv": [
+        "cargo",
+        "test",
+        "--lib",
+        "request_headers_user_agent_follows_the_official_format"
+      ],
+      "expected": {
+        "exitCode": 0,
+        "minimumTests": 1
+      },
+      "timeoutSeconds": 1800,
+      "inputs": [
+        "Cargo.toml",
+        "build.rs",
+        "src/**"
+      ]
+    },
+    {
+      "id": "final-cargo-package",
+      "repositoryId": "rayx-signalr",
+      "kind": "static",
+      "criterionIds": [
+        "VER-1"
+      ],
+      "descriptionMarkdown": "The manifest change still packages: `cargo package --no-verify --allow-dirty` builds `rayx-signalr-1.0.0.crate` without compiling (`--allow-dirty` because the epic's own AgentX state may be uncommitted at `check --epic`). No Rust source changes in this epic, so no fmt or clippy final check; the focused checks already compile the touched .NET project and the library.",
+      "argv": [
+        "cargo",
+        "package",
+        "--no-verify",
+        "--allow-dirty"
+      ],
+      "expected": {
+        "exitCode": 0
+      },
+      "timeoutSeconds": 900
+    }
+  ],
+  "finalCheckIds": [
+    "final-cargo-package"
+  ],
+  "sprints": [
+    {
+      "id": "s1-release-automation",
+      "title": "release-plz configuration, the release workflow, the release-PR guard and their contracts",
+      "dependsOn": [],
+      "memoryScopes": [
+        "repository-governance/quality-gates"
+      ],
+      "checkIds": [
+        "check-release-automation",
+        "check-workflow-contract",
+        "check-workflow-yaml"
+      ],
+      "tasks": [
+        {
+          "id": "t01-release-plz-config",
+          "title": "release-plz.toml and the release-automation contract group",
+          "descriptionMarkdown": "Before any change: `git fetch origin && git rebase origin/master` (see the checkpoint constraint).\n\nWrite `release-plz.toml` per RPZ-1, starting from RayX.CLI's file (`../RayX.CLI/release-plz.toml`): `[workspace]` keys including `git_release_enable = true`, `pr_branch_prefix = \"release-plz-\"`, `release_commits = \"^(feat|fix|perf)\"` and `semver_check = false`, each with a comment naming the 1.x policy (breaks are typed `feat`/`fix` with the break in the body and consumer notes in a `Migration:` footer; never `!` or `BREAKING CHANGE:`); `[[package]] name = \"rayx-signalr\"`; the CLI's `[changelog]` with the header naming `rayx-signalr`, a `docs(agentx)` skip parser added, and a `commit.footers` loop in the body that renders `Migration:` footers (align the template with the RayX.Dtcg pilot's if it already exists). Top-of-file comments say what release-plz does here (release PR, tag, GitHub Release; no registry) and point to `docs/releasing.md`.\n\nCreate `dotnet/RayX.SignalR.E2E.Tests/src/Contracts/ReleaseAutomationTests.cs` (`[Collection(AspireTestGroup.Name)]`, `AspireEnvironment.RepositoryRoot` only, never `EnsureStartedAsync`) with `[Trait(\"Case\", \"release-automation\")]` on every fact: the configuration keys and `[changelog]` (`Category=Repository`), and a theory or fact that extracts the `release_commits` string, unescapes TOML `\\\\` to `\\`, and asserts the accepted and rejected samples of RPZ-1. Follow the file style of the existing contracts (generated regexes, `AssertMatches`-style messages, `TreatWarningsAsErrors`).",
+          "criterionIds": [
+            "RPZ-1"
+          ],
+          "designIds": [
+            "d-release-plz-config",
+            "d-release-contracts"
+          ],
+          "dependsOn": [],
+          "checkIds": [
+            "check-release-automation"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "release-plz.toml"
+            },
+            {
+              "repositoryId": "rayx-cli",
+              "path": "release-plz.toml"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/ReleaseAutomationTests.cs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/WorkflowContractTests.cs"
+            }
+          ]
+        },
+        {
+          "id": "t02-release-workflow",
+          "title": "release-plz.yml and the four-workflow contract",
+          "descriptionMarkdown": "Add `.github/workflows/release-plz.yml` per WF-1 from RayX.CLI's workflow (`../RayX.CLI/.github/workflows/release-plz.yml`), adapted: `master`, the repository guard `rayx-ui/RayX.SignalR`, `ubuntu-latest`, `actions/checkout@v7`, `rustup toolchain install 1.92.0 --profile minimal` instead of `actions-rust-lang/setup-rust-toolchain`, job names `release-plz / release` and `release-plz / release-pr`, top-level `permissions: contents: read`. Write the comments without the word `publish`.\n\nUpdate `WorkflowContractTests.cs` per WF-2: `Workflows()` expects four files; `EveryWorkflowKeepsLeastPrivilegeGovernance` applies the write/secret/credential/action/concurrency exceptions only to `release-plz.yml`, allows its `master` push trigger (t03 adds `quality.yml`'s), and keeps everything else for all four. Add the `release-plz.yml` structure facts (WF-1) to `ReleaseAutomationTests.cs` with `Category=WorkflowContract` and `Case=release-automation`: triggers, job ids and names, guards, `needs: release` on `release-pr` (and none on `release`), permissions per job, checkout with `fetch-depth: 0` and the PAT, the toolchain step, `release-plz/action@v0.5` with each command, `GITHUB_TOKEN` from the PAT, `cancel-in-progress: false`, only `RELEASE_PLZ_TOKEN`, and no `dotnet`, `aspire`, `pnpm`, `node`, `playwright` or `cargo test`.",
+          "criterionIds": [
+            "WF-1",
+            "WF-2"
+          ],
+          "designIds": [
+            "d-release-workflow",
+            "d-release-contracts"
+          ],
+          "dependsOn": [
+            "t01-release-plz-config"
+          ],
+          "checkIds": [
+            "check-release-automation",
+            "check-workflow-contract",
+            "check-workflow-yaml"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": ".github/workflows/release-plz.yml"
+            },
+            {
+              "repositoryId": "rayx-cli",
+              "path": ".github/workflows/release-plz.yml"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/WorkflowContractTests.cs",
+              "symbol": "EveryWorkflowKeepsLeastPrivilegeGovernance"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/ReleaseAutomationTests.cs"
+            }
+          ]
+        },
+        {
+          "id": "t03-release-pr-ci",
+          "title": "Quality on master pushes; release pull requests skip the heavy jobs",
+          "descriptionMarkdown": "Add `push: branches: [master]` with `paths-ignore: [\".agentx/**\"]` to `quality.yml` (keep its `pull_request` trigger) per RPR-2; `e2e.yml` and `perf.yml` get no push trigger. Change `EveryWorkflowKeepsLeastPrivilegeGovernance` so `push` is allowed (only `master`) in exactly `quality.yml` and `release-plz.yml`, and add `WorkflowContract` + `Case=release-automation` facts on each workflow's trigger block.\n\nAdd the job-level conditions, directly under each job's `name:`/`runs-on:` lines: `if: ${{ !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}` on every job of `e2e.yml` except `soak` and on `quality / unit-contract`; `if: ${{ github.event_name != 'push' && !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}` on the Quality jobs `native`, `wasm`, `android`, `ios`, `threaded-wasm`, `platform`, `rustdoc`, `dependency-security` and `contracts`; nothing on `rustfmt` and `clippy`. Change nothing else (ids, names, matrices, env, steps). Rewrite the top comments of `quality.yml` and `e2e.yml` to say which events start which jobs (push: rustfmt, clippy, unit tests; release PRs: rustfmt and clippy) and why.\n\nAdd `WorkflowContract` + `Case=release-automation` facts: each job (by id, from `JobBlocks`) has exactly its condition line; `rustfmt`, `clippy` and `soak` have none; the prefix in the line equals `pr_branch_prefix` in `release-plz.toml`. Run the whole `WorkflowContract` category to confirm the existing per-job facts still hold.",
+          "criterionIds": [
+            "RPR-1",
+            "RPR-2"
+          ],
+          "designIds": [
+            "d-release-workflow",
+            "d-release-contracts"
+          ],
+          "dependsOn": [
+            "t01-release-plz-config",
+            "t02-release-workflow"
+          ],
+          "checkIds": [
+            "check-release-automation",
+            "check-workflow-contract",
+            "check-workflow-yaml"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": ".github/workflows/quality.yml"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": ".github/workflows/e2e.yml"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/WorkflowContractTests.cs",
+              "symbol": "JobBlocks"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/ReleaseAutomationTests.cs"
+            }
+          ]
+        },
+        {
+          "id": "t04-release-plz-proof",
+          "title": "Local release-plz preview: release_commits, the 1.x policy and Cargo.lock",
+          "descriptionMarkdown": "Install current release-plz locally if missing (for example `cargo install --locked release-plz`; tool installs are the implementer's environment, not committed; ask before downloading if the session requires it). Clone this repository into the ignored `artifacts-temp/agentx/signalr-releases/scratch/` (or the system temp directory), copy in `release-plz.toml`, set `version = \"1.0.0\"`, write a CHANGELOG.md with the configured header and a `## [1.0.0]` section, commit, and tag `v1.0.0` locally (never push from the clone). Run every case of RPZ-2 with `release-plz update --config release-plz.toml`, resetting to the tag between cases; for case 5 remove or narrow a real public item in a `fix(client):` commit, and for case 4 write the break into the `feat(client):` body and end it with a `Migration: <note>` footer (no `!`, no `BREAKING CHANGE:` footer), and check the rendered line in CHANGELOG.md.\n\nNote the Cargo.lock outcome for `docs/releasing.md` (t07). If `pr_branch_prefix` is rejected, remove it and make the t03 contract assert the literal default prefix instead. If release-plz needs a tracked `Cargo.lock`, stop and ask the owner. Record commands, tool versions and observed results in the handoff.",
+          "criterionIds": [
+            "RPZ-2"
+          ],
+          "supportingCriterionIds": [
+            "RPZ-1"
+          ],
+          "designIds": [
+            "d-release-plz-config"
+          ],
+          "dependsOn": [
+            "t01-release-plz-config"
+          ],
+          "checkIds": [],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "release-plz.toml"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": ".gitignore"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/lib.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s2-version-and-docs",
+      "title": "Version 1.0.0, CHANGELOG.md and the tag-form documentation",
+      "dependsOn": [
+        "s1-release-automation"
+      ],
+      "memoryScopes": [
+        "repository-governance/fork-policy",
+        "repository-governance/agent-memory"
+      ],
+      "checkIds": [
+        "check-release-consumption",
+        "check-docs-contract",
+        "check-user-agent-version"
+      ],
+      "tasks": [
+        {
+          "id": "t05-version-changelog",
+          "title": "Version 1.0.0, CHANGELOG.md and the release-consumption group",
+          "descriptionMarkdown": "Set `version = \"1.0.0\"` in `Cargo.toml` (only that line). Create `CHANGELOG.md`: the exact `[changelog] header` of `release-plz.toml`, then `## [1.0.0] - <today>` written by hand per VER-2 from the README Highlights, Platform support and feature table and `docs/` (no fabricated history; model: RayX.CLI's 1.0.0 section).\n\nCreate `dotnet/RayX.SignalR.E2E.Tests/src/Contracts/ReleaseConsumptionTests.cs` (`Category=Repository`, `Case=release-consumption`, static, no AppHost): the manifest version from `Cargo.PackageAsync` parses as SemVer ≥ 1.0.0 and `CHANGELOG.md` contains a dated section for it (one fact); `CHANGELOG.md` starts with the header extracted from `release-plz.toml` (a second fact); the section heading has the form `## [<version>] - \\d{4}-\\d{2}-\\d{2}`. Run the existing `request_headers_user_agent_follows_the_official_format` unit test.",
+          "criterionIds": [
+            "VER-1",
+            "VER-2"
+          ],
+          "designIds": [
+            "d-version-changelog",
+            "d-release-contracts"
+          ],
+          "dependsOn": [],
+          "checkIds": [
+            "check-release-consumption",
+            "check-user-agent-version"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "Cargo.toml"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "CHANGELOG.md"
+            },
+            {
+              "repositoryId": "rayx-cli",
+              "path": "CHANGELOG.md"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "README.md"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "src/communication/headers.rs",
+              "symbol": "request_headers_user_agent_follows_the_official_format"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/ReleaseConsumptionTests.cs"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/Cargo.cs",
+              "symbol": "PackageAsync"
+            }
+          ]
+        },
+        {
+          "id": "t06-consumption-docs",
+          "title": "Install snippets in tag form",
+          "descriptionMarkdown": "Rewrite the README `## Installation` lead and snippet per DOC-1 (tag form, consumed only by release tag, latest tag from the Releases page, link to `docs/releasing.md`; keep the feature table). Move every consumer snippet in `docs/01-getting-started.md` (drop the local-checkout `path` form), `docs/08-tls.md` and the skill (`SKILL.md` intro sentences about crates.io, Git/path and RayX by path; `references/setup-and-connection.md`; `references/tls.md`) to `tag = \"v1.0.0\"`. Add the snippet fact to `ReleaseConsumptionTests.cs`: every line starting `rayx-signalr = {` in `README.md`, `docs/*.md` and `.claude/skills/rayx-signalr/**/*.md` contains `tag = \"v<semver>\"` and none contains `path =`; the README Installation section links `docs/releasing.md`.",
+          "criterionIds": [
+            "DOC-1"
+          ],
+          "designIds": [
+            "d-consume-by-tag-docs",
+            "d-release-contracts"
+          ],
+          "dependsOn": [
+            "t05-version-changelog"
+          ],
+          "checkIds": [
+            "check-release-consumption",
+            "check-docs-contract"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "README.md"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "docs/01-getting-started.md"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "docs/08-tls.md"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": ".claude/skills/rayx-signalr/SKILL.md"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": ".claude/skills/rayx-signalr/references/setup-and-connection.md"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": ".claude/skills/rayx-signalr/references/tls.md"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/ReleaseConsumptionTests.cs"
+            }
+          ]
+        },
+        {
+          "id": "t07-release-docs",
+          "title": "docs/releasing.md, the testing chapter and CLAUDE.md/AGENTS.md",
+          "descriptionMarkdown": "Write `docs/releasing.md` per DOC-2 (model: `../RayX.CLI/docs/releasing.md`, without dist; with the 1.x policy and the release-PR merge checks of amendment 1 and the Cargo.lock outcome of t04) and link it from `docs/README.md` Part IV. Update `docs/14-testing.md` \"CI checks\" and the category table per DOC-3, keeping every string `RepositoryTests` requires, and the skill's `references/maintaining.md` where it describes CI triggers. Edit `CLAUDE.md` and `AGENTS.md` identically per DOC-3 (Repository Layout `publish = false` line, new `## Releases` section near `## Commits`, Consumers paragraph); leave the AgentX block untouched. Memory files are synced at epic promotion, not here.",
+          "criterionIds": [
+            "DOC-2",
+            "DOC-3"
+          ],
+          "designIds": [
+            "d-consume-by-tag-docs",
+            "d-release-workflow",
+            "d-release-plz-config"
+          ],
+          "dependsOn": [
+            "t05-version-changelog"
+          ],
+          "checkIds": [
+            "check-docs-contract"
+          ],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "docs/releasing.md"
+            },
+            {
+              "repositoryId": "rayx-cli",
+              "path": "docs/releasing.md"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "docs/README.md"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "docs/14-testing.md"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "CLAUDE.md"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "AGENTS.md"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": ".claude/skills/rayx-signalr/references/maintaining.md"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s3-first-release",
+      "title": "GitHub-dependent: verify secret and rulesets, the single push, v1.0.0 on GitHub with green Quality, a consumer resolves the tag",
+      "dependsOn": [
+        "s1-release-automation",
+        "s2-version-and-docs"
+      ],
+      "memoryScopes": [
+        "repository-governance/fork-policy"
+      ],
+      "tasks": [
+        {
+          "id": "t08-owner-prerequisites",
+          "title": "Verify RELEASE_PLZ_TOKEN and the rulesets",
+          "descriptionMarkdown": "Verify only; the owner created both on 2026-10-18 and nothing is created or changed here. Run `gh secret list --repo rayx-ui/RayX.SignalR` (names only), `gh api repos/rayx-ui/RayX.SignalR/rulesets` and `gh api repos/rayx-ui/RayX.SignalR/rulesets/<id>` for `Release tags` and `DefaultProtection`, and record the output per FIRST-1 (at planning time: secret set 2026-10-18T21:08:30Z; `Release tags` id 25358679; `DefaultProtection` id 24748651). Report any difference to the owner instead of changing it.",
+          "criterionIds": [
+            "FIRST-1"
+          ],
+          "designIds": [
+            "d-first-release"
+          ],
+          "dependsOn": [],
+          "checkIds": [],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "docs/releasing.md"
+            }
+          ]
+        },
+        {
+          "id": "t09-first-release-push",
+          "title": "The single push that cuts v1.0.0",
+          "descriptionMarkdown": "Pre-approved by the owner (amendment 1); no go-ahead is needed for the push. If the `## [1.0.0]` date is not today, re-date it in a new commit (`docs(changelog): …`; never amend checkpointed commits). `git fetch origin`; confirm `git merge-base --is-ancestor origin/master HEAD` (else stop and ask); `git rebase origin/master`; `git push --force-with-lease origin master`. Watch the Release-plz and Quality runs of the push (Quality: only the light jobs run) (`gh run list --branch master`, `gh run watch`). If Release-plz fails at checkout or push, read the failing step: an authentication or 403/404 error means the shared PAT lacks access to RayX.SignalR, so report it to the owner (fix: add the repository to the PAT) and re-run (`gh run rerun <id>`) only after the owner confirms the fix; never retry blindly. A red Quality job goes through the repair loop with its narrowest selector. Verify FIRST-2 with `git ls-remote --tags origin v1.0.0`, `gh release view v1.0.0 --repo rayx-ui/RayX.SignalR --json tagName,isDraft,isPrerelease,body,targetCommitish`, `gh release list` (Latest), `gh pr list --repo rayx-ui/RayX.SignalR` and `gh run list` (Quality green, no End-to-end or Performance run for the push). Other repairs on GitHub (Release notes, a stray release PR, the by-hand fallback) only with the owner's go-ahead; record deviations.",
+          "criterionIds": [
+            "FIRST-2"
+          ],
+          "designIds": [
+            "d-first-release",
+            "d-release-plz-config",
+            "d-release-workflow"
+          ],
+          "dependsOn": [
+            "t08-owner-prerequisites"
+          ],
+          "checkIds": [],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": ".github/workflows/release-plz.yml"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "CHANGELOG.md"
+            },
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "docs/releasing.md"
+            }
+          ]
+        },
+        {
+          "id": "t10-consumer-resolves-tag",
+          "title": "A scratch consumer resolves tag v1.0.0",
+          "descriptionMarkdown": "In a new directory under the system temporary directory (outside every repository), create a library crate with an empty `[workspace]`, `rayx-signalr = { git = \"https://github.com/rayx-ui/RayX.SignalR\", tag = \"v1.0.0\" }` and a `lib.rs` that names `rayx_signalr::SignalRClient`. Run `cargo generate-lockfile` and `cargo check`; compare the lockfile's `source` and `version` with `git rev-parse v1.0.0^{commit}` per FIRST-3 and record the output. Delete the scratch directory afterwards.",
+          "criterionIds": [
+            "FIRST-3"
+          ],
+          "designIds": [
+            "d-first-release",
+            "d-consume-by-tag-docs"
+          ],
+          "dependsOn": [
+            "t09-first-release-push"
+          ],
+          "checkIds": [],
+          "sourceRefs": [
+            {
+              "repositoryId": "rayx-signalr",
+              "path": "README.md"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
