@@ -1,0 +1,73 @@
+# release-plz: keeps a release pull request with the version bump and the CHANGELOG.md section
+# open on `master`; merging it tags `vX.Y.Z` and creates the GitHub Release with that section as
+# its notes. Releases are git tags only: nothing goes to crates.io or any other registry.
+# See docs/releasing.md.
+
+[workspace]
+# Versions come from git tags; nothing goes to a registry (`publish = false` in Cargo.toml too).
+git_only = true
+publish = false
+git_tag_enable = true
+git_tag_name = "v{{ version }}"
+# release-plz creates the GitHub Release from the new CHANGELOG.md section (there is no dist).
+git_release_enable = true
+changelog_update = true
+# The CI guard that skips the heavy jobs on release pull requests keys on this prefix.
+pr_branch_prefix = "release-plz-"
+# 1.x policy: no release leaves 1.x while the owner is the only consumer. An API break that
+# cargo-semver-checks found would force a major bump, so the check stays off.
+semver_check = false
+# Only changes that reach users start a release; docs, tests, CI and agentx commits ride along in
+# the next one. Never write `!` or a `BREAKING CHANGE:` footer (1.x policy): a breaking change is a
+# `feat` (or a `fix`) whose body states the break, with consumer notes in a `Migration:` footer.
+release_commits = "^(feat|fix|perf)"
+
+[[package]]
+name = "rayx-signalr"
+
+[changelog]
+header = """# Changelog
+
+All notable changes to `rayx-signalr` are documented in this file. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html). It is generated from
+Conventional Commits by release-plz.
+
+"""
+# Each `Migration:` footer of a commit is listed under that commit's line.
+body = """
+## [{{ version }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | upper_first }}
+{% for commit in commits %}
+{%- if commit.scope -%}
+- *({{ commit.scope }})* {% if commit.breaking %}[**breaking**] {% endif %}{{ commit.message }}
+{% else -%}
+- {% if commit.breaking %}[**breaking**] {% endif %}{{ commit.message }}
+{% endif -%}
+{%- for footer in commit.footers -%}
+{%- if footer.token == "Migration" %}  - Migration: {{ footer.value }}
+{% endif -%}
+{%- endfor -%}
+{% endfor -%}
+{% endfor %}
+"""
+trim = true
+protect_breaking_commits = true
+tag_pattern = "v[0-9].*"
+sort_commits = "oldest"
+commit_parsers = [
+  # Housekeeping that is not a change to rayx-signalr.
+  { message = "^chore\\(agentx\\)", skip = true },
+  { message = "^docs\\(agentx\\)", skip = true },
+  { message = "^chore\\(release\\)", skip = true },
+  { message = "^chore\\(deps\\)", skip = true },
+  { message = "^feat", group = "Features" },
+  { message = "^fix", group = "Fixes" },
+  { message = "^perf", group = "Performance" },
+  { message = "^refactor", group = "Refactoring" },
+  { message = "^docs", group = "Documentation" },
+  { message = "^(ci|build)", group = "Build and CI" },
+  { message = "^test", group = "Tests" },
+  { message = "^chore", group = "Maintenance" },
+]

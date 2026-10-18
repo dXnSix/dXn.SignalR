@@ -1,0 +1,66 @@
+name: Release-plz
+
+# Runs on pushes to `master` and on demand. It runs no tests (Quality's light jobs check every push
+# to `master`) and needs only Rust. `release` tags `vX.Y.Z` and creates the GitHub Release when the
+# version in Cargo.toml has no tag yet (the merged release pull request, or the first release);
+# `release-pr` then opens or updates the next release pull request. See docs/releasing.md.
+#
+# RELEASE_PLZ_TOKEN is a fine-grained personal access token (see docs/releasing.md). Events made with
+# the default GITHUB_TOKEN start no workflows, so with it the release pull request would get no
+# checks and nothing downstream would see the pushed tag.
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: release-plz / release
+    if: github.repository == 'rayx-ui/RayX.SignalR'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: release-plz-release-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PLZ_TOKEN }}
+      - name: Install pinned Rust
+        run: rustup toolchain install 1.92.0 --profile minimal
+      - uses: release-plz/action@v0.5
+        with:
+          command: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN }}
+
+  release-pr:
+    name: release-plz / release-pr
+    if: github.repository == 'rayx-ui/RayX.SignalR'
+    # The release pull request is computed only after `release` has tagged, so it always starts
+    # from the newest tag.
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    concurrency:
+      group: release-plz-pr-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PLZ_TOKEN }}
+      - name: Install pinned Rust
+        run: rustup toolchain install 1.92.0 --profile minimal
+      - uses: release-plz/action@v0.5
+        with:
+          command: release-pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN }}
