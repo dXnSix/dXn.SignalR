@@ -1,7 +1,7 @@
 {
   "schemaVersion": 7,
   "epicId": "signalr-releases",
-  "revision": 12,
+  "revision": 25,
   "planRevision": 5,
   "specHashes": {
     "requirements": "791664387286c23fc630160cf672600a96091122a59c4f426278071624950a2c",
@@ -34,19 +34,34 @@
       ]
     },
     "t05-version-changelog": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "local_signalr_releases"
+      ]
     },
     "t06-consumption-docs": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "local_signalr_releases"
+      ]
     },
     "t07-release-docs": {
-      "status": "pending"
+      "status": "done",
+      "workerIds": [
+        "local_signalr_releases"
+      ]
     },
     "t08-owner-prerequisites": {
-      "status": "pending"
+      "status": "implemented",
+      "workerIds": [
+        "local_signalr_releases"
+      ]
     },
     "t09-first-release-push": {
-      "status": "pending"
+      "status": "in_progress",
+      "workerIds": [
+        "local_signalr_releases"
+      ]
     },
     "t10-consumer-resolves-tag": {
       "status": "pending"
@@ -61,6 +76,24 @@
         }
       },
       "recordedAt": "2026-10-18T22:01:32Z"
+    },
+    "30cbe6a083e50c66c0e8851fe9576b5dbbc975d283c6a44f1e0ed3e25970ed9a": {
+      "snapshot": {
+        "specHash": "a75603b416d7d97e0bc72931d9da191cfc3ebb1db1b603170bcce9a9b0b304ef",
+        "repositories": {
+          "rayx-signalr": "6e42e698e26bd68060b72f24d73d7bf456ceffa33f95da50b289cb3b17616222"
+        }
+      },
+      "recordedAt": "2026-10-18T22:07:07Z"
+    },
+    "898bfd4b7ef0033ac63170f8565537263c5219d70452e5fc1f2260aaa075b1d4": {
+      "snapshot": {
+        "specHash": "a75603b416d7d97e0bc72931d9da191cfc3ebb1db1b603170bcce9a9b0b304ef",
+        "repositories": {
+          "rayx-signalr": "f6fe2d43b0a3ac4f6929c021b1e5cd600327a36a78f69fb0b47dfcbf33f20e23"
+        }
+      },
+      "recordedAt": "2026-10-18T22:09:30Z"
     }
   },
   "checkResults": {
@@ -114,6 +147,57 @@
       "logPath": "artifacts-temp/agentx/signalr-releases/s1-release-automation-final-b71c4c8e9015.log",
       "logSha256": "b5ef34948d119b8c9a2a83ea3fa7be28686336c326ed4fa8cbd531bc51a84a27",
       "inputsHash": "f69a4b241cc5e74bf23b71e03cdd99b3a513ccb726acf5baa5fa4f43056f18d5"
+    },
+    "s2-version-and-docs/check-release-consumption/final": {
+      "checkId": "check-release-consumption",
+      "boundaryId": "s2-version-and-docs",
+      "phase": "final",
+      "batchId": "898bfd4b7ef0033ac63170f8565537263c5219d70452e5fc1f2260aaa075b1d4",
+      "definitionHash": "8e98a55e50a607156354958b1c3ac7223356eba29c8a33f85295d7ec10536e97",
+      "basisHash": "179cdb690449dcd29664f7325e6fbda3611c22aa785f7cae9c5436ffa38e6db0",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 3,
+      "durationSeconds": 1.6939,
+      "recordedAt": "2026-10-18T22:09:29Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/signalr-releases/s2-version-and-docs-final-447c1a0a4469.log",
+      "logSha256": "5bb3160d1c97611e77286bcd515ee1be1eeb4db46b9e236b0ddf2352cc81d484",
+      "inputsHash": "99f2952e8915d51696b23a85ce5a657046f923b4c20f249eb52d53913865d669"
+    },
+    "s2-version-and-docs/check-docs-contract/final": {
+      "checkId": "check-docs-contract",
+      "boundaryId": "s2-version-and-docs",
+      "phase": "final",
+      "batchId": "898bfd4b7ef0033ac63170f8565537263c5219d70452e5fc1f2260aaa075b1d4",
+      "definitionHash": "62da19131b484e2a9b5d43c0180ad45c35ca9c39046694f87d1ada73305637d3",
+      "basisHash": "a3a0f1e47fbfb1c7e05f93053753e0478c20f6f9a9c0376796f1d74a088ee28e",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 1,
+      "durationSeconds": 1.4787,
+      "recordedAt": "2026-10-18T22:09:30Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/signalr-releases/s2-version-and-docs-final-dd607b7f6194.log",
+      "logSha256": "28c70cd9b2a06f2aa22ee3733555619460471f81d2c7b663dd915607411461c1",
+      "inputsHash": "92e83938ab103c73397d37f137561e1c1e299a27a1e707908300803d232508a0"
+    },
+    "s2-version-and-docs/check-user-agent-version/final": {
+      "checkId": "check-user-agent-version",
+      "boundaryId": "s2-version-and-docs",
+      "phase": "final",
+      "batchId": "30cbe6a083e50c66c0e8851fe9576b5dbbc975d283c6a44f1e0ed3e25970ed9a",
+      "definitionHash": "014cc27087f54b68778f1c3d2ce0c850e5330777e9beded0983a6431ac6222f9",
+      "basisHash": "4faebc8981f5032f56d1850317e5c9355af304f71cbfb9cf2fde5f47dcd29267",
+      "status": "passed",
+      "exitCode": 0,
+      "testCount": 1,
+      "durationSeconds": 12.0041,
+      "recordedAt": "2026-10-18T22:07:07Z",
+      "messageMarkdown": "Expectation matched",
+      "logPath": "artifacts-temp/agentx/signalr-releases/s2-version-and-docs-final-3ebbea8d2e49.log",
+      "logSha256": "89cc71daebe9bee9a9965ac8144c34c9d5bb2a2687676edaabd7730432682c51",
+      "inputsHash": "9956d9bb44859b98182cad7f9e7c3d570a8f66805ffccf009362c9c031a635e9"
     }
   },
   "reviews": {
@@ -200,6 +284,222 @@
       "summaryMarkdown": "Passed. `release-plz.toml` matches RPZ-1 key for key (diffed against RayX.CLI: only the git_release_enable, pr_branch_prefix, semver_check, 1.x comments, Migration footer loop and docs(agentx) skip differ, all as specified). `release-plz.yml` matches WF-1 (top-level contents: read, job-level grants, repo guard, needs: release, PAT checkout, rustup 1.92.0 minimal, release-plz/action@v0.5, no `publish` anywhere in .github). GitHub semantics of the job `if:` guards are correct: on push/dispatch `github.head_ref` is '' so the release-PR clause is true and only the `event_name != 'push'` clause skips the nine heavy Quality jobs; on a same-repo `release-plz-*` PR only rustfmt/clippy have no guard; fork branches are unaffected; `soak` is untouched; no job `needs` a guarded job. Contracts are non-trivial: exact trigger blocks per workflow, exact `if:` line per job id (and none on rustfmt/clippy), prefix agreement with `pr_branch_prefix`, the regex executed from the file against all 14 RPZ-1 samples, and the WorkflowContract exceptions confined to release-plz.yml while e2e/quality/perf keep every prior least-privilege assertion (e2e/perf still forbid push). RPZ-2: handoff and rpz-logs match; scratch clone shows only Cargo.toml/CHANGELOG.md modified with an ignored Cargo.lock; I independently re-ran case 4b (docs: y, docs(agentx): q, feat(client) with a break body and `Migration:` footer) with release-plz 0.3.172 under the repo's 1.92.0 toolchain: 1.0.0 -> 1.1.0, docs line listed, agentx skipped, indented `- Migration:` line rendered, header once. Not provable locally (owned by s3): the live GitHub run, PAT scope and org action allowance. Note for the owner (by design, not a defect): since implementation is pushed directly to master and the only PRs are release PRs, the heavy Quality/E2E jobs and `quality / contracts` (including s2's release-consumption 1.x check) will in practice not run in CI; the 1.x check on a release PR stays a manual step.",
       "findingIds": [],
       "recordedAt": "2026-10-18T22:04:12Z"
+    },
+    "s2-version-and-docs": {
+      "reviewerId": "reviewer-s2-signalr-releases",
+      "snapshotId": "898bfd4b7ef0033ac63170f8565537263c5219d70452e5fc1f2260aaa075b1d4",
+      "criterionIds": [
+        "VER-1",
+        "VER-2",
+        "DOC-1",
+        "DOC-2",
+        "DOC-3"
+      ],
+      "verdict": "passed",
+      "anchors": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "Cargo.toml",
+          "kind": "source",
+          "criterionIds": [
+            "VER-1"
+          ],
+          "sha256": "e56292092fe27bf67e1ddb385c544049cbb2d21728a4fa38630cf3c7e8a85b96"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "CHANGELOG.md",
+          "kind": "source",
+          "criterionIds": [
+            "VER-1",
+            "VER-2"
+          ],
+          "sha256": "c22b22f03de1fa5a05a4455cbeed8047d0ec7d3958c846dbc992494745e28309"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "release-plz.toml",
+          "kind": "source",
+          "criterionIds": [
+            "VER-1",
+            "DOC-2"
+          ],
+          "sha256": "64c63caab2ce0a40da0b14ed1324ca8c146a9b8bdc3976f0a2b1f06152858940"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "src/communication/headers.rs",
+          "kind": "test",
+          "criterionIds": [
+            "VER-1"
+          ],
+          "sha256": "910223458d5a80afb232b42dd75e061d2dee8c6d37417cf861bbebb702c76e6f"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/ReleaseConsumptionTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "VER-1",
+            "DOC-1"
+          ],
+          "sha256": "44729e8cdb9090057c032fe44bc0a2e789131faf978f3a0c8062c55215dc0f51"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/RepositoryTests.cs",
+          "kind": "test",
+          "criterionIds": [
+            "DOC-1"
+          ],
+          "sha256": "8b18e91e5ae43123e6c64fd4f7a8bcc55a1c0b0fc27d75330c06f8f50889983a"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "README.md",
+          "kind": "source",
+          "criterionIds": [
+            "VER-2",
+            "DOC-1"
+          ],
+          "sha256": "ef0e3ed2e90c8a1b5e9554ef22f6dd568399579b44fd1d84363645f3a0a08520"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/01-getting-started.md",
+          "kind": "source",
+          "criterionIds": [
+            "DOC-1"
+          ],
+          "sha256": "841254edc7742146b6903ce625e5b46387725ba03df2f822c3f6c7738d45fef0"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/08-tls.md",
+          "kind": "source",
+          "criterionIds": [
+            "DOC-1"
+          ],
+          "sha256": "0caba5212c1d72048f1bd4b80a4bdc277a0accb7608343e1fb98bf7dbdeb82e2"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/SKILL.md",
+          "kind": "source",
+          "criterionIds": [
+            "DOC-1"
+          ],
+          "sha256": "f27f90521d49cb9ee50c151124671af3eba2549412702d097658770e460236e8"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/setup-and-connection.md",
+          "kind": "source",
+          "criterionIds": [
+            "DOC-1"
+          ],
+          "sha256": "10d6543f4f0c5c5bfdabcd691d5184a0952dfdbb2d21981ee96f7b61785824bc"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/tls.md",
+          "kind": "source",
+          "criterionIds": [
+            "DOC-1"
+          ],
+          "sha256": "40cc2c10922094e597052d2ce295c3f4e0fe551ea701cb71b728ae464d3a2e32"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/releasing.md",
+          "kind": "source",
+          "criterionIds": [
+            "DOC-1",
+            "DOC-2"
+          ],
+          "sha256": "8ae2eab83bd4e306cd7b54364f54f89fdbfc2b1ef9408358409eaae90cf46ef1"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/README.md",
+          "kind": "source",
+          "criterionIds": [
+            "DOC-2"
+          ],
+          "sha256": "00577fd41e725d97fba8a4bc7a50f6e7ab1e254363c44db28d5ca38fc10e346e"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/release-plz.yml",
+          "kind": "source",
+          "criterionIds": [
+            "DOC-2",
+            "DOC-3"
+          ],
+          "sha256": "9e42c628a0d15db82e75f92fa78009c05cdbc8b2dd13690169656f32a0ac47d5"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/quality.yml",
+          "kind": "source",
+          "criterionIds": [
+            "DOC-2",
+            "DOC-3"
+          ],
+          "sha256": "767b246067d31283794a435e8fb541b647967b447115e452e22b2243bd1e8708"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".github/workflows/e2e.yml",
+          "kind": "source",
+          "criterionIds": [
+            "DOC-2",
+            "DOC-3"
+          ],
+          "sha256": "dfeb6ba022bf8fd7fa677a5fa9c5ced8c7b9e113af056a8b6acc16d3294ac235"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "docs/14-testing.md",
+          "kind": "source",
+          "criterionIds": [
+            "DOC-3"
+          ],
+          "sha256": "7ec10d00aa4bf8d4e08b8970ec22f6933bd6d3817fe6409d300fb36020214953"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "CLAUDE.md",
+          "kind": "source",
+          "criterionIds": [
+            "DOC-3"
+          ],
+          "sha256": "881f22f4240e556c9b882229be98bcc02e10fc0ecad67bc1521ba9a42b76c582"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "AGENTS.md",
+          "kind": "source",
+          "criterionIds": [
+            "DOC-3"
+          ],
+          "sha256": "881f22f4240e556c9b882229be98bcc02e10fc0ecad67bc1521ba9a42b76c582"
+        },
+        {
+          "repositoryId": "rayx-signalr",
+          "path": ".claude/skills/rayx-signalr/references/maintaining.md",
+          "kind": "source",
+          "criterionIds": [
+            "DOC-3"
+          ],
+          "sha256": "bd7eac363ab426efcf70367dc288e5cc1a97eb145aeb14ea4871c2c793854d14"
+        }
+      ],
+      "summaryMarkdown": "Version bump is the only manifest change; the CHANGELOG header equals the release-plz.toml header and every 1.0.0 statement is backed by README Highlights/feature table and docs (02 proxies/PAC, 03 client-to-server streams, 11 ErrorKind), with no fabricated history. All 10 consumer snippets use the tag form and the contract covers them. docs/releasing.md, docs/14-testing.md, CLAUDE.md/AGENTS.md (byte-identical) match release-plz.toml, release-plz.yml, quality.yml and e2e.yml triggers and guards and the t04 Cargo.lock preview. The one finding (1.x assertion message lacked the docs/releasing.md pointer) is repaired and verified.",
+      "findingIds": [
+        "s2-ver1-policy-assertion-message"
+      ],
+      "recordedAt": "2026-10-18T22:09:52Z"
     }
   },
   "checkpoints": {
@@ -210,10 +510,36 @@
       },
       "reviewHash": "558560faabd1fd36b86f1197d3b437ab930e691c1c44e37fade6e73ae59534d6",
       "recordedAt": "2026-10-18T22:04:31Z"
+    },
+    "s2-version-and-docs": {
+      "snapshotId": "898bfd4b7ef0033ac63170f8565537263c5219d70452e5fc1f2260aaa075b1d4",
+      "commits": {
+        "rayx-signalr": "107a07b0ddb77a7d0d58307da9b6ab4699e304f4"
+      },
+      "reviewHash": "811c8b2e6b934380779db87ccbd568dbf26e01530d69fbdd4a3a14c723dd1f63",
+      "recordedAt": "2026-10-18T22:10:08Z"
     }
   },
-  "findings": [],
-  "handoffMarkdown": "RPZ-2 local preview, release-plz 0.3.172 (latest; built with Rust 1.99.0 outside the repo because its deps need rustc >= 1.97). Scratch clone artifacts-temp/agentx/signalr-releases/scratch with this release-plz.toml, version 1.0.0, configured header + `## [1.0.0]`, tagged v1.0.0 locally, origin URL set but never pushed; `release-plz update --config release-plz.toml`, `git reset --hard v1.0.0` between cases; logs in artifacts-temp/agentx/signalr-releases/rpz-logs/. (1) config accepted, pr_branch_prefix included, no unknown-key warning (only \"no upstream\" warnings). Note: commits must touch package files (empty commits are ignored by release-plz). (2) docs: x, docs(agentx): x, test(e2e): x -> \"no commit matches the release_commits regex\", no file changed. (3) docs: y, docs(agentx): q, fix(client): x -> 1.0.1; `## [1.0.1] - <date>` inserted between the single header and `## [1.0.0]`; Documentation \"- y\" listed, docs(agentx) absent; Fixes \"- *(client)* x\". (4a) feat(client): x -> 1.1.0. (4b) fix(client): y + feat(client) whose body states a removed builder option and ends with `Migration: call ...` + docs: z -> 1.1.0; Features line followed by indented \"  - Migration: call `with_handshake_timeout` instead of `with_timeout`.\". (5) fix(client) removing `pub use communication::cookies::CookieJar` from src/lib.rs -> 1.0.1 (no semver check run). (6) Cargo.lock absent at start and git-ignored: release-plz succeeds, creates an ignored Cargo.lock, `git status --porcelain` lists only Cargo.toml and CHANGELOG.md, so Cargo.lock stays ignored. Changelog dates are UTC (release-plz timestamp).",
+  "findings": [
+    {
+      "id": "s2-ver1-policy-assertion-message",
+      "boundaryId": "s2-version-and-docs",
+      "criterionIds": [
+        "VER-1"
+      ],
+      "severity": "minor",
+      "status": "resolved",
+      "descriptionMarkdown": "Resolved: the 1.x assertion message in `ReleaseConsumptionTests.ManifestVersionStaysOnOneXWithADatedChangelogSection` now ends with \"When the 1.x policy ends (a second consumer), change this assertion together with docs/releasing.md.\", as VER-1 requires; the assertion logic is unchanged.",
+      "regressionRefs": [
+        {
+          "repositoryId": "rayx-signalr",
+          "path": "dotnet/RayX.SignalR.E2E.Tests/src/Contracts/ReleaseConsumptionTests.cs",
+          "symbol": "ManifestVersionStaysOnOneXWithADatedChangelogSection"
+        }
+      ]
+    }
+  ],
+  "handoffMarkdown": "FIRST-1 verified 2026-10-19 (read-only; nothing created or changed). `gh secret list --repo rayx-ui/RayX.SignalR`: RELEASE_PLZ_TOKEN updated 2026-10-18T21:08:30Z (name only). `gh api repos/rayx-ui/RayX.SignalR/rulesets`: 24748651 DefaultProtection (branch, active), 25358679 Release tags (tag, active). Release tags: include refs/tags/v*, rules update, deletion, non_fast_forward, no creation rule, bypass_actors [] (current_user_can_bypass never). DefaultProtection: ~DEFAULT_BRANCH, rules deletion, non_fast_forward, bypass actor User 226146274 (= dXnSix, `gh api user`) mode always. Raw output in artifacts-temp/agentx/signalr-releases/gh-*.",
   "protectedPaths": {
     "rayx-signalr": {
       ".agentx/tasks/resilient-reconnect-and-production-gates/**": "9240626eb041360324e8c0773f4ea10eb17c86effa72b065450cc00b3d6247bb",
