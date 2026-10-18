@@ -317,8 +317,8 @@ dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=DependencySecurity
 
 | Category | Proves |
 |---|---|
-| `WorkflowContract` | The GitHub Actions workflows keep their governance (check names, permissions, failure uploads) and run service tests only through Aspire. |
-| `Repository` | No test scripts, no test hooks in library code, no fixed ports, and the documentation describes the test workflow. |
+| `WorkflowContract` | The GitHub Actions workflows keep their governance (check names, permissions, failure uploads) and run service tests only through Aspire; the release workflow, the triggers of every workflow and the release pull request guards (`Case=release-automation`). |
+| `Repository` | No test scripts, no test hooks in library code, no fixed ports, and the documentation describes the test workflow; the release-plz configuration (`Case=release-automation`), the 1.x version with its changelog section, and tag-form install snippets (`Case=release-consumption`). |
 | `Catalog` | Cell selection works, every cataloged scenario is implemented where claimed, and the mobile runners select devices and rewrite endpoints correctly. |
 | `Toolchain` | The AppHost provisions the fixture's exact wasm-bindgen CLI. |
 | `Platform` | Manifest hygiene, the per-target TLS graph and Android build, WASM target gating, the event-driven browser transport, and the threaded browser build. |
@@ -329,11 +329,25 @@ CI runs every category except `Orchestration`.
 
 ## CI checks
 
-The least-privilege workflows (`contents: read`, no secrets) run on pull requests to `master` only.
-A merge to `master` triggers nothing, so nothing a pull request already proved runs twice, and
-nothing runs on a schedule. The end-to-end workflow can also be started manually. They
-cancel superseded pull-request runs and upload bounded, redacted diagnostics only after failures.
-The performance workflow (`perf.yml`) runs on demand only.
+The least-privilege test workflows (`contents: read`, no secrets) cancel superseded runs and
+upload bounded, redacted diagnostics only after failures. Nothing runs on a schedule.
+
+- **Quality** (`quality.yml`) runs every job on pull requests to `master`. Implementation is pushed
+  straight to `master`, and a push runs only `quality / rustfmt`, `quality / clippy` and
+  `quality / unit-contract (<protocol>)`; every other Quality job is skipped on a push.
+- **End-to-end** (`e2e.yml`) runs on pull requests to `master` and when started manually; never on
+  a push.
+- **Performance** (`perf.yml`) runs on demand only.
+- **Release-plz** (`release-plz.yml`) also runs on pushes to `master` and runs no tests:
+  `release-plz / release` tags a new version and creates its GitHub Release, and
+  `release-plz / release-pr` opens or updates the release pull request. It is the only workflow
+  with write permissions and a secret (`RELEASE_PLZ_TOKEN`); see [Releasing](releasing.md).
+- A **release pull request** (a same-repository `release-plz-*` branch) changes only `Cargo.toml`
+  and `CHANGELOG.md`, so it runs only `quality / rustfmt` and `quality / clippy`; every other
+  Quality job and every End-to-end job is skipped by a job-level condition.
+
+Pushes that only change the AgentX epic state and memory (`.agentx/**`) start no Quality or
+End-to-end run.
 
 Quality checks:
 

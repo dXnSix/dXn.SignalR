@@ -45,6 +45,8 @@ requirements, and the ASP.NET Core server setup that goes with them.
     and the lifecycle state machine.
 14. [Testing and CI](14-testing.md): the Aspire test graph, end-to-end cells, static contract
     categories, and the CI checks.
+15. [Releasing](releasing.md): release tags, release-plz and the release pull request, the 1.x
+    policy, the release token, and the by-hand fallback.
 
 ## Conventions
 

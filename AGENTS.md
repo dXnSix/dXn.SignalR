@@ -9,8 +9,9 @@ The [documentation](docs/README.md) is the long-form reference.
 ## Repository Layout
 
 - One crate at the root: package `rayx-signalr`, Rust name `rayx_signalr`, library type `rlib`,
-  `publish = false` until a registry and release policy exist. `build.rs` derives the `rayx_tls`
-  cfg from the TLS features; keep it.
+  `publish = false` because releases are git tags `vX.Y.Z`, never a registry
+  ([docs/releasing.md](docs/releasing.md)). `build.rs` derives the `rayx_tls` cfg from the TLS
+  features; keep it.
 - `src/` is the library. Target splits use `cfg(target_arch = "wasm32")`; the only supported wasm
   target is `wasm32-unknown-unknown`, and other wasm32 targets fail to compile on purpose.
 - `tests/public_connection_configuration.rs` is a service-free public API test. `tests/e2e/` holds
@@ -82,10 +83,28 @@ RAYX_SIGNALR_E2E_TARGETS=chromium,firefox,webkit RAYX_SIGNALR_E2E_SCENARIOS=<sce
 
 ## Consumers
 
-RayX (`../RayX`) depends on the crate by path (`rayx-signalr = { path = "../RayX.SignalR" }`) and
-wraps it in `rayx_devkit::SignalRService`. RayX.GameX (`../RayX.GameX`) depends on it by path with
-`messagepack` and checks out this repository in its CI. A change to an API they use needs the
-matching consumer change; keep the commits paired and validate the consumers' affected crates.
+Consumers pin a release tag (`rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR",
+tag = "vX.Y.Z" }`). RayX (`../RayX`) wraps the crate in `rayx_devkit::SignalRService`; it moves from
+its untagged git dependency to a release tag in its own epic. RayX.GameX (`../RayX.GameX`) depends
+on it by path with `messagepack` and checks out this repository in its CI. A change to an API they
+use needs the matching consumer change: release this library first, then bump the consumer's tag,
+and validate the consumers' affected crates.
+
+## Releases
+
+- Conventional Commits drive the version through release-plz: `fix`/`perf` bump the patch, `feat`
+  the minor. Test- or CI-only fixes are `test`/`ci` commits, never `fix`.
+- 1.x policy: never write `!` or a `BREAKING CHANGE:` footer. A breaking change is a `feat` (or
+  `fix`) whose body states the break, with consumer notes in a `Migration:` footer. The policy ends
+  when a second consumer appears.
+- A release is merging release-plz's release pull request, with the owner's go-ahead, after
+  checking that the proposed version is still `1.x`, that it changes only `Cargo.toml` and
+  `CHANGELOG.md`, and that `quality / rustfmt` and `quality / clippy` are green. The merge tags
+  `vX.Y.Z` and creates the GitHub Release.
+- Push implementation straight to `master`, never through feature branches or pull requests:
+  `git fetch origin && git rebase origin/master && git push --force-with-lease origin master`.
+- [docs/releasing.md](docs/releasing.md) has the details, the release token and the by-hand
+  fallback.
 
 ## Commits
 
