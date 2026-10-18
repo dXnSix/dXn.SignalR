@@ -1,7 +1,7 @@
 {
   "schemaVersion": 7,
   "epicId": "signalr-releases",
-  "revision": 25,
+  "revision": 26,
   "planRevision": 5,
   "specHashes": {
     "requirements": "791664387286c23fc630160cf672600a96091122a59c4f426278071624950a2c",
@@ -58,10 +58,11 @@
       ]
     },
     "t09-first-release-push": {
-      "status": "in_progress",
+      "status": "blocked",
       "workerIds": [
         "local_signalr_releases"
-      ]
+      ],
+      "blockerMarkdown": "Pushed 4e4645c to master (1a546f9..4e4645c, --force-with-lease after fetch/ancestor check/no-op rebase). Release-plz run 39171188847 failed: `release-plz / release` checkout OK, then `failed to create tag v1.0.0` with HTTP 403 \"Resource not accessible by personal access token\" on POST /repos/rayx-ui/RayX.SignalR/git/tags; `release-pr` skipped (needs: release). No tag, no Release, no PR. The shared RELEASE_PLZ_TOKEN PAT lacks Contents write on RayX.SignalR (checkout worked because the repo is public). Owner fix: add RayX.SignalR to the PAT repository access (Contents + Pull requests read/write). Then rerun only after the owner confirms: `gh run rerun 39171188847 --repo rayx-ui/RayX.SignalR` (same commit). Quality run 39171188841 for the push: success; rustfmt, clippy, unit-contract (JSON), unit-contract (MessagePack) green, every other job skipped; no End-to-end/Performance run started."
     },
     "t10-consumer-resolves-tag": {
       "status": "pending"
