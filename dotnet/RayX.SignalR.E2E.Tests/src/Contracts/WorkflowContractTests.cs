@@ -20,6 +20,12 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
     "reactivecircus/android-emulator-runner@v2"
   ];
 
+  /// <summary>The one workflow that may write: it tags releases and opens release pull requests.</summary>
+  const string _releaseWorkflow = "release-plz.yml";
+
+  /// <summary>The action only the release workflow may use.</summary>
+  const string _releaseAction = "release-plz/action@v0.5";
+
   Dictionary<string, string> Workflows()
   {
     string directory = Path.Combine(environment.RepositoryRoot, ".github", "workflows");
@@ -30,7 +36,7 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
                                              path => Path.GetFileName(path),
                                              File.ReadAllText,
                                              StringComparer.Ordinal);
-    Assert.Equal(["e2e.yml", "perf.yml", "quality.yml"], workflows.Keys.Order(StringComparer.Ordinal));
+    Assert.Equal(["e2e.yml", "perf.yml", "quality.yml", "release-plz.yml"], workflows.Keys.Order(StringComparer.Ordinal));
     return workflows;
   }
 
@@ -41,31 +47,67 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
     foreach((string name, string workflow) in Workflows())
     {
       // Nothing runs on a schedule (the user's decision, 2026-10-09). The performance comparison
-      // runs only on demand; every other workflow gates pull requests.
+      // runs only on demand; End-to-end gates pull requests; Quality gates pull requests and checks
+      // every push to master with its light jobs; Release-plz runs on pushes to master (2026-10-18).
       AssertNotMatches(name, workflow, @"(?m)^\s+schedule:");
       if(name == "perf.yml")
       {
         AssertMatches(name, workflow, @"(?ms)^on:\s*.*?workflow_dispatch:");
         AssertNotMatches(name, workflow, @"(?m)^\s+(pull_request|push):");
       }
+      else if(name == _releaseWorkflow)
+      {
+        AssertNotMatches(name, workflow, @"(?m)^\s+pull_request:");
+      }
       else
       {
         AssertMatches(name, workflow, @"(?ms)^on:\s*.*?pull_request:");
-        // Pull requests only: a merge to master would re-run what the pull request proved.
+      }
+
+      if(name is "quality.yml" or _releaseWorkflow)
+      {
+        // Only master, and the master push of Quality runs only its light jobs.
+        AssertMatches(name, workflow, @"(?m)^  push:\r?\n    branches: \[master\]\s*$");
+        AssertNotMatches(name, workflow, @"(?m)^\s+branches: \[(?!master\]).*$");
+      }
+      else
+      {
         AssertNotMatches(name, workflow, @"(?m)^\s+push:");
       }
+
       AssertMatches(name, workflow, @"(?m)^permissions:\s*\r?\n\s+contents:\s*read\s*$");
-      AssertMatches(name, workflow, @"(?ms)^concurrency:\s*.*?cancel-in-progress:\s*true");
-      AssertNotMatches(name, workflow, @"(?im)^\s*[A-Za-z-]+:\s*write\s*$");
-      AssertNotMatches(name, workflow, @"\$\{\{\s*secrets\.");
       AssertNotMatches(name, workflow, @"(?i)publish|nuget\s+push|cargo\s+publish|pull_request_target");
       AssertNotMatches(name, workflow, @"(?i)webdriver|chromedriver|selenium");
       AssertNotMatches(name, workflow, @"(?i)\.ps1\b|\.sh\b|\.mjs\b|scripts/|shell:\s*pwsh");
 
       string[] actions = UsesLine().Matches(workflow).Select(match => match.Groups["action"].Value).ToArray();
-      Assert.All(actions, action => Assert.Contains(action, _allowedActions));
       int checkouts = actions.Count(action => action.StartsWith("actions/checkout@", StringComparison.Ordinal));
-      Assert.Equal(checkouts, PersistCredentialsDisabled().Count(workflow));
+      if(name == _releaseWorkflow)
+      {
+        // The release workflow writes with the RELEASE_PLZ_TOKEN PAT: job-level contents (and
+        // pull-requests for the release pull request) grants, its checkouts keep the PAT instead
+        // of disabling credentials, and it never cancels a running release.
+        Assert.Equal(
+          ["contents: write", "contents: write", "pull-requests: write"],
+          WriteGrant().Matches(workflow).Select(match => match.Value.Trim()).Order(StringComparer.Ordinal));
+        Assert.All(WriteGrant().Matches(workflow), match => Assert.StartsWith("      ", match.Value, StringComparison.Ordinal));
+        Assert.All(
+          Regex.Matches(workflow, @"\$\{\{\s*secrets\.(?<name>[A-Za-z0-9_]+)").Select(match => match.Groups["name"].Value),
+          secret => Assert.Equal("RELEASE_PLZ_TOKEN", secret));
+        Assert.All(actions, action => Assert.Contains(action, _allowedActions.Append(_releaseAction)));
+        Assert.Equal(checkouts, Regex.Count(workflow, @"(?m)^\s+token: \$\{\{ secrets\.RELEASE_PLZ_TOKEN \}\}\s*$"));
+        Assert.Equal(0, PersistCredentialsDisabled().Count(workflow));
+        AssertNotMatches(name, workflow, @"(?m)^concurrency:");
+        AssertNotMatches(name, workflow, @"cancel-in-progress:\s*true");
+      }
+      else
+      {
+        AssertMatches(name, workflow, @"(?ms)^concurrency:\s*.*?cancel-in-progress:\s*true");
+        AssertNotMatches(name, workflow, @"(?im)^\s*[A-Za-z-]+:\s*write\s*$");
+        AssertNotMatches(name, workflow, @"\$\{\{\s*secrets\.");
+        Assert.All(actions, action => Assert.Contains(action, _allowedActions));
+        Assert.Equal(checkouts, PersistCredentialsDisabled().Count(workflow));
+      }
 
       // Every upload step is a recognized, bounded upload: failure-only redacted diagnostics, or
       // the performance report (always, 30 days).
@@ -498,7 +540,7 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
   }
 
   /// <summary>Splits a workflow's <c>jobs:</c> section into job blocks by job id.</summary>
-  static Dictionary<string, string> JobBlocks(string workflow)
+  internal static Dictionary<string, string> JobBlocks(string workflow)
   {
     string jobs = workflow[(workflow.IndexOf("\njobs:", StringComparison.Ordinal) + 1)..];
     Dictionary<string, string> blocks = new(StringComparer.Ordinal);
@@ -527,6 +569,9 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
 
   [GeneratedRegex(@"(?m)^\s*-?\s*uses:\s*(?<action>\S+)")]
   private static partial Regex UsesLine();
+
+  [GeneratedRegex(@"(?im)^\s*[A-Za-z-]+:\s*write\s*$")]
+  private static partial Regex WriteGrant();
 
   [GeneratedRegex(@"(?m)^\s+persist-credentials:\s*false\s*$")]
   private static partial Regex PersistCredentialsDisabled();
