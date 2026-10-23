@@ -4,7 +4,7 @@ agentx:
   scope: interop-validation/rust-tests
   status: current
   created: "2026-10-06T21:00:00+02:00"
-  updated: "2026-10-06T21:10:00+02:00"
+  updated: 2026-10-23T22:00:00+02:00
   topics:
     - browser-testing
     - playwright
@@ -25,4 +25,4 @@ agentx:
 
 ### Supersedes: [Use repository-local Playwright for browser runtime validation](2026-08-10-interop-validation-rust-tests-use-playwright-for-browser-runtime.md) (2026-08-10).
 
-### Source anchors: [Playwright config](../../../../../tools-node/playwright.config.ts), [browser specs](../../../../../tools-node/tests), [browser cell runner](../../../../../dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/CellRunners.cs).
+### Source anchors: [Playwright config](../../../../../tools-node/playwright.config.ts), [browser specs](../../../../../tools-node/tests), [browser cell runner](../../../../../dotnet/dXn.SignalR.E2E.Tests/src/Scenarios/CellRunners.cs).

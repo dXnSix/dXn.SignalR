@@ -4,7 +4,7 @@ agentx:
   scope: repository-governance/quality-gates
   status: current
   created: "2026-10-06T21:00:00+02:00"
-  updated: "2026-10-06T21:10:00+02:00"
+  updated: 2026-10-23T22:00:00+02:00
   topics:
     - quality-gates
     - platform
@@ -24,4 +24,4 @@ agentx:
 
 ### Supersedes: None.
 
-### Source anchors: [contract tests](../../../../../dotnet/RayX.SignalR.E2E.Tests/src/Contracts), [quality workflow](../../../../../.github/workflows/quality.yml), [crate root](../../../../../src/lib.rs).
+### Source anchors: [contract tests](../../../../../dotnet/dXn.SignalR.E2E.Tests/src/Contracts), [quality workflow](../../../../../.github/workflows/quality.yml), [crate root](../../../../../src/lib.rs).

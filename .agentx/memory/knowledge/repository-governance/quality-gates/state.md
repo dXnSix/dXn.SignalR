@@ -4,7 +4,7 @@ agentx:
   scope: repository-governance/quality-gates
   status: current
   created: "2026-08-10T03:15:00+02:00"
-  updated: "2026-10-19T00:30:00+02:00"
+  updated: 2026-10-23T22:00:00+02:00
   topics:
     - github-actions
     - toolchain
@@ -24,21 +24,21 @@ Since signalr-releases (2026-10-19), implementation is pushed straight to `maste
 
 Since production-grade-client S15 (R11.C1):
 
-- `e2e.yml` sets `RAYX_SIGNALR_E2E_TRANSPORTS=all` globally. The ubuntu native and android jobs install `libmsquic` (packages.microsoft.com) for `http3`, and the android build features include `http3`.
+- `e2e.yml` sets `DXN_SIGNALR_E2E_TRANSPORTS=all` globally. The ubuntu native and android jobs install `libmsquic` (packages.microsoft.com) for `http3`, and the android build features include `http3`.
 - Added jobs:
   - `e2e / android-app` (`android-app,android-app-release`, emulator, `JAVA_HOME_17_X64`).
-  - `e2e / os-proxy (windows, macos)`: `os-proxy,error-kinds` with `RAYX_SIGNALR_E2E_ALLOW_SYSTEM_CHANGES=1`, the only job allowed to change host settings.
-  - `e2e / tls-aws-lc (native, <os>)`, `(android)` and `(ios)`: `tls,connect-negotiate,negotiate-redirect,proxy,error-kinds` with `RAYX_SIGNALR_E2E_TLS_PROVIDER=aws-lc-rs`.
+  - `e2e / os-proxy (windows, macos)`: `os-proxy,error-kinds` with `DXN_SIGNALR_E2E_ALLOW_SYSTEM_CHANGES=1`, the only job allowed to change host settings.
+  - `e2e / tls-aws-lc (native, <os>)`, `(android)` and `(ios)`: `tls,connect-negotiate,negotiate-redirect,proxy,error-kinds` with `DXN_SIGNALR_E2E_TLS_PROVIDER=aws-lc-rs`.
   - `e2e / soak`: dispatch only, `soak-chaos,error-kinds`, 900 s.
 - Every e2e job resolves to `error-kinds` cells on each of its targets; the Android test app runs it too (`APP_SCENARIOS`). `WorkflowContract` checks this through `E2ESelection.Cells`. The e2e concurrency group includes `github.event_name`, so a pull request run and a dispatch never cancel each other. The android-app job sets `JAVA_HOME=$JAVA_HOME_17_X64` inside the emulator script, because the `env` context does not see image variables.
-- `perf.yml` (`perf / compare`) runs only on dispatch, at `RAYX_SIGNALR_PERF_SCALE=full` with all workloads. It runs `Category=Performance|Category=ReferenceClientBudget`, so the R2.C4 budgets are enforced. It uploads `artifacts-temp/perf` with `if: always()` for 30 days; `WorkflowContract` exempts only it from the PR/push triggers and the failure-only upload rule.
+- `perf.yml` (`perf / compare`) runs only on dispatch, at `DXN_SIGNALR_PERF_SCALE=full` with all workloads. It runs `Category=Performance|Category=ReferenceClientBudget`, so the R2.C4 budgets are enforced. It uploads `artifacts-temp/perf` with `if: always()` for 30 days; `WorkflowContract` exempts only it from the PR/push triggers and the failure-only upload rule.
 - `WorkflowContract` has 16 tests, with per-job facts, plus the `Case=release-automation` facts (release workflow structure, every workflow's trigger block, the per-job release-PR and push conditions); `ReleaseAutomationTests` and `ReleaseConsumptionTests` add `Repository` facts for `release-plz.toml`, the 1.x version with its changelog section and tag-form install snippets.
 
 Consumers on newer toolchains (RayX.GameX pins Rust 1.99) see dead code that 1.92 does not report. The portable NTLM module is therefore built on Windows only for tests (`cfg(any(not(windows), test))`), and `integrated_auth::random` is shared with the WebSocket key.
 
 ## Backlinks
 
-- Source anchors: [quality workflow](../../../../../.github/workflows/quality.yml), [end-to-end workflow](../../../../../.github/workflows/e2e.yml), [workflow contract tests](../../../../../dotnet/RayX.SignalR.E2E.Tests/src/Contracts/WorkflowContractTests.cs), [production validation docs](../../../../../README.md).
+- Source anchors: [quality workflow](../../../../../.github/workflows/quality.yml), [end-to-end workflow](../../../../../.github/workflows/e2e.yml), [workflow contract tests](../../../../../dotnet/dXn.SignalR.E2E.Tests/src/Contracts/WorkflowContractTests.cs), [production validation docs](../../../../../README.md).
 - 2026-10-06 current [Gates as .NET test categories; browser-only WASM](../../../decisions/repository-governance/quality-gates/2026-10-06-repository-governance-quality-gates-verification-as-dotnet-categories.md).
 - 2026-10-09 superseded [Pull-request-only CI](../../../decisions/repository-governance/quality-gates/2026-10-09-repository-governance-quality-gates-pull-request-only-ci.md).
 - 2026-10-19 current [Light master CI, release workflow, release-PR guard](../../../decisions/repository-governance/quality-gates/2026-10-19-repository-governance-quality-gates-light-master-ci-and-release-workflow.md).

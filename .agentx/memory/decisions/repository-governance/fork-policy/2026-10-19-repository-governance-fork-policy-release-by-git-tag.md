@@ -4,7 +4,7 @@ agentx:
   scope: repository-governance/fork-policy
   status: current
   created: "2026-10-19T01:00:00+02:00"
-  updated: "2026-10-19T01:00:00+02:00"
+  updated: 2026-10-23T22:00:00+02:00
   topics:
     - releases
     - versioning
@@ -13,11 +13,11 @@ agentx:
   superseded_by: []
   promoted_from: signalr-releases
 ---
-# Decision: Release rayx-signalr as git tags with release-plz, from 1.0.0, staying on 1.x
+# Decision: Release dxn-signalr as git tags with release-plz, from 1.0.0, staying on 1.x
 
 ## Context
 
-The owner decided on 2026-10-18 that Gpux, RayX.Dtcg, RayX.Reactive and RayX.SignalR become independently versioned libraries, released by git tag and consumed with `{ git = "https://github.com/rayx-ui/RayX.SignalR", tag = "vX.Y.Z" }`, each starting at 1.0.0. Amendment 1 on the same day keeps every library on 1.x while the owner is its only consumer.
+The owner decided on 2026-10-18 that Gpux, dXn.Dtcg, dXn.Reactive and dXn.SignalR become independently versioned libraries, released by git tag and consumed with `{ git = "https://github.com/dXnSix/dXn.SignalR", tag = "vX.Y.Z" }`, each starting at 1.0.0. Amendment 1 on the same day keeps every library on 1.x while the owner is its only consumer.
 
 ## Alternatives considered
 
@@ -38,11 +38,11 @@ Consumers bump tags by hand; a change spanning this library and a consumer is re
 
 ## Supersedes
 
-None. Builds on 2026-10-06 [Treat RayX.SignalR as an independent library](2026-10-06-repository-governance-fork-policy-independent-library.md).
+None. Builds on 2026-10-06 [Treat dXn.SignalR as an independent library](2026-10-06-repository-governance-fork-policy-independent-library.md).
 
 ## Source anchors
 
 - [release-plz configuration](../../../../../release-plz.toml)
 - [CHANGELOG](../../../../../CHANGELOG.md)
 - [Releasing](../../../../../docs/releasing.md)
-- [release consumption contracts](../../../../../dotnet/RayX.SignalR.E2E.Tests/src/Contracts/ReleaseConsumptionTests.cs)
+- [release consumption contracts](../../../../../dotnet/dXn.SignalR.E2E.Tests/src/Contracts/ReleaseConsumptionTests.cs)

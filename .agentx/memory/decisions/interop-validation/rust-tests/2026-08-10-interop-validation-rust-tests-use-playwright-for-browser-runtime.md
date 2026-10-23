@@ -25,4 +25,4 @@ agentx:
 
 ### Supersedes: None.
 
-### Source anchors: [Playwright package](../../../../../tools-node/package.json), [Playwright tests](../../../../../tools-node/tests), [browser cell runner](../../../../../dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/CellRunners.cs), and [end-to-end workflow](../../../../../.github/workflows/e2e.yml).
+### Source anchors: [Playwright package](../../../../../tools-node/package.json), [Playwright tests](../../../../../tools-node/tests), [browser cell runner](../../../../../dotnet/dXn.SignalR.E2E.Tests/src/Scenarios/CellRunners.cs), and [end-to-end workflow](../../../../../.github/workflows/e2e.yml).

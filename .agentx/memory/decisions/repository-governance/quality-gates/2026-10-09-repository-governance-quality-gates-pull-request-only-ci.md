@@ -25,4 +25,4 @@ agentx:
 
 ### Supersedes: None.
 
-### Source anchors: [end-to-end workflow](../../../../../.github/workflows/e2e.yml), [performance workflow](../../../../../.github/workflows/perf.yml), [workflow contract](../../../../../dotnet/RayX.SignalR.E2E.Tests/src/Contracts/WorkflowContractTests.cs).
+### Source anchors: [end-to-end workflow](../../../../../.github/workflows/e2e.yml), [performance workflow](../../../../../.github/workflows/perf.yml), [workflow contract](../../../../../dotnet/dXn.SignalR.E2E.Tests/src/Contracts/WorkflowContractTests.cs).

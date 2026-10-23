@@ -4,7 +4,7 @@ agentx:
   scope: repository-governance/agent-memory
   status: current
   created: "2026-09-06T01:49:01+02:00"
-  updated: "2026-10-06T21:10:00+02:00"
+  updated: 2026-10-23T22:00:00+02:00
   topics:
     - instruction-routing
     - memory-retrieval
@@ -39,4 +39,4 @@ None. The existing repository taxonomy and fork-policy decisions remain in force
 ## Source anchors
 
 - [AGENTS.md](../../../../../AGENTS.md)
-- [RayX.SignalR skill](../../../../../.claude/skills/rayx-signalr/SKILL.md)
+- [dXn.SignalR skill](../../../../../.claude/skills/dxn-signalr/SKILL.md)

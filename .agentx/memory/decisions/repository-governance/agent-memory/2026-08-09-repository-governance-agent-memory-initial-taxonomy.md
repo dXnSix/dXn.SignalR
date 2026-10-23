@@ -4,7 +4,7 @@ agentx:
   scope: repository-governance/agent-memory
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-10-06T21:10:00+02:00"
+  updated: 2026-10-23T22:00:00+02:00
   topics:
     - taxonomy
     - initialization
@@ -16,7 +16,7 @@ agentx:
 
 ## Context
 
-RayX.SignalR is a Rust library with distinct client, communication, protocol, execution, and completion modules; it also contains an ASP.NET Core compatibility service and explicit fork policy. AgentX initialization needed a small taxonomy that follows those checked-in boundaries.
+dXn.SignalR is a Rust library with distinct client, communication, protocol, execution, and completion modules; it also contains an ASP.NET Core compatibility service and explicit fork policy. AgentX initialization needed a small taxonomy that follows those checked-in boundaries.
 
 ## Alternatives considered
 
@@ -40,6 +40,6 @@ None.
 
 - [Cargo.toml](../../../../../Cargo.toml)
 - [src/lib.rs](../../../../../src/lib.rs)
-- [dotnet/RayX.SignalR.TestService/src/Program.cs](../../../../../dotnet/RayX.SignalR.TestService/src/Program.cs)
+- [dotnet/dXn.SignalR.TestService/src/Program.cs](../../../../../dotnet/dXn.SignalR.TestService/src/Program.cs)
 - `FORK.md` (removed; see 2026-10-06 current [Independent library decision](../fork-policy/2026-10-06-repository-governance-fork-policy-independent-library.md))
-- [RayX.SignalR skill](../../../../../.claude/skills/rayx-signalr/SKILL.md)
+- [dXn.SignalR skill](../../../../../.claude/skills/dxn-signalr/SKILL.md)

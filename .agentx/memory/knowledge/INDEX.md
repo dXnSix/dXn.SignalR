@@ -4,14 +4,14 @@ agentx:
   scope: repository
   status: current
   created: "2026-08-09T21:45:00+02:00"
-  updated: "2026-08-10T03:15:00+02:00"
+  updated: 2026-10-23T22:00:00+02:00
   topics:
     - taxonomy
     - routing
   supersedes: []
   superseded_by: []
 ---
-# RayX.SignalR knowledge index
+# dXn.SignalR knowledge index
 
 - [client-runtime](client-runtime/INDEX.md): Rust client API, lifecycle, transport, protocol, and action execution.
 - [interop-validation](interop-validation/INDEX.md): Rust and ASP.NET Core compatibility/runtime validation surfaces.

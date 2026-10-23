@@ -4,7 +4,7 @@ agentx:
   scope: repository-governance/quality-gates
   status: current
   created: "2026-10-19T01:00:00+02:00"
-  updated: "2026-10-19T01:00:00+02:00"
+  updated: 2026-10-23T22:00:00+02:00
   topics:
     - ci
     - github-actions
@@ -47,5 +47,5 @@ With direct pushes, the heavy Quality jobs (`quality / contracts` included) and 
 - [quality workflow](../../../../../.github/workflows/quality.yml)
 - [end-to-end workflow](../../../../../.github/workflows/e2e.yml)
 - [release workflow](../../../../../.github/workflows/release-plz.yml)
-- [release automation contracts](../../../../../dotnet/RayX.SignalR.E2E.Tests/src/Contracts/ReleaseAutomationTests.cs)
+- [release automation contracts](../../../../../dotnet/dXn.SignalR.E2E.Tests/src/Contracts/ReleaseAutomationTests.cs)
 - [Releasing](../../../../../docs/releasing.md)
