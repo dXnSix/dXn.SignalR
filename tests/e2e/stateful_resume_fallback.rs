@@ -5,7 +5,7 @@
 
 use std::time::Duration;
 
-use rayx_signalr::StatefulReconnectConfig;
+use dxn_signalr::StatefulReconnectConfig;
 
 use crate::{
     stateful_transparent_resume::{negotiate_count, record_events},

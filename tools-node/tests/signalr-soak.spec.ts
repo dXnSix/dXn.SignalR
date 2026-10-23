@@ -2,9 +2,9 @@ import { expect, test } from "@playwright/test";
 import { openFixture, protocols } from "./fixture";
 
 // The soak under chaos (`tests/wasm-fixture/src/soak.rs`, mirroring `tests/e2e/soak_chaos.rs`):
-// it runs for RAYX_SIGNALR_SOAK_SECONDS (the Aspire runner forwards it; 120 by default) and its
+// it runs for DXN_SIGNALR_SOAK_SECONDS (the Aspire runner forwards it; 120 by default) and its
 // cell bound is that duration plus 60 seconds.
-const soakSeconds = Number(process.env.RAYX_SIGNALR_SOAK_SECONDS ?? "120");
+const soakSeconds = Number(process.env.DXN_SIGNALR_SOAK_SECONDS ?? "120");
 
 for (const { protocol, title } of protocols) {
   test(`soak chaos ${title}`, async ({ page }) => {
@@ -18,7 +18,7 @@ for (const { protocol, title } of protocols) {
 
     const outcome = await page.evaluate(
       ([selectedProtocol, seconds]) =>
-        window.rayxSignalRFixture
+        window.dxnSignalRFixture
           .runSoakScenario(selectedProtocol, seconds)
           .catch((error: unknown) => `failed: ${String(error)}`),
       [protocol, soakSeconds] as const,

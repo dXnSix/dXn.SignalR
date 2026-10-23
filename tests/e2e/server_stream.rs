@@ -47,7 +47,7 @@ async fn scenario(protocol: Protocol) {
     let error = failing
         .error()
         .expect("the failing stream reports the server error");
-    assert_eq!(error.kind(), rayx_signalr::ErrorKind::Hub, "{error}");
+    assert_eq!(error.kind(), dxn_signalr::ErrorKind::Hub, "{error}");
     assert!(
         error
             .server_message()

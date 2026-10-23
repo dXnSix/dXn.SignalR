@@ -5,7 +5,7 @@ use std::{cell::Cell, cell::RefCell, future::Future, rc::Rc, sync::Arc, time::Du
 
 use futures::{channel::oneshot, future::Either, StreamExt};
 use gloo_timers::future::TimeoutFuture;
-use rayx_signalr::{
+use dxn_signalr::{
     CallbackHandler, CloseReason, ConnectionConfiguration, ConnectionStatus, ConstantDelayPolicy,
     DisconnectionHandler, Error, ErrorKind, InvocationContext, ManualStream, ReconnectionConfig,
     ReconnectionHandler, SignalRClient, TimeoutOperation,
@@ -302,7 +302,7 @@ async fn client_to_server_stream(messagepack: bool) -> Outcome {
 
     // A browser pause ends a stateful logical connection: an upload in flight ends with its call.
     let mut stateful = connect("test-stateful", messagepack, |configuration| {
-        configuration.with_stateful_reconnect(rayx_signalr::StatefulReconnectConfig::default());
+        configuration.with_stateful_reconnect(dxn_signalr::StatefulReconnectConfig::default());
     })
     .await?;
     let paced = stream::iter(1..=10).then(|number| async move {
@@ -380,7 +380,7 @@ async fn transport_fallback(messagepack: bool) -> Outcome {
     );
 
     let error = match try_connect("test-longpolling", messagepack, |configuration| {
-        configuration.with_transports(rayx_signalr::Transports::WEB_SOCKETS);
+        configuration.with_transports(dxn_signalr::Transports::WEB_SOCKETS);
     })
     .await?
     {
@@ -397,7 +397,7 @@ async fn transport_fallback(messagepack: bool) -> Outcome {
         .map(|attempt| attempt.transport())
         .collect();
     ensure!(
-        attempts == [rayx_signalr::TransportKind::LongPolling],
+        attempts == [dxn_signalr::TransportKind::LongPolling],
         "attempts {attempts:?}"
     );
     let message = error.to_string();
@@ -574,7 +574,7 @@ async fn invoke(messagepack: bool) -> Outcome {
 
     let complex = ComplexEntity {
         id: 41,
-        name: "rayx".to_string(),
+        name: "dxn".to_string(),
         tags: vec!["a".to_string(), "b".to_string()],
         nested: Some(TestEntity {
             number: 3,
@@ -588,7 +588,7 @@ async fn invoke(messagepack: bool) -> Outcome {
         })
         .await?;
     ensure!(
-        described == "41|rayx|a,b|inner:3|null",
+        described == "41|dxn|a,b|inner:3|null",
         "the hub saw {described}"
     );
     let returned = client
@@ -600,7 +600,7 @@ async fn invoke(messagepack: bool) -> Outcome {
         returned
             == ComplexEntity {
                 id: 42,
-                name: "RAYX".to_string(),
+                name: "DXN".to_string(),
                 tags: vec!["a".to_string(), "b".to_string(), "server".to_string()],
                 nested: Some(TestEntity {
                     number: 6,
@@ -1254,7 +1254,7 @@ async fn negotiate_redirect(messagepack: bool) -> Outcome {
 async fn skip_negotiation(messagepack: bool) -> Outcome {
     let mut client = connect("test-direct", messagepack, |configuration| {
         configuration.skip_negotiation();
-        configuration.with_transports(rayx_signalr::Transports::WEB_SOCKETS);
+        configuration.with_transports(dxn_signalr::Transports::WEB_SOCKETS);
         configuration.with_reconnection_policy(fast_reconnect());
     })
     .await?;
@@ -1607,7 +1607,7 @@ async fn handshake_timeout(messagepack: bool) -> Outcome {
     let started = js_sys::Date::now();
     let result = try_connect("silent-handshake", messagepack, |configuration| {
         configuration.skip_negotiation();
-        configuration.with_transports(rayx_signalr::Transports::WEB_SOCKETS);
+        configuration.with_transports(dxn_signalr::Transports::WEB_SOCKETS);
         configuration.with_handshake_timeout(Duration::from_secs(1));
     })
     .await?;
@@ -1633,7 +1633,7 @@ async fn handshake_timeout(messagepack: bool) -> Outcome {
 
 fn default_retry() -> ReconnectionConfig {
     ReconnectionConfig {
-        policy: Arc::new(rayx_signalr::DefaultRetryPolicy),
+        policy: Arc::new(dxn_signalr::DefaultRetryPolicy),
     }
 }
 
@@ -1641,7 +1641,7 @@ fn default_retry() -> ReconnectionConfig {
 /// fails pending work with "connection paused" and makes `invoke`/`send` fail without queuing;
 /// `resume` reconnects at once (a new logical connection) and invocations succeed again.
 async fn pause_resume(messagepack: bool) -> Outcome {
-    use rayx_signalr::ConnectionStatus;
+    use dxn_signalr::ConnectionStatus;
 
     // The default policy's first attempt is immediate: only pause can keep the client away.
     let mut client = connect("test", messagepack, |configuration| {
@@ -1803,7 +1803,7 @@ async fn pause_resume(messagepack: bool) -> Outcome {
 /// it (a stream in flight fails with "connection paused") and `resume` negotiates a fresh
 /// stateful connection, which still resumes statefully after a server-side transport abort.
 async fn pause_resume_stateful(messagepack: bool) -> Outcome {
-    use rayx_signalr::{ConnectionStatus, StatefulReconnectConfig};
+    use dxn_signalr::{ConnectionStatus, StatefulReconnectConfig};
 
     let mut client = connect("test-stateful", messagepack, |configuration| {
         configuration.with_stateful_reconnect(StatefulReconnectConfig::default());
@@ -1929,7 +1929,7 @@ async fn unsent_stream_ends(
 /// it. After the client is connected again the ended stream stays ended, the server never started
 /// it, and new streams work. The Playwright spec counts the CancelInvocation frames.
 async fn unsent_stream(messagepack: bool) -> Outcome {
-    use rayx_signalr::ConnectionStatus;
+    use dxn_signalr::ConnectionStatus;
 
     // Automatic reconnects wait 2 s, which keeps the client in Reconnecting long enough.
     let mut client = connect("test", messagepack, |configuration| {
@@ -2188,7 +2188,7 @@ fn closed_locally(error: &Error) -> bool {
 /// Disconnect stops the connection for every handle, as the official .NET client's
 /// `HubConnection.StopAsync` does (see `tests/e2e/disconnect_every_handle.rs`).
 async fn disconnect_every_handle(messagepack: bool) -> Outcome {
-    use rayx_signalr::ConnectionStatus;
+    use dxn_signalr::ConnectionStatus;
 
     let mut first = connect("test", messagepack, |_| {}).await?;
     let mut second = first.clone();
@@ -2266,7 +2266,7 @@ async fn disconnect_every_handle(messagepack: bool) -> Outcome {
 /// A callback that calls `disconnect` on the client it was registered on: the call returns and the
 /// hub sees the disconnect.
 async fn disconnect_from_a_callback(messagepack: bool, probe: &mut SignalRClient) -> Outcome {
-    use rayx_signalr::ConnectionStatus;
+    use dxn_signalr::ConnectionStatus;
 
     let mut client = connect("test", messagepack, |_| {}).await?;
     let connection_id = identity(&mut client).await?;
@@ -2667,7 +2667,7 @@ async fn client_result_after_an_ordinary_reconnect(messagepack: bool) -> Outcome
 /// reaches the hub: the reply follows the logical connection the call arrived on.
 async fn client_result_after_a_stateful_resume(messagepack: bool) -> Outcome {
     let mut client = connect("test-stateful", messagepack, |configuration| {
-        configuration.with_stateful_reconnect(rayx_signalr::StatefulReconnectConfig::default());
+        configuration.with_stateful_reconnect(dxn_signalr::StatefulReconnectConfig::default());
         configuration.with_reconnection_policy(fast_reconnect());
     })
     .await?;
@@ -3082,7 +3082,7 @@ async fn connection_id(messagepack: bool) -> Outcome {
     // A stateful resume keeps the logical connection and its id.
     let mut stateful = unstarted_with("test-stateful", messagepack, |configuration| {
         configuration.with_reconnection_policy(fast_reconnect());
-        configuration.with_stateful_reconnect(rayx_signalr::StatefulReconnectConfig::default());
+        configuration.with_stateful_reconnect(dxn_signalr::StatefulReconnectConfig::default());
     })?;
     stateful
         .start()
@@ -3118,7 +3118,7 @@ async fn connection_id(messagepack: bool) -> Outcome {
     // Without negotiation there is no connection id.
     let direct = unstarted_with("test-direct", messagepack, |configuration| {
         configuration.skip_negotiation();
-        configuration.with_transports(rayx_signalr::Transports::WEB_SOCKETS);
+        configuration.with_transports(dxn_signalr::Transports::WEB_SOCKETS);
     })?;
     direct
         .start()
@@ -3335,7 +3335,7 @@ async fn request_headers(messagepack: bool) -> Outcome {
     // Browsers forbid `User-Agent`: the official format travels in `X-SignalR-User-Agent`.
     ensure!(
         described_value(&negotiate, "x-signalr-user-agent")
-            .is_some_and(|agent| agent.starts_with("RayX SignalR/")),
+            .is_some_and(|agent| agent.starts_with("dXn SignalR/")),
         "negotiate lacks X-SignalR-User-Agent: {negotiate:?}"
     );
     ensure!(
@@ -3372,7 +3372,7 @@ async fn request_headers(messagepack: bool) -> Outcome {
 
     // Long Polling requests are `fetch` requests: the hook sees them.
     let mut client = connect("test", messagepack, |configuration| {
-        configuration.with_transports(rayx_signalr::Transports::LONG_POLLING);
+        configuration.with_transports(dxn_signalr::Transports::LONG_POLLING);
         configuration.with_request_hook(|request| {
             if let Some(transport) = request.transport() {
                 let _ = request.set_header("X-Hook", format!("{transport:?} {}", request.method()));
@@ -3427,7 +3427,7 @@ fn lifecycle_log(client: &SignalRClient) -> (Rc<RefCell<Vec<String>>>, Vec<Unreg
 /// nothing; a call pending across the loss completes on the resumed transport.
 async fn stateful_transparent_resume(messagepack: bool) -> Outcome {
     let mut client = connect("test-stateful", messagepack, |configuration| {
-        configuration.with_stateful_reconnect(rayx_signalr::StatefulReconnectConfig::default());
+        configuration.with_stateful_reconnect(dxn_signalr::StatefulReconnectConfig::default());
     })
     .await?;
     let (events, hooks) = lifecycle_log(&client);
@@ -3505,7 +3505,7 @@ async fn stateful_transparent_resume(messagepack: bool) -> Outcome {
 /// reconnects with a fresh negotiate and a new connection id.
 async fn stateful_resume_fallback(messagepack: bool) -> Outcome {
     let mut client = connect("test-stateful", messagepack, |configuration| {
-        configuration.with_stateful_reconnect(rayx_signalr::StatefulReconnectConfig::default());
+        configuration.with_stateful_reconnect(dxn_signalr::StatefulReconnectConfig::default());
         configuration.with_reconnection_policy(fast_reconnect());
     })
     .await?;
@@ -3799,7 +3799,7 @@ async fn ordinary_reconnect(messagepack: bool) -> Outcome {
 async fn freeze_page(seconds: u32) -> Result<f64, String> {
     let gap = f64::from(seconds) * 1_000.0 * 0.75;
     let ready = js_sys::Date::now();
-    progress(&format!("RAYX_SIGNALR_SUSPEND_READY seconds={seconds}"));
+    progress(&format!("DXN_SIGNALR_SUSPEND_READY seconds={seconds}"));
     let mut last = ready;
     loop {
         sleep(50).await;
@@ -3841,7 +3841,7 @@ fn pending_identity_after(
 /// within 5 s of running again both have failed their pending invocations with a connection
 /// error and reconnected on new connections.
 async fn suspend_resume(messagepack: bool) -> Outcome {
-    use rayx_signalr::StatefulReconnectConfig;
+    use dxn_signalr::StatefulReconnectConfig;
 
     const RECOVERY_MS: f64 = 5_000.0;
     let stateful = connect("test-stateful", messagepack, |configuration| {

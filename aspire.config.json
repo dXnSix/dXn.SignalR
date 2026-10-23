@@ -1,5 +1,5 @@
 {
   "appHost": {
-    "path": "dotnet/RayX.SignalR.AppHost/RayX.SignalR.AppHost.csproj"
+    "path": "dotnet/dXn.SignalR.AppHost/dXn.SignalR.AppHost.csproj"
   }
 }

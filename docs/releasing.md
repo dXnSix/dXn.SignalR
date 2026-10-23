@@ -1,6 +1,6 @@
-# Releasing `rayx-signalr`
+# Releasing `dxn-signalr`
 
-`rayx-signalr` is released as git tags `vX.Y.Z` with a GitHub Release each. Nothing goes to
+`dxn-signalr` is released as git tags `vX.Y.Z` with a GitHub Release each. Nothing goes to
 crates.io or any other registry: `publish = false` stays in `Cargo.toml` and in `release-plz.toml`.
 [release-plz](https://release-plz.dev) turns the Conventional Commits on `master` into versions,
 `CHANGELOG.md` sections, tags and GitHub Releases; nobody edits the version or the changelog by
@@ -15,11 +15,11 @@ Consumers pin a release tag (see the README's [Installation](../README.md#instal
 
 ```toml
 [dependencies]
-rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR", tag = "v1.0.0" }
+dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.0" }
 ```
 
 `Cargo.lock` records the tagged commit. To upgrade, change the tag to a newer one from the
-[Releases page](https://github.com/rayx-ui/RayX.SignalR/releases); Cargo resolves the new tag on
+[Releases page](https://github.com/dXnSix/dXn.SignalR/releases); Cargo resolves the new tag on
 the next build. There is no local-override mechanism for editing this library and a consumer at
 once: a change that spans both is released here first, then the consumer bumps its tag.
 
@@ -44,6 +44,11 @@ once: a change that spans both is released here first, then the consumer bumps i
 
 `v1.0.0` needed no pull request: with `Cargo.toml` at `1.0.0` and no `v*` tag, the `release` job
 of the push that brought the release workflow tagged it (git-only initial release).
+
+`v1.1.0`, which renamed the package from `rayx-signalr` to `dxn-signalr`, was cut with the
+[by-hand fallback](#by-hand-fallback): in git-only mode release-plz looks the package up by its
+new name inside `v1.0.0`, finds nothing and cannot compute a next version. From `v1.1.0` on it
+finds the package again.
 
 ## The 1.x policy
 
@@ -96,12 +101,12 @@ release-plz generates stays ignored.
 
 ## The `RELEASE_PLZ_TOKEN` secret
 
-The Release-plz workflow uses one fine-grained personal access token, shared by the four RayX
+The Release-plz workflow uses one fine-grained personal access token, shared by the three dXn
 library repositories, stored as the repository secret `RELEASE_PLZ_TOKEN` (or an organization
 secret shared with this repository). The library never reads it; it exists only in GitHub Actions.
 
-- Resource owner `rayx-ui`; repository access: the four library repositories, including
-  `RayX.SignalR`.
+- Resource owner `dXnSix` (the account that owns the repositories); repository access: the three
+  library repositories, including `dXn.SignalR`.
 - Repository permissions: **Contents** read and write, **Pull requests** read and write (Metadata
   read is added automatically).
 
@@ -160,6 +165,6 @@ on pull requests (End-to-end also on manual dispatch), and release pull requests
 
 ```bash
 git ls-remote --tags origin vX.Y.Z
-gh release view vX.Y.Z --repo rayx-ui/RayX.SignalR
-gh run list --repo rayx-ui/RayX.SignalR --workflow release-plz.yml --limit 3
+gh release view vX.Y.Z --repo dXnSix/dXn.SignalR
+gh run list --repo dXnSix/dXn.SignalR --workflow release-plz.yml --limit 3
 ```

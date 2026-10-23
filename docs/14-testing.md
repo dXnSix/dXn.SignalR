@@ -8,9 +8,9 @@
 | Documentation examples | rustdoc examples in `src/` (doctests), and `tests/documentation_examples.rs`: a compiled copy of every ```` ```rust ```` block of `README.md` and `docs/`, which the `documentation_examples_` test matches against the documents | `cargo test` (browser copies: `cargo check --target wasm32-unknown-unknown --all-features --test documentation_examples`) |
 | End-to-end scenarios (native) | `tests/e2e/<scenario>.rs` | the Aspire runner only |
 | End-to-end scenarios (browser) | `tests/wasm-fixture` (Rust) and `tools-node/tests/*.spec.ts` (Playwright) | the Aspire runner only |
-| Static contracts | `dotnet/RayX.SignalR.E2E.Tests/src/Contracts` | `dotnet test` categories |
+| Static contracts | `dotnet/dXn.SignalR.E2E.Tests/src/Contracts` | `dotnet test` categories |
 | Micro-benchmarks | `benches/hot_paths.rs` | `cargo bench` (see [Performance](#performance)) |
-| Reference-client workloads | `tests/perf` and `dotnet/RayX.SignalR.PerfReference` | the Aspire `Performance` category only |
+| Reference-client workloads | `tests/perf` and `dotnet/dXn.SignalR.PerfReference` | the Aspire `Performance` category only |
 
 Plain `cargo test` never needs a server: the `e2e` test target is declared with `test = false` in
 `Cargo.toml`.
@@ -33,37 +33,37 @@ The toolchain is pinned to Rust 1.92.0 with `clippy`, `rustfmt` and the
 ## Testing with Aspire
 
 Service-dependent tests run only through .NET Aspire. The AppHost
-(`dotnet/RayX.SignalR.AppHost`, selected by the root `aspire.config.json`) composes:
+(`dotnet/dXn.SignalR.AppHost`, selected by the root `aspire.config.json`) composes:
 
 - `signalr-test-service`: the ASP.NET Core SignalR test service
-  (`dotnet/RayX.SignalR.TestService`) on HTTP and HTTPS (HTTP/1.1 and HTTP/2), with a CA and server
+  (`dotnet/dXn.SignalR.TestService`) on HTTP and HTTPS (HTTP/1.1 and HTTP/2), with a CA and server
   certificate generated per run, plus two protocol-pinned endpoints for the `http2` scenario: `h2c`
   (HTTP/2 only over plaintext) and `https-http1` (HTTP/1.1 only over TLS), whose protocols the
   service sets by the target ports the AppHost passes (`TestService__Http2OnlyPort`,
-  `TestService__Http1OnlyPort`). Cells receive them as `RAYX_SIGNALR_E2E_H2C_URL` and
-  `RAYX_SIGNALR_E2E_HTTP1_TLS_URL`. Described requests (`NegotiateRequest`, `TransportRequest`)
+  `TestService__Http1OnlyPort`). Cells receive them as `DXN_SIGNALR_E2E_H2C_URL` and
+  `DXN_SIGNALR_E2E_HTTP1_TLS_URL`. Described requests (`NegotiateRequest`, `TransportRequest`)
   include their `protocol` and `connection` id. On hosts with msquic (`QuicSupport`: Windows 11 or
   Server 2022, Linux with `libmsquic`), an `http3` HTTPS endpoint also serves HTTP/3
   (`TestService__Http3Port`, `HttpProtocols.Http1AndHttp2AndHttp3`). Aspire's endpoint proxy
   forwards only TCP, so this endpoint is not proxied and Kestrel binds its dynamically allocated
-  port itself. Cells receive it as `RAYX_SIGNALR_E2E_HTTP3_URL`;
+  port itself. Cells receive it as `DXN_SIGNALR_E2E_HTTP3_URL`;
 - `wasm-bindgen-cli`: the fixture's exact `wasm-bindgen` CLI, installed under
   `artifacts-temp/tools/wasm-bindgen/<version>` (a machine-wide CLI is never used);
 - `wasm-fixture-build` and `wasm-fixture-bindgen`: the browser fixture build;
-- `test-proxy`: a test-only HTTP `CONNECT` and SOCKS5 proxy (`dotnet/RayX.SignalR.TestProxy`)
+- `test-proxy`: a test-only HTTP `CONNECT` and SOCKS5 proxy (`dotnet/dXn.SignalR.TestProxy`)
   for the `proxy`, `proxy-socks` and `proxy-pac` scenarios; a connection whose first byte is 5 is
   a SOCKS5 greeting. The same proxy also listens behind TLS with the run's test certificate on a
   dynamic loopback port (`tlsPort`, counting `tlsSessions`) for `https://` proxies
   (`proxy-https`). `GET /proxy.pac?http=<route>&https=<route>` serves a PAC script routing
   plain and secure endpoints as `proxy` (HTTP `CONNECT`), `socks5`, `direct`, `dead` (an
   unreachable proxy, then `DIRECT`) or `throw`, over a second, credential-free listener on a
-  dynamic loopback port (PAC routes cannot carry credentials). It requires the run's credentials (user `rayx`, a password the test runner generates
+  dynamic loopback port (PAC routes cannot carry credentials). It requires the run's credentials (user `dxn`, a password the test runner generates
   per run; RFC 1929 for SOCKS5), refuses `denied.invalid:80` (403, or SOCKS reply 2), counts its
   tunnels and SOCKS requests, and answers `GET /stats` with the counters, the local ports of its
   tunnels and the address types of the SOCKS requests. Tunnels to the service's allocated ports
   go straight to the ports the service listens on (it reports them at `/e2e/listening`), past
   Aspire's own endpoint proxy, so the service sees the tunnel as its peer (hub method `PeerPort`).
-  Cells receive `RAYX_SIGNALR_E2E_PROXY_URL` and `RAYX_SIGNALR_E2E_PROXY_CREDENTIALS`. Native
+  Cells receive `DXN_SIGNALR_E2E_PROXY_URL` and `DXN_SIGNALR_E2E_PROXY_CREDENTIALS`. Native
   cells and the performance binaries never inherit the machine's proxy variables, so the
   client's default system proxy cannot route them through a developer proxy; builds and tool
   commands keep them;
@@ -71,7 +71,7 @@ Service-dependent tests run only through .NET Aspire. The AppHost
 - optionally the threaded (atomics) fixture, served cross-origin isolated.
 
 Every endpoint is allocated dynamically; nothing binds a fixed port. The end-to-end project
-(`dotnet/RayX.SignalR.E2E.Tests`, xUnit) starts the same AppHost through `Aspire.Hosting.Testing`
+(`dotnet/dXn.SignalR.E2E.Tests`, xUnit) starts the same AppHost through `Aspire.Hosting.Testing`
 and is the single entry point, locally and in GitHub Actions. There are no test scripts.
 
 ### Prerequisites
@@ -85,14 +85,14 @@ and is the single entry point, locally and in GitHub Actions. There are no test 
   cells also need `nightly-2026-06-23` with `rust-src`;
 - Android cells: the Android SDK (`ANDROID_HOME`) with an NDK, `cargo install cargo-ndk`,
   `rustup target add x86_64-linux-android`, and one running x86_64 emulator
-  (`emulator -avd <name>`), or `RAYX_SIGNALR_E2E_ANDROID_SERIAL` naming the device;
+  (`emulator -avd <name>`), or `DXN_SIGNALR_E2E_ANDROID_SERIAL` naming the device;
 - Android app cells (`android-app`, `android-app-release`): additionally JDK 17 or later
   (`JAVA_HOME`), platform 36 in the Android SDK, network access for the first Gradle build (the
   wrapper's Gradle 9.4.1, the Android Gradle plugin and the `rustls-platform-verifier` Maven
   archive), and an emulator without accounts or other users, because the runner makes the test
   app device owner;
 - iOS cells (macOS only): Xcode with an iOS simulator runtime and
-  `rustup target add aarch64-apple-ios-sim`; `RAYX_SIGNALR_E2E_IOS_DEVICE` picks a simulator by
+  `rustup target add aarch64-apple-ios-sim`; `DXN_SIGNALR_E2E_IOS_DEVICE` picks a simulator by
   name or UDID (default: the newest available iPhone).
 
 ### Running
@@ -106,30 +106,30 @@ aspire run
 Run end-to-end cells:
 
 ```bash
-dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
-RAYX_SIGNALR_E2E_TARGETS=chromium,firefox,webkit dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
-RAYX_SIGNALR_E2E_TARGETS=android dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
-RAYX_SIGNALR_E2E_TARGETS=android-app,android-app-release RAYX_SIGNALR_E2E_SCENARIOS=tls,connect-negotiate,invoke dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
-RAYX_SIGNALR_E2E_TARGETS=native RAYX_SIGNALR_E2E_PROTOCOLS=json RAYX_SIGNALR_E2E_SCENARIOS=invoke,server-stream dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=E2E
+DXN_SIGNALR_E2E_TARGETS=chromium,firefox,webkit dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=E2E
+DXN_SIGNALR_E2E_TARGETS=android dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=E2E
+DXN_SIGNALR_E2E_TARGETS=android-app,android-app-release DXN_SIGNALR_E2E_SCENARIOS=tls,connect-negotiate,invoke dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=E2E
+DXN_SIGNALR_E2E_TARGETS=native DXN_SIGNALR_E2E_PROTOCOLS=json DXN_SIGNALR_E2E_SCENARIOS=invoke,server-stream dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=E2E
 ```
 
 | Variable | Values | Default |
 |---|---|---|
-| `RAYX_SIGNALR_E2E_TARGETS` | `native`, `chromium`, `firefox`, `webkit`, `android`, `ios`, `android-app`, `android-app-release`, or `all` | `native` |
-| `RAYX_SIGNALR_E2E_PROTOCOLS` | `json`, `messagepack`, or `all` | `all` |
-| `RAYX_SIGNALR_E2E_SCENARIOS` | scenario names, or `all` | `all` |
-| `RAYX_SIGNALR_E2E_ANDROID_SERIAL` | an `adb` device serial | the single running emulator |
-| `RAYX_SIGNALR_E2E_IOS_DEVICE` | a simulator name or UDID | the newest iPhone |
-| `RAYX_SIGNALR_E2E_TRANSPORTS` | `websockets`, `long-polling`, `server-sent-events`, or `all` | `websockets` |
-| `RAYX_SIGNALR_SOAK_SECONDS` | how long `soak-chaos` runs, in seconds (forwarded to every target) | `120` |
-| `RAYX_SIGNALR_E2E_TLS_PROVIDER` | the rustls provider of the native, Android and iOS `e2e` builds: `ring` (the crate's default features) or `aws-lc-rs` (`--no-default-features --features messagepack,proxy-pac,http3,tls-platform-verifier,tls-aws-lc-rs`, Android adds `tls-webpki-roots`; built into `target/e2e-aws-lc` and `target/android-e2e-aws-lc`). A missing CMake, NASM or clang is reported as an environment error. | `ring` |
+| `DXN_SIGNALR_E2E_TARGETS` | `native`, `chromium`, `firefox`, `webkit`, `android`, `ios`, `android-app`, `android-app-release`, or `all` | `native` |
+| `DXN_SIGNALR_E2E_PROTOCOLS` | `json`, `messagepack`, or `all` | `all` |
+| `DXN_SIGNALR_E2E_SCENARIOS` | scenario names, or `all` | `all` |
+| `DXN_SIGNALR_E2E_ANDROID_SERIAL` | an `adb` device serial | the single running emulator |
+| `DXN_SIGNALR_E2E_IOS_DEVICE` | a simulator name or UDID | the newest iPhone |
+| `DXN_SIGNALR_E2E_TRANSPORTS` | `websockets`, `long-polling`, `server-sent-events`, or `all` | `websockets` |
+| `DXN_SIGNALR_SOAK_SECONDS` | how long `soak-chaos` runs, in seconds (forwarded to every target) | `120` |
+| `DXN_SIGNALR_E2E_TLS_PROVIDER` | the rustls provider of the native, Android and iOS `e2e` builds: `ring` (the crate's default features) or `aws-lc-rs` (`--no-default-features --features messagepack,proxy-pac,http3,tls-platform-verifier,tls-aws-lc-rs`, Android adds `tls-webpki-roots`; built into `target/e2e-aws-lc` and `target/android-e2e-aws-lc`). A missing CMake, NASM or clang is reported as an environment error. | `ring` |
 
 Lists are comma-separated. A selection that matches no cataloged cell fails.
 
 ### Cells
 
 A cell is one scenario × protocol × target. The scenario catalog
-(`dotnet/RayX.SignalR.E2E.Tests/src/Scenarios/ScenarioCatalog.cs`) decides which targets run which
+(`dotnet/dXn.SignalR.E2E.Tests/src/Scenarios/ScenarioCatalog.cs`) decides which targets run which
 scenarios:
 
 - everywhere: `connect-negotiate`, `authentication`, `invoke`, `send`, `server-stream`,
@@ -142,12 +142,12 @@ scenarios:
   `reconnect-call-wait`, `request-headers`, `stateful-transparent-resume`,
   `stateful-resume-fallback`; `msgpack-fidelity` everywhere with MessagePack only;
 - the Android app (`android-app`) and, on CI runners that opt in with
-  `RAYX_SIGNALR_E2E_ALLOW_SYSTEM_CHANGES=1` on Windows and macOS, native: `os-proxy`. The runner
+  `DXN_SIGNALR_E2E_ALLOW_SYSTEM_CHANGES=1` on Windows and macOS, native: `os-proxy`. The runner
   points the system proxy at the test proxy's credential-free listener around each cell (the
   emulator's global HTTP proxy with `adb shell settings put global http_proxy`, the Windows user's
   WinINet settings, or every macOS network service's web proxy with `networksetup`) and restores
   it afterwards; a developer machine's settings never change. The scenario connects to
-  `rayx-os-proxy.test`, which only the test proxy resolves (to the service);
+  `dxn-os-proxy.test`, which only the test proxy resolves (to the service);
 - native, Android and iOS: `executor-independence`, `http2`, `proxy`, `proxy-socks`, `proxy-https`, `proxy-pac` (not iOS), `cookies`,
   `client-certificate`;
 - native and Android on hosts with msquic: `http3`. The catalog selects it only where
@@ -164,7 +164,7 @@ scenarios:
 - native, Chromium and Android: `soak-chaos` and `stateful-resume-stress`.
 
 `suspend-resume` asks the runner to suspend the scenario process twice by printing
-`RAYX_SIGNALR_SUSPEND_READY pid=<pid> seconds=<n>`: for 20 s (both a stateful and an ordinary
+`DXN_SIGNALR_SUSPEND_READY pid=<pid> seconds=<n>`: for 20 s (both a stateful and an ordinary
 client keep their connections) and for 40 s, longer than the service's client timeout (both detect
 the loss, fail their pending invocation and reconnect within 5 s). The test-only controls
 (`Scenarios/Suspension.cs`) use `NtSuspendProcess`/`NtResumeProcess` on Windows, `SIGSTOP`/`SIGCONT` through
@@ -176,12 +176,12 @@ and WebKit are excluded (Playwright offers CDP only for Chromium). The cell boun
 
 `stateful-resume-stress` gives five fresh stateful connections 100 transport aborts each, every
 abort followed by an invocation and a short stream, and fails on any operation slower than 20 s.
-Its Rust cells log the `rayx_signalr::stateful=debug` sequence trace into the cell output; in
+Its Rust cells log the `dxn_signalr::stateful=debug` sequence trace into the cell output; in
 Chromium the fixture keeps the last 400 trace records and returns them with a failure.
 
 `soak-chaos` runs mixed concurrent traffic (invocations with results, sends, server streams,
 server-to-client callbacks, client results) against an ordinary and a stateful chaos hub at once
-for `RAYX_SIGNALR_SOAK_SECONDS`, while the test service's test-only `ChaosControl` aborts the
+for `DXN_SIGNALR_SOAK_SECONDS`, while the test service's test-only `ChaosControl` aborts the
 transports at seeded random 0.5-5 s intervals (the seed is in the cell output), sparing a
 connection for 3 s after aborting it so a stateful resume completes before the next abort. Stateful mode must
 lose, duplicate or reorder nothing and keep its logical connection; ordinary mode must complete or
@@ -196,7 +196,7 @@ A cell is target × scenario × protocol × transport. The transport-baseline sc
 every selected transport; every other scenario runs on WebSockets only, and Server-Sent Events
 never run with MessagePack. WebSockets cells keep their names (`native/json/invoke`, Playwright
 `invoke JSON`); the others carry the transport (`native/json/invoke/long-polling`, Playwright
-`invoke (JSON, Long Polling)`). The runner passes `RAYX_SIGNALR_TRANSPORT` to native and mobile
+`invoke (JSON, Long Polling)`). The runner passes `DXN_SIGNALR_TRANSPORT` to native and mobile
 cells and a `transport` page parameter to the browser fixture, which restrict every connection
 with `with_transports`. The test service also maps `/test-longpolling` and
 `/test-no-websockets` with restricted transports.
@@ -211,7 +211,7 @@ answers.
 
 Each cell runs exactly one scenario: the Rust `e2e` binary with `--exact <scenario>::<protocol>` on
 the host, the Android emulator or the iOS simulator, or Playwright with one exact title. Cells are
-bounded to 60 seconds (`soak-chaos`: `RAYX_SIGNALR_SOAK_SECONDS`, default 120, plus 60 seconds;
+bounded to 60 seconds (`soak-chaos`: `DXN_SIGNALR_SOAK_SECONDS`, default 120, plus 60 seconds;
 `stateful-resume-stress`: 600 seconds; `keepalive-idle`, `server-timeout`, `proxy` and
 `suspend-resume`: 120 seconds) with process cleanup. On failure a cell writes bounded, token-redacted output
 plus the Aspire resource logs (and an Android logcat excerpt) to `artifacts-temp/e2e/<cell>.json`.
@@ -232,7 +232,7 @@ plus the Aspire resource logs (and an Android logcat excerpt) to `artifacts-temp
   user-interactive QoS class, and a cell whose test already reported its single pass is accepted
   when `simctl spawn` itself does not exit. Such events are recorded in
   `artifacts-temp/e2e/runner-notes.log`.
-- Rust cells run with `--nocapture` and `RUST_LOG=rayx_signalr=info`. The end-to-end binaries use
+- Rust cells run with `--nocapture` and `RUST_LOG=dxn_signalr=info`. The end-to-end binaries use
   the default TLS features plus `messagepack`, `proxy-pac` and `http3`; the Android binary adds
   `tls-webpki-roots` and verifies with webpki.
 
@@ -266,7 +266,7 @@ sizes of 32 B, 1 KiB and 64 KiB.
 
 **Reference-client workloads.** The `Performance` category runs the same workloads with a release
 build of the Rust client (`tests/perf`, a `test = false` binary) and with the official .NET client
-(`dotnet/RayX.SignalR.PerfReference`, `Microsoft.AspNetCore.SignalR.Client` with its MessagePack
+(`dotnet/dXn.SignalR.PerfReference`, `Microsoft.AspNetCore.SignalR.Client` with its MessagePack
 protocol) against the test service's `/perf` hub in one Aspire run:
 
 | Workload | Timed work (`full` scale; `quick` is a tenth) | Untimed warm-up first | Metrics |
@@ -283,13 +283,13 @@ window. Each result also records its warm-up size (`warmup_calls`, `warmup_items
 `warmup_sends`, and `warmup_ms`).
 
 ```bash
-RAYX_SIGNALR_PERF_WORKLOADS=all RAYX_SIGNALR_PERF_SCALE=quick dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=Performance
+DXN_SIGNALR_PERF_WORKLOADS=all DXN_SIGNALR_PERF_SCALE=quick dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=Performance
 ```
 
 | Variable | Values | Default |
 |---|---|---|
-| `RAYX_SIGNALR_PERF_WORKLOADS` | workload names, or `all` | none: the category requires a selection |
-| `RAYX_SIGNALR_PERF_SCALE` | `quick` (smoke checks) or `full` (budgets) | `quick` |
+| `DXN_SIGNALR_PERF_WORKLOADS` | workload names, or `all` | none: the category requires a selection |
+| `DXN_SIGNALR_PERF_SCALE` | `quick` (smoke checks) or `full` (budgets) | `quick` |
 
 Each row is one workload and protocol. It runs both clients three times, alternating which goes
 first, and records the median of each metric with the build profile and the machine (OS,
@@ -302,17 +302,17 @@ least 0.95×. It runs any rows the `Performance` category has not run in the sam
 writes `artifacts-temp/perf/reference-budget-<run>.txt`:
 
 ```bash
-RAYX_SIGNALR_PERF_WORKLOADS=all RAYX_SIGNALR_PERF_SCALE=full dotnet test dotnet/RayX.SignalR.E2E.Tests --filter "Category=Performance|Category=ReferenceClientBudget"
+DXN_SIGNALR_PERF_WORKLOADS=all DXN_SIGNALR_PERF_SCALE=full dotnet test dotnet/dXn.SignalR.E2E.Tests --filter "Category=Performance|Category=ReferenceClientBudget"
 ```
 
 ## Static contract categories
 
 ```bash
-dotnet test dotnet/RayX.SignalR.E2E.Tests --filter "Category=WorkflowContract|Category=Repository|Category=Catalog|Category=Toolchain"
-dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=Orchestration
-dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=Platform
+dotnet test dotnet/dXn.SignalR.E2E.Tests --filter "Category=WorkflowContract|Category=Repository|Category=Catalog|Category=Toolchain"
+dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=Orchestration
+dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=Platform
 cargo install cargo-audit --locked
-dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=DependencySecurity
+dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=DependencySecurity
 ```
 
 | Category | Proves |
@@ -366,7 +366,7 @@ Quality checks:
 
 End-to-end checks:
 
-Every end-to-end job runs every transport (`RAYX_SIGNALR_E2E_TRANSPORTS=all`), and every job's
+Every end-to-end job runs every transport (`DXN_SIGNALR_E2E_TRANSPORTS=all`), and every job's
 selection includes the typed-error scenario `error-kinds`:
 
 - `e2e / native (<os>)` runs the whole catalog, including the SOCKS, PAC, HTTPS-proxy, HTTP/2
@@ -379,17 +379,17 @@ selection includes the typed-error scenario `error-kinds`:
   `android-app-release`) on an emulator with JDK 17.
 - `e2e / ios`.
 - `e2e / os-proxy (<os>)` runs on ephemeral Windows and macOS runners that opt in with
-  `RAYX_SIGNALR_E2E_ALLOW_SYSTEM_CHANGES=1`. It is the only job that changes a host's proxy
+  `DXN_SIGNALR_E2E_ALLOW_SYSTEM_CHANGES=1`. It is the only job that changes a host's proxy
   settings.
 - `e2e / tls-aws-lc (native, <os>)`, `e2e / tls-aws-lc (android)` and `e2e / tls-aws-lc (ios)`
   run `tls`, `connect-negotiate`, `negotiate-redirect` and `proxy` with
-  `RAYX_SIGNALR_E2E_TLS_PROVIDER=aws-lc-rs`.
+  `DXN_SIGNALR_E2E_TLS_PROVIDER=aws-lc-rs`.
 - `e2e / soak` runs only when the workflow is started manually: `soak-chaos` for 900 seconds.
 
 Performance check:
 
 - `perf / compare` runs `Category=Performance|Category=ReferenceClientBudget` with
-  `RAYX_SIGNALR_PERF_WORKLOADS=all` and `RAYX_SIGNALR_PERF_SCALE=full`, so a budget miss fails
+  `DXN_SIGNALR_PERF_WORKLOADS=all` and `DXN_SIGNALR_PERF_SCALE=full`, so a budget miss fails
   it. It then uploads `artifacts-temp/perf` as the `perf-report` artifact, kept for 30 days.
 
 ## Consumer conformance gates
@@ -398,5 +398,5 @@ Consumers can run selected cells against this repository. RayX.GameX's dependenc
 runs:
 
 ```bash
-RAYX_SIGNALR_E2E_TARGETS=chromium RAYX_SIGNALR_E2E_SCENARIOS=ordinary-reconnect,stateful-reconnect dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+DXN_SIGNALR_E2E_TARGETS=chromium DXN_SIGNALR_E2E_SCENARIOS=ordinary-reconnect,stateful-reconnect dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=E2E
 ```

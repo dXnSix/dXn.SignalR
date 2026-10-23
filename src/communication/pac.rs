@@ -320,11 +320,11 @@ function localHostOrDomainIs(host, hostdom) {
   host = String(host).toLowerCase(); hostdom = String(hostdom).toLowerCase();
   return host === hostdom || (host.indexOf('.') < 0 && hostdom.indexOf(host + '.') === 0);
 }
-function dnsResolve(host) { return __rayxResolve(String(host)); }
-function isResolvable(host) { return __rayxResolve(String(host)) !== null; }
-function myIpAddress() { return __rayxMyIpAddress(); }
+function dnsResolve(host) { return __dxnResolve(String(host)); }
+function isResolvable(host) { return __dxnResolve(String(host)) !== null; }
+function myIpAddress() { return __dxnMyIpAddress(); }
 function dnsDomainLevels(host) { return String(host).split('.').length - 1; }
-function __rayxAddress(ip) {
+function __dxnAddress(ip) {
   var parts = String(ip).split('.');
   if (parts.length !== 4) { return null; }
   var value = 0;
@@ -336,9 +336,9 @@ function __rayxAddress(ip) {
   return value;
 }
 function isInNet(host, pattern, mask) {
-  var address = __rayxAddress(host) === null ? dnsResolve(host) : String(host);
+  var address = __dxnAddress(host) === null ? dnsResolve(host) : String(host);
   if (address === null) { return false; }
-  var a = __rayxAddress(address), p = __rayxAddress(pattern), m = __rayxAddress(mask);
+  var a = __dxnAddress(address), p = __dxnAddress(pattern), m = __dxnAddress(mask);
   if (a === null || p === null || m === null) { return false; }
   for (var bit = 2147483648; bit >= 1; bit /= 2) {
     var maskBit = Math.floor(m / bit) % 2;
@@ -353,40 +353,40 @@ function shExpMatch(text, pattern) {
     .replace(/\?/g, '.') + '$';
   return new RegExp(expression).test(String(text));
 }
-var __rayxDays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-var __rayxMonths = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-function __rayxArguments(list) {
+var __dxnDays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+var __dxnMonths = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+function __dxnArguments(list) {
   var values = Array.prototype.slice.call(list);
   var gmt = values.length > 0 && String(values[values.length - 1]).toUpperCase() === 'GMT';
   if (gmt) { values.pop(); }
-  return { values: values, gmt: gmt, now: __rayxNow() };
+  return { values: values, gmt: gmt, now: __dxnNow() };
 }
-function __rayxNow() { return new Date(); }
-function __rayxInRange(current, start, end) {
+function __dxnNow() { return new Date(); }
+function __dxnInRange(current, start, end) {
   return start <= end ? current >= start && current <= end : current >= start || current <= end;
 }
 function weekdayRange() {
-  var call = __rayxArguments(arguments);
+  var call = __dxnArguments(arguments);
   var today = call.gmt ? call.now.getUTCDay() : call.now.getDay();
-  var first = __rayxDays.indexOf(String(call.values[0]).toUpperCase());
+  var first = __dxnDays.indexOf(String(call.values[0]).toUpperCase());
   if (first < 0) { return false; }
   if (call.values.length < 2) { return today === first; }
-  var last = __rayxDays.indexOf(String(call.values[1]).toUpperCase());
-  return last >= 0 && __rayxInRange(today, first, last);
+  var last = __dxnDays.indexOf(String(call.values[1]).toUpperCase());
+  return last >= 0 && __dxnInRange(today, first, last);
 }
 function dateRange() {
-  var call = __rayxArguments(arguments), now = call.now;
+  var call = __dxnArguments(arguments), now = call.now;
   var today = {
     d: call.gmt ? now.getUTCDate() : now.getDate(),
     m: call.gmt ? now.getUTCMonth() : now.getMonth(),
     y: call.gmt ? now.getUTCFullYear() : now.getFullYear()
   };
   function kind(value) {
-    if (__rayxMonths.indexOf(String(value).toUpperCase()) >= 0) { return 'm'; }
+    if (__dxnMonths.indexOf(String(value).toUpperCase()) >= 0) { return 'm'; }
     return Number(value) > 31 ? 'y' : 'd';
   }
   function number(value) {
-    var month = __rayxMonths.indexOf(String(value).toUpperCase());
+    var month = __dxnMonths.indexOf(String(value).toUpperCase());
     return month >= 0 ? month : Number(value);
   }
   var values = call.values;
@@ -399,10 +399,10 @@ function dateRange() {
     for (var i = 0; i < part.length; i++) { fields[kind(part[i])] = number(part[i]); }
     return (kinds.y ? fields.y : 0) * 10000 + (kinds.m ? fields.m : 0) * 100 + (kinds.d ? fields.d : 0);
   }
-  return __rayxInRange(key([]), key(values.slice(0, half)), key(values.slice(half)));
+  return __dxnInRange(key([]), key(values.slice(0, half)), key(values.slice(half)));
 }
 function timeRange() {
-  var call = __rayxArguments(arguments), now = call.now, values = call.values;
+  var call = __dxnArguments(arguments), now = call.now, values = call.values;
   var hours = call.gmt ? now.getUTCHours() : now.getHours();
   var minutes = call.gmt ? now.getUTCMinutes() : now.getMinutes();
   var seconds = call.gmt ? now.getUTCSeconds() : now.getSeconds();
@@ -413,7 +413,7 @@ function timeRange() {
     return Number(part[0]) * 3600 + (half > 1 ? Number(part[1]) * 60 : 0) + (half > 2 ? Number(part[2]) : 0);
   }
   var current = hours * 3600 + (half > 1 ? minutes * 60 : 0) + (half > 2 ? seconds : 0);
-  return __rayxInRange(current, seconds_of(values.slice(0, half)), seconds_of(values.slice(half)));
+  return __dxnInRange(current, seconds_of(values.slice(0, half)), seconds_of(values.slice(half)));
 }
 "#;
 
@@ -577,14 +577,14 @@ fn evaluate_with_lookup(
         .set_loop_iteration_limit(LOOP_LIMIT);
     context
         .register_global_callable(
-            js_string!("__rayxResolve"),
+            js_string!("__dxnResolve"),
             1,
             NativeFunction::from_fn_ptr(resolve),
         )
         .map_err(script_failure)?;
     context
         .register_global_callable(
-            js_string!("__rayxMyIpAddress"),
+            js_string!("__dxnMyIpAddress"),
             0,
             NativeFunction::from_fn_ptr(my_ip_address),
         )
@@ -593,13 +593,13 @@ fn evaluate_with_lookup(
     if let Some(now) = now {
         run(
             &mut context,
-            &format!("function __rayxNow() {{ return new Date({now}); }}"),
+            &format!("function __dxnNow() {{ return new Date({now}); }}"),
             deadline,
         )?;
     }
     run(&mut context, script, deadline)?;
     let global = context.global_object();
-    for (name, value) in [("__rayxUrl", url), ("__rayxHost", host)] {
+    for (name, value) in [("__dxnUrl", url), ("__dxnHost", host)] {
         global
             .set(
                 JsString::from(name),
@@ -612,7 +612,7 @@ fn evaluate_with_lookup(
     let result = run(
         &mut context,
         "typeof FindProxyForURL === 'function' \
-         ? String(FindProxyForURL(__rayxUrl, __rayxHost)) \
+         ? String(FindProxyForURL(__dxnUrl, __dxnHost)) \
          : (function () { throw new Error('it defines no FindProxyForURL function'); })()",
         deadline,
     )?;
@@ -1078,7 +1078,7 @@ mod pac_tests {
 
     #[tokio::test]
     async fn pac_scripts_load_from_files_once_per_start() {
-        let directory = std::env::temp_dir().join(format!("rayx-pac-{}", std::process::id()));
+        let directory = std::env::temp_dir().join(format!("dxn-pac-{}", std::process::id()));
         std::fs::create_dir_all(&directory).unwrap();
         let path = directory.join("proxy.pac");
         std::fs::write(

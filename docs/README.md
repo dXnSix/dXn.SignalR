@@ -1,6 +1,6 @@
-# RayX.SignalR documentation
+# dXn.SignalR documentation
 
-This is the technical documentation for `rayx-signalr` (imported as `rayx_signalr`), a SignalR
+This is the technical documentation for `dxn-signalr` (imported as `dxn_signalr`), a SignalR
 client for Rust. The [repository README](../README.md) gives a short overview. These chapters
 explain the complete API surface, the connection and reconnection semantics, the platform
 requirements, and the ASP.NET Core server setup that goes with them.
@@ -50,7 +50,7 @@ requirements, and the ASP.NET Core server setup that goes with them.
 
 ## Conventions
 
-- Examples import from the crate root (`use rayx_signalr::...`); every public type is exported
+- Examples import from the crate root (`use dxn_signalr::...`); every public type is exported
   there. Short snippets use `?` and `.await`, so they assume an enclosing `async fn` that returns
   `Result<_, Box<dyn std::error::Error>>`. Native code runs inside a Tokio runtime
   (`#[tokio::main]`), browser code inside `wasm_bindgen_futures::spawn_local`. Snippets that use

@@ -115,7 +115,7 @@ parent the activity of the hub method's invocation (distributed tracing; hub cod
 `Activity.Current`); it does not expose other invocation headers to hub methods.
 
 ```rust
-let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+let client = dxn_signalr::SignalRClient::new("localhost", "chat", |c| {
     c.with_invocation_headers(|_target| {
         vec![(
             "traceparent".to_string(),

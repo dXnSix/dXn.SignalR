@@ -18,7 +18,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use rayx_signalr::{
+use dxn_signalr::{
     CallbackHandler, ConnectionStatus, ErrorKind, SignalRClient, StatefulReconnectConfig,
 };
 
@@ -54,7 +54,7 @@ async fn suspend(seconds: u64) -> Instant {
         let mut stdout = std::io::stdout().lock();
         writeln!(
             stdout,
-            "RAYX_SIGNALR_SUSPEND_READY pid={} seconds={seconds}",
+            "DXN_SIGNALR_SUSPEND_READY pid={} seconds={seconds}",
             std::process::id()
         )
         .unwrap();
@@ -81,7 +81,7 @@ async fn suspend(seconds: u64) -> Instant {
 fn pending_identity(
     client: &SignalRClient,
     delay: i32,
-) -> tokio::task::JoinHandle<(Result<String, rayx_signalr::Error>, Instant)> {
+) -> tokio::task::JoinHandle<(Result<String, dxn_signalr::Error>, Instant)> {
     let mut client = client.clone();
     tokio::spawn(async move {
         let result = client
@@ -217,7 +217,7 @@ async fn scenario(protocol: Protocol) {
             matches!(
                 error.kind(),
                 ErrorKind::Transport | ErrorKind::ConnectionClosed
-            ) || error.timeout_operation() == Some(rayx_signalr::TimeoutOperation::ServerTimeout),
+            ) || error.timeout_operation() == Some(dxn_signalr::TimeoutOperation::ServerTimeout),
             "{name}: {error}"
         );
         assert!(

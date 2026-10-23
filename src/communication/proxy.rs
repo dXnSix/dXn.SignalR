@@ -37,7 +37,7 @@ use crate::error::Error;
 /// TLS session to an HTTPS proxy that carries its tunnel.
 pub(crate) enum Stream {
     Tcp(TcpStream),
-    #[cfg(rayx_tls)]
+    #[cfg(dxn_tls)]
     ProxyTls(Box<tokio_rustls::client::TlsStream<TcpStream>>),
 }
 
@@ -45,7 +45,7 @@ impl fmt::Debug for Stream {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Stream::Tcp(_) => "Stream::Tcp",
-            #[cfg(rayx_tls)]
+            #[cfg(dxn_tls)]
             Stream::ProxyTls(_) => "Stream::ProxyTls",
         })
     }
@@ -59,7 +59,7 @@ impl AsyncRead for Stream {
     ) -> Poll<std::io::Result<()>> {
         match self.get_mut() {
             Stream::Tcp(stream) => Pin::new(stream).poll_read(context, buffer),
-            #[cfg(rayx_tls)]
+            #[cfg(dxn_tls)]
             Stream::ProxyTls(stream) => Pin::new(stream.as_mut()).poll_read(context, buffer),
         }
     }
@@ -73,7 +73,7 @@ impl AsyncWrite for Stream {
     ) -> Poll<std::io::Result<usize>> {
         match self.get_mut() {
             Stream::Tcp(stream) => Pin::new(stream).poll_write(context, buffer),
-            #[cfg(rayx_tls)]
+            #[cfg(dxn_tls)]
             Stream::ProxyTls(stream) => Pin::new(stream.as_mut()).poll_write(context, buffer),
         }
     }
@@ -85,7 +85,7 @@ impl AsyncWrite for Stream {
     ) -> Poll<std::io::Result<usize>> {
         match self.get_mut() {
             Stream::Tcp(stream) => Pin::new(stream).poll_write_vectored(context, buffers),
-            #[cfg(rayx_tls)]
+            #[cfg(dxn_tls)]
             Stream::ProxyTls(stream) => {
                 Pin::new(stream.as_mut()).poll_write_vectored(context, buffers)
             }
@@ -95,7 +95,7 @@ impl AsyncWrite for Stream {
     fn is_write_vectored(&self) -> bool {
         match self {
             Stream::Tcp(stream) => stream.is_write_vectored(),
-            #[cfg(rayx_tls)]
+            #[cfg(dxn_tls)]
             Stream::ProxyTls(stream) => stream.is_write_vectored(),
         }
     }
@@ -103,7 +103,7 @@ impl AsyncWrite for Stream {
     fn poll_flush(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         match self.get_mut() {
             Stream::Tcp(stream) => Pin::new(stream).poll_flush(context),
-            #[cfg(rayx_tls)]
+            #[cfg(dxn_tls)]
             Stream::ProxyTls(stream) => Pin::new(stream.as_mut()).poll_flush(context),
         }
     }
@@ -111,7 +111,7 @@ impl AsyncWrite for Stream {
     fn poll_shutdown(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         match self.get_mut() {
             Stream::Tcp(stream) => Pin::new(stream).poll_shutdown(context),
-            #[cfg(rayx_tls)]
+            #[cfg(dxn_tls)]
             Stream::ProxyTls(stream) => Pin::new(stream.as_mut()).poll_shutdown(context),
         }
     }
@@ -134,7 +134,7 @@ pub(crate) enum ProxyConfig {
     /// `ProxySelector`, or the environment variables where they are the system's settings.
     Os,
     /// A proxy auto-config script (`with_proxy_auto_config`).
-    #[cfg(rayx_pac)]
+    #[cfg(dxn_pac)]
     AutoConfig(super::pac::PacConfig),
 }
 
@@ -164,7 +164,7 @@ pub(crate) fn target_url(secure: bool, host: &str, port: u16) -> String {
 impl ProxyConfig {
     /// Starts a connect (`start`): an auto-config script is loaded again.
     pub(crate) fn begin_connect(&self) {
-        #[cfg(rayx_pac)]
+        #[cfg(dxn_pac)]
         if let ProxyConfig::AutoConfig(pac) = self {
             pac.begin_connect();
         }
@@ -418,7 +418,7 @@ pub(crate) fn resolve(
     match config {
         ProxyConfig::Disabled => None,
         // Routes come from the script or the system (`routes`).
-        #[cfg(rayx_pac)]
+        #[cfg(dxn_pac)]
         ProxyConfig::AutoConfig(_) => None,
         ProxyConfig::Os => None,
         ProxyConfig::Explicit(proxy) => Some(proxy.clone()),
@@ -775,7 +775,7 @@ pub(crate) async fn routes(
     host: &str,
     port: u16,
 ) -> Result<Vec<Route>, Error> {
-    #[cfg(not(rayx_pac))]
+    #[cfg(not(dxn_pac))]
     let _ = tls;
     let environment = |name: &str| std::env::var(name).ok();
     let from_environment = || {
@@ -787,7 +787,7 @@ pub(crate) async fn routes(
         ]
     };
     match config {
-        #[cfg(rayx_pac)]
+        #[cfg(dxn_pac)]
         ProxyConfig::AutoConfig(pac) => pac.routes(tls, secure, host, port).await,
         ProxyConfig::System if environment_configured(environment) => Ok(from_environment()),
         ProxyConfig::System | ProxyConfig::Os => match super::os_proxy::platform() {
@@ -830,7 +830,7 @@ async fn proxy_tls(
     tls: &super::tls::TlsContext,
     tcp: TcpStream,
 ) -> Result<Stream, Error> {
-    #[cfg(rayx_tls)]
+    #[cfg(dxn_tls)]
     {
         // The connection's configuration without ALPN: the proxy speaks HTTP/1.1 `CONNECT`
         // whatever the endpoint negotiates, as .NET clears the application protocols for it.
@@ -855,7 +855,7 @@ async fn proxy_tls(
                 .with_source(error)
             })
     }
-    #[cfg(not(rayx_tls))]
+    #[cfg(not(dxn_tls))]
     {
         let _ = (proxy, tls, tcp);
         Err(super::tls::tls_disabled())
@@ -1367,7 +1367,7 @@ mod proxy_tests {
     }
 }
 
-#[cfg(all(test, rayx_tls))]
+#[cfg(all(test, dxn_tls))]
 mod https_proxy_tests {
     use std::sync::Arc;
 

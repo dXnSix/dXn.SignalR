@@ -1,5 +1,5 @@
 //! Soak under chaos: mixed concurrent traffic (invocations with results, fire-and-forget sends,
-//! server streams, server-to-client callbacks and client results) for `RAYX_SIGNALR_SOAK_SECONDS`
+//! server streams, server-to-client callbacks and client results) for `DXN_SIGNALR_SOAK_SECONDS`
 //! while the test service aborts transports at seeded random 0.5-5 s intervals, against an ordinary
 //! and a stateful hub at once. Stateful mode loses and duplicates nothing and never leaves the
 //! logical connection (every invocation completes once with its result, streams arrive complete and
@@ -16,8 +16,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+use dxn_signalr::{CallbackHandler, StatefulReconnectConfig};
 use futures::StreamExt;
-use rayx_signalr::{CallbackHandler, StatefulReconnectConfig};
 
 use crate::support::{self, Protocol};
 

@@ -35,7 +35,7 @@ impl ArgumentConfiguration {
     /// connection is resuming, or natively paused and resumed, it waits and then continues.
     ///
     /// ```no_run
-    /// # async fn run(mut client: rayx_signalr::SignalRClient) -> Result<(), rayx_signalr::Error> {
+    /// # async fn run(mut client: dxn_signalr::SignalRClient) -> Result<(), dxn_signalr::Error> {
     /// let numbers = futures::stream::iter(1..=10);
     /// let sum: i32 = client
     ///     .invoke_with_args("Sum".to_string(), |c| {
@@ -73,8 +73,8 @@ impl ArgumentConfiguration {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), rayx_signalr::Error> {
-    /// use rayx_signalr::SignalRClient;
+    /// # async fn example() -> Result<(), dxn_signalr::Error> {
+    /// use dxn_signalr::SignalRClient;
     /// use serde::{Deserialize, Serialize};
     ///
     /// #[derive(Deserialize, Serialize)]

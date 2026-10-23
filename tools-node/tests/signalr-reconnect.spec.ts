@@ -17,7 +17,7 @@ for (const { protocol, title } of protocols) {
 
     await openFixture(page);
     const initial = await page.evaluate(
-      (selected) => window.rayxSignalRFixture.connectAndProbe(selected),
+      (selected) => window.dxnSignalRFixture.connectAndProbe(selected),
       protocol,
     );
     expect(initial).toBe("initial-ok");
@@ -33,15 +33,15 @@ for (const { protocol, title } of protocols) {
 
     await expect.poll(async () => {
       try {
-        return await page.evaluate(() => window.rayxSignalRFixture.probeAfterReconnect());
+        return await page.evaluate(() => window.dxnSignalRFixture.probeAfterReconnect());
       } catch (error) {
         return `reconnect failed: ${String(error)}`;
       }
     }, { timeout: 15_000 }).toBe("reconnected");
 
-    await page.evaluate(() => window.rayxSignalRFixture.triggerCallbackAfterReconnect());
+    await page.evaluate(() => window.dxnSignalRFixture.triggerCallbackAfterReconnect());
     await expect.poll(
-      () => page.evaluate(() => window.rayxSignalRFixture.callbackCount()),
+      () => page.evaluate(() => window.dxnSignalRFixture.callbackCount()),
       { message: "callback registration survives reconnect", timeout: 5_000 },
     ).toBe(1);
   });
@@ -65,65 +65,65 @@ for (const { protocol, title } of protocols) {
 
     await openFixture(page);
     const connectionId = await page.evaluate(
-      (selected) => window.rayxSignalRFixture.connectStateful(selected),
+      (selected) => window.dxnSignalRFixture.connectStateful(selected),
       protocol,
     );
     expect(activeSocket, "Playwright must intercept the stateful SignalR WebSocket").toBeDefined();
     const initialNegotiateRequests = negotiateRequests;
     expect(initialNegotiateRequests).toBe(1);
 
-    await page.evaluate(() => window.rayxSignalRFixture.startStatefulStream());
+    await page.evaluate(() => window.dxnSignalRFixture.startStatefulStream());
     for (const threshold of [4, 80]) {
       await expect.poll(
-        () => page.evaluate(() => window.rayxSignalRFixture.statefulStreamCount()),
+        () => page.evaluate(() => window.dxnSignalRFixture.statefulStreamCount()),
         { message: `stream reaches ${threshold} before transport drop`, timeout: 15_000 },
       ).toBeGreaterThanOrEqual(threshold);
       const previousGeneration = socketGeneration;
-      await page.evaluate(() => window.rayxSignalRFixture.abortPhysicalTransport());
+      await page.evaluate(() => window.dxnSignalRFixture.abortPhysicalTransport());
       await expect.poll(() => socketGeneration, { timeout: 15_000 }).toBeGreaterThan(previousGeneration);
     }
 
     await expect.poll(
-      () => page.evaluate(() => window.rayxSignalRFixture.statefulStreamCount()),
+      () => page.evaluate(() => window.dxnSignalRFixture.statefulStreamCount()),
       { message: "stream reaches third-drop boundary", timeout: 15_000 },
     ).toBeGreaterThanOrEqual(160);
-    await page.evaluate(() => window.rayxSignalRFixture.startPendingInvocation());
+    await page.evaluate(() => window.dxnSignalRFixture.startPendingInvocation());
     await expect.poll(
-      () => page.evaluate(() => window.rayxSignalRFixture.pendingInvocationStarted()),
+      () => page.evaluate(() => window.dxnSignalRFixture.pendingInvocationStarted()),
       { timeout: 5_000 },
     ).toBe(true);
     const previousGeneration = socketGeneration;
-    await page.evaluate(() => window.rayxSignalRFixture.abortPhysicalTransport());
+    await page.evaluate(() => window.dxnSignalRFixture.abortPhysicalTransport());
     await expect.poll(() => socketGeneration, { timeout: 15_000 }).toBeGreaterThan(previousGeneration);
 
     await expect.poll(
-      () => page.evaluate(() => window.rayxSignalRFixture.statefulStreamDone()),
+      () => page.evaluate(() => window.dxnSignalRFixture.statefulStreamDone()),
       { message: "stateful stream completes", timeout: 15_000 },
     ).toBe(true);
     await expect.poll(
-      () => page.evaluate(() => window.rayxSignalRFixture.pendingInvocationResult()),
+      () => page.evaluate(() => window.dxnSignalRFixture.pendingInvocationResult()),
       { message: "pending invocation completes after resume", timeout: 15_000 },
     ).toBe(connectionId);
-    expect(await page.evaluate(() => window.rayxSignalRFixture.scenarioError())).toBeUndefined();
+    expect(await page.evaluate(() => window.dxnSignalRFixture.scenarioError())).toBeUndefined();
 
     const streamValues = await page.evaluate(() =>
       Array.from(
-        { length: window.rayxSignalRFixture.statefulStreamCount() },
-        (_, index) => window.rayxSignalRFixture.statefulStreamValue(index),
+        { length: window.dxnSignalRFixture.statefulStreamCount() },
+        (_, index) => window.dxnSignalRFixture.statefulStreamValue(index),
       ),
     );
     expect(streamValues).toEqual(Array.from({ length: 240 }, (_, index) => index + 1));
-    expect(await page.evaluate(() => window.rayxSignalRFixture.probeStatefulIdentity())).toBe(connectionId);
+    expect(await page.evaluate(() => window.dxnSignalRFixture.probeStatefulIdentity())).toBe(connectionId);
 
-    await page.evaluate(() => window.rayxSignalRFixture.triggerStatefulCallbacks(12));
+    await page.evaluate(() => window.dxnSignalRFixture.triggerStatefulCallbacks(12));
     await expect.poll(
-      () => page.evaluate(() => window.rayxSignalRFixture.statefulCallbackCount()),
+      () => page.evaluate(() => window.dxnSignalRFixture.statefulCallbackCount()),
       { message: "ordered callbacks complete", timeout: 10_000 },
     ).toBe(12);
     const callbackValues = await page.evaluate(() =>
       Array.from(
-        { length: window.rayxSignalRFixture.statefulCallbackCount() },
-        (_, index) => window.rayxSignalRFixture.statefulCallbackValue(index),
+        { length: window.dxnSignalRFixture.statefulCallbackCount() },
+        (_, index) => window.dxnSignalRFixture.statefulCallbackValue(index),
       ),
     );
     expect(callbackValues).toEqual(Array.from({ length: 12 }, (_, index) => index + 1));

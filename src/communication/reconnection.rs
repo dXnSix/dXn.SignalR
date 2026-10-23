@@ -549,9 +549,9 @@ impl RetryContext {
     ///
     /// ```
     /// use std::time::Duration;
-    /// use rayx_signalr::{DelayListPolicy, ReconnectionPolicy, RetryContext};
+    /// use dxn_signalr::{DelayListPolicy, ReconnectionPolicy, RetryContext};
     ///
-    /// fn second_delay(reason: rayx_signalr::Error) {
+    /// fn second_delay(reason: dxn_signalr::Error) {
     ///     let policy = DelayListPolicy::new([Duration::ZERO, Duration::from_secs(2)]);
     ///     let context = RetryContext::new(1, Duration::from_secs(1), reason);
     ///     assert_eq!(

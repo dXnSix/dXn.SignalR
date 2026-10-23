@@ -2,7 +2,7 @@
 
 ## What the client is
 
-`rayx-signalr` speaks the [ASP.NET Core SignalR](https://learn.microsoft.com/aspnet/core/signalr/introduction)
+`dxn-signalr` speaks the [ASP.NET Core SignalR](https://learn.microsoft.com/aspnet/core/signalr/introduction)
 hub protocol from Rust. One API covers two runtimes:
 
 - **Native** targets (Windows, Linux, macOS, Android, iOS) run on Tokio. Negotiation, Server-Sent
@@ -23,17 +23,17 @@ application-driven `pause`/`resume`.
 ## Installation
 
 The crate is released as git tags `vX.Y.Z`, not on crates.io or any other registry. Depend on a
-release tag, the latest one on the [Releases page](https://github.com/rayx-ui/RayX.SignalR/releases):
+release tag, the latest one on the [Releases page](https://github.com/dXnSix/dXn.SignalR/releases):
 
 ```toml
 [dependencies]
-rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR", tag = "v1.0.0" }
+dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.0" }
 ```
 
 `Cargo.lock` records the tagged commit; to upgrade, change the tag. [Releasing](releasing.md)
 explains how releases are cut and versioned.
 
-The package is `rayx-signalr`; Rust code imports it as `rayx_signalr`.
+The package is `dxn-signalr`; Rust code imports it as `dxn_signalr`.
 
 You will also want `serde` (with `derive`) for your message types, `futures` for `StreamExt` on
 server streams, and, natively, `tokio` with a runtime:
@@ -63,7 +63,7 @@ Browsers ignore the TLS features and always use the browser's TLS. See [TLS](08-
 
 ```toml
 # MessagePack, plus bundled roots for Android without JVM setup:
-rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR", tag = "v1.0.0", features = ["messagepack", "tls-webpki-roots"] }
+dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.0", features = ["messagepack", "tls-webpki-roots"] }
 ```
 
 ### Toolchain
@@ -79,10 +79,10 @@ The server below is any ASP.NET Core hub mapped at `/chat` with a `Send(string u
 method that broadcasts `ReceiveMessage(user, text)` to every client.
 
 ```rust
-use rayx_signalr::{CallbackHandler, SignalRClient};
+use dxn_signalr::{CallbackHandler, SignalRClient};
 
 #[tokio::main]
-async fn main() -> Result<(), rayx_signalr::Error> {
+async fn main() -> Result<(), dxn_signalr::Error> {
     let mut client = SignalRClient::connect_with("localhost", "chat", |c| {
         c.unsecure(); // http/ws; the default is https/wss
         c.with_port(5000);
@@ -118,7 +118,7 @@ What happens in `connect_with`:
    (WebSockets, Server-Sent Events or Long Polling, in the server's order).
 3. It starts that transport, sends the SignalR handshake, and waits for the answer (15 seconds by
    default).
-4. It returns a connected `SignalRClient`, or an `Err(rayx_signalr::Error)` whose `kind()` says
+4. It returns a connected `SignalRClient`, or an `Err(dxn_signalr::Error)` whose `kind()` says
    which step failed (see [Errors and logging](11-errors-and-logging.md)).
 
 `connect("localhost", "chat")` is the same with the default configuration: `https`, port 443, JSON,
@@ -130,7 +130,7 @@ In the browser, the same API runs on the JavaScript event loop. Spawn the async 
 `wasm_bindgen_futures::spawn_local`:
 
 ```rust
-use rayx_signalr::SignalRClient;
+use dxn_signalr::SignalRClient;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen(start)]

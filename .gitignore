@@ -2,7 +2,7 @@
 target/
 target-wasm-*/
 
-# Generated RayX validation/build artifacts
+# Generated dXn validation/build artifacts
 artifacts/
 artifacts-temp/
 out/

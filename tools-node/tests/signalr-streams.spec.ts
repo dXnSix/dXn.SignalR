@@ -11,12 +11,12 @@ for (const { protocol, title } of protocols) {
     });
     await openFixture(page);
     await page.evaluate(
-      (selected) => window.rayxSignalRFixture.connectAndProbe(selected),
+      (selected) => window.dxnSignalRFixture.connectAndProbe(selected),
       protocol,
     );
 
     const received = await page.evaluate(
-      () => window.rayxSignalRFixture.consumeShortStreams(40, 3),
+      () => window.dxnSignalRFixture.consumeShortStreams(40, 3),
     );
 
     expect(received).toBe(120);
@@ -36,17 +36,17 @@ for (const { protocol, title } of protocols) {
 
     await openFixture(page);
     await page.evaluate(
-      (selected) => window.rayxSignalRFixture.connectAndProbe(selected),
+      (selected) => window.dxnSignalRFixture.connectAndProbe(selected),
       protocol,
     );
 
     const canceled = await page.evaluate(
-      () => window.rayxSignalRFixture.cancelLongStreams(64),
+      () => window.dxnSignalRFixture.cancelLongStreams(64),
     );
 
     expect(canceled).toBe(64);
     expect(cancellationFrames, "each dropped stream emits exactly one type-5 frame").toBe(64);
-    expect(await page.evaluate(() => window.rayxSignalRFixture.probeAfterReconnect())).toBe("reconnected");
+    expect(await page.evaluate(() => window.dxnSignalRFixture.probeAfterReconnect())).toBe("reconnected");
     expect(pageErrors).toEqual([]);
   });
 }
@@ -66,7 +66,7 @@ for (const { protocol, title } of protocols) {
 
     const outcome = await page.evaluate(
       (selected) =>
-        window.rayxSignalRFixture
+        window.dxnSignalRFixture
           .runFunctionalScenario("unsent-stream", selected)
           .catch((error: unknown) => `failed: ${String(error)}`),
       protocol,

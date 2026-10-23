@@ -7,7 +7,7 @@
 //! match tunnels.
 
 use base64::{engine::general_purpose, Engine};
-use rayx_signalr::{ConnectionConfiguration, ErrorKind, SignalRClient, Transports};
+use dxn_signalr::{ConnectionConfiguration, ErrorKind, SignalRClient, Transports};
 
 /// Every proxy variable the client reads, in both cases.
 const PROXY_VARIABLES: [&str; 9] = [
@@ -53,7 +53,7 @@ pub(crate) struct Stats {
 }
 
 pub(crate) fn proxy_endpoint() -> ServiceEndpoint {
-    support::parse_endpoint(&support::required_variable("RAYX_SIGNALR_E2E_PROXY_URL"))
+    support::parse_endpoint(&support::required_variable("DXN_SIGNALR_E2E_PROXY_URL"))
 }
 
 /// The proxy URL with `credentials` (`user:password`).
@@ -64,7 +64,7 @@ fn proxy_url(credentials: &str) -> String {
 }
 
 pub(crate) fn credentials() -> String {
-    support::required_variable("RAYX_SIGNALR_E2E_PROXY_CREDENTIALS")
+    support::required_variable("DXN_SIGNALR_E2E_PROXY_CREDENTIALS")
 }
 
 /// Reads the proxy's counters with a direct request.
@@ -109,10 +109,10 @@ async fn connect_through_proxy(
 async fn scenario(protocol: Protocol) {
     clear_proxy_variables();
     let plain = support::service();
-    let secure = support::parse_endpoint(&support::required_variable("RAYX_SIGNALR_E2E_TLS_URL"));
+    let secure = support::parse_endpoint(&support::required_variable("DXN_SIGNALR_E2E_TLS_URL"));
     let ca = general_purpose::STANDARD
         .decode(support::required_variable(
-            "RAYX_SIGNALR_E2E_TLS_CA_PEM_BASE64",
+            "DXN_SIGNALR_E2E_TLS_CA_PEM_BASE64",
         ))
         .expect("the CA is base64");
 
@@ -167,7 +167,7 @@ async fn scenario(protocol: Protocol) {
 
     // Wrong credentials: the proxy's 407, without the credentials.
     let refused_before = stats().await.refused;
-    let wrong = proxy_url("rayx:wrong-secret");
+    let wrong = proxy_url("dxn:wrong-secret");
     let error = SignalRClient::connect_with(&plain.host, "test", |configuration| {
         plain.apply(configuration);
         support::apply_protocol(configuration, protocol);

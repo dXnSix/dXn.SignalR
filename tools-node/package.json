@@ -1,5 +1,5 @@
 {
-  "name": "rayx-signalr-tools-node",
+  "name": "dxn-signalr-tools-node",
   "private": true,
   "packageManager": "pnpm@10.28.2",
   "type": "module",

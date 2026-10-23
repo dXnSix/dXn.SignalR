@@ -25,9 +25,9 @@ env:
   RUSTFLAGS: -D warnings
   DOTNET_NOLOGO: true
   PLAYWRIGHT_BROWSERS_PATH: "0"
-  RAYX_SIGNALR_E2E_PROTOCOLS: json,messagepack
-  RAYX_SIGNALR_E2E_SCENARIOS: all
-  RAYX_SIGNALR_E2E_TRANSPORTS: all
+  DXN_SIGNALR_E2E_PROTOCOLS: json,messagepack
+  DXN_SIGNALR_E2E_SCENARIOS: all
+  DXN_SIGNALR_E2E_TRANSPORTS: all
 
 jobs:
   native:
@@ -40,7 +40,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     env:
-      RAYX_SIGNALR_E2E_TARGETS: native
+      DXN_SIGNALR_E2E_TARGETS: native
     steps:
       - uses: actions/checkout@v7
         with:
@@ -57,7 +57,7 @@ jobs:
         # A stalled package mirror fails the step instead of holding the runner to the job timeout.
         timeout-minutes: 10
         run: |
-          echo 'Acquire::Retries "3"; Acquire::http::Timeout "30"; Acquire::https::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/99rayx-timeouts
+          echo 'Acquire::Retries "3"; Acquire::http::Timeout "30"; Acquire::https::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/99dxn-timeouts
           # The runner image may already list packages.microsoft.com; add it only when it does not.
           if ! grep -rqs "packages.microsoft.com/ubuntu" /etc/apt/sources.list /etc/apt/sources.list.d; then
             curl -sSLo packages-microsoft-prod.deb "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
@@ -74,7 +74,7 @@ jobs:
             target
           key: e2e-native-${{ matrix.os }}-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
       - name: Run native end-to-end cells through Aspire
-        run: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+        run: dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=E2E
       - name: Upload redacted end-to-end diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
@@ -94,7 +94,7 @@ jobs:
       matrix:
         engine: [chromium, firefox, webkit]
     env:
-      RAYX_SIGNALR_E2E_TARGETS: ${{ matrix.engine }}
+      DXN_SIGNALR_E2E_TARGETS: ${{ matrix.engine }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -130,7 +130,7 @@ jobs:
           pnpm --dir tools-node install --frozen-lockfile
           pnpm --dir tools-node exec playwright install --with-deps ${{ matrix.engine }}
       - name: Run browser end-to-end cells through Aspire
-        run: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+        run: dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=E2E
       - name: Upload redacted end-to-end diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
@@ -146,7 +146,7 @@ jobs:
     if: ${{ !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 150
     env:
-      RAYX_SIGNALR_E2E_TARGETS: android
+      DXN_SIGNALR_E2E_TARGETS: android
     steps:
       - uses: actions/checkout@v7
         with:
@@ -162,7 +162,7 @@ jobs:
         # A stalled package mirror fails the step instead of holding the runner to the job timeout.
         timeout-minutes: 10
         run: |
-          echo 'Acquire::Retries "3"; Acquire::http::Timeout "30"; Acquire::https::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/99rayx-timeouts
+          echo 'Acquire::Retries "3"; Acquire::http::Timeout "30"; Acquire::https::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/99dxn-timeouts
           # The runner image may already list packages.microsoft.com; add it only when it does not.
           if ! grep -rqs "packages.microsoft.com/ubuntu" /etc/apt/sources.list /etc/apt/sources.list.d; then
             curl -sSLo packages-microsoft-prod.deb "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
@@ -200,7 +200,7 @@ jobs:
           disk-size: 2048M
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           disable-animations: true
-          script: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+          script: dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=E2E
       - name: Upload redacted end-to-end diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
@@ -218,7 +218,7 @@ jobs:
     env:
       # The test app (debug and minified release APKs) as device owner; its emulator's global
       # proxy is set and restored around the os-proxy cells.
-      RAYX_SIGNALR_E2E_TARGETS: android-app,android-app-release
+      DXN_SIGNALR_E2E_TARGETS: android-app,android-app-release
     steps:
       - uses: actions/checkout@v7
         with:
@@ -258,7 +258,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           disable-animations: true
           # The image's JDK 17 for the Gradle build.
-          script: JAVA_HOME=$JAVA_HOME_17_X64 dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+          script: JAVA_HOME=$JAVA_HOME_17_X64 dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=E2E
       - name: Upload redacted end-to-end diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
@@ -274,7 +274,7 @@ jobs:
     if: ${{ !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 150
     env:
-      RAYX_SIGNALR_E2E_TARGETS: ios
+      DXN_SIGNALR_E2E_TARGETS: ios
     steps:
       - uses: actions/checkout@v7
         with:
@@ -294,7 +294,7 @@ jobs:
             target
           key: e2e-ios-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
       - name: Run iOS simulator end-to-end cells through Aspire
-        run: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+        run: dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=E2E
       - name: Upload redacted end-to-end diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
@@ -316,9 +316,9 @@ jobs:
     env:
       # Ephemeral runners only: the runner points the host's proxy at the test proxy around each
       # cell and restores it.
-      RAYX_SIGNALR_E2E_TARGETS: native
-      RAYX_SIGNALR_E2E_SCENARIOS: os-proxy,error-kinds
-      RAYX_SIGNALR_E2E_ALLOW_SYSTEM_CHANGES: "1"
+      DXN_SIGNALR_E2E_TARGETS: native
+      DXN_SIGNALR_E2E_SCENARIOS: os-proxy,error-kinds
+      DXN_SIGNALR_E2E_ALLOW_SYSTEM_CHANGES: "1"
     steps:
       - uses: actions/checkout@v7
         with:
@@ -338,7 +338,7 @@ jobs:
             target
           key: e2e-native-${{ matrix.os }}-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
       - name: Run the OS proxy cells through Aspire
-        run: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+        run: dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=E2E
       - name: Upload redacted end-to-end diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
@@ -358,9 +358,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     env:
-      RAYX_SIGNALR_E2E_TARGETS: native
-      RAYX_SIGNALR_E2E_TLS_PROVIDER: aws-lc-rs
-      RAYX_SIGNALR_E2E_SCENARIOS: tls,connect-negotiate,negotiate-redirect,proxy,error-kinds
+      DXN_SIGNALR_E2E_TARGETS: native
+      DXN_SIGNALR_E2E_TLS_PROVIDER: aws-lc-rs
+      DXN_SIGNALR_E2E_SCENARIOS: tls,connect-negotiate,negotiate-redirect,proxy,error-kinds
     steps:
       - uses: actions/checkout@v7
         with:
@@ -380,7 +380,7 @@ jobs:
             target/e2e-aws-lc
           key: e2e-aws-lc-${{ matrix.os }}-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
       - name: Run the aws-lc-rs native cells through Aspire
-        run: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+        run: dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=E2E
       - name: Upload redacted end-to-end diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
@@ -396,9 +396,9 @@ jobs:
     if: ${{ !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 90
     env:
-      RAYX_SIGNALR_E2E_TARGETS: android
-      RAYX_SIGNALR_E2E_TLS_PROVIDER: aws-lc-rs
-      RAYX_SIGNALR_E2E_SCENARIOS: tls,connect-negotiate,negotiate-redirect,proxy,error-kinds
+      DXN_SIGNALR_E2E_TARGETS: android
+      DXN_SIGNALR_E2E_TLS_PROVIDER: aws-lc-rs
+      DXN_SIGNALR_E2E_SCENARIOS: tls,connect-negotiate,negotiate-redirect,proxy,error-kinds
     steps:
       - uses: actions/checkout@v7
         with:
@@ -435,7 +435,7 @@ jobs:
           disk-size: 2048M
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           disable-animations: true
-          script: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+          script: dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=E2E
       - name: Upload redacted end-to-end diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
@@ -451,9 +451,9 @@ jobs:
     if: ${{ !(startsWith(github.head_ref, 'release-plz-') && github.event.pull_request.head.repo.full_name == github.repository) }}
     timeout-minutes: 90
     env:
-      RAYX_SIGNALR_E2E_TARGETS: ios
-      RAYX_SIGNALR_E2E_TLS_PROVIDER: aws-lc-rs
-      RAYX_SIGNALR_E2E_SCENARIOS: tls,connect-negotiate,negotiate-redirect,proxy,error-kinds
+      DXN_SIGNALR_E2E_TARGETS: ios
+      DXN_SIGNALR_E2E_TLS_PROVIDER: aws-lc-rs
+      DXN_SIGNALR_E2E_SCENARIOS: tls,connect-negotiate,negotiate-redirect,proxy,error-kinds
     steps:
       - uses: actions/checkout@v7
         with:
@@ -473,7 +473,7 @@ jobs:
             target/e2e-aws-lc
           key: e2e-aws-lc-ios-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
       - name: Run the aws-lc-rs iOS simulator cells through Aspire
-        run: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+        run: dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=E2E
       - name: Upload redacted end-to-end diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
@@ -490,9 +490,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      RAYX_SIGNALR_E2E_TARGETS: native
-      RAYX_SIGNALR_E2E_SCENARIOS: soak-chaos,error-kinds
-      RAYX_SIGNALR_SOAK_SECONDS: "900"
+      DXN_SIGNALR_E2E_TARGETS: native
+      DXN_SIGNALR_E2E_SCENARIOS: soak-chaos,error-kinds
+      DXN_SIGNALR_SOAK_SECONDS: "900"
     steps:
       - uses: actions/checkout@v7
         with:
@@ -512,7 +512,7 @@ jobs:
             target
           key: e2e-native-ubuntu-latest-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
       - name: Run the 900-second soak through Aspire
-        run: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+        run: dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=E2E
       - name: Upload redacted end-to-end diagnostics
         if: failure()
         uses: actions/upload-artifact@v7

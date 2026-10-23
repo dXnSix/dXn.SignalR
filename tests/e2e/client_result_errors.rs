@@ -7,10 +7,10 @@ use std::{
     time::Duration,
 };
 
-use futures::channel::oneshot;
-use rayx_signalr::{
+use dxn_signalr::{
     CallbackHandler, Error, ErrorKind, InvocationContext, SignalRClient, StatefulReconnectConfig,
 };
+use futures::channel::oneshot;
 
 use crate::support::{self, Protocol};
 

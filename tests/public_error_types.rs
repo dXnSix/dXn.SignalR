@@ -1,10 +1,10 @@
-//! Every public fallible item reports the typed `rayx_signalr::Error`: compile-time assertions
+//! Every public fallible item reports the typed `dxn_signalr::Error`: compile-time assertions
 //! over the public signatures (function pointers for synchronous items, future output types for
 //! asynchronous ones). The test only has to compile and run once.
 
 use std::future::Future;
 
-use rayx_signalr::{
+use dxn_signalr::{
     ArgumentConfiguration, ConnectionConfiguration, Error, ErrorKind, HttpRequest,
     InvocationContext, ManualStream, ReconnectionHandler, SignalRClient, StatefulReconnectConfig,
 };
@@ -74,5 +74,5 @@ fn public_fallible_items_report_the_typed_error() {
 #[test]
 fn android_initialization_reports_the_typed_error() {
     fn returns_error<A, B>(_: fn(A, B) -> Result<(), Error>) {}
-    returns_error(rayx_signalr::tls::android::init_with_env);
+    returns_error(dxn_signalr::tls::android::init_with_env);
 }

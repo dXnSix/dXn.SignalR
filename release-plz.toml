@@ -23,12 +23,12 @@ semver_check = false
 release_commits = "^(feat|fix|perf)"
 
 [[package]]
-name = "rayx-signalr"
+name = "dxn-signalr"
 
 [changelog]
 header = """# Changelog
 
-All notable changes to `rayx-signalr` are documented in this file. The format follows
+All notable changes to `dxn-signalr` are documented in this file. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). It is generated from
 Conventional Commits by release-plz.
@@ -57,7 +57,7 @@ protect_breaking_commits = true
 tag_pattern = "v[0-9].*"
 sort_commits = "oldest"
 commit_parsers = [
-  # Housekeeping that is not a change to rayx-signalr.
+  # Housekeeping that is not a change to dxn-signalr.
   { message = "^chore\\(agentx\\)", skip = true },
   { message = "^docs\\(agentx\\)", skip = true },
   { message = "^chore\\(release\\)", skip = true },

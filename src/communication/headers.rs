@@ -17,7 +17,7 @@ pub(crate) fn user_agent() -> String {
     let version = env!("CARGO_PKG_VERSION");
     let major_minor = version.split('.').take(2).collect::<Vec<_>>().join(".");
     format!(
-        "RayX SignalR/{major_minor} ({version}; {}; {}; Unknown Runtime Version)",
+        "dXn SignalR/{major_minor} ({version}; {}; {}; Unknown Runtime Version)",
         os_name(),
         runtime_name()
     )
@@ -179,7 +179,7 @@ mod request_headers {
         let version = env!("CARGO_PKG_VERSION");
         assert!(
             agent.starts_with(&format!(
-                "RayX SignalR/{} ({version}; ",
+                "dXn SignalR/{} ({version}; ",
                 version.split('.').take(2).collect::<Vec<_>>().join(".")
             )),
             "{agent}"

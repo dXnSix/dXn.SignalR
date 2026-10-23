@@ -20,7 +20,7 @@ use std::{
 };
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use rayx_signalr::bench_support::{self, Frame, Protocol, Receiver};
+use dxn_signalr::bench_support::{self, Frame, Protocol, Receiver};
 use serde::{Deserialize, Serialize};
 
 /// One record of the benchmark payload.

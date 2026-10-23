@@ -1,6 +1,6 @@
 // The test-only Android app of the `android-app` and `android-app-release` end-to-end targets: it
 // runs the shared `tests/e2e` scenarios inside an app process through the `tests/android-harness`
-// JNI library. Built and run only by the Aspire runner (`dotnet/RayX.SignalR.E2E.Tests`).
+// JNI library. Built and run only by the Aspire runner (`dotnet/dXn.SignalR.E2E.Tests`).
 pluginManagement {
     repositories {
         google()
@@ -21,5 +21,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "rayx-signalr-android-app"
+rootProject.name = "dxn-signalr-android-app"
 include(":app")

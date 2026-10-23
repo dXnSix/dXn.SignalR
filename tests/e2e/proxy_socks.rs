@@ -7,7 +7,7 @@
 //! system proxy.
 
 use base64::{engine::general_purpose, Engine};
-use rayx_signalr::{ErrorKind, SignalRClient, Transports};
+use dxn_signalr::{ErrorKind, SignalRClient, Transports};
 
 use crate::{
     proxy::{clear_proxy_variables, credentials, proxy_endpoint, stats},
@@ -54,10 +54,10 @@ async fn connect_through_socks(
 async fn scenario(protocol: Protocol) {
     clear_proxy_variables();
     let plain = support::service();
-    let secure = support::parse_endpoint(&support::required_variable("RAYX_SIGNALR_E2E_TLS_URL"));
+    let secure = support::parse_endpoint(&support::required_variable("DXN_SIGNALR_E2E_TLS_URL"));
     let ca = general_purpose::STANDARD
         .decode(support::required_variable(
-            "RAYX_SIGNALR_E2E_TLS_CA_PEM_BASE64",
+            "DXN_SIGNALR_E2E_TLS_CA_PEM_BASE64",
         ))
         .expect("the CA is base64");
     let proxy = socks_url("socks5h", &credentials());
@@ -127,7 +127,7 @@ async fn scenario(protocol: Protocol) {
 
     // Wrong credentials: the proxy refuses the RFC 1929 sub-negotiation.
     let refused_before = stats().await.refused;
-    let wrong = socks_url("socks5h", "rayx:wrong-secret");
+    let wrong = socks_url("socks5h", "dxn:wrong-secret");
     let error = SignalRClient::connect_with(&plain.host, "test", |configuration| {
         plain.apply(configuration);
         support::apply_protocol(configuration, protocol);

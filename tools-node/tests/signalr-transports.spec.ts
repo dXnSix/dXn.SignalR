@@ -25,7 +25,7 @@ for (const { scenario, protocol, transport, title, transportTitle } of cells) {
 
     const outcome = await page.evaluate(
       ([selected, selectedProtocol]) =>
-        window.rayxSignalRFixture
+        window.dxnSignalRFixture
           .runFunctionalScenario(selected, selectedProtocol)
           .catch((error: unknown) => `failed: ${String(error)}`),
       [scenario, protocol] as const,

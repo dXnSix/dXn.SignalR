@@ -19,7 +19,7 @@ permissions:
 jobs:
   release:
     name: release-plz / release
-    if: github.repository == 'rayx-ui/RayX.SignalR'
+    if: github.repository == 'dXnSix/dXn.SignalR'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -41,7 +41,7 @@ jobs:
 
   release-pr:
     name: release-plz / release-pr
-    if: github.repository == 'rayx-ui/RayX.SignalR'
+    if: github.repository == 'dXnSix/dXn.SignalR'
     # The release pull request is computed only after `release` has tagged, so it always starts
     # from the newest tag.
     needs: release

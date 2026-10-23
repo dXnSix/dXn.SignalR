@@ -6,8 +6,8 @@ use std::{
     time::Duration,
 };
 
+use dxn_signalr::{CallbackHandler, StatefulReconnectConfig};
 use futures::StreamExt;
-use rayx_signalr::{CallbackHandler, StatefulReconnectConfig};
 
 use crate::support::{self, Protocol};
 

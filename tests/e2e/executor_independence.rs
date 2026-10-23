@@ -12,8 +12,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+use dxn_signalr::{CallbackHandler, DisconnectionHandler, ReconnectionHandler, SignalRClient};
 use futures::{executor::block_on, StreamExt};
-use rayx_signalr::{CallbackHandler, DisconnectionHandler, ReconnectionHandler, SignalRClient};
 use serde::Deserialize;
 
 use crate::support::{self, Protocol};
@@ -42,7 +42,7 @@ fn wait_until(what: &str, limit: Duration, mut probe: impl FnMut() -> bool) {
     }
 }
 
-fn identity(client: &mut SignalRClient) -> Result<String, rayx_signalr::Error> {
+fn identity(client: &mut SignalRClient) -> Result<String, dxn_signalr::Error> {
     block_on(client.invoke::<String>("ConnectionIdentity".to_string()))
 }
 

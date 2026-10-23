@@ -1,6 +1,6 @@
 //! An ASP.NET Core SignalR client for Rust, native and in the browser.
 //!
-//! `rayx_signalr` connects Tokio applications on Windows, Linux, macOS, Android and iOS, and
+//! `dxn_signalr` connects Tokio applications on Windows, Linux, macOS, Android and iOS, and
 //! WebAssembly applications in the browser (`wasm32-unknown-unknown`), to SignalR hubs. One API
 //! covers request/response calls, fire-and-forget messages, server streams, server-to-client
 //! calls with client results, and reconnection, over the JSON or MessagePack hub protocol and the
@@ -16,9 +16,9 @@
 //!
 //! ```no_run
 //! use futures::StreamExt;
-//! use rayx_signalr::{CallbackHandler, SignalRClient};
+//! use dxn_signalr::{CallbackHandler, SignalRClient};
 //!
-//! # async fn example() -> Result<(), rayx_signalr::Error> {
+//! # async fn example() -> Result<(), dxn_signalr::Error> {
 //! let mut client = SignalRClient::connect_with("localhost", "chat", |c| {
 //!     c.unsecure(); // http/ws; the default is https/wss
 //!     c.with_port(5000);
@@ -63,7 +63,7 @@
 //! | Errors | [`Error`], [`ErrorKind`] |
 //! | Native TLS | the `tls` module, `with_additional_root_certificates_pem` and `with_client_certificate` on [`ConnectionConfiguration`] |
 //!
-//! The [guide](https://github.com/rayx-ui/RayX.SignalR/blob/master/docs/README.md) explains the
+//! The [guide](https://github.com/dXnSix/dXn.SignalR/blob/master/docs/README.md) explains the
 //! connection and reconnection semantics, platform setup (browsers, Web Workers, Android, iOS)
 //! and the ASP.NET Core server configuration in chapters.
 //!
@@ -97,7 +97,7 @@
 // and timers do not exist on WASI or other wasm32 operating systems.
 #[cfg(all(target_arch = "wasm32", not(target_os = "unknown")))]
 compile_error!(
-    "rayx-signalr supports browser WASM (wasm32-unknown-unknown) as its only wasm target; WASI and other wasm32 targets are not supported"
+    "dxn-signalr supports browser WASM (wasm32-unknown-unknown) as its only wasm target; WASI and other wasm32 targets are not supported"
 );
 
 #[cfg(all(feature = "bench-internals", not(target_arch = "wasm32")))]
@@ -138,7 +138,7 @@ pub use protocol::hub_protocol::HubProtocolKind;
 pub mod tls {
     /// The rustls version the client builds its `ClientConfig` with, for
     /// [`with_tls_config_hook`](crate::ConnectionConfiguration::with_tls_config_hook).
-    #[cfg(rayx_tls)]
+    #[cfg(dxn_tls)]
     #[cfg_attr(
         docsrs,
         doc(cfg(all(

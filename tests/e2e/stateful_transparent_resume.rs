@@ -12,7 +12,7 @@ use std::{
     time::Duration,
 };
 
-use rayx_signalr::{CallbackHandler, ConnectionStatus, SignalRClient, StatefulReconnectConfig};
+use dxn_signalr::{CallbackHandler, ConnectionStatus, SignalRClient, StatefulReconnectConfig};
 
 use crate::support::{self, Protocol};
 

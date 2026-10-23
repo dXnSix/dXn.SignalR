@@ -3,7 +3,7 @@
 ## The entry points
 
 ```rust
-use rayx_signalr::SignalRClient;
+use dxn_signalr::SignalRClient;
 
 // Build without I/O, register callbacks and hooks, then start (`HubConnectionBuilder.Build()`
 // and `StartAsync` in the official .NET client).
@@ -25,7 +25,7 @@ let client = SignalRClient::connect_with("localhost", "hubs/chat", |c| {
 ```
 
 `connect` and `connect_with` are `new` followed by `start`: they are `async` and return
-`Result<SignalRClient, rayx_signalr::Error>` (see
+`Result<SignalRClient, dxn_signalr::Error>` (see
 [Errors](11-errors-and-logging.md#negotiation-and-transport)). Prefer `new` when the hub sends
 right after connecting (from `OnConnectedAsync`): callbacks registered before `start` receive those
 messages (see [Connection lifecycle](06-connection-lifecycle.md#building-and-starting)).
@@ -34,7 +34,7 @@ messages (see [Connection lifecycle](06-connection-lifecycle.md#building-and-sta
 layers forward options (`ConnectionConfiguration` is exported from the crate root for this):
 
 ```rust
-use rayx_signalr::{ConnectionConfiguration, SignalRClient};
+use dxn_signalr::{ConnectionConfiguration, SignalRClient};
 
 fn production(c: &mut ConnectionConfiguration) {
     c.with_port(8443);
@@ -98,7 +98,7 @@ transport of that connection, resumes included. An
 (with anything token-shaped in the message redacted); a reconnection policy then tries again.
 
 ```rust
-let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+let client = dxn_signalr::SignalRClient::new("localhost", "chat", |c| {
     c.with_access_token_factory(|| async {
         // Fetch or refresh the token here.
         Ok::<_, String>(std::env::var("API_TOKEN").unwrap_or_default())
@@ -128,7 +128,7 @@ timeout names only the bound (`negotiate timed out after 2s`).
 `UseDefaultCredentials` and `Credentials` do:
 
 ```rust
-let client = rayx_signalr::SignalRClient::new("intranet.example.com", "chat", |c| {
+let client = dxn_signalr::SignalRClient::new("intranet.example.com", "chat", |c| {
     // The signed-in Windows account (Kerberos, or NTLM where Kerberos is unavailable).
     c.with_default_credentials();
     // Or explicit credentials: c.with_credentials("user", "password", "CORP");
@@ -162,7 +162,7 @@ Every request carries the official clients' headers:
 
 | Header | Native | Browser |
 |---|---|---|
-| `User-Agent` in the official format, `RayX SignalR/<major.minor> (<version>; <OS>; Rust; Unknown Runtime Version)` | negotiate, WebSocket upgrade, Long Polling and Server-Sent Events | not settable; sent as `X-SignalR-User-Agent` on `fetch` requests (negotiate, Long Polling, Server-Sent Events sends) |
+| `User-Agent` in the official format, `dXn SignalR/<major.minor> (<version>; <OS>; Rust; Unknown Runtime Version)` | negotiate, WebSocket upgrade, Long Polling and Server-Sent Events | not settable; sent as `X-SignalR-User-Agent` on `fetch` requests (negotiate, Long Polling, Server-Sent Events sends) |
 | `X-Requested-With: XMLHttpRequest` | negotiate, WebSocket upgrade, Long Polling and Server-Sent Events | `fetch` requests (negotiate, Long Polling, Server-Sent Events sends) |
 | `Accept: */*` | negotiate | browser default |
 
@@ -185,7 +185,7 @@ An invalid name or value, or a header the transport owns (`Host`, `Content-Lengt
 `with_header`; the value is never repeated in the error.
 
 ```rust
-let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+let client = dxn_signalr::SignalRClient::new("localhost", "chat", |c| {
     c.with_header("X-Tenant", "blue");
 })?;
 ```
@@ -204,11 +204,11 @@ on every leg, and a request retried on a fresh connection keeps the hook's chang
 `SocketsHttpHandler` adds and retries them inside the handler chain:
 
 ```rust
-let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+let client = dxn_signalr::SignalRClient::new("localhost", "chat", |c| {
     c.with_request_hook(|request| {
         // `transport()` is `None` for negotiate; `method()` and `url()` name the request.
         if request.transport().is_none() {
-            let _ = request.set_header("X-Negotiate-Source", "rayx");
+            let _ = request.set_header("X-Negotiate-Source", "dxn");
         }
     });
 })?;
@@ -250,11 +250,11 @@ responses fail with the status (`ErrorKind::Authentication` for 401 and 403, oth
 ### Skipping negotiation
 
 ```rust
-let client = rayx_signalr::SignalRClient::connect_with("localhost", "chat", |c| {
+let client = dxn_signalr::SignalRClient::connect_with("localhost", "chat", |c| {
     c.unsecure();
     c.with_port(5000);
     c.skip_negotiation();
-    c.with_transports(rayx_signalr::Transports::WEB_SOCKETS);
+    c.with_transports(dxn_signalr::Transports::WEB_SOCKETS);
 })
 .await?;
 ```
@@ -285,8 +285,8 @@ All three transports start on both targets. With MessagePack, Server-Sent Events
 `new` and `connect` before any I/O with `ErrorKind::Configuration` naming `with_transports`.
 
 ```rust
-let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
-    c.with_transports(rayx_signalr::Transports::WEB_SOCKETS | rayx_signalr::Transports::LONG_POLLING);
+let client = dxn_signalr::SignalRClient::new("localhost", "chat", |c| {
+    c.with_transports(dxn_signalr::Transports::WEB_SOCKETS | dxn_signalr::Transports::LONG_POLLING);
 })?;
 ```
 
@@ -334,8 +334,8 @@ by either side. Stateful reconnect does not run over Long Polling.
 ```rust
 use std::time::Duration;
 
-let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
-    c.with_transports(rayx_signalr::Transports::LONG_POLLING);
+let client = dxn_signalr::SignalRClient::new("localhost", "chat", |c| {
+    c.with_transports(dxn_signalr::Transports::LONG_POLLING);
     c.with_long_polling_timeout(Duration::from_secs(60));
 })?;
 ```
@@ -364,8 +364,8 @@ Unlike Long Polling, Server-Sent Events use the keep-alive Pings and the server 
 WebSockets. Stateful reconnect does not run over them.
 
 ```rust
-let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
-    c.with_transports(rayx_signalr::Transports::SERVER_SENT_EVENTS);
+let client = dxn_signalr::SignalRClient::new("localhost", "chat", |c| {
+    c.with_transports(dxn_signalr::Transports::SERVER_SENT_EVENTS);
 })?;
 ```
 
@@ -382,8 +382,8 @@ Native clients choose the HTTP version as the .NET client does, with `with_http_
 | `Http3Preferred` (feature `http3`, experimental) | HTTP/3 when QUIC connects within half the connect timeout, else as `Auto` | as `Auto` |
 
 ```rust
-let client = rayx_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
-    c.with_http_version(rayx_signalr::HttpVersion::Http2);
+let client = dxn_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
+    c.with_http_version(dxn_signalr::HttpVersion::Http2);
 })?;
 ```
 
@@ -421,8 +421,8 @@ extra roots and `with_tls_config_hook`, offering ALPN `h3`. Certificates are ver
 
 ```rust
 // Requires the `http3` feature.
-let client = rayx_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
-    c.with_http_version(rayx_signalr::HttpVersion::Http3Preferred);
+let client = dxn_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
+    c.with_http_version(dxn_signalr::HttpVersion::Http3Preferred);
 })?;
 ```
 
@@ -459,7 +459,7 @@ a proxy URL the client supports (`http://`, `https://`, `socks4://`, `socks4a://
 have none of these options.
 
 ```rust
-let client = rayx_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
+let client = dxn_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
     // An explicit proxy instead of the system's; credentials are optional.
     c.with_proxy("http://user:password@proxy.example.com:3128");
     // Or a SOCKS proxy: c.with_proxy("socks5://user:password@proxy.example.com:1080");
@@ -510,7 +510,7 @@ With the `proxy-pac` feature, `with_proxy_auto_config(url)` chooses proxies with
 auto-config (PAC) script, as WinHTTP and browsers do:
 
 ```rust
-let client = rayx_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
+let client = dxn_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
     c.with_proxy_auto_config("http://wpad.example.com/proxy.pac");
 })?;
 ```
@@ -549,9 +549,9 @@ it. Each client has its own jar; pass a `CookieJar` to share one
 between clients, or keep a clone to read or seed it:
 
 ```rust
-let jar = rayx_signalr::CookieJar::new();
+let jar = dxn_signalr::CookieJar::new();
 jar.set_cookie("https://hub.example.com/chat", "tenant=blue; Path=/");
-let client = rayx_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
+let client = dxn_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
     c.with_cookie_jar(jar.clone());
 })?;
 // After connecting: jar.cookie_header("https://hub.example.com/chat")
@@ -571,7 +571,7 @@ limits (4096 bytes per cookie, 20 per domain, 300 in all). A `Cookie` header set
 JSON is the default. With the `messagepack` feature:
 
 ```rust
-let client = rayx_signalr::SignalRClient::connect_with("localhost", "chat", |c| {
+let client = dxn_signalr::SignalRClient::connect_with("localhost", "chat", |c| {
     c.with_messagepack_protocol();
 })
 .await?;
@@ -585,7 +585,7 @@ API does not change. See [Hub protocols and serialization](05-hub-protocols.md).
 ```rust
 // `runtime` is a tokio::runtime::Runtime that the application owns.
 let handle = runtime.handle().clone();
-let client = rayx_signalr::SignalRClient::connect_with("localhost", "chat", move |c| {
+let client = dxn_signalr::SignalRClient::connect_with("localhost", "chat", move |c| {
     c.with_runtime_handle(handle.clone());
 })
 .await?;

@@ -14,7 +14,7 @@ work fails with `ErrorKind::Transport`, `on_closed` runs with the drop reason, a
 
 ```rust
 use std::sync::Arc;
-use rayx_signalr::{DefaultRetryPolicy, ReconnectionConfig, SignalRClient};
+use dxn_signalr::{DefaultRetryPolicy, ReconnectionConfig, SignalRClient};
 
 let client = SignalRClient::connect_with("localhost", "chat", |c| {
     c.with_reconnection_policy(ReconnectionConfig {
@@ -46,7 +46,7 @@ at once.
 
 ```rust
 use std::{sync::Arc, time::Duration};
-use rayx_signalr::{ExponentialBackoffPolicy, ReconnectionConfig};
+use dxn_signalr::{ExponentialBackoffPolicy, ReconnectionConfig};
 
 let config = ReconnectionConfig {
     policy: Arc::new(ExponentialBackoffPolicy::new(
@@ -65,7 +65,7 @@ receives a `RetryContext`, as the .NET client's `IRetryPolicy.NextRetryDelay`:
 
 ```rust
 use std::time::Duration;
-use rayx_signalr::{ErrorKind, ReconnectionPolicy, RetryContext};
+use dxn_signalr::{ErrorKind, ReconnectionPolicy, RetryContext};
 
 /// Retries every 5 seconds for at most two minutes, but not after a failed authentication.
 struct ForTwoMinutes;
@@ -94,7 +94,7 @@ and calls the handler whenever the transport drops or the server closes the conn
 
 ```rust
 use std::sync::Arc;
-use rayx_signalr::{
+use dxn_signalr::{
     DefaultRetryPolicy, DisconnectionHandler, ReconnectionConfig, ReconnectionHandler, SignalRClient,
 };
 
@@ -166,7 +166,7 @@ the client and server buffer unacknowledged messages, and after a short drop the
 
 ```rust
 use std::sync::Arc;
-use rayx_signalr::{DefaultRetryPolicy, ReconnectionConfig, SignalRClient, StatefulReconnectConfig};
+use dxn_signalr::{DefaultRetryPolicy, ReconnectionConfig, SignalRClient, StatefulReconnectConfig};
 
 let stateful = StatefulReconnectConfig::new(256 * 1024)?; // replay buffer in bytes
 let client = SignalRClient::connect_with("localhost", "chat", move |c| {

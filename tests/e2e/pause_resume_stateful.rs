@@ -3,10 +3,10 @@
 
 use std::{sync::Arc, time::Duration};
 
-use futures::{FutureExt, StreamExt};
-use rayx_signalr::{
+use dxn_signalr::{
     ConnectionStatus, DefaultRetryPolicy, ReconnectionConfig, StatefulReconnectConfig,
 };
+use futures::{FutureExt, StreamExt};
 
 use crate::support::{self, Protocol};
 

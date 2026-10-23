@@ -59,7 +59,7 @@ pub(crate) async fn scenario(protocol: Protocol) {
 
     let complex = ComplexEntity {
         id: 41,
-        name: "rayx".to_string(),
+        name: "dxn".to_string(),
         tags: vec!["a".to_string(), "b".to_string()],
         nested: Some(TestEntity {
             number: 3,
@@ -74,7 +74,7 @@ pub(crate) async fn scenario(protocol: Protocol) {
         .await
         .unwrap();
     assert_eq!(
-        described, "41|rayx|a,b|inner:3|null",
+        described, "41|dxn|a,b|inner:3|null",
         "the hub must see the Serde wire names"
     );
     let returned = client
@@ -87,7 +87,7 @@ pub(crate) async fn scenario(protocol: Protocol) {
         returned,
         ComplexEntity {
             id: 42,
-            name: "RAYX".to_string(),
+            name: "DXN".to_string(),
             tags: vec!["a".to_string(), "b".to_string(), "server".to_string()],
             nested: Some(TestEntity {
                 number: 6,
@@ -110,7 +110,7 @@ pub(crate) async fn scenario(protocol: Protocol) {
         })
         .await
         .unwrap_err();
-    assert_eq!(failure.kind(), rayx_signalr::ErrorKind::Hub, "{failure}");
+    assert_eq!(failure.kind(), dxn_signalr::ErrorKind::Hub, "{failure}");
     assert!(
         failure
             .server_message()
@@ -122,7 +122,7 @@ pub(crate) async fn scenario(protocol: Protocol) {
         .invoke::<i32>("NoSuchHubMethod".to_string())
         .await
         .unwrap_err();
-    assert_eq!(unknown.kind(), rayx_signalr::ErrorKind::Hub, "{unknown}");
+    assert_eq!(unknown.kind(), dxn_signalr::ErrorKind::Hub, "{unknown}");
 
     let still_serving = client
         .invoke_with_args::<i32, _>("Echo".to_string(), |arguments| {

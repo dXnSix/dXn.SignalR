@@ -2,12 +2,12 @@
 
 use std::{future::Future, sync::Arc, time::Duration};
 
-use rayx_signalr::{
+use dxn_signalr::{
     ConnectionConfiguration, ConstantDelayPolicy, Error, ReconnectionConfig, SignalRClient,
 };
 use serde::{Deserialize, Serialize};
 
-/// The test hub's simple entity (`TestEntity` in `RayX.SignalR.TestService`).
+/// The test hub's simple entity (`TestEntity` in `dXn.SignalR.TestService`).
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct TestEntity {
     pub number: i32,
@@ -60,7 +60,7 @@ pub fn required_variable(name: &str) -> String {
     std::env::var(name).unwrap_or_else(|_| {
         panic!(
             "{name} is not set; run end-to-end scenarios through \
-             `dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E`"
+             `dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=E2E`"
         )
     })
 }
@@ -94,7 +94,7 @@ pub fn parse_endpoint(url: &str) -> ServiceEndpoint {
 
 /// The plaintext SignalR test service endpoint.
 pub fn service() -> ServiceEndpoint {
-    parse_endpoint(&required_variable("RAYX_SIGNALR_E2E_SERVICE_URL"))
+    parse_endpoint(&required_variable("DXN_SIGNALR_E2E_SERVICE_URL"))
 }
 
 /// Selects the protocol on a configuration.
@@ -113,27 +113,27 @@ pub fn apply_protocol(configuration: &mut ConnectionConfiguration, protocol: Pro
     }
 }
 
-/// Restricts a connection to the cell's transport (`RAYX_SIGNALR_TRANSPORT`, which the runner
+/// Restricts a connection to the cell's transport (`DXN_SIGNALR_TRANSPORT`, which the runner
 /// passes); WebSockets cells keep the default transports.
 pub fn apply_transport(configuration: &mut ConnectionConfiguration) {
-    let transports = match std::env::var("RAYX_SIGNALR_TRANSPORT").as_deref() {
-        Ok("long-polling") => rayx_signalr::Transports::LONG_POLLING,
-        Ok("server-sent-events") => rayx_signalr::Transports::SERVER_SENT_EVENTS,
+    let transports = match std::env::var("DXN_SIGNALR_TRANSPORT").as_deref() {
+        Ok("long-polling") => dxn_signalr::Transports::LONG_POLLING,
+        Ok("server-sent-events") => dxn_signalr::Transports::SERVER_SENT_EVENTS,
         _ => return,
     };
     configuration.with_transports(transports);
 }
 
-/// Whether the cell runs over Long Polling (`RAYX_SIGNALR_TRANSPORT`).
+/// Whether the cell runs over Long Polling (`DXN_SIGNALR_TRANSPORT`).
 pub fn long_polling() -> bool {
-    std::env::var("RAYX_SIGNALR_TRANSPORT").as_deref() == Ok("long-polling")
+    std::env::var("DXN_SIGNALR_TRANSPORT").as_deref() == Ok("long-polling")
 }
 
 /// Whether the cell runs over an HTTP transport (Long Polling or Server-Sent Events), whose
 /// requests keep the token negotiate fetched.
 pub fn http_transport() -> bool {
     matches!(
-        std::env::var("RAYX_SIGNALR_TRANSPORT").as_deref(),
+        std::env::var("DXN_SIGNALR_TRANSPORT").as_deref(),
         Ok("long-polling" | "server-sent-events")
     )
 }
@@ -208,10 +208,10 @@ pub async fn bounded<F: Future<Output = ()>>(name: &str, scenario: F) {
     bounded_within(name, SCENARIO_TIMEOUT, scenario).await;
 }
 
-/// How long soak scenarios run: `RAYX_SIGNALR_SOAK_SECONDS` (the runner forwards it), 120 seconds
+/// How long soak scenarios run: `DXN_SIGNALR_SOAK_SECONDS` (the runner forwards it), 120 seconds
 /// by default.
 pub fn soak_duration() -> Duration {
-    std::env::var("RAYX_SIGNALR_SOAK_SECONDS")
+    std::env::var("DXN_SIGNALR_SOAK_SECONDS")
         .ok()
         .and_then(|seconds| seconds.parse::<u64>().ok())
         .filter(|seconds| *seconds > 0)

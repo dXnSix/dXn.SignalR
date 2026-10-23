@@ -9,7 +9,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use rayx_signalr::{DisconnectionHandler, ReconnectionHandler};
+use dxn_signalr::{DisconnectionHandler, ReconnectionHandler};
 
 use crate::support::{self, Protocol};
 

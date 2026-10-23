@@ -16,7 +16,7 @@ use std::{
 /// # Examples
 ///
 /// ```
-/// use rayx_signalr::CompletedFuture;
+/// use dxn_signalr::CompletedFuture;
 ///
 /// # futures::executor::block_on(async {
 /// let future = CompletedFuture::new(42);
@@ -38,7 +38,7 @@ impl<T: Unpin> CompletedFuture<T> {
     /// # Examples
     ///
     /// ```
-    /// let future = rayx_signalr::CompletedFuture::new(42);
+    /// let future = dxn_signalr::CompletedFuture::new(42);
     /// ```
     #[allow(dead_code)]
     pub fn new(data: T) -> Self {

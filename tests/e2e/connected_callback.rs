@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use rayx_signalr::{CallbackHandler, ConnectionStatus};
+use dxn_signalr::{CallbackHandler, ConnectionStatus};
 
 use crate::support::{self, Protocol};
 

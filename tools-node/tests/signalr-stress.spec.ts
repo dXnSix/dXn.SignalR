@@ -13,7 +13,7 @@ for (const { protocol, title } of protocols) {
 
     const outcome = await page.evaluate(
       (selectedProtocol) =>
-        window.rayxSignalRFixture
+        window.dxnSignalRFixture
           .runStressScenario(selectedProtocol)
           .catch((error: unknown) => `failed: ${String(error)}`),
       protocol,

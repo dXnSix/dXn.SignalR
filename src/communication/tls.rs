@@ -17,13 +17,13 @@
     )
 )]
 
-#[cfg(rayx_tls)]
+#[cfg(dxn_tls)]
 use std::sync::Arc;
 
 use crate::error::Error;
 
 /// Returned for `https`/`wss` endpoints when the crate was built without TLS features.
-pub(crate) const TLS_DISABLED: &str = "TLS support is disabled in this build of rayx-signalr; \
+pub(crate) const TLS_DISABLED: &str = "TLS support is disabled in this build of dxn-signalr; \
 enable a verifier feature (tls-platform-verifier or tls-webpki-roots) and a provider feature \
 (tls-ring or tls-aws-lc-rs) to connect to https/wss endpoints";
 
@@ -42,16 +42,16 @@ pub(crate) struct TlsSettings {
     pub(crate) use_webpki_roots: bool,
     pub(crate) client_certificate: Option<ClientCertificatePem>,
     /// `with_tls_config_hook`.
-    #[cfg(rayx_tls)]
+    #[cfg(dxn_tls)]
     pub(crate) config_hook: Option<TlsConfigHook>,
 }
 
 /// The hook of `with_tls_config_hook`, run on each connection's config before its first use.
-#[cfg(rayx_tls)]
+#[cfg(dxn_tls)]
 #[derive(Clone)]
 pub(crate) struct TlsConfigHook(pub(crate) Arc<dyn Fn(&mut rustls::ClientConfig) + Send + Sync>);
 
-#[cfg(rayx_tls)]
+#[cfg(dxn_tls)]
 impl std::fmt::Debug for TlsConfigHook {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str("TlsConfigHook")
@@ -61,7 +61,7 @@ impl std::fmt::Debug for TlsConfigHook {
 /// The client certificate chain and private key (PEM) of `with_client_certificate`. `Debug`
 /// never shows the key.
 #[derive(Clone)]
-#[cfg_attr(not(rayx_tls), allow(dead_code))]
+#[cfg_attr(not(dxn_tls), allow(dead_code))]
 pub(crate) struct ClientCertificatePem {
     pub(crate) chain: Vec<u8>,
     pub(crate) key: Vec<u8>,
@@ -76,11 +76,11 @@ impl std::fmt::Debug for ClientCertificatePem {
 }
 
 /// The setting client-certificate errors name.
-#[cfg_attr(not(rayx_tls), allow(dead_code))]
+#[cfg_attr(not(dxn_tls), allow(dead_code))]
 pub(crate) const CLIENT_CERTIFICATE: &str = "with_client_certificate";
 
 /// The certificate verifier a connection uses.
-#[cfg(any(rayx_tls, test))]
+#[cfg(any(dxn_tls, test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum VerifierKind {
     /// The operating system's trust store (`rustls-platform-verifier`).
@@ -92,7 +92,7 @@ pub(crate) enum VerifierKind {
 }
 
 /// The rustls crypto provider a connection uses.
-#[cfg(any(rayx_tls, test))]
+#[cfg(any(dxn_tls, test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ProviderKind {
     AwsLcRs,
@@ -100,7 +100,7 @@ pub(crate) enum ProviderKind {
 }
 
 /// Which TLS features this build compiled in.
-#[cfg(any(rayx_tls, test))]
+#[cfg(any(dxn_tls, test))]
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct CompiledTls {
     pub(crate) platform_verifier: bool,
@@ -110,9 +110,9 @@ pub(crate) struct CompiledTls {
     pub(crate) android: bool,
 }
 
-#[cfg(any(rayx_tls, test))]
+#[cfg(any(dxn_tls, test))]
 impl CompiledTls {
-    #[cfg(rayx_tls)]
+    #[cfg(dxn_tls)]
     pub(crate) const CURRENT: CompiledTls = CompiledTls {
         platform_verifier: cfg!(feature = "tls-platform-verifier"),
         webpki_roots: cfg!(feature = "tls-webpki-roots"),
@@ -166,7 +166,7 @@ impl CompiledTls {
 }
 
 /// TLS options of one connection, validated at `connect`.
-#[cfg(rayx_tls)]
+#[cfg(dxn_tls)]
 struct PreparedTls {
     use_webpki_roots: bool,
     extra_roots: Vec<rustls_pki_types::CertificateDer<'static>>,
@@ -175,13 +175,13 @@ struct PreparedTls {
 }
 
 /// A parsed client certificate chain and its private key.
-#[cfg(rayx_tls)]
+#[cfg(dxn_tls)]
 struct ClientCertificate {
     chain: Vec<rustls_pki_types::CertificateDer<'static>>,
     key: rustls_pki_types::PrivateKeyDer<'static>,
 }
 
-#[cfg(rayx_tls)]
+#[cfg(dxn_tls)]
 impl ClientCertificate {
     /// Parses the chain (one or more `CERTIFICATE` blocks, the leaf first) and the private key
     /// (PKCS#8, PKCS#1 or SEC1); errors never repeat the key.
@@ -213,7 +213,7 @@ impl ClientCertificate {
 }
 
 /// A config derived for an ALPN offer.
-#[cfg(rayx_tls)]
+#[cfg(dxn_tls)]
 type AlpnConfig = (&'static [&'static [u8]], Arc<rustls::ClientConfig>);
 
 /// The TLS state of one connection. Secure endpoints build the rustls config at `connect`; a
@@ -221,12 +221,12 @@ type AlpnConfig = (&'static [&'static [u8]], Arc<rustls::ClientConfig>);
 /// Either way the connection keeps exactly one config for all of its requests and reconnects.
 #[derive(Clone, Default)]
 pub(crate) struct TlsContext {
-    #[cfg(rayx_tls)]
+    #[cfg(dxn_tls)]
     prepared: Option<Arc<PreparedTls>>,
-    #[cfg(rayx_tls)]
+    #[cfg(dxn_tls)]
     config: Arc<std::sync::Mutex<Option<Arc<rustls::ClientConfig>>>>,
     /// The config with other ALPN offers (HTTP/2), derived from `config` on first use.
-    #[cfg(rayx_tls)]
+    #[cfg(dxn_tls)]
     alpn: Arc<std::sync::Mutex<Vec<AlpnConfig>>>,
 }
 
@@ -234,7 +234,7 @@ impl TlsContext {
     /// Validates the TLS options and, for a secure endpoint, builds the connection's config.
     /// Runs at `connect`, before any I/O.
     pub(crate) fn for_connection(secure: bool, settings: &TlsSettings) -> Result<Self, Error> {
-        #[cfg(rayx_tls)]
+        #[cfg(dxn_tls)]
         {
             let extra_roots = match &settings.extra_roots_pem {
                 Some(pem) => parse_certificates(pem)?,
@@ -270,7 +270,7 @@ impl TlsContext {
             }
             Ok(context)
         }
-        #[cfg(not(rayx_tls))]
+        #[cfg(not(dxn_tls))]
         {
             let _ = settings;
             if secure {
@@ -282,7 +282,7 @@ impl TlsContext {
     }
 
     /// The connection's rustls config, built once on first use.
-    #[cfg(rayx_tls)]
+    #[cfg(dxn_tls)]
     pub(crate) fn config(&self) -> Result<Arc<rustls::ClientConfig>, Error> {
         if let Some(config) = crate::platform::LockExt::locked(&*self.config).as_ref() {
             return Ok(config.clone());
@@ -314,7 +314,7 @@ impl TlsContext {
     }
 
     /// The connection's config offering `alpn` (`None`: its own offer), derived once per offer.
-    #[cfg(rayx_tls)]
+    #[cfg(dxn_tls)]
     pub(crate) fn config_with_alpn(
         &self,
         alpn: Option<&'static [&'static [u8]]>,
@@ -336,7 +336,7 @@ impl TlsContext {
     }
 
     /// Whether the connection has built its rustls config yet.
-    #[cfg(all(rayx_tls, test))]
+    #[cfg(all(dxn_tls, test))]
     pub(crate) fn is_built(&self) -> bool {
         self.config
             .lock()
@@ -346,13 +346,13 @@ impl TlsContext {
 
     /// The WebSocket connector for a `wss` endpoint.
     pub(crate) fn websocket_connector(&self) -> Result<tokio_websockets::Connector, Error> {
-        #[cfg(rayx_tls)]
+        #[cfg(dxn_tls)]
         {
             Ok(tokio_websockets::Connector::Rustls(
                 tokio_rustls::TlsConnector::from(self.config()?),
             ))
         }
-        #[cfg(not(rayx_tls))]
+        #[cfg(not(dxn_tls))]
         {
             Err(tls_disabled())
         }
@@ -363,7 +363,7 @@ impl TlsContext {
 /// handshake, as a TLS 1.3 server's refusal of a missing client certificate does on the first
 /// read. Such failures are `ErrorKind::Tls`, not transport losses.
 pub(crate) fn is_tls_failure(error: &(dyn std::error::Error + 'static)) -> bool {
-    #[cfg(rayx_tls)]
+    #[cfg(dxn_tls)]
     {
         let mut current = Some(error);
         while let Some(error) = current {
@@ -379,7 +379,7 @@ pub(crate) fn is_tls_failure(error: &(dyn std::error::Error + 'static)) -> bool 
         }
         false
     }
-    #[cfg(not(rayx_tls))]
+    #[cfg(not(dxn_tls))]
     {
         let _ = error;
         false
@@ -401,7 +401,7 @@ pub(crate) fn classify(
 }
 
 /// Parses PEM certificates; fails on malformed PEM or when no certificate is present.
-#[cfg(rayx_tls)]
+#[cfg(dxn_tls)]
 pub(crate) fn parse_certificates(
     pem: &[u8],
 ) -> Result<Vec<rustls_pki_types::CertificateDer<'static>>, Error> {
@@ -425,7 +425,7 @@ pub(crate) fn parse_certificates(
     Ok(certificates)
 }
 
-#[cfg(rayx_tls)]
+#[cfg(dxn_tls)]
 pub(crate) fn crypto_provider(kind: ProviderKind) -> Arc<rustls::crypto::CryptoProvider> {
     match kind {
         #[cfg(feature = "tls-aws-lc-rs")]
@@ -437,7 +437,7 @@ pub(crate) fn crypto_provider(kind: ProviderKind) -> Arc<rustls::crypto::CryptoP
     }
 }
 
-#[cfg(rayx_tls)]
+#[cfg(dxn_tls)]
 fn build_config(
     provider: ProviderKind,
     verifier: VerifierKind,
@@ -601,7 +601,7 @@ mod tls_configuration {
         assert!(TlsContext::for_connection(false, &TlsSettings::default()).is_ok());
     }
 
-    #[cfg(rayx_tls)]
+    #[cfg(dxn_tls)]
     mod with_tls {
         use super::super::{CompiledTls, ProviderKind, TlsContext, TlsSettings};
 
@@ -700,7 +700,7 @@ NQ==
         }
     }
 
-    #[cfg(not(rayx_tls))]
+    #[cfg(not(dxn_tls))]
     #[test]
     fn secure_endpoints_without_tls_features_return_the_disabled_error() {
         let error = TlsContext::for_connection(true, &TlsSettings::default())
@@ -720,7 +720,7 @@ NQ==
     }
 }
 
-#[cfg(all(test, rayx_tls))]
+#[cfg(all(test, dxn_tls))]
 mod client_certificates {
     use std::sync::Arc;
 
@@ -919,7 +919,7 @@ mod client_certificates {
     }
 }
 
-#[cfg(all(test, rayx_tls))]
+#[cfg(all(test, dxn_tls))]
 mod transport_hooks_tls {
     use std::sync::{
         atomic::{AtomicUsize, Ordering},

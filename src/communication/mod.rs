@@ -9,7 +9,7 @@ pub(crate) mod headers;
 pub(crate) mod hooks;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod http2;
-#[cfg(rayx_http3)]
+#[cfg(dxn_http3)]
 pub(crate) mod http3;
 pub(crate) mod liveness;
 #[cfg(all(test, not(target_arch = "wasm32")))]
@@ -40,7 +40,7 @@ mod long_polling_tokio;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod os_proxy;
 #[cfg(not(target_arch = "wasm32"))]
-#[cfg(rayx_pac)]
+#[cfg(dxn_pac)]
 pub(crate) mod pac;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod proxy;

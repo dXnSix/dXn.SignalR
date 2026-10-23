@@ -16,7 +16,7 @@ for (const scenario of scenarios) {
 
       const outcome = await page.evaluate(
         ([selected, selectedProtocol]) =>
-          window.rayxSignalRFixture
+          window.dxnSignalRFixture
             .runFunctionalScenario(selected, selectedProtocol)
             .catch((error: unknown) => `failed: ${String(error)}`),
         [scenario, protocol] as const,

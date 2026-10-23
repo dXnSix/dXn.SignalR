@@ -1,14 +1,14 @@
 //! The `stateful-resume-stress` scenario in a browser (see `tests/e2e/stateful_resume_stress.rs`,
 //! which it mirrors): five fresh stateful connections take 100 server-side transport aborts each,
 //! each followed by an invocation and a short stream. The stateful sequence trace
-//! (`rayx_signalr::stateful` at `debug`) is kept in a ring buffer and returned with a failure, so a
+//! (`dxn_signalr::stateful` at `debug`) is kept in a ring buffer and returned with a failure, so a
 //! stall's lost sequence range reaches the cell diagnostics without flooding the log.
 
 use std::{collections::VecDeque, future::Future, sync::Mutex};
 
 use futures::{future::Either, StreamExt};
 use gloo_timers::future::TimeoutFuture;
-use rayx_signalr::{CallbackHandler, ConnectionStatus, SignalRClient, StatefulReconnectConfig};
+use dxn_signalr::{CallbackHandler, ConnectionStatus, SignalRClient, StatefulReconnectConfig};
 use wasm_bindgen::prelude::*;
 
 type Outcome = Result<(), String>;
@@ -31,7 +31,7 @@ struct TraceLogger(Mutex<VecDeque<String>>);
 
 impl log::Log for TraceLogger {
     fn enabled(&self, metadata: &log::Metadata<'_>) -> bool {
-        metadata.target().starts_with("rayx_signalr::stateful")
+        metadata.target().starts_with("dxn_signalr::stateful")
     }
 
     fn log(&self, record: &log::Record<'_>) {

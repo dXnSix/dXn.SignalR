@@ -16,8 +16,8 @@ env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
   DOTNET_NOLOGO: true
-  RAYX_SIGNALR_PERF_WORKLOADS: all
-  RAYX_SIGNALR_PERF_SCALE: full
+  DXN_SIGNALR_PERF_WORKLOADS: all
+  DXN_SIGNALR_PERF_SCALE: full
 
 jobs:
   compare:
@@ -43,7 +43,7 @@ jobs:
             target
           key: perf-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
       - name: Compare the Rust and .NET clients through Aspire and enforce the budgets
-        run: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter "Category=Performance|Category=ReferenceClientBudget"
+        run: dotnet test dotnet/dXn.SignalR.E2E.Tests --filter "Category=Performance|Category=ReferenceClientBudget"
       - name: Upload the performance report
         if: always()
         uses: actions/upload-artifact@v7

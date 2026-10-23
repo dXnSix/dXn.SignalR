@@ -17,11 +17,11 @@
 #[cfg(not(target_arch = "wasm32"))]
 #[rustfmt::skip]
 mod native {
-    use rayx_signalr::SignalRClient;
+    use dxn_signalr::SignalRClient;
 
     /// `README.md`, "Connect and invoke".
     async fn readme_connect_and_invoke(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        use rayx_signalr::SignalRClient;
+        use dxn_signalr::SignalRClient;
         use serde::Deserialize;
 
         #[derive(Deserialize)]
@@ -48,7 +48,7 @@ mod native {
 
     /// `README.md`, "Send and receive".
     async fn readme_send_and_receive(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        use rayx_signalr::CallbackHandler;
+        use dxn_signalr::CallbackHandler;
 
         let on_message = client.register("ReceiveMessage".to_string(), |ctx| {
             let user: String = ctx.argument(0).unwrap_or_default();
@@ -82,7 +82,7 @@ mod native {
 
     /// `README.md`, "Handle errors".
     async fn readme_handle_errors(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        use rayx_signalr::ErrorKind;
+        use dxn_signalr::ErrorKind;
 
         match client.invoke::<i32>("Total".to_string()).await {
             Ok(total) => println!("{total}"),
@@ -99,7 +99,7 @@ mod native {
     #[cfg(feature = "messagepack")]
     async fn readme_reconnect_and_replay(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
         use std::sync::Arc;
-        use rayx_signalr::{DefaultRetryPolicy, ReconnectionConfig, SignalRClient, StatefulReconnectConfig};
+        use dxn_signalr::{DefaultRetryPolicy, ReconnectionConfig, SignalRClient, StatefulReconnectConfig};
 
         let stateful = StatefulReconnectConfig::new(256 * 1024)?;
         let client = SignalRClient::connect_with("chat.example.com", "chat", move |c| {
@@ -120,7 +120,7 @@ mod native {
 
     /// `README.md`, "Start, observe and stop".
     async fn readme_start_observe_and_stop(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        use rayx_signalr::SignalRClient;
+        use dxn_signalr::SignalRClient;
 
         let mut client = SignalRClient::new("localhost", "chat", |c| {
             c.with_port(5000);
@@ -140,10 +140,10 @@ mod native {
 
     /// `docs/01-getting-started.md`, "A first native client".
     mod getting_started_a_first_native_client {
-        use rayx_signalr::{CallbackHandler, SignalRClient};
+        use dxn_signalr::{CallbackHandler, SignalRClient};
 
         #[tokio::main]
-        async fn main() -> Result<(), rayx_signalr::Error> {
+        async fn main() -> Result<(), dxn_signalr::Error> {
             let mut client = SignalRClient::connect_with("localhost", "chat", |c| {
                 c.unsecure(); // http/ws; the default is https/wss
                 c.with_port(5000);
@@ -172,7 +172,7 @@ mod native {
 
     /// `docs/02-connecting.md`, "The entry points".
     async fn connecting_the_entry_points(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        use rayx_signalr::SignalRClient;
+        use dxn_signalr::SignalRClient;
 
         // Build without I/O, register callbacks and hooks, then start (`HubConnectionBuilder.Build()`
         // and `StartAsync` in the official .NET client).
@@ -196,7 +196,7 @@ mod native {
 
     /// `docs/02-connecting.md`, "The entry points".
     async fn connecting_the_entry_points_2(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        use rayx_signalr::{ConnectionConfiguration, SignalRClient};
+        use dxn_signalr::{ConnectionConfiguration, SignalRClient};
 
         fn production(c: &mut ConnectionConfiguration) {
             c.with_port(8443);
@@ -209,7 +209,7 @@ mod native {
 
     /// `docs/02-connecting.md`, "Access-token factory".
     async fn connecting_access_token_factory(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+        let client = dxn_signalr::SignalRClient::new("localhost", "chat", |c| {
             c.with_access_token_factory(|| async {
                 // Fetch or refresh the token here.
                 Ok::<_, String>(std::env::var("API_TOKEN").unwrap_or_default())
@@ -220,7 +220,7 @@ mod native {
 
     /// `docs/02-connecting.md`, "Integrated Windows authentication".
     async fn connecting_integrated_windows_authentication(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        let client = rayx_signalr::SignalRClient::new("intranet.example.com", "chat", |c| {
+        let client = dxn_signalr::SignalRClient::new("intranet.example.com", "chat", |c| {
             // The signed-in Windows account (Kerberos, or NTLM where Kerberos is unavailable).
             c.with_default_credentials();
             // Or explicit credentials: c.with_credentials("user", "password", "CORP");
@@ -230,7 +230,7 @@ mod native {
 
     /// `docs/02-connecting.md`, "Request headers".
     async fn connecting_request_headers(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+        let client = dxn_signalr::SignalRClient::new("localhost", "chat", |c| {
             c.with_header("X-Tenant", "blue");
         })?;
         Ok(())
@@ -238,11 +238,11 @@ mod native {
 
     /// `docs/02-connecting.md`, "Request hooks".
     async fn connecting_request_hooks(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+        let client = dxn_signalr::SignalRClient::new("localhost", "chat", |c| {
             c.with_request_hook(|request| {
                 // `transport()` is `None` for negotiate; `method()` and `url()` name the request.
                 if request.transport().is_none() {
-                    let _ = request.set_header("X-Negotiate-Source", "rayx");
+                    let _ = request.set_header("X-Negotiate-Source", "dxn");
                 }
             });
         })?;
@@ -251,11 +251,11 @@ mod native {
 
     /// `docs/02-connecting.md`, "Skipping negotiation".
     async fn connecting_skipping_negotiation(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        let client = rayx_signalr::SignalRClient::connect_with("localhost", "chat", |c| {
+        let client = dxn_signalr::SignalRClient::connect_with("localhost", "chat", |c| {
             c.unsecure();
             c.with_port(5000);
             c.skip_negotiation();
-            c.with_transports(rayx_signalr::Transports::WEB_SOCKETS);
+            c.with_transports(dxn_signalr::Transports::WEB_SOCKETS);
         })
         .await?;
         Ok(())
@@ -263,8 +263,8 @@ mod native {
 
     /// `docs/02-connecting.md`, "Transports".
     async fn connecting_transports(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
-            c.with_transports(rayx_signalr::Transports::WEB_SOCKETS | rayx_signalr::Transports::LONG_POLLING);
+        let client = dxn_signalr::SignalRClient::new("localhost", "chat", |c| {
+            c.with_transports(dxn_signalr::Transports::WEB_SOCKETS | dxn_signalr::Transports::LONG_POLLING);
         })?;
         Ok(())
     }
@@ -273,8 +273,8 @@ mod native {
     async fn connecting_long_polling(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
         use std::time::Duration;
 
-        let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
-            c.with_transports(rayx_signalr::Transports::LONG_POLLING);
+        let client = dxn_signalr::SignalRClient::new("localhost", "chat", |c| {
+            c.with_transports(dxn_signalr::Transports::LONG_POLLING);
             c.with_long_polling_timeout(Duration::from_secs(60));
         })?;
         Ok(())
@@ -282,16 +282,16 @@ mod native {
 
     /// `docs/02-connecting.md`, "Server-Sent Events".
     async fn connecting_server_sent_events(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
-            c.with_transports(rayx_signalr::Transports::SERVER_SENT_EVENTS);
+        let client = dxn_signalr::SignalRClient::new("localhost", "chat", |c| {
+            c.with_transports(dxn_signalr::Transports::SERVER_SENT_EVENTS);
         })?;
         Ok(())
     }
 
     /// `docs/02-connecting.md`, "HTTP versions".
     async fn connecting_http_versions(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        let client = rayx_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
-            c.with_http_version(rayx_signalr::HttpVersion::Http2);
+        let client = dxn_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
+            c.with_http_version(dxn_signalr::HttpVersion::Http2);
         })?;
         Ok(())
     }
@@ -300,15 +300,15 @@ mod native {
     #[cfg(feature = "http3")]
     async fn connecting_experimental_http_3(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
         // Requires the `http3` feature.
-        let client = rayx_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
-            c.with_http_version(rayx_signalr::HttpVersion::Http3Preferred);
+        let client = dxn_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
+            c.with_http_version(dxn_signalr::HttpVersion::Http3Preferred);
         })?;
         Ok(())
     }
 
     /// `docs/02-connecting.md`, "Proxies".
     async fn connecting_proxies(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        let client = rayx_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
+        let client = dxn_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
             // An explicit proxy instead of the system's; credentials are optional.
             c.with_proxy("http://user:password@proxy.example.com:3128");
             // Or a SOCKS proxy: c.with_proxy("socks5://user:password@proxy.example.com:1080");
@@ -318,9 +318,9 @@ mod native {
     }
 
     /// `docs/02-connecting.md`, "Proxy auto-config".
-    #[cfg(rayx_pac)]
+    #[cfg(dxn_pac)]
     async fn connecting_proxy_auto_config(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        let client = rayx_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
+        let client = dxn_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
             c.with_proxy_auto_config("http://wpad.example.com/proxy.pac");
         })?;
         Ok(())
@@ -328,9 +328,9 @@ mod native {
 
     /// `docs/02-connecting.md`, "Cookies".
     async fn connecting_cookies(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        let jar = rayx_signalr::CookieJar::new();
+        let jar = dxn_signalr::CookieJar::new();
         jar.set_cookie("https://hub.example.com/chat", "tenant=blue; Path=/");
-        let client = rayx_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
+        let client = dxn_signalr::SignalRClient::new("hub.example.com", "chat", |c| {
             c.with_cookie_jar(jar.clone());
         })?;
         // After connecting: jar.cookie_header("https://hub.example.com/chat")
@@ -340,7 +340,7 @@ mod native {
     /// `docs/02-connecting.md`, "Hub protocol".
     #[cfg(feature = "messagepack")]
     async fn connecting_hub_protocol(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        let client = rayx_signalr::SignalRClient::connect_with("localhost", "chat", |c| {
+        let client = dxn_signalr::SignalRClient::connect_with("localhost", "chat", |c| {
             c.with_messagepack_protocol();
         })
         .await?;
@@ -351,7 +351,7 @@ mod native {
     async fn connecting_native_runtime(runtime: &tokio::runtime::Runtime) -> Result<(), Box<dyn std::error::Error>> {
         // `runtime` is a tokio::runtime::Runtime that the application owns.
         let handle = runtime.handle().clone();
-        let client = rayx_signalr::SignalRClient::connect_with("localhost", "chat", move |c| {
+        let client = dxn_signalr::SignalRClient::connect_with("localhost", "chat", move |c| {
             c.with_runtime_handle(handle.clone());
         })
         .await?;
@@ -410,7 +410,7 @@ mod native {
 
     /// `docs/03-calling-the-hub.md`, "Invocation headers".
     async fn calling_the_hub_invocation_headers(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+        let client = dxn_signalr::SignalRClient::new("localhost", "chat", |c| {
             c.with_invocation_headers(|_target| {
                 vec![(
                     "traceparent".to_string(),
@@ -484,7 +484,7 @@ mod native {
 
     /// `docs/04-server-callbacks.md`, "Registering a callback".
     async fn server_callbacks_registering_a_callback(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        use rayx_signalr::CallbackHandler;
+        use dxn_signalr::CallbackHandler;
         use serde::Deserialize;
 
         #[derive(Deserialize)]
@@ -507,7 +507,7 @@ mod native {
 
     /// `docs/04-server-callbacks.md`, "Asynchronous callbacks".
     async fn server_callbacks_asynchronous_callbacks(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        use rayx_signalr::CallbackHandler;
+        use dxn_signalr::CallbackHandler;
 
         let registration = client.register_async("Refresh".to_string(), |ctx| async move {
             let mut hub = ctx.client.clone();
@@ -520,7 +520,7 @@ mod native {
 
     /// `docs/04-server-callbacks.md`, "Typed callbacks".
     async fn server_callbacks_typed_callbacks(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        use rayx_signalr::CallbackHandler;
+        use dxn_signalr::CallbackHandler;
 
         let registration = client.register_typed("PriceChanged", |_ctx, (symbol, price): (String, f64)| {
             println!("{symbol} = {price}");
@@ -543,7 +543,7 @@ mod native {
 
     /// `docs/04-server-callbacks.md`, "Client results".
     async fn server_callbacks_client_results(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        use rayx_signalr::InvocationContext;
+        use dxn_signalr::InvocationContext;
 
         let registration = client.register("ConfirmPurchase".to_string(), |mut ctx| {
             let amount: f64 = ctx.argument(0).unwrap_or_default();
@@ -559,7 +559,7 @@ mod native {
 
     /// `docs/04-server-callbacks.md`, "`InvocationContext`".
     async fn server_callbacks_invocationcontext(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        use rayx_signalr::InvocationContext;
+        use dxn_signalr::InvocationContext;
 
         let registration = client.register("Joined".to_string(), |ctx| {
             let user: String = ctx.argument(0).unwrap_or_default();
@@ -577,7 +577,7 @@ mod native {
 
     /// `docs/04-server-callbacks.md`, "Registrations do not keep a client alive".
     async fn server_callbacks_registrations_do_not_keep_a_client_alive(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        use rayx_signalr::CallbackHandler;
+        use dxn_signalr::CallbackHandler;
 
         let on_message = client.register_typed("ReceiveMessage", |_ctx, (text,): (String,)| {
             println!("{text}");
@@ -603,7 +603,7 @@ mod native {
 
     /// `docs/06-connection-lifecycle.md`, "Building and starting".
     async fn connection_lifecycle_building_and_starting(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        let mut client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+        let mut client = dxn_signalr::SignalRClient::new("localhost", "chat", |c| {
             c.with_port(5000);
         })?;
 
@@ -636,7 +636,7 @@ mod native {
         let _restart = client.on_closed(move |error| {
             // `None`, or a cancellation during a reconnect: stopped by the application.
             let Some(error) = error else { return };
-            if error.kind() == rayx_signalr::ErrorKind::Canceled {
+            if error.kind() == dxn_signalr::ErrorKind::Canceled {
                 return;
             }
             if let Some(client) = weak.upgrade() {
@@ -652,7 +652,7 @@ mod native {
     async fn connection_lifecycle_liveness(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
         use std::time::Duration;
 
-        let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+        let client = dxn_signalr::SignalRClient::new("localhost", "chat", |c| {
             c.with_keep_alive_interval(Duration::from_secs(10));
             c.with_server_timeout(Duration::from_secs(40));
             c.with_handshake_timeout(Duration::from_secs(5));
@@ -666,7 +666,7 @@ mod native {
     async fn connection_lifecycle_pausing_and_resuming(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
         // Going to the background: end the transport, stop keep-alive and automatic reconnects.
         client.pause().await?;
-        assert_eq!(client.status(), rayx_signalr::ConnectionStatus::Paused);
+        assert_eq!(client.status(), dxn_signalr::ConnectionStatus::Paused);
 
         // Back in the foreground: reconnect now, then follow the reconnection policy.
         client.resume().await?;
@@ -677,9 +677,9 @@ mod native {
     mod connection_lifecycle_app_lifecycle_integration {
         /// Call from the platform's lifecycle notifications.
         async fn on_foreground_changed(
-            client: &rayx_signalr::SignalRClient,
+            client: &dxn_signalr::SignalRClient,
             foreground: bool,
-        ) -> Result<(), rayx_signalr::Error> {
+        ) -> Result<(), dxn_signalr::Error> {
             if foreground {
                 client.resume().await
             } else {
@@ -691,7 +691,7 @@ mod native {
     /// `docs/07-reconnection.md`, "Automatic reconnection".
     async fn reconnection_automatic_reconnection(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
         use std::sync::Arc;
-        use rayx_signalr::{DefaultRetryPolicy, ReconnectionConfig, SignalRClient};
+        use dxn_signalr::{DefaultRetryPolicy, ReconnectionConfig, SignalRClient};
 
         let client = SignalRClient::connect_with("localhost", "chat", |c| {
             c.with_reconnection_policy(ReconnectionConfig {
@@ -705,7 +705,7 @@ mod native {
     /// `docs/07-reconnection.md`, "Built-in policies".
     async fn reconnection_built_in_policies(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
         use std::{sync::Arc, time::Duration};
-        use rayx_signalr::{ExponentialBackoffPolicy, ReconnectionConfig};
+        use dxn_signalr::{ExponentialBackoffPolicy, ReconnectionConfig};
 
         let config = ReconnectionConfig {
             policy: Arc::new(ExponentialBackoffPolicy::new(
@@ -721,7 +721,7 @@ mod native {
     /// `docs/07-reconnection.md`, "Custom policies".
     mod reconnection_custom_policies {
         use std::time::Duration;
-        use rayx_signalr::{ErrorKind, ReconnectionPolicy, RetryContext};
+        use dxn_signalr::{ErrorKind, ReconnectionPolicy, RetryContext};
 
         /// Retries every 5 seconds for at most two minutes, but not after a failed authentication.
         struct ForTwoMinutes;
@@ -739,7 +739,7 @@ mod native {
     /// `docs/07-reconnection.md`, "Manual reconnection".
     async fn reconnection_manual_reconnection(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
         use std::sync::Arc;
-        use rayx_signalr::{
+        use dxn_signalr::{
             DefaultRetryPolicy, DisconnectionHandler, ReconnectionConfig, ReconnectionHandler, SignalRClient,
         };
 
@@ -774,7 +774,7 @@ mod native {
     /// `docs/07-reconnection.md`, "Stateful reconnect".
     async fn reconnection_stateful_reconnect(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
         use std::sync::Arc;
-        use rayx_signalr::{DefaultRetryPolicy, ReconnectionConfig, SignalRClient, StatefulReconnectConfig};
+        use dxn_signalr::{DefaultRetryPolicy, ReconnectionConfig, SignalRClient, StatefulReconnectConfig};
 
         let stateful = StatefulReconnectConfig::new(256 * 1024)?; // replay buffer in bytes
         let client = SignalRClient::connect_with("localhost", "chat", move |c| {
@@ -790,7 +790,7 @@ mod native {
     /// `docs/08-tls.md`, "Verifiers".
     #[cfg(feature = "tls-webpki-roots")]
     async fn tls_verifiers(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        let client = rayx_signalr::SignalRClient::connect_with("api.example.com", "hub", |c| {
+        let client = dxn_signalr::SignalRClient::connect_with("api.example.com", "hub", |c| {
             c.use_webpki_roots(); // needs the tls-webpki-roots feature
         })
         .await?;
@@ -800,7 +800,7 @@ mod native {
     /// `docs/08-tls.md`, "Private certificate authorities".
     async fn tls_private_certificate_authorities(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
         let ca = std::fs::read("certs/internal-ca.pem")?;
-        let client = rayx_signalr::SignalRClient::connect_with("internal.example.com", "hub", move |c| {
+        let client = dxn_signalr::SignalRClient::connect_with("internal.example.com", "hub", move |c| {
             c.with_additional_root_certificates_pem(ca.clone());
         })
         .await?;
@@ -811,7 +811,7 @@ mod native {
     async fn tls_client_certificates(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
         let chain = std::fs::read("certs/client.pem")?; // the certificate, then any intermediates
         let key = std::fs::read("certs/client.key")?; // its private key
-        let client = rayx_signalr::SignalRClient::connect_with("internal.example.com", "hub", move |c| {
+        let client = dxn_signalr::SignalRClient::connect_with("internal.example.com", "hub", move |c| {
             c.with_client_certificate(chain.clone(), key.clone());
         })
         .await?;
@@ -819,9 +819,9 @@ mod native {
     }
 
     /// `docs/08-tls.md`, "Adjusting the rustls configuration".
-    #[cfg(rayx_tls)]
+    #[cfg(dxn_tls)]
     async fn tls_adjusting_the_rustls_configuration(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        let client = rayx_signalr::SignalRClient::new("internal.example.com", "hub", |c| {
+        let client = dxn_signalr::SignalRClient::new("internal.example.com", "hub", |c| {
             c.with_tls_config_hook(|config| {
                 // For example, servers addressed by a name they do not expect in SNI.
                 config.enable_sni = false;
@@ -833,7 +833,7 @@ mod native {
     /// `docs/09-platforms.md`, "Native runtime ownership".
     fn platforms_native_runtime_ownership(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
         use futures::executor::block_on;
-        use rayx_signalr::SignalRClient;
+        use dxn_signalr::SignalRClient;
 
         // A small runtime that owns the network work.
         let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -856,7 +856,7 @@ mod native {
     mod errors_and_logging_handling_errors {
         use std::time::Duration;
 
-        use rayx_signalr::{CloseReason, Error, ErrorKind, SignalRClient, TimeoutOperation};
+        use dxn_signalr::{CloseReason, Error, ErrorKind, SignalRClient, TimeoutOperation};
 
         async fn connect(host: &str) -> Result<SignalRClient, Error> {
             let result = SignalRClient::connect_with(host, "chat", |c| {
@@ -898,7 +898,7 @@ mod native {
 
     /// `docs/11-errors-and-logging.md`, "Logging".
     fn errors_and_logging_logging(mut client: SignalRClient) -> Result<(), Box<dyn std::error::Error>> {
-        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("rayx_signalr=info"))
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("dxn_signalr=info"))
             .init();
         Ok(())
     }
@@ -909,7 +909,7 @@ mod native {
 mod browser {
     /// `docs/01-getting-started.md`, "A first browser client".
     mod getting_started_a_first_browser_client {
-        use rayx_signalr::SignalRClient;
+        use dxn_signalr::SignalRClient;
         use wasm_bindgen::prelude::*;
 
         #[wasm_bindgen(start)]

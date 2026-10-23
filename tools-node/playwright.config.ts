@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 process.env.PLAYWRIGHT_BROWSERS_PATH ??= "0";
 
-// Run only through the Aspire runner (`dotnet test dotnet/RayX.SignalR.E2E.Tests`), which starts
+// Run only through the Aspire runner (`dotnet test dotnet/dXn.SignalR.E2E.Tests`), which starts
 // `fixture-host` and `signalr-test-service` and passes their dynamically allocated URLs.
 export default defineConfig({
   testDir: "./tests",
@@ -12,7 +12,7 @@ export default defineConfig({
   outputDir: "../artifacts-temp/e2e/playwright-results",
   reporter: [["list"]],
   use: {
-    baseURL: process.env.RAYX_SIGNALR_E2E_FIXTURE_URL,
+    baseURL: process.env.DXN_SIGNALR_E2E_FIXTURE_URL,
     trace: "retain-on-failure",
     video: "retain-on-failure",
     screenshot: "only-on-failure",

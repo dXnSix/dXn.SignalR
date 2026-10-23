@@ -7,13 +7,13 @@ use std::{
     time::Duration,
 };
 
-use rayx_signalr::{DisconnectionHandler, ReconnectionHandler, SignalRClient};
+use dxn_signalr::{DisconnectionHandler, ReconnectionHandler, SignalRClient};
 use tokio::task::JoinHandle;
 
 use crate::support::{self, Protocol};
 
 /// One handler notification: the close kind and the result of reconnecting from the handler.
-type Notification = (bool, Option<Result<(), rayx_signalr::Error>>);
+type Notification = (bool, Option<Result<(), dxn_signalr::Error>>);
 
 /// Records each notification and, like a typical handler, tries to reconnect.
 #[derive(Clone, Default)]
@@ -49,7 +49,7 @@ async fn schedule_close(client: &mut SignalRClient, allow_reconnect: bool, delay
         .unwrap();
 }
 
-fn pending_identity(client: &SignalRClient) -> JoinHandle<Result<String, rayx_signalr::Error>> {
+fn pending_identity(client: &SignalRClient) -> JoinHandle<Result<String, dxn_signalr::Error>> {
     let mut clone = client.clone();
     tokio::spawn(async move {
         clone
@@ -88,10 +88,10 @@ async fn manual_client(protocol: Protocol, handler: &RecordingHandler) -> Signal
 }
 
 /// A server Close without reconnect permission, carrying the test service's message.
-fn assert_final_close(error: &rayx_signalr::Error) {
+fn assert_final_close(error: &dxn_signalr::Error) {
     assert_eq!(
         (error.close_reason(), error.server_allows_reconnect()),
-        (Some(rayx_signalr::CloseReason::Server), Some(false)),
+        (Some(dxn_signalr::CloseReason::Server), Some(false)),
         "{error}"
     );
     assert_eq!(

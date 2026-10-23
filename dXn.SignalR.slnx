@@ -1,0 +1,10 @@
+<Solution>
+    <Folder Name="/Testing/">
+        <Project Path="dotnet/dXn.SignalR.AppHost/dXn.SignalR.AppHost.csproj"/>
+        <Project Path="dotnet/dXn.SignalR.E2E.Tests/dXn.SignalR.E2E.Tests.csproj"/>
+        <Project Path="dotnet/dXn.SignalR.FixtureHost/dXn.SignalR.FixtureHost.csproj"/>
+        <Project Path="dotnet/dXn.SignalR.PerfReference/dXn.SignalR.PerfReference.csproj"/>
+        <Project Path="dotnet/dXn.SignalR.TestProxy/dXn.SignalR.TestProxy.csproj"/>
+        <Project Path="dotnet/dXn.SignalR.TestService/dXn.SignalR.TestService.csproj"/>
+    </Folder>
+</Solution>

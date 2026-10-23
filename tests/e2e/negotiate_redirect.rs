@@ -33,7 +33,7 @@ async fn scenario(protocol: Protocol) {
     probe.disconnect();
 }
 
-async fn negotiate_count(probe: &mut rayx_signalr::SignalRClient, hub_path: &str) -> i32 {
+async fn negotiate_count(probe: &mut dxn_signalr::SignalRClient, hub_path: &str) -> i32 {
     probe
         .invoke_with_args::<i32, _>("NegotiateCount".to_string(), |arguments| {
             arguments.argument(hub_path.to_string());

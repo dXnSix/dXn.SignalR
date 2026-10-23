@@ -122,7 +122,7 @@ pub(crate) struct Lane {
 /// over HTTP/3.
 pub(crate) enum ResponseBody {
     Hyper(Incoming),
-    #[cfg(rayx_http3)]
+    #[cfg(dxn_http3)]
     Http3(Box<super::http3::Body>),
 }
 
@@ -143,7 +143,7 @@ impl ResponseBody {
                     Err(error) => return Some(Err(Box::new(error))),
                 }
             },
-            #[cfg(rayx_http3)]
+            #[cfg(dxn_http3)]
             Self::Http3(body) => body
                 .chunk()
                 .await
@@ -152,11 +152,11 @@ impl ResponseBody {
     }
 
     /// The whole body.
-    #[cfg(rayx_http3)]
+    #[cfg(dxn_http3)]
     async fn collect(self) -> Result<Bytes, BodyError> {
         match self {
             Self::Hyper(body) => Ok(body.collect().await?.to_bytes()),
-            #[cfg(rayx_http3)]
+            #[cfg(dxn_http3)]
             Self::Http3(body) => Ok((*body).collect().await?),
         }
     }
@@ -269,7 +269,7 @@ impl Lane {
 
     /// Sends `method` over HTTP/3 when the connection's version uses it for the target (`None`:
     /// TCP), keeping the response's cookies.
-    #[cfg(rayx_http3)]
+    #[cfg(dxn_http3)]
     async fn exchange_http3(
         &self,
         method: &Method,
@@ -449,7 +449,7 @@ impl Lane {
             .map(|content_type| vec![("Content-Type", content_type)])
             .unwrap_or_default();
         let headers = self.prepare(&method, &content, authorization);
-        #[cfg(rayx_http3)]
+        #[cfg(dxn_http3)]
         if let Some(response) = self.exchange_http3(&method, &body, &headers).await? {
             let status = response.status();
             let body = response.into_body().collect().await.map_err(|error| {
@@ -561,7 +561,7 @@ impl Lane {
         authorization: Option<String>,
     ) -> Result<http::Response<ResponseBody>, Error> {
         let headers = self.prepare(&Method::GET, headers, authorization);
-        #[cfg(rayx_http3)]
+        #[cfg(dxn_http3)]
         if let Some(response) = self
             .exchange_http3(&Method::GET, &Bytes::new(), &headers)
             .await?

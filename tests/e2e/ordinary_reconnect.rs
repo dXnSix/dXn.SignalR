@@ -9,7 +9,7 @@ use std::{
     time::Duration,
 };
 
-use rayx_signalr::CallbackHandler;
+use dxn_signalr::CallbackHandler;
 
 use crate::support::{self, Protocol};
 

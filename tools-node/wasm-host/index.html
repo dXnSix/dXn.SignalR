@@ -2,9 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>RayX.SignalR WASM fixture</title>
+    <title>dXn.SignalR WASM fixture</title>
   </head>
-  <body data-rayx-signalr-wasm="loading">
+  <body data-dxn-signalr-wasm="loading">
     <script type="module">
       import init, {
         abort_physical_transport,
@@ -32,14 +32,14 @@
         stateful_stream_value,
         trigger_callback_after_reconnect,
         trigger_stateful_callbacks,
-      } from "./rayx_signalr_fixture.js";
+      } from "./dxn_signalr_fixture.js";
 
       await init();
       const service = new URL(location.href).searchParams.get("service");
       if (!service) throw new Error("the fixture page requires ?service=<SignalR test service URL>");
       configure_service(service);
       configure_transport(new URL(location.href).searchParams.get("transport") ?? "websockets");
-      globalThis.rayxSignalRFixture = {
+      globalThis.dxnSignalRFixture = {
         abortPhysicalTransport: abort_physical_transport,
         cancelLongStreams: cancel_long_streams,
         connectAndProbe: connect_and_probe,
@@ -64,7 +64,7 @@
         triggerStatefulCallbacks: trigger_stateful_callbacks,
         callbackCount: callback_count,
       };
-      document.body.dataset.rayxSignalrWasm = "ready";
+      document.body.dataset.dxnSignalrWasm = "ready";
     </script>
   </body>
 </html>

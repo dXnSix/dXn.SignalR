@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use rayx_signalr::{
+use dxn_signalr::{
     ConnectionStatus, ConstantDelayPolicy, DefaultRetryPolicy, ReconnectionConfig, SignalRClient,
 };
 
@@ -42,7 +42,7 @@ async fn scenario(protocol: Protocol) {
         .unwrap_err();
     assert_eq!(
         failure.kind(),
-        rayx_signalr::ErrorKind::Paused,
+        dxn_signalr::ErrorKind::Paused,
         "pending work failed with: {failure}"
     );
 

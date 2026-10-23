@@ -352,7 +352,7 @@ mod winhttp {
     fn session() -> Option<usize> {
         static SESSION: OnceLock<usize> = OnceLock::new();
         let handle = *SESSION.get_or_init(|| {
-            let agent = wide("RayX SignalR");
+            let agent = wide("dXn SignalR");
             // SAFETY: the agent string lives across the call; no proxy names are passed.
             unsafe {
                 WinHttpOpen(
@@ -682,7 +682,7 @@ mod cfnetwork {
             drop(unsafe { Box::from_raw(outcome) });
             return None;
         }
-        let mode = CFString::new("RayXSignalRProxyAutoConfiguration");
+        let mode = CFString::new("dXnSignalRProxyAutoConfiguration");
         let deadline = Instant::now() + SCRIPT_LIMIT;
         // SAFETY: the source runs on this thread's run loop in a private mode, then is removed,
         // invalidated and released; `outcome` is read through its pointer, which the callback
@@ -1078,9 +1078,9 @@ mod os_proxy_tests {
         );
         let routes = reader
             .routes(
-                "https://rayx-signalr-os-proxy.invalid/",
+                "https://dxn-signalr-os-proxy.invalid/",
                 true,
-                "rayx-signalr-os-proxy.invalid",
+                "dxn-signalr-os-proxy.invalid",
             )
             .unwrap();
         assert!(!routes.is_empty());

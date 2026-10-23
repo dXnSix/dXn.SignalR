@@ -287,7 +287,7 @@ pub(crate) struct TransportSelection {
 impl TransportSelection {
     /// Under strict HTTP/3, skips WebSockets with the reason: no server the client targets
     /// bootstraps WebSockets over HTTP/3 (RFC 9220; ASP.NET Core 10's Kestrel does not).
-    #[cfg(rayx_http3)]
+    #[cfg(dxn_http3)]
     pub(crate) fn over_http3(mut self, version: crate::HttpVersion) -> Self {
         if version != crate::HttpVersion::Http3 {
             return self;
@@ -444,7 +444,7 @@ fn connection_data(
     let protocol = recipe.protocol();
     let format = protocol.transfer_format();
     let selection = select_transports(response.available_transports(), recipe.transports(), format);
-    #[cfg(rayx_http3)]
+    #[cfg(dxn_http3)]
     let selection = selection.over_http3(recipe.http_version());
     if selection.candidates.is_empty() {
         return Err(transports_failed(selection.skipped, Vec::new()));

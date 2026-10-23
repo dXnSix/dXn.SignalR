@@ -1,5 +1,5 @@
 [package]
-name = "rayx-signalr-e2e-scenarios"
+name = "dxn-signalr-e2e-scenarios"
 version = "0.0.0"
 edition = "2021"
 publish = false
@@ -11,14 +11,14 @@ publish = false
 path = "src/lib.rs"
 
 [features]
-messagepack = ["rayx-signalr/messagepack"]
+messagepack = ["dxn-signalr/messagepack"]
 # The `http3` scenario's module (the app does not run it).
-http3 = ["rayx-signalr/http3"]
+http3 = ["dxn-signalr/http3"]
 
 [dependencies]
 # The TLS verifier and provider are the harness's choice.
 # `proxy-pac` for the `proxy-pac` scenario.
-rayx-signalr = { path = "../..", default-features = false, features = ["proxy-pac"] }
+dxn-signalr = { path = "../..", default-features = false, features = ["proxy-pac"] }
 base64 = "0.22.1"
 bytes = "1.7"
 env_logger = "0.11"

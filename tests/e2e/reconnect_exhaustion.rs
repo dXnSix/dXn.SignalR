@@ -3,7 +3,7 @@
 
 use std::{sync::Arc, time::Duration};
 
-use rayx_signalr::{ConstantDelayPolicy, ReconnectionConfig, SignalRClient};
+use dxn_signalr::{ConstantDelayPolicy, ReconnectionConfig, SignalRClient};
 
 use crate::support::{self, Protocol};
 

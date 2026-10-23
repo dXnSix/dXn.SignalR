@@ -6,10 +6,10 @@
 
 use std::time::Duration;
 
-use futures::StreamExt;
-use rayx_signalr::{
+use dxn_signalr::{
     CallbackHandler, CloseReason, ConnectionStatus, Error, ErrorKind, SignalRClient,
 };
+use futures::StreamExt;
 
 use crate::support::{self, Protocol};
 

@@ -5,7 +5,7 @@
 //! (`with_request_hook`, as .NET's `HttpMessageHandlerFactory`) adds a header to both, naming the
 //! request it saw.
 
-use rayx_signalr::{SignalRClient, Transports};
+use dxn_signalr::{SignalRClient, Transports};
 
 use crate::support::{self, Protocol};
 
@@ -50,7 +50,7 @@ async fn scenario(protocol: Protocol) {
 
     let negotiate = described(&mut client, "NegotiateRequest", Some("/test")).await;
     assert!(
-        value(&negotiate, "user-agent").is_some_and(|agent| agent.starts_with("RayX SignalR/")),
+        value(&negotiate, "user-agent").is_some_and(|agent| agent.starts_with("dXn SignalR/")),
         "{negotiate:?}"
     );
     assert_eq!(
@@ -64,7 +64,7 @@ async fn scenario(protocol: Protocol) {
 
     let transport = described(&mut client, "TransportRequest", None).await;
     assert!(
-        value(&transport, "user-agent").is_some_and(|agent| agent.starts_with("RayX SignalR/")),
+        value(&transport, "user-agent").is_some_and(|agent| agent.starts_with("dXn SignalR/")),
         "{transport:?}"
     );
     assert_eq!(

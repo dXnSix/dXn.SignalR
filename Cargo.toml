@@ -1,14 +1,14 @@
 [package]
-name = "rayx-signalr"
+name = "dxn-signalr"
 version = "1.0.0"
 edition = "2021"
 rust-version = "1.92"
 authors = ["dXnSix", "Daniel Leiszen <daniel.leiszen@gmail.com> (original signalr-client author)"]
-description = "RayX SignalR client with JSON and MessagePack support on WASM and native Tokio targets."
+description = "dXn SignalR client with JSON and MessagePack support on WASM and native Tokio targets."
 license = "MIT"
 publish = false
-repository = "https://github.com/rayx-ui/RayX.SignalR"
-homepage = "https://github.com/rayx-ui/RayX.SignalR"
+repository = "https://github.com/dXnSix/dXn.SignalR"
+homepage = "https://github.com/dXnSix/dXn.SignalR"
 readme = "README.md"
 keywords = ["signalr", "rust", "websockets", "tokio", "messagepack"]
 categories = ["network-programming", "web-programming", "asynchronous"]
@@ -43,7 +43,7 @@ _rustls = ["dep:rustls", "dep:tokio-rustls", "dep:rustls-pki-types", "tokio-webs
 proxy-pac = ["dep:boa_engine"]
 # Experimental HTTP/3 (`HttpVersion::Http3`, `Http3Preferred`): QUIC (quinn) with the connection's
 # own rustls configuration and provider, and h3. Native targets with a TLS verifier and provider
-# (the `rayx_http3` cfg in build.rs).
+# (the `dxn_http3` cfg in build.rs).
 http3 = ["dep:quinn", "dep:h3", "dep:h3-quinn", "_rustls"]
 # Unstable, for the crate's own benchmarks only: exposes the hidden `bench_support` module over the
 # internal codec and action storage. Never enable it in applications; it changes no behavior.
@@ -103,7 +103,7 @@ h3 = { version = "0.0.8", optional = true }
 h3-quinn = { version = "0.0.10", default-features = false, optional = true }
 
 # Proxy auto-config's JavaScript engine; not on iOS, where its `time` dependency (`num_threads`)
-# does not build (the `rayx_pac` cfg in build.rs).
+# does not build (the `dxn_pac` cfg in build.rs).
 [target.'cfg(not(any(target_arch = "wasm32", target_os = "ios")))'.dependencies]
 boa_engine = { version = "0.22", default-features = false, optional = true }
 

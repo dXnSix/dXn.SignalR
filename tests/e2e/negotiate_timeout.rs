@@ -5,7 +5,7 @@
 
 use std::time::{Duration, Instant};
 
-use rayx_signalr::{ErrorKind, TimeoutOperation};
+use dxn_signalr::{ErrorKind, TimeoutOperation};
 
 use crate::support::{self, Protocol};
 
@@ -24,7 +24,7 @@ async fn scenario(protocol: Protocol) {
     assert_eq!(error.timeout_operation(), Some(TimeoutOperation::Negotiate));
     assert_eq!(error.timeout(), Some(Duration::from_secs(2)));
     let text = format!("{error} {error:?}");
-    let endpoint = support::required_variable("RAYX_SIGNALR_E2E_SERVICE_URL");
+    let endpoint = support::required_variable("DXN_SIGNALR_E2E_SERVICE_URL");
     let authority = endpoint
         .split("://")
         .nth(1)

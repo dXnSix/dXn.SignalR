@@ -8,10 +8,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use futures::StreamExt;
-use rayx_signalr::{
+use dxn_signalr::{
     ConnectionStatus, ConstantDelayPolicy, ManualStream, ReconnectionConfig, SignalRClient,
 };
+use futures::StreamExt;
 use serde::Deserialize;
 
 use crate::support::{self, Protocol};
@@ -45,7 +45,7 @@ async fn assert_unsent_stream_ends(client: &mut SignalRClient, phase: &str) -> M
     assert!(
         matches!(
             error.kind(),
-            rayx_signalr::ErrorKind::Paused | rayx_signalr::ErrorKind::Transport
+            dxn_signalr::ErrorKind::Paused | dxn_signalr::ErrorKind::Transport
         ),
         "a stream started while {phase} ended with: {error}"
     );

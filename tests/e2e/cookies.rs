@@ -7,7 +7,7 @@
 
 use std::time::Duration;
 
-use rayx_signalr::{CookieJar, SignalRClient, Transports};
+use dxn_signalr::{CookieJar, SignalRClient, Transports};
 
 use crate::support::{self, Protocol};
 
@@ -48,7 +48,7 @@ async fn scenario(protocol: Protocol) {
         );
         assert_eq!(
             jar.cookie_header(&hub_url),
-            Some(format!("RayXAffinity={first}")),
+            Some(format!("dXnAffinity={first}")),
             "{transport:?}: the application's jar holds the cookie the hub saw"
         );
 
@@ -80,7 +80,7 @@ async fn scenario(protocol: Protocol) {
         );
         assert_eq!(
             jar.cookie_header(&hub_url),
-            Some(format!("RayXAffinity={second}"))
+            Some(format!("dXnAffinity={second}"))
         );
         client.disconnect();
     }

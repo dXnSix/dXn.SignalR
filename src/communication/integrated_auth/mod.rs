@@ -228,7 +228,7 @@ fn scheme_token(headers: &HeaderMap, scheme: AuthScheme) -> Option<Vec<u8>> {
 /// The RFC 5929 `tls-server-end-point` channel binding of a TLS connection to the server whose
 /// certificate is `certificate` (DER): the application data of the channel bindings. The hash is
 /// the certificate's signature hash, SHA-256 for MD5, SHA-1 and anything else.
-#[cfg_attr(not(rayx_tls), allow(dead_code))]
+#[cfg_attr(not(dxn_tls), allow(dead_code))]
 pub(crate) fn tls_server_end_point(certificate: &[u8]) -> Vec<u8> {
     use sha2::Digest;
 
@@ -251,7 +251,7 @@ pub(crate) fn tls_server_end_point(certificate: &[u8]) -> Vec<u8> {
 }
 
 /// One DER element of `bytes`: (tag, content, rest).
-#[cfg_attr(not(rayx_tls), allow(dead_code))]
+#[cfg_attr(not(dxn_tls), allow(dead_code))]
 fn der_element(bytes: &[u8]) -> Option<(u8, &[u8], &[u8])> {
     let (&tag, rest) = bytes.split_first()?;
     let (&first, rest) = rest.split_first()?;
@@ -272,7 +272,7 @@ fn der_element(bytes: &[u8]) -> Option<(u8, &[u8], &[u8])> {
 }
 
 /// The OID (DER content) of an X.509 certificate's `signatureAlgorithm`.
-#[cfg_attr(not(rayx_tls), allow(dead_code))]
+#[cfg_attr(not(dxn_tls), allow(dead_code))]
 fn signature_algorithm(certificate: &[u8]) -> Option<&[u8]> {
     let (_, certificate, _) = der_element(certificate)?;
     let (_, _, rest) = der_element(certificate)?; // tbsCertificate

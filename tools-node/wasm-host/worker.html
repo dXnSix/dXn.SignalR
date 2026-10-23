@@ -2,19 +2,19 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>RayX.SignalR WASM worker fixture</title>
+    <title>dXn.SignalR WASM worker fixture</title>
   </head>
-  <body data-rayx-signalr-worker="loading">
+  <body data-dxn-signalr-worker="loading">
     <script type="module">
       const parameters = new URL(location.href).searchParams;
       const worker = new Worker("./worker.js", { type: "module" });
       worker.onmessage = ({ data }) => {
-        document.body.dataset.rayxSignalrWorkerOutcome = data.outcome;
-        document.body.dataset.rayxSignalrWorker = "done";
+        document.body.dataset.dxnSignalrWorkerOutcome = data.outcome;
+        document.body.dataset.dxnSignalrWorker = "done";
       };
       worker.onerror = (event) => {
-        document.body.dataset.rayxSignalrWorkerOutcome = `failed: ${event.message}`;
-        document.body.dataset.rayxSignalrWorker = "done";
+        document.body.dataset.dxnSignalrWorkerOutcome = `failed: ${event.message}`;
+        document.body.dataset.dxnSignalrWorker = "done";
       };
       worker.postMessage({
         service: parameters.get("service"),

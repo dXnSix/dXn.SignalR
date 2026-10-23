@@ -8,12 +8,12 @@
 
 use std::time::Duration;
 
+use dxn_signalr::StatefulReconnectConfig;
 use futures::{stream, StreamExt};
-use rayx_signalr::StatefulReconnectConfig;
 
 use crate::support::{self, Protocol};
 
-async fn stream_outcome(client: &mut rayx_signalr::SignalRClient) -> String {
+async fn stream_outcome(client: &mut dxn_signalr::SignalRClient) -> String {
     client
         .invoke::<String>("StreamOutcome".to_string())
         .await

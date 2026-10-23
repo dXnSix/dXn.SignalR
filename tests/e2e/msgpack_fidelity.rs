@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use rayx_signalr::{CallbackHandler, Error};
+use dxn_signalr::{CallbackHandler, Error};
 use serde::Deserialize;
 
 use crate::support::{self, Protocol};

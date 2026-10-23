@@ -4,7 +4,7 @@
 
 use std::time::{Duration, Instant};
 
-use rayx_signalr::{ConnectionStatus, SignalRClient};
+use dxn_signalr::{ConnectionStatus, SignalRClient};
 
 use crate::support::{self, Protocol};
 

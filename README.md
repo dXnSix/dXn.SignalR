@@ -1,10 +1,10 @@
-# RayX.SignalR
+# dXn.SignalR
 
-[![quality](https://github.com/rayx-ui/RayX.SignalR/actions/workflows/quality.yml/badge.svg)](https://github.com/rayx-ui/RayX.SignalR/actions/workflows/quality.yml)
-[![e2e](https://github.com/rayx-ui/RayX.SignalR/actions/workflows/e2e.yml/badge.svg)](https://github.com/rayx-ui/RayX.SignalR/actions/workflows/e2e.yml)
+[![quality](https://github.com/dXnSix/dXn.SignalR/actions/workflows/quality.yml/badge.svg)](https://github.com/dXnSix/dXn.SignalR/actions/workflows/quality.yml)
+[![e2e](https://github.com/dXnSix/dXn.SignalR/actions/workflows/e2e.yml/badge.svg)](https://github.com/dXnSix/dXn.SignalR/actions/workflows/e2e.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**An ASP.NET Core SignalR client for Rust, native and in the browser.** `rayx_signalr` connects
+**An ASP.NET Core SignalR client for Rust, native and in the browser.** `dxn_signalr` connects
 Tokio applications on Windows, Linux, macOS, Android and iOS, and WebAssembly applications in the
 browser, to SignalR hubs. One API covers request/response calls, fire-and-forget messages, server
 streams, server-to-client calls with client results, and reconnection, over the JSON or MessagePack
@@ -49,15 +49,21 @@ The transports are WebSockets, Server-Sent Events and Long Polling, as in the of
 ## Installation
 
 The crate is released as git tags `vX.Y.Z`, not on crates.io or any other registry. Depend on a
-release tag, the latest one on the [Releases page](https://github.com/rayx-ui/RayX.SignalR/releases):
+release tag, the latest one on the [Releases page](https://github.com/dXnSix/dXn.SignalR/releases):
 
 ```toml
 [dependencies]
-rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR", tag = "v1.0.0", features = ["messagepack"] }
+dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.0", features = ["messagepack"] }
 ```
 
 `Cargo.lock` records the tagged commit; to upgrade, change the tag. [Releasing](docs/releasing.md)
 explains how releases are cut and versioned.
+
+Releases up to `v1.0.0` were published as `rayx-signalr` (Rust name `rayx_signalr`) from
+`rayx-ui/RayX.SignalR`. From `v1.1.0` the package is `dxn-signalr` (`dxn_signalr`) in
+`dXnSix/dXn.SignalR`: rename the dependency and replace `rayx_signalr::` paths with
+`dxn_signalr::`. The `User-Agent` product name changed from `RayX SignalR` to `dXn SignalR`; the
+API is otherwise unchanged.
 
 | Feature | Default | Effect |
 |---|---|---|
@@ -78,7 +84,7 @@ Tokio runtime natively or `wasm_bindgen_futures::spawn_local` in the browser. Sn
 ### Connect and invoke
 
 ```rust
-use rayx_signalr::SignalRClient;
+use dxn_signalr::SignalRClient;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -105,7 +111,7 @@ println!("{}: {} °C", forecast.city, forecast.temperature_c);
 ### Send and receive
 
 ```rust
-use rayx_signalr::CallbackHandler;
+use dxn_signalr::CallbackHandler;
 
 let on_message = client.register("ReceiveMessage".to_string(), |ctx| {
     let user: String = ctx.argument(0).unwrap_or_default();
@@ -138,11 +144,11 @@ if let Some(error) = ticks.error() {
 
 ### Handle errors
 
-Every fallible call returns `rayx_signalr::Error`; branch on its `ErrorKind` and structured fields,
+Every fallible call returns `dxn_signalr::Error`; branch on its `ErrorKind` and structured fields,
 never on message text:
 
 ```rust
-use rayx_signalr::ErrorKind;
+use dxn_signalr::ErrorKind;
 
 match client.invoke::<i32>("Total".to_string()).await {
     Ok(total) => println!("{total}"),
@@ -161,7 +167,7 @@ Version 0.2 replaced the `String` errors of 0.1; see
 
 ```rust
 use std::sync::Arc;
-use rayx_signalr::{DefaultRetryPolicy, ReconnectionConfig, SignalRClient, StatefulReconnectConfig};
+use dxn_signalr::{DefaultRetryPolicy, ReconnectionConfig, SignalRClient, StatefulReconnectConfig};
 
 let stateful = StatefulReconnectConfig::new(256 * 1024)?;
 let client = SignalRClient::connect_with("chat.example.com", "chat", move |c| {
@@ -185,7 +191,7 @@ Build the client first when the hub sends right after connecting, so callbacks a
 are registered before `start`, as with the official .NET client:
 
 ```rust
-use rayx_signalr::SignalRClient;
+use dxn_signalr::SignalRClient;
 
 let mut client = SignalRClient::new("localhost", "chat", |c| {
     c.with_port(5000);

@@ -1,6 +1,6 @@
 //! Consumers name `ConnectionConfiguration` to forward connection options through their own helpers.
 
-use rayx_signalr::{ConnectionConfiguration, Error, SignalRClient};
+use dxn_signalr::{ConnectionConfiguration, Error, SignalRClient};
 
 fn configure_secure_bearer(config: &mut ConnectionConfiguration) {
     config.secure();

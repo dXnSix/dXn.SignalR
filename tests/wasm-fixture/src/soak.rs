@@ -12,7 +12,7 @@ use std::{
 
 use futures::{channel::oneshot, future::Either, StreamExt};
 use gloo_timers::future::TimeoutFuture;
-use rayx_signalr::{CallbackHandler, SignalRClient, StatefulReconnectConfig};
+use dxn_signalr::{CallbackHandler, SignalRClient, StatefulReconnectConfig};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
@@ -140,8 +140,8 @@ async fn soak(messagepack: bool, stateful: bool, deadline: f64) -> Outcome {
         if messagepack {
             configuration.with_messagepack_protocol();
         }
-        configuration.with_reconnection_policy(rayx_signalr::ReconnectionConfig {
-            policy: std::sync::Arc::new(rayx_signalr::ConstantDelayPolicy::new(
+        configuration.with_reconnection_policy(dxn_signalr::ReconnectionConfig {
+            policy: std::sync::Arc::new(dxn_signalr::ConstantDelayPolicy::new(
                 std::time::Duration::from_millis(50),
                 Some(100),
             )),

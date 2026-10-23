@@ -1,0 +1,75 @@
+using dXn.SignalR.E2E.Tests.Infrastructure;
+
+namespace dXn.SignalR.E2E.Tests.Scenarios;
+
+/// <summary>
+/// Runs every selected end-to-end cell. Selection comes from <c>DXN_SIGNALR_E2E_TARGETS</c>,
+/// <c>DXN_SIGNALR_E2E_PROTOCOLS</c> and <c>DXN_SIGNALR_E2E_SCENARIOS</c>; each row executes exactly
+/// one scenario on one target with one protocol.
+/// </summary>
+[Collection(AspireTestGroup.Name)]
+public sealed class E2ECellTests(AspireEnvironment environment)
+{
+  const string _selectionError = "selection-error: ";
+
+  static readonly BrowserCellRunner _browser = new();
+
+  static readonly Dictionary<string, ICellRunner> _runners = new(StringComparer.Ordinal)
+  {
+    ["native"] = new NativeCellRunner(),
+    ["chromium"] = _browser,
+    ["firefox"] = _browser,
+    ["webkit"] = _browser,
+    ["android"] = new AndroidCellRunner(),
+    ["ios"] = new IosCellRunner(),
+    ["android-app"] = new AndroidAppCellRunner(release: false),
+    ["android-app-release"] = new AndroidAppCellRunner(release: true)
+  };
+
+  /// <summary>Gets the runner for a target.</summary>
+  /// <param name="target">The target name.</param>
+  /// <returns>The runner.</returns>
+  public static ICellRunner RunnerFor(string target) => _runners[target];
+
+  /// <summary>Gets one row per selected cell, or one failing row describing an invalid selection.</summary>
+  /// <returns>The rows.</returns>
+  public static TheoryData<string> SelectedCells()
+  {
+    TheoryData<string> rows = [];
+    try
+    {
+      foreach(E2ECell cell in E2ESelection.FromEnvironment().Cells())
+      {
+        rows.Add(cell.Id);
+      }
+    }
+    catch(Exception exception) when(exception is ArgumentException or InvalidOperationException)
+    {
+      rows.Add(_selectionError + exception.Message);
+    }
+
+    return rows;
+  }
+
+  [Theory]
+  [Trait("Category", "E2E")]
+  [MemberData(nameof(SelectedCells))]
+  public async Task Cell(string cell)
+  {
+    Assert.False(cell.StartsWith(_selectionError, StringComparison.Ordinal), cell);
+    E2ECell selected = E2ECell.Parse(cell);
+    CellReport report = await CellRun.ExecuteAsync(
+                          environment,
+                          selected,
+                          async () =>
+                          {
+                            E2ESelection selection = E2ESelection.FromEnvironment();
+                            await environment.EnsureStartedAsync(
+                              selection.RequiresBrowserFixture,
+                              selection.RequiresThreadedFixture);
+                            await environment.ResetServiceAsync();
+                          },
+                          () => RunnerFor(selected.Target.Name).RunAsync(selected, environment, CancellationToken.None));
+    Assert.True(report.Passed, report.Message);
+  }
+}

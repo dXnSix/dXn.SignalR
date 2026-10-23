@@ -10,10 +10,10 @@ export const protocols = [
 
 /** The SignalR test service URL passed by the Aspire runner. */
 export function serviceUrl(): string {
-  const url = process.env.RAYX_SIGNALR_E2E_SERVICE_URL;
+  const url = process.env.DXN_SIGNALR_E2E_SERVICE_URL;
   if (!url) {
     throw new Error(
-      "RAYX_SIGNALR_E2E_SERVICE_URL is not set; run browser scenarios through `dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E`",
+      "DXN_SIGNALR_E2E_SERVICE_URL is not set; run browser scenarios through `dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=E2E`",
     );
   }
   return url;
@@ -21,8 +21,8 @@ export function serviceUrl(): string {
 
 /** The SignalR test service's HTTPS URL passed by the Aspire runner. */
 export function tlsServiceUrl(): string {
-  const url = process.env.RAYX_SIGNALR_E2E_TLS_URL;
-  if (!url) throw new Error("RAYX_SIGNALR_E2E_TLS_URL is not set; run through the Aspire runner");
+  const url = process.env.DXN_SIGNALR_E2E_TLS_URL;
+  if (!url) throw new Error("DXN_SIGNALR_E2E_TLS_URL is not set; run through the Aspire runner");
   return url;
 }
 
@@ -67,7 +67,7 @@ export async function openFixture(
   await page.goto(
     `${path}?service=${encodeURIComponent(service)}&transport=${encodeURIComponent(transport)}`,
   );
-  await expect(page.locator("body")).toHaveAttribute("data-rayx-signalr-wasm", "ready");
+  await expect(page.locator("body")).toHaveAttribute("data-dxn-signalr-wasm", "ready");
 }
 
 /** Counts SignalR CancelInvocation (type 5) messages in a sent WebSocket frame. */
@@ -107,7 +107,7 @@ export function countCancelInvocations(payload: string | Buffer) {
 
 declare global {
   interface Window {
-    rayxSignalRFixture: {
+    dxnSignalRFixture: {
       abortPhysicalTransport(): Promise<void>;
       cancelLongStreams(rounds: number): Promise<number>;
       connectAndProbe(protocol: "json" | "messagepack"): Promise<string>;

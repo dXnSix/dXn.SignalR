@@ -32,7 +32,7 @@ impl<T> State<T> {
 /// # Examples
 ///
 /// ```
-/// use rayx_signalr::ManualFuture;
+/// use dxn_signalr::ManualFuture;
 ///
 /// # futures::executor::block_on(async {
 /// let (future, completer) = ManualFuture::new();
@@ -60,7 +60,7 @@ impl<T: Unpin> ManualFuture<T> {
     /// # Examples
     ///
     /// ```
-    /// let (future, completer) = rayx_signalr::ManualFuture::<i32>::new();
+    /// let (future, completer) = dxn_signalr::ManualFuture::<i32>::new();
     /// ```
     pub fn new() -> (Self, ManualFutureCompleter<T>) {
         let state: State<T> = State::new(None);
@@ -76,7 +76,7 @@ impl<T: Unpin> ManualFuture<T> {
     /// # Examples
     ///
     /// ```
-    /// let (future, completer) = rayx_signalr::ManualFuture::new();
+    /// let (future, completer) = dxn_signalr::ManualFuture::new();
     /// assert!(!future.is_completed());
     /// completer.complete(42);
     /// assert!(future.is_completed());
@@ -106,7 +106,7 @@ impl<T: Unpin> Clone for ManualFuture<T> {
 /// # Examples
 ///
 /// ```
-/// let (future, completer) = rayx_signalr::ManualFuture::new();
+/// let (future, completer) = dxn_signalr::ManualFuture::new();
 /// completer.complete(42);
 /// ```
 pub struct ManualFutureCompleter<T: Unpin> {
@@ -125,7 +125,7 @@ impl<T: Unpin> ManualFutureCompleter<T> {
     /// # Examples
     ///
     /// ```
-    /// let (future, completer) = rayx_signalr::ManualFuture::new();
+    /// let (future, completer) = dxn_signalr::ManualFuture::new();
     /// completer.complete(42);
     /// ```
     pub fn complete(self, value: T) {
@@ -145,7 +145,7 @@ impl<T: Unpin> ManualFutureCompleter<T> {
     /// # Examples
     ///
     /// ```
-    /// let (future, completer) = rayx_signalr::ManualFuture::<i32>::new();
+    /// let (future, completer) = dxn_signalr::ManualFuture::<i32>::new();
     /// completer.cancel();
     /// ```
     pub fn cancel(self) {
@@ -162,7 +162,7 @@ impl<T: Unpin> ManualFutureCompleter<T> {
     /// # Examples
     ///
     /// ```
-    /// let (future, completer) = rayx_signalr::ManualFuture::new();
+    /// let (future, completer) = dxn_signalr::ManualFuture::new();
     /// assert!(!completer.is_completed());
     /// completer.clone().complete(42);
     /// assert!(completer.is_completed());

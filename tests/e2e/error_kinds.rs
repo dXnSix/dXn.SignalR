@@ -9,7 +9,7 @@
 
 use std::time::{Duration, Instant};
 
-use rayx_signalr::{CloseReason, Error, ErrorKind, SignalRClient, TimeoutOperation};
+use dxn_signalr::{CloseReason, Error, ErrorKind, SignalRClient, TimeoutOperation};
 
 use crate::support::{self, Protocol};
 
@@ -213,9 +213,9 @@ async fn invoke_after_disconnect(protocol: Protocol) -> Error {
 async fn untrusted_certificate(protocol: Protocol) -> Error {
     let platform_trust = crate::tls::platform_trust();
     let endpoint = support::parse_endpoint(&support::required_variable(if platform_trust {
-        "RAYX_SIGNALR_E2E_UNTRUSTED_TLS_URL"
+        "DXN_SIGNALR_E2E_UNTRUSTED_TLS_URL"
     } else {
-        "RAYX_SIGNALR_E2E_TLS_URL"
+        "DXN_SIGNALR_E2E_TLS_URL"
     }));
     let error = SignalRClient::connect_with(&endpoint.host, "test-tls", |configuration| {
         endpoint.apply(configuration);

@@ -17,7 +17,7 @@ use std::{
     time::Duration,
 };
 
-use rayx_signalr::{CallbackHandler, ErrorKind, SignalRClient};
+use dxn_signalr::{CallbackHandler, ErrorKind, SignalRClient};
 
 use crate::support::{self, Protocol};
 

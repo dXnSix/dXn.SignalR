@@ -242,7 +242,7 @@ jobs:
       - name: Install cargo-ndk
         run: cargo install cargo-ndk --version 4.1.2 --locked
       - name: Verify dependency graphs, gating, and mobile and threaded builds
-        run: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=Platform
+        run: dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=Platform
       - name: Upload redacted contract diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
@@ -283,7 +283,7 @@ jobs:
       - name: Install RustSec scanner
         run: cargo install cargo-audit --locked
       - name: Scan Rust and NuGet dependency graphs
-        run: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=DependencySecurity
+        run: dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=DependencySecurity
 
   contracts:
     name: quality / contracts
@@ -323,7 +323,7 @@ jobs:
       - name: Install repository-local Playwright
         run: pnpm --dir tools-node install --frozen-lockfile
       - name: Verify workflow, repository, catalog and toolchain contracts
-        run: dotnet test dotnet/RayX.SignalR.E2E.Tests --filter "Category=WorkflowContract|Category=Repository|Category=Catalog|Category=Toolchain"
+        run: dotnet test dotnet/dXn.SignalR.E2E.Tests --filter "Category=WorkflowContract|Category=Repository|Category=Catalog|Category=Toolchain"
       - name: Upload redacted contract diagnostics
         if: failure()
         uses: actions/upload-artifact@v7

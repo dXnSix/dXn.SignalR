@@ -15,7 +15,7 @@ for (const { protocol, title } of protocols) {
 
     const outcome = await page.evaluate(
       (selected) =>
-        window.rayxSignalRFixture
+        window.dxnSignalRFixture
           .runFunctionalScenario("tls", selected)
           .catch((error: unknown) => `failed: ${String(error)}`),
       protocol,

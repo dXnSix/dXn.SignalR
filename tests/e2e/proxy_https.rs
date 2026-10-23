@@ -8,7 +8,7 @@
 //! `https_proxy` selects an HTTPS proxy as the system proxy.
 
 use base64::{engine::general_purpose, Engine};
-use rayx_signalr::{ErrorKind, SignalRClient, Transports};
+use dxn_signalr::{ErrorKind, SignalRClient, Transports};
 
 use crate::{
     proxy::{clear_proxy_variables, credentials, proxy_endpoint, stats},
@@ -31,10 +31,10 @@ async fn https_proxy(credentials: &str) -> String {
 async fn scenario(protocol: Protocol) {
     clear_proxy_variables();
     let plain = support::service();
-    let secure = support::parse_endpoint(&support::required_variable("RAYX_SIGNALR_E2E_TLS_URL"));
+    let secure = support::parse_endpoint(&support::required_variable("DXN_SIGNALR_E2E_TLS_URL"));
     let ca = general_purpose::STANDARD
         .decode(support::required_variable(
-            "RAYX_SIGNALR_E2E_TLS_CA_PEM_BASE64",
+            "DXN_SIGNALR_E2E_TLS_CA_PEM_BASE64",
         ))
         .expect("the CA is base64");
     let proxy = https_proxy(&credentials()).await;
@@ -104,7 +104,7 @@ async fn scenario(protocol: Protocol) {
     assert!(!error.to_string().contains(password), "{error}");
 
     // Wrong credentials: the proxy's 407 inside TLS.
-    let wrong = https_proxy("rayx:wrong-secret").await;
+    let wrong = https_proxy("dxn:wrong-secret").await;
     let ca_for_wrong = ca.clone();
     let error = SignalRClient::connect_with(&plain.host, "test", |configuration| {
         plain.apply(configuration);

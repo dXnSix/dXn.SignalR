@@ -121,7 +121,7 @@ impl TransportAttempt {
 
 type Source = Arc<dyn std::error::Error + Send + Sync + 'static>;
 
-/// The error of every fallible `rayx_signalr` API.
+/// The error of every fallible `dxn_signalr` API.
 ///
 /// Match on [`kind`](Self::kind); the accessors return the structured fields of the kinds that
 /// carry them. Cloning is cheap.

@@ -1,0 +1,4 @@
+interface:
+  display_name: "dXn.SignalR"
+  short_description: "Use and maintain dxn-signalr, the Rust SignalR client for native and WASM"
+  default_prompt: "Use $dxn-signalr to connect Rust code to an ASP.NET Core SignalR hub with dxn_signalr, or to change and validate the crate in the dXn.SignalR repository."

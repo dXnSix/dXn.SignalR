@@ -59,7 +59,7 @@ pub enum HttpVersion {
 }
 
 /// The ALPN protocols a TLS connection offers for `version` (`None`: the connection's own).
-#[cfg_attr(not(rayx_tls), allow(dead_code))]
+#[cfg_attr(not(dxn_tls), allow(dead_code))]
 pub(crate) fn alpn(version: HttpVersion) -> Option<&'static [&'static [u8]]> {
     match version {
         HttpVersion::Http1 => None,
@@ -93,10 +93,10 @@ pub(crate) struct Pool(Arc<Mutex<Connections>>);
 struct Connections {
     http2: HashMap<Key, Sender>,
     /// HTTP/3 connections by host and port (always secure).
-    #[cfg(rayx_http3)]
+    #[cfg(dxn_http3)]
     http3: HashMap<(String, u16), super::http3::Connection>,
     /// Endpoints `Http3Preferred` reaches over TCP for the rest of the attempt.
-    #[cfg(rayx_http3)]
+    #[cfg(dxn_http3)]
     tcp: std::collections::HashSet<(String, u16)>,
 }
 
@@ -144,7 +144,7 @@ impl Pool {
     }
 
     /// The open HTTP/3 connection to `host:port`, if any.
-    #[cfg(rayx_http3)]
+    #[cfg(dxn_http3)]
     pub(crate) fn http3(&self, host: &str, port: u16) -> Option<super::http3::Connection> {
         let mut connections = self.0.locked();
         let key = (host.to_string(), port);
@@ -159,7 +159,7 @@ impl Pool {
     }
 
     /// Keeps the HTTP/3 `connection` for `host:port`.
-    #[cfg(rayx_http3)]
+    #[cfg(dxn_http3)]
     pub(crate) fn insert_http3(&self, host: &str, port: u16, connection: super::http3::Connection) {
         self.0
             .locked()
@@ -168,19 +168,19 @@ impl Pool {
     }
 
     /// Forgets the HTTP/3 connection to `host:port` after it failed.
-    #[cfg(rayx_http3)]
+    #[cfg(dxn_http3)]
     pub(crate) fn remove_http3(&self, host: &str, port: u16) {
         self.0.locked().http3.remove(&(host.to_string(), port));
     }
 
     /// Remembers that `host:port` goes over TCP for the rest of the attempt (`Http3Preferred`).
-    #[cfg(rayx_http3)]
+    #[cfg(dxn_http3)]
     pub(crate) fn use_tcp(&self, host: &str, port: u16) {
         self.0.locked().tcp.insert((host.to_string(), port));
     }
 
     /// Whether `host:port` goes over TCP for the rest of the attempt.
-    #[cfg(rayx_http3)]
+    #[cfg(dxn_http3)]
     pub(crate) fn uses_tcp(&self, host: &str, port: u16) -> bool {
         self.0.locked().tcp.contains(&(host.to_string(), port))
     }
@@ -404,7 +404,7 @@ mod http2_tests {
 
     /// A TLS server for `localhost` that offers `protocols` through ALPN and serves HTTP/2 when
     /// it is negotiated, else HTTP/1.1. Returns its port, the CA to trust and what it saw.
-    #[cfg(rayx_tls)]
+    #[cfg(dxn_tls)]
     async fn tls_server(protocols: &[&[u8]]) -> (u16, String, Seen) {
         use rcgen::{BasicConstraints, CertificateParams, IsCa, Issuer, KeyPair};
         use rustls_pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer};
@@ -729,7 +729,7 @@ mod http2_tests {
         assert_eq!(error.kind(), ErrorKind::Transport, "{error}");
     }
 
-    #[cfg(rayx_tls)]
+    #[cfg(dxn_tls)]
     fn trusting(ca: &str) -> TlsContext {
         TlsContext::for_connection(
             true,
@@ -741,7 +741,7 @@ mod http2_tests {
         .unwrap()
     }
 
-    #[cfg(rayx_tls)]
+    #[cfg(dxn_tls)]
     #[tokio::test]
     async fn http2_auto_negotiates_h2_through_alpn() {
         let (port, ca, seen) = tls_server(&[b"h2", b"http/1.1"]).await;
@@ -767,7 +767,7 @@ mod http2_tests {
         );
     }
 
-    #[cfg(rayx_tls)]
+    #[cfg(dxn_tls)]
     #[tokio::test]
     async fn http2_auto_falls_back_to_http1_and_http2_fails() {
         let (port, ca, seen) = tls_server(&[b"http/1.1"]).await;
@@ -932,7 +932,7 @@ mod http2_tests {
         );
     }
 
-    #[cfg(rayx_tls)]
+    #[cfg(dxn_tls)]
     #[tokio::test]
     async fn http2_negotiates_h2_inside_proxy_tunnels() {
         let (port, ca, seen) = tls_server(&[b"h2", b"http/1.1"]).await;

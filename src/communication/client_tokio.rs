@@ -4505,7 +4505,7 @@ mod websocket_scheme_tests {
 
     /// A WebSocket URL whose scheme is an upper-case `HTTPS` (as a redirect may name it) opens
     /// TLS: the first bytes on the wire are a TLS ClientHello, never the upgrade with its token.
-    #[cfg(rayx_tls)]
+    #[cfg(dxn_tls)]
     #[tokio::test]
     async fn websocket_scheme_upper_case_https_never_sends_plaintext() {
         use tokio::io::AsyncReadExt;

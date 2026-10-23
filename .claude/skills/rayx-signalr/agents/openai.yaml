@@ -1,4 +1,0 @@
-interface:
-  display_name: "RayX.SignalR"
-  short_description: "Use and maintain rayx-signalr, the Rust SignalR client for native and WASM"
-  default_prompt: "Use $rayx-signalr to connect Rust code to an ASP.NET Core SignalR hub with rayx_signalr, or to change and validate the crate in the RayX.SignalR repository."

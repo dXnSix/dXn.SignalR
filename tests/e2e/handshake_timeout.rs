@@ -13,7 +13,7 @@ async fn scenario(protocol: Protocol) {
     let started = Instant::now();
     let result = support::try_connect("silent-handshake", protocol, |configuration| {
         configuration.skip_negotiation();
-        configuration.with_transports(rayx_signalr::Transports::WEB_SOCKETS);
+        configuration.with_transports(dxn_signalr::Transports::WEB_SOCKETS);
         configuration.with_handshake_timeout(HANDSHAKE_TIMEOUT);
     })
     .await;
@@ -24,8 +24,8 @@ async fn scenario(protocol: Protocol) {
     assert_eq!(
         (error.kind(), error.timeout_operation(), error.timeout()),
         (
-            rayx_signalr::ErrorKind::Timeout,
-            Some(rayx_signalr::TimeoutOperation::Handshake),
+            dxn_signalr::ErrorKind::Timeout,
+            Some(dxn_signalr::TimeoutOperation::Handshake),
             Some(HANDSHAKE_TIMEOUT)
         ),
         "unexpected error: {error}"

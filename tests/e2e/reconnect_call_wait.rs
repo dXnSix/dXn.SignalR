@@ -8,7 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use rayx_signalr::{
+use dxn_signalr::{
     ConnectionStatus, ConstantDelayPolicy, ErrorKind, ReconnectionConfig, SignalRClient,
 };
 

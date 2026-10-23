@@ -218,7 +218,7 @@ alternating rounds. `ReferenceClientBudget` then checks the R2.C4 budgets on tho
 The `perf / compare` job, started manually, runs both and publishes the report as its `perf-report`
 artifact.
 
-The budget-checked run below is at full scale (`RAYX_SIGNALR_PERF_SCALE=full`), on 2026-10-08. It
+The budget-checked run below is at full scale (`DXN_SIGNALR_PERF_SCALE=full`), on 2026-10-08. It
 ran on Windows 11 (10.0.26300), x64 with 16 logical processors, .NET 10.0.0 and rustc 1.92.0. The
 client, the service and the .NET reference shared the machine. Every budget held.
 

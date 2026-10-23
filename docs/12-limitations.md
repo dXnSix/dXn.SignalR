@@ -78,7 +78,7 @@ These parts are not exercised:
   background suspension. Android arm64-v8a and the iOS device target are compile-checked only.
   The Android platform verifier runs inside the test app on the emulator (`android-app`,
   `android-app-release`), and `aws-lc-rs` runs the TLS-dependent scenarios on native, Android and
-  iOS (`RAYX_SIGNALR_E2E_TLS_PROVIDER=aws-lc-rs`).
+  iOS (`DXN_SIGNALR_E2E_TLS_PROVIDER=aws-lc-rs`).
 - **Kerberos.** The `windows-auth` scenario authenticates the current Windows account with NTLM
   through SSPI. Kerberos needs a domain, which the test host does not have.
 - **NTLMv2 outside Windows.** `with_credentials` outside Windows uses the crate's own NTLMv2.

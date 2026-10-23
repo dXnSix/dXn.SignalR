@@ -15,7 +15,7 @@ use std::{
 };
 
 use base64::{engine::general_purpose, Engine};
-use rayx_signalr::{CallbackHandler, ErrorKind, HttpVersion, SignalRClient, Transports};
+use dxn_signalr::{CallbackHandler, ErrorKind, HttpVersion, SignalRClient, Transports};
 
 use crate::support::{self, Protocol, ServiceEndpoint};
 
@@ -51,7 +51,7 @@ async fn connect(
     version: HttpVersion,
     transport: Transports,
     ca: &[u8],
-) -> Result<SignalRClient, rayx_signalr::Error> {
+) -> Result<SignalRClient, dxn_signalr::Error> {
     let ca = ca.to_vec();
     SignalRClient::connect_with(&endpoint.host, hub, |configuration| {
         endpoint.apply(configuration);
@@ -81,14 +81,13 @@ async fn protocols(client: &mut SignalRClient, hub_path: &str) -> (String, Strin
 }
 
 async fn scenario(protocol: Protocol) {
-    let secure = support::parse_endpoint(&support::required_variable("RAYX_SIGNALR_E2E_TLS_URL"));
-    let h2c = support::parse_endpoint(&support::required_variable("RAYX_SIGNALR_E2E_H2C_URL"));
-    let http1_only = support::parse_endpoint(&support::required_variable(
-        "RAYX_SIGNALR_E2E_HTTP1_TLS_URL",
-    ));
+    let secure = support::parse_endpoint(&support::required_variable("DXN_SIGNALR_E2E_TLS_URL"));
+    let h2c = support::parse_endpoint(&support::required_variable("DXN_SIGNALR_E2E_H2C_URL"));
+    let http1_only =
+        support::parse_endpoint(&support::required_variable("DXN_SIGNALR_E2E_HTTP1_TLS_URL"));
     let ca = general_purpose::STANDARD
         .decode(support::required_variable(
-            "RAYX_SIGNALR_E2E_TLS_CA_PEM_BASE64",
+            "DXN_SIGNALR_E2E_TLS_CA_PEM_BASE64",
         ))
         .expect("the CA is base64");
 

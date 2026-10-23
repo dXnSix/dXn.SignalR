@@ -34,7 +34,7 @@ Tokio runtime.
 
 ```rust
 use futures::executor::block_on;
-use rayx_signalr::SignalRClient;
+use dxn_signalr::SignalRClient;
 
 // A small runtime that owns the network work.
 let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -173,7 +173,7 @@ setup of the repository's test app (`tests/android-app`), which the `android-app
    ```
 
 4. Before the first secure connection, call
-   `rayx_signalr::tls::android::init_with_env(env, context)` once with the JNI environment and an
+   `dxn_signalr::tls::android::init_with_env(env, context)` once with the JNI environment and an
    Android `Context`, for example from a native method that your `Application` or `Activity` calls
    at start-up (`JNI_OnLoad` has no `Context`). It also keeps the Java VM, so the default system
    proxy follows the device's proxy (`java.net.ProxySelector`). The test app does it from a JNI
@@ -191,7 +191,7 @@ setup of the repository's test app (`tests/android-app`), which the `android-app
            .with_env(|env| -> Result<(), jni::errors::Error> {
                // `with_env` catches the panic; the policy throws it to Kotlin as a
                // RuntimeException.
-               if let Err(error) = rayx_signalr::tls::android::init_with_env(env, context) {
+               if let Err(error) = dxn_signalr::tls::android::init_with_env(env, context) {
                    panic!("cannot initialize the platform verifier: {error}");
                }
                Ok(())
@@ -200,7 +200,7 @@ setup of the repository's test app (`tests/android-app`), which the `android-app
    }
    ```
 
-   Use the `jni` version `rayx-signalr` depends on (0.22). `init_with_refs` and
+   Use the `jni` version `dxn-signalr` depends on (0.22). `init_with_refs` and
    `init_with_runtime` are re-exported too.
 
 The platform verifier trusts the device's CA store: the system CAs and user-installed CAs (it

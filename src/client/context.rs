@@ -17,8 +17,8 @@ use serde::{de::DeserializeOwned, Serialize};
 /// # Examples
 ///
 /// ```no_run
-/// # fn example(mut client: rayx_signalr::SignalRClient) {
-/// use rayx_signalr::InvocationContext;
+/// # fn example(mut client: dxn_signalr::SignalRClient) {
+/// use dxn_signalr::InvocationContext;
 /// use serde::{Deserialize, Serialize};
 ///
 /// #[derive(Clone, Deserialize, Serialize)]
@@ -106,7 +106,7 @@ impl InvocationContext {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(mut ctx: rayx_signalr::InvocationContext) -> Result<(), rayx_signalr::Error> {
+    /// # async fn example(mut ctx: dxn_signalr::InvocationContext) -> Result<(), dxn_signalr::Error> {
     /// use serde::{Deserialize, Serialize};
     ///
     /// #[derive(Deserialize, Serialize)]
@@ -169,7 +169,7 @@ impl InvocationContext {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example(mut ctx: rayx_signalr::InvocationContext) -> Result<(), rayx_signalr::Error> {
+    /// # async fn example(mut ctx: dxn_signalr::InvocationContext) -> Result<(), dxn_signalr::Error> {
     /// use serde::{Deserialize, Serialize};
     ///
     /// #[derive(Deserialize, Serialize)]
@@ -212,8 +212,8 @@ impl InvocationContext {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(mut client: rayx_signalr::SignalRClient) {
-    /// use rayx_signalr::InvocationContext;
+    /// # fn example(mut client: dxn_signalr::SignalRClient) {
+    /// use dxn_signalr::InvocationContext;
     ///
     /// client.register("Approve".to_string(), |mut context| {
     ///     InvocationContext::spawn(async move {
@@ -260,7 +260,7 @@ impl InvocationContext {
     /// # Examples
     ///
     /// ```no_run
-    /// use rayx_signalr::InvocationContext;
+    /// use dxn_signalr::InvocationContext;
     ///
     /// InvocationContext::spawn(async {
     ///     // Your async code here
@@ -290,7 +290,7 @@ impl InvocationContext {
     /// # Examples
     ///
     /// ```no_run
-    /// use rayx_signalr::InvocationContext;
+    /// use dxn_signalr::InvocationContext;
     ///
     /// InvocationContext::spawn(async {
     ///     // Your async code here

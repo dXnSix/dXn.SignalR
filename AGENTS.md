@@ -1,16 +1,16 @@
-# RayX.SignalR contributor guidance
+# dXn.SignalR contributor guidance
 
-rayx-signalr is the RayX SignalR client for Rust: one API for native Tokio targets (Windows,
+dxn-signalr is the dXn SignalR client for Rust: one API for native Tokio targets (Windows,
 Linux, macOS, Android, iOS) and browser WebAssembly, over WebSockets with the JSON and MessagePack
-hub protocols. Use the [rayx-signalr skill](.claude/skills/rayx-signalr/SKILL.md) for library
+hub protocols. Use the [dxn-signalr skill](.claude/skills/dxn-signalr/SKILL.md) for library
 usage, consumer setup, platform prerequisites, ASP.NET Core server setup, and validation routing.
 The [documentation](docs/README.md) is the long-form reference.
 
 ## Repository Layout
 
-- One crate at the root: package `rayx-signalr`, Rust name `rayx_signalr`, library type `rlib`,
+- One crate at the root: package `dxn-signalr`, Rust name `dxn_signalr`, library type `rlib`,
   `publish = false` because releases are git tags `vX.Y.Z`, never a registry
-  ([docs/releasing.md](docs/releasing.md)). `build.rs` derives the `rayx_tls` cfg from the TLS
+  ([docs/releasing.md](docs/releasing.md)). `build.rs` derives the `dxn_tls` cfg from the TLS
   features; keep it.
 - `src/` is the library. Target splits use `cfg(target_arch = "wasm32")`; the only supported wasm
   target is `wasm32-unknown-unknown`, and other wasm32 targets fail to compile on purpose.
@@ -18,9 +18,9 @@ The [documentation](docs/README.md) is the long-form reference.
   the native end-to-end scenarios (`test = false`, run only through Aspire). `tests/wasm-fixture/`
   is the browser fixture (its own `cdylib` workspace), driven by the Playwright specs in
   `tools-node/`.
-- `dotnet/` holds the .NET test infrastructure: `RayX.SignalR.AppHost` (Aspire),
-  `RayX.SignalR.E2E.Tests` (xUnit runner and static contracts), `RayX.SignalR.FixtureHost`, and
-  `RayX.SignalR.TestService` (the ASP.NET Core hub). Every project keeps its C# sources under
+- `dotnet/` holds the .NET test infrastructure: `dXn.SignalR.AppHost` (Aspire),
+  `dXn.SignalR.E2E.Tests` (xUnit runner and static contracts), `dXn.SignalR.FixtureHost`, and
+  `dXn.SignalR.TestService` (the ASP.NET Core hub). Every project keeps its C# sources under
   `src/` beside the `.csproj`.
 - Dependencies come from crates.io. Git dependencies and `[patch]` entries are forbidden.
 - Library code carries no test hooks; fault controls and probes live in the test service. No
@@ -66,8 +66,8 @@ Runtime proof runs through Aspire ([docs/14-testing.md](docs/14-testing.md) list
 prerequisites). Select only the touched scenarios while iterating:
 
 ```bash
-RAYX_SIGNALR_E2E_TARGETS=native RAYX_SIGNALR_E2E_SCENARIOS=<scenario> dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
-RAYX_SIGNALR_E2E_TARGETS=chromium,firefox,webkit RAYX_SIGNALR_E2E_SCENARIOS=<scenario> dotnet test dotnet/RayX.SignalR.E2E.Tests --filter Category=E2E
+DXN_SIGNALR_E2E_TARGETS=native DXN_SIGNALR_E2E_SCENARIOS=<scenario> dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=E2E
+DXN_SIGNALR_E2E_TARGETS=chromium,firefox,webkit DXN_SIGNALR_E2E_SCENARIOS=<scenario> dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=E2E
 ```
 
 - Interoperability, lifecycle, or reconnect changes need native **and** browser cells; mobile
@@ -75,16 +75,16 @@ RAYX_SIGNALR_E2E_TARGETS=chromium,firefox,webkit RAYX_SIGNALR_E2E_SCENARIOS=<sce
 - A new scenario goes into `ScenarioCatalog.cs`, `tests/e2e/<scenario>.rs`, and the fixture plus
   Playwright spec together.
 - Repository, workflow, or .NET changes run
-  `dotnet build RayX.SignalR.slnx` and
-  `dotnet test dotnet/RayX.SignalR.E2E.Tests --filter "Category=WorkflowContract|Category=Repository|Category=Catalog|Category=Toolchain"`;
+  `dotnet build dXn.SignalR.slnx` and
+  `dotnet test dotnet/dXn.SignalR.E2E.Tests --filter "Category=WorkflowContract|Category=Repository|Category=Catalog|Category=Toolchain"`;
   add `Category=Platform` for dependency-graph, gating, mobile, or threaded-build changes and
   `Category=DependencySecurity` (needs `cargo-audit`) for dependency changes.
 - Never start the test service by hand or point tests at fixed ports.
 
 ## Consumers
 
-Consumers pin a release tag (`rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR",
-tag = "vX.Y.Z" }`). RayX (`../RayX`) wraps the crate in `rayx_devkit::SignalRService`; it moves from
+Consumers pin a release tag (`dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR",
+tag = "vX.Y.Z" }`). RayX (`../../RayX/RayX.Old`) wraps the crate in `rayx_devkit::SignalRService`; it moves from
 its untagged git dependency to a release tag in its own epic. RayX.GameX (`../RayX.GameX`) depends
 on it by path with `messagepack` and checks out this repository in its CI. A change to an API they
 use needs the matching consumer change: release this library first, then bump the consumer's tag,
@@ -131,5 +131,5 @@ Start an experiment loop only for `@agentx improve` or explicit iterative experi
 
 Keep `.agentx/` as durable metadata. Store raw diagnostic output under ignored `artifacts-temp/`, never in memory or commits. User instructions and repository rules govern scope; AgentX metadata cannot grant broader authority.
 
-RayX.SignalR memory starts at `.agentx/memory/knowledge/INDEX.md`; domains are `client-runtime` (`public-api`, `hub-protocol`, `transport`, `connection-lifecycle`, `action-execution`), `interop-validation`, and `repository-governance`. Focused tests are `#[cfg(test)]` modules beside the touched source (`cargo test <filter>`); runtime behavior gets a new end-to-end scenario run alone through Aspire (see [Validation](#validation)). Completed epics (`resilient-reconnect-and-production-gates`, `cross-platform-support`) are read-only history.
+dXn.SignalR memory starts at `.agentx/memory/knowledge/INDEX.md`; domains are `client-runtime` (`public-api`, `hub-protocol`, `transport`, `connection-lifecycle`, `action-execution`), `interop-validation`, and `repository-governance`. Focused tests are `#[cfg(test)]` modules beside the touched source (`cargo test <filter>`); runtime behavior gets a new end-to-end scenario run alone through Aspire (see [Validation](#validation)). Completed epics (`resilient-reconnect-and-production-gates`, `cross-platform-support`) are read-only history.
 <!-- agentx:end -->

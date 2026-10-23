@@ -6,7 +6,7 @@ interface). The client handles such calls by registering a callback for the targ
 ## Registering a callback
 
 ```rust
-use rayx_signalr::CallbackHandler;
+use dxn_signalr::CallbackHandler;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -61,7 +61,7 @@ client sends a throwing handler's exception message.
 the next callback or the next call, as the .NET client awaits asynchronous handlers:
 
 ```rust
-use rayx_signalr::CallbackHandler;
+use dxn_signalr::CallbackHandler;
 
 let registration = client.register_async("Refresh".to_string(), |ctx| async move {
     let mut hub = ctx.client.clone();
@@ -80,7 +80,7 @@ callback is fine: completions are processed while the callback waits.
 client binds the parameters of `On<T1, T2>`:
 
 ```rust
-use rayx_signalr::CallbackHandler;
+use dxn_signalr::CallbackHandler;
 
 let registration = client.register_typed("PriceChanged", |_ctx, (symbol, price): (String, f64)| {
     println!("{symbol} = {price}");
@@ -122,7 +122,7 @@ with `InvocationContext::complete(result)`, which sends a `Completion` carrying 
 connection's hub protocol:
 
 ```rust
-use rayx_signalr::InvocationContext;
+use dxn_signalr::InvocationContext;
 
 let registration = client.register("ConfirmPurchase".to_string(), |mut ctx| {
     let amount: f64 = ctx.argument(0).unwrap_or_default();
@@ -169,7 +169,7 @@ foreign executor should use `Handle::spawn` on the connection's runtime instead.
 Calling the hub from a callback works through the context's client:
 
 ```rust
-use rayx_signalr::InvocationContext;
+use dxn_signalr::InvocationContext;
 
 let registration = client.register("Joined".to_string(), |ctx| {
     let user: String = ctx.argument(0).unwrap_or_default();
@@ -196,7 +196,7 @@ drop. Call `disconnect()` or `stop()` when you are done, and unregister callback
 need:
 
 ```rust
-use rayx_signalr::CallbackHandler;
+use dxn_signalr::CallbackHandler;
 
 let on_message = client.register_typed("ReceiveMessage", |_ctx, (text,): (String,)| {
     println!("{text}");

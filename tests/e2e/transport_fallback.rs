@@ -4,7 +4,7 @@
 //! MessagePack), as the hub's `TransportDetails` reports; a client restricted to WebSockets fails
 //! with `TransportUnavailable`, naming the transport it could not use.
 
-use rayx_signalr::{ErrorKind, TransportKind, Transports};
+use dxn_signalr::{ErrorKind, TransportKind, Transports};
 use serde::Deserialize;
 
 use crate::support::{self, Protocol};

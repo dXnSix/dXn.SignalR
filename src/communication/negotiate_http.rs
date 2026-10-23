@@ -77,7 +77,7 @@ async fn post_unbounded(
     url: &str,
     authorization: Option<String>,
     options: Options<'_>,
-    #[cfg_attr(not(rayx_http3), allow(unused_variables))] bound: std::time::Duration,
+    #[cfg_attr(not(dxn_http3), allow(unused_variables))] bound: std::time::Duration,
 ) -> Result<String, Error> {
     let Options {
         headers,
@@ -173,7 +173,7 @@ async fn post_unbounded(
         )
     };
     // Over HTTP/3 (feature `http3`) when the version uses it for the endpoint.
-    #[cfg(rayx_http3)]
+    #[cfg(dxn_http3)]
     if let Some((response, body)) = super::http3::exchange(
         &endpoint(),
         version,
@@ -429,7 +429,7 @@ where
 }
 
 /// The RFC 5929 `tls-server-end-point` channel binding of a TLS connection.
-#[cfg(rayx_tls)]
+#[cfg(dxn_tls)]
 fn channel_binding<S>(stream: &tokio_rustls::client::TlsStream<S>) -> Option<Vec<u8>> {
     let certificate = stream.get_ref().1.peer_certificates()?.first()?;
     Some(super::integrated_auth::tls_server_end_point(
@@ -437,7 +437,7 @@ fn channel_binding<S>(stream: &tokio_rustls::client::TlsStream<S>) -> Option<Vec
     ))
 }
 
-#[cfg(not(rayx_tls))]
+#[cfg(not(dxn_tls))]
 fn channel_binding<S>(_stream: &S) -> Option<Vec<u8>> {
     None
 }
@@ -481,7 +481,7 @@ pub(crate) async fn connect_tcp(host: &str, port: u16) -> Result<TcpStream, Erro
     })
 }
 
-#[cfg(rayx_tls)]
+#[cfg(dxn_tls)]
 pub(crate) async fn tls_stream<S>(
     tls: &TlsContext,
     host: &str,
@@ -494,7 +494,7 @@ where
 }
 
 /// [`tls_stream`] offering the ALPN protocols `alpn` (`None`: the connection's own).
-#[cfg(rayx_tls)]
+#[cfg(dxn_tls)]
 pub(crate) async fn tls_stream_offering<S>(
     tls: &TlsContext,
     host: &str,
@@ -516,13 +516,13 @@ where
         })
 }
 
-#[cfg(not(rayx_tls))]
+#[cfg(not(dxn_tls))]
 pub(crate) async fn tls_stream<S>(_tls: &TlsContext, _host: &str, _tcp: S) -> Result<S, Error> {
     Err(super::tls::tls_disabled())
 }
 
 /// Whether a TLS handshake failed because the server refused the offered ALPN protocols.
-#[cfg(rayx_tls)]
+#[cfg(dxn_tls)]
 fn refused_application_protocol(error: &Error) -> bool {
     let mut source: Option<&(dyn std::error::Error + 'static)> = Some(error);
     while let Some(current) = source {
@@ -587,7 +587,7 @@ where
             }))
         };
     }
-    #[cfg(rayx_tls)]
+    #[cfg(dxn_tls)]
     {
         let no_http2 = || {
             Error::transport_failure(
@@ -631,7 +631,7 @@ where
             binding,
         }))
     }
-    #[cfg(not(rayx_tls))]
+    #[cfg(not(dxn_tls))]
     {
         let _ = (tcp, version, bound, upgrades);
         Err(super::tls::tls_disabled())
@@ -792,12 +792,12 @@ mod negotiate_tcp_connect {
                     .starts_with(&format!("cannot connect to 127.0.0.1:{port}")),
                 "{refused}"
             );
-            let unresolvable = connect_tcp("rayx-signalr.invalid", 80).await.unwrap_err();
+            let unresolvable = connect_tcp("dxn-signalr.invalid", 80).await.unwrap_err();
             assert_eq!(unresolvable.kind(), crate::ErrorKind::Transport);
             assert!(
                 unresolvable
                     .to_string()
-                    .starts_with("cannot resolve rayx-signalr.invalid:80"),
+                    .starts_with("cannot resolve dxn-signalr.invalid:80"),
                 "{unresolvable}"
             );
         });

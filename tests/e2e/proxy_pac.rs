@@ -6,7 +6,7 @@
 //! missing script fails with `ErrorKind::Proxy`.
 
 use base64::{engine::general_purpose, Engine};
-use rayx_signalr::{ErrorKind, SignalRClient};
+use dxn_signalr::{ErrorKind, SignalRClient};
 
 use crate::{
     proxy::{clear_proxy_variables, proxy_endpoint, stats},
@@ -50,10 +50,10 @@ async fn echo(client: &mut SignalRClient) {
 async fn scenario(protocol: Protocol) {
     clear_proxy_variables();
     let plain = support::service();
-    let secure = support::parse_endpoint(&support::required_variable("RAYX_SIGNALR_E2E_TLS_URL"));
+    let secure = support::parse_endpoint(&support::required_variable("DXN_SIGNALR_E2E_TLS_URL"));
     let ca = general_purpose::STANDARD
         .decode(support::required_variable(
-            "RAYX_SIGNALR_E2E_TLS_CA_PEM_BASE64",
+            "DXN_SIGNALR_E2E_TLS_CA_PEM_BASE64",
         ))
         .expect("the CA is base64");
     let routes = pac_url("/proxy.pac?http=proxy&https=socks5");

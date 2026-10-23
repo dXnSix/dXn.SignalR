@@ -1,0 +1,586 @@
+using MessagePack;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Connections.Features;
+using Microsoft.AspNetCore.SignalR;
+using System.Collections.Concurrent;
+using System.Text.Json.Serialization;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
+
+namespace dXn.SignalR.TestService
+{
+    public class TestHub(IHubContext<TestHub> hubContext) : Hub
+    {
+        static readonly ConcurrentDictionary<string, CancellationProbeState> _cancellationProbes = new();
+        static readonly ConcurrentDictionary<string, int> _transportAborts = new();
+        static readonly ConcurrentDictionary<string, string> _streamOutcomes = new();
+
+        public async Task<TestEntity> SingleEntity()
+        {
+            await Task.CompletedTask;
+
+            return new TestEntity
+            {
+                Number = 1,
+                Text = "test"
+            };
+        }
+
+        public string ConnectionIdentity() => Context.ConnectionId;
+
+        public TransportDetails TransportDetails() => new()
+        {
+            ConnectionId = Context.ConnectionId,
+            TransportId = Context.GetHttpContext()?.Request.Query["id"].ToString() ?? string.Empty,
+            TransferFormat = Context.Features.Get<ITransferFormatFeature>()?.ActiveFormat.ToString() ?? string.Empty,
+            Transport = Context.Features.Get<Microsoft.AspNetCore.Http.Connections.Features.IHttpTransportFeature>()?.TransportType.ToString() ?? string.Empty
+        };
+
+        public int Echo(int value) => value;
+
+        /// <summary>The remote port of the request that carries this connection (a proxy's tunnel port when proxied).</summary>
+        public int PeerPort() => Context.GetHttpContext()?.Connection.RemotePort ?? 0;
+
+        /// <summary>The affinity cookie the transport request carried (see AffinityCookies).</summary>
+        public string AffinityCookie() =>
+            Context.GetHttpContext()?.Request.Cookies[AffinityCookies.Name] ?? string.Empty;
+
+        /// <summary>The subject of the client certificate the transport's TLS connection presented.</summary>
+        public string ClientCertificateSubject() =>
+            Context.GetHttpContext()?.Connection.ClientCertificate?.Subject ?? string.Empty;
+
+        /// <summary>How many /test-affinity requests arrived without an issued affinity cookie.</summary>
+        public int AffinityRejections() => AffinityCookies.Rejections;
+
+        /// <summary>The access token the transport request carried (Bearer header, else access_token query).</summary>
+        public string AccessTokenProbe()
+        {
+            var request = Context.GetHttpContext()?.Request;
+            string? header = request?.Headers.Authorization;
+            if (header is not null && header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            {
+                return header["Bearer ".Length..].Trim();
+            }
+
+            return request?.Query["access_token"].ToString() ?? string.Empty;
+        }
+
+        public Task VoidCall()
+        {
+            TestControls.Record(Context.ConnectionId, "void-call");
+            return Task.CompletedTask;
+        }
+
+        public int Fail(string message) => throw new InvalidOperationException(message);
+
+        public ComplexEntity EchoComplex(ComplexEntity entity) => new()
+        {
+            EntityId = entity.EntityId + 1,
+            DisplayName = entity.DisplayName.ToUpperInvariant(),
+            Tags = [.. entity.Tags, "server"],
+            Nested = entity.Nested is null ? null : new TestEntity { Text = entity.Nested.Text, Number = entity.Nested.Number * 2 },
+            OptionalNote = entity.OptionalNote
+        };
+
+        public string DescribeComplex(ComplexEntity entity) =>
+            $"{entity.EntityId}|{entity.DisplayName}|{string.Join(',', entity.Tags)}|{entity.Nested?.Text}:{entity.Nested?.Number}|{entity.OptionalNote ?? "null"}";
+
+        public void Record(string value) => TestControls.Record(Context.ConnectionId, value);
+
+        public void RecordPair(string text, int number) => TestControls.Record(Context.ConnectionId, $"{text}:{number}");
+
+        public string[] RecordedSends() => TestControls.Recorded(Context.ConnectionId);
+
+        public async IAsyncEnumerable<int> FailingSequence(int count, int failAfter)
+        {
+            for (var value = 1; value <= count; value++)
+            {
+                if (value > failAfter)
+                {
+                    throw new InvalidOperationException($"FailingSequence failed after {failAfter} items");
+                }
+
+                await Task.Yield();
+                yield return value;
+            }
+        }
+
+        public Task TriggerMultiArgumentCallback(string callback) =>
+            Clients.Caller.SendAsync(callback, "alpha", 42, new TestEntity { Text = "multi", Number = 7 });
+
+        /// <summary>
+        /// Calls <paramref name="callback"/> with values whose MessagePack form has no JSON
+        /// equivalent: binary data, a timestamp and integer map keys.
+        /// </summary>
+        public Task TriggerFidelityCallback(string callback) =>
+            Clients.Caller.SendAsync(
+                callback,
+                new byte[] { 0, 1, 2, 255 },
+                new DateTime(2024, 1, 2, 3, 4, 5, DateTimeKind.Utc),
+                new Dictionary<int, string> { [1] = "one", [2] = "two" });
+
+        /// <summary>
+        /// Asks the caller for a client result outside this invocation (the hub processes one
+        /// invocation per connection at a time) and records the value for <see cref="ClientResult"/>,
+        /// or the <see cref="HubException"/> text an error Completion produced for
+        /// <see cref="TakeClientResultError"/>.
+        /// </summary>
+        public void RequestClientResult(string callback, int value)
+        {
+            string connectionId = Context.ConnectionId;
+            _ = Task.Run(async () =>
+            {
+                using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(20));
+                try
+                {
+                    int result = await hubContext.Clients.Client(connectionId).InvokeAsync<int>(callback, value, timeout.Token);
+                    TestControls.RecordClientResult(connectionId, result);
+                }
+                catch (HubException exception)
+                {
+                    TestControls.RecordClientResultError(connectionId, exception.Message);
+                }
+            });
+        }
+
+        public int? ClientResult() => TestControls.ClientResult(Context.ConnectionId);
+
+        /// <summary>Returns and clears the caller's last client-result error text.</summary>
+        public string? TakeClientResultError() => TestControls.TakeClientResultError(Context.ConnectionId);
+
+        public int DisconnectCount(string connectionId) => TestControls.DisconnectCount(connectionId);
+
+        /// <summary>How <c>OnDisconnectedAsync</c> saw another connection end: empty when graceful, null while it is connected.</summary>
+        public string? DisconnectError(string connectionId) => TestControls.DisconnectError(connectionId);
+
+        /// <summary>The last negotiate request of a hub path (headers and token placement).</summary>
+        public string[] NegotiateRequest(string hubPath) => TestControls.NegotiateRequest(hubPath);
+
+        /// <summary>This connection's transport request (headers and token placement).</summary>
+        public string[] TransportRequest() =>
+            TestControls.DescribeRequest(
+                (Context.GetHttpContext() ?? throw new InvalidOperationException("no HTTP context")).Request);
+
+        /// <summary>How many SignalR Close messages clients sent since the last reset.</summary>
+        public int ClientCloseMessages() => TestControls.ClientCloseMessages();
+
+        /// <summary>Holds the next negotiate request of a hub path, so a connection attempt stays in flight.</summary>
+        public void DelayNextNegotiation(string hubPath, int milliseconds) =>
+            TestControls.DelayNextNegotiation(hubPath, TimeSpan.FromMilliseconds(milliseconds));
+
+        public string EchoText(string payload) => payload;
+
+        public int TextLength(string payload) => payload.Length;
+
+        public string LargeText(int length) => new('x', length);
+
+        public void ScheduleServerClose(bool allowReconnect, int delayMilliseconds) =>
+            TestControls.ScheduleClose(Context.ConnectionId, allowReconnect, TimeSpan.FromMilliseconds(delayMilliseconds));
+
+        public void RejectNegotiation(string hubPath, int milliseconds) =>
+            TestControls.RejectNegotiation(hubPath, TimeSpan.FromMilliseconds(milliseconds));
+
+        public int NegotiateCount(string hubPath) => TestControls.NegotiateCount(hubPath);
+
+        public bool ResetCancellationProbe()
+        {
+            _cancellationProbes[Context.ConnectionId] = new CancellationProbeState();
+            return true;
+        }
+
+        public CancellationProbeSnapshot CancellationProbeStatus()
+        {
+            return GetCancellationProbe().Snapshot();
+        }
+
+        public async IAsyncEnumerable<int> CancellationProbeStream(
+            int delayMilliseconds = 5,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            CancellationProbeState probe = GetCancellationProbe();
+            probe.Start();
+            int value = 0;
+            try
+            {
+                while (true)
+                {
+                    await Task.Delay(delayMilliseconds, cancellationToken);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    yield return ++value;
+                }
+            }
+            finally
+            {
+                probe.Finish(cancellationToken.IsCancellationRequested);
+            }
+        }
+
+        public async Task AbortPhysicalTransport()
+        {
+            // Let the stateful protocol acknowledge the test command before severing only the
+            // underlying HTTP transport (the current poll over Long Polling). The logical
+            // SignalR connection remains resumable.
+            await Task.Delay(1200, Context.ConnectionAborted);
+            _transportAborts.AddOrUpdate(Context.ConnectionId, 1, static (_, count) => count + 1);
+            TransportFaults.Sever(Context);
+        }
+
+        /// <summary>
+        /// Severs the transport as <see cref="AbortPhysicalTransport"/> does, and answers the
+        /// client's resume with 404, so the client must end the logical connection and negotiate
+        /// a new one.
+        /// </summary>
+        public async Task AbortPhysicalTransportAndRejectResume()
+        {
+            var httpContext = Context.GetHttpContext()
+                ?? throw new InvalidOperationException("SignalR transport has no HTTP context");
+            string token = httpContext.Request.Query["id"].ToString();
+            await Task.Delay(1200, Context.ConnectionAborted);
+            TestControls.RejectNextResume(token);
+            _transportAborts.AddOrUpdate(Context.ConnectionId, 1, static (_, count) => count + 1);
+            httpContext.Abort();
+        }
+
+        public int ResumeRejections() => TestControls.ResumeRejections();
+
+        /// <summary>Issues a rotating token, as <c>/e2e/token</c> does (for clients without an HTTP client).</summary>
+        public string IssueToken() => RotatingTokens.Issue();
+
+        /// <summary>Rotates the tokens, as <c>/e2e/rotate-token</c> does; returns the new generation.</summary>
+        public int RotateTokens() => RotatingTokens.Rotate();
+
+        public int TransportAbortCount() =>
+            _transportAborts.TryGetValue(Context.ConnectionId, out var count) ? count : 0;
+
+        /// <summary>Sums a client-to-server stream (an <c>IAsyncEnumerable</c> parameter).</summary>
+        public async Task<int> SumStream(IAsyncEnumerable<int> numbers)
+        {
+            int sum = 0;
+            await foreach (int number in numbers)
+            {
+                sum += number;
+            }
+
+            return sum;
+        }
+
+        /// <summary>Sums a client-to-server stream (a <c>ChannelReader</c> parameter).</summary>
+        public async Task<int> SumChannel(System.Threading.Channels.ChannelReader<int> numbers)
+        {
+            int sum = 0;
+            await foreach (int number in numbers.ReadAllAsync())
+            {
+                sum += number;
+            }
+
+            return sum;
+        }
+
+        /// <summary>Adds an ordinary argument to the sum of a client-to-server stream.</summary>
+        public async Task<int> SumWithOffset(int offset, IAsyncEnumerable<int> numbers) =>
+            offset + await SumStream(numbers);
+
+        /// <summary>Streams back every item of a client-to-server stream, doubled.</summary>
+        public async IAsyncEnumerable<int> DoubleStream(IAsyncEnumerable<int> numbers)
+        {
+            await foreach (int number in numbers)
+            {
+                yield return number * 2;
+            }
+        }
+
+        /// <summary>
+        /// Reads a client-to-server stream to its end and records how it ended for
+        /// <see cref="StreamOutcome"/>: <c>completed:&lt;sum&gt;</c>, or <c>error:&lt;message&gt;</c>
+        /// when the client ended it with an error Completion.
+        /// </summary>
+        public async Task<int> ObserveStream(IAsyncEnumerable<int> numbers)
+        {
+            string connectionId = Context.ConnectionId;
+            int sum = 0;
+            try
+            {
+                await foreach (int number in numbers)
+                {
+                    sum += number;
+                }
+            }
+            catch (Exception exception)
+            {
+                _streamOutcomes[connectionId] = $"error:{exception.Message}";
+                throw;
+            }
+
+            _streamOutcomes[connectionId] = $"completed:{sum}";
+            return sum;
+        }
+
+        /// <summary>
+        /// A streaming method that streams nothing and records, for <see cref="StreamOutcome"/>,
+        /// how its client-to-server stream ended, read apart from the call so that canceling the
+        /// call does not decide the outcome.
+        /// </summary>
+        public System.Threading.Channels.ChannelReader<int> ObserveUpload(System.Threading.Channels.ChannelReader<int> numbers)
+        {
+            string connectionId = Context.ConnectionId;
+            _ = Task.Run(async () =>
+            {
+                int sum = 0;
+                try
+                {
+                    await foreach (int number in numbers.ReadAllAsync())
+                    {
+                        sum += number;
+                    }
+
+                    _streamOutcomes[connectionId] = $"completed:{sum}";
+                }
+                catch (Exception exception)
+                {
+                    _streamOutcomes[connectionId] = $"error:{exception.Message}";
+                }
+            });
+            return System.Threading.Channels.Channel.CreateUnbounded<int>().Reader;
+        }
+
+        /// <summary>How the last stream <see cref="ObserveStream"/> read on this connection ended.</summary>
+        public string StreamOutcome() =>
+            _streamOutcomes.TryGetValue(Context.ConnectionId, out string? outcome) ? outcome : "none";
+
+        public async Task<string> DelayedConnectionIdentity(int delayMilliseconds)
+        {
+            await Task.Delay(delayMilliseconds, Context.ConnectionAborted);
+            return Context.ConnectionId;
+        }
+
+        public async IAsyncEnumerable<int> OrderedSequence(int count, int delayMilliseconds = 1)
+        {
+            for (var value = 1; value <= count; value++)
+            {
+                if (Context.ConnectionAborted.IsCancellationRequested)
+                {
+                    yield break;
+                }
+
+                if (delayMilliseconds > 0)
+                {
+                    await Task.Delay(delayMilliseconds, Context.ConnectionAborted);
+                }
+                yield return value;
+            }
+        }
+
+        public async Task TriggerOrderedCallbacks(string callback, int count)
+        {
+            for (var value = 1; value <= count; value++)
+            {
+                await Clients.Caller.SendAsync(callback, value, Context.ConnectionAborted);
+            }
+        }
+
+        public async IAsyncEnumerable<TestEntity> HundredEntities()
+        {
+            for(var i = 0; i < 100; i ++)
+            {
+                await Task.CompletedTask;
+
+                yield return new TestEntity
+                {
+                    Number = i + 1,
+                    Text = $"test {i + 1}"
+                };
+            }
+        }
+
+        public async IAsyncEnumerable<TestEntity> MillionEntities()
+        {
+            for (var i = 0; i < 100000; i++)
+            {
+                await Task.CompletedTask;
+
+                if (Context.ConnectionAborted.IsCancellationRequested)
+                {
+                    yield break;
+                }
+
+                yield return new TestEntity
+                {
+                    Number = i + 1,
+                    Text = $"test {i + 1}"
+                };
+            }
+        }
+
+        public async Task<bool> PushEntity(TestEntity entity)
+        {
+            await Task.CompletedTask;
+
+            return true;
+        }
+
+        public async Task<TestEntity> PushTwoEntities(TestEntity entity1, TestEntity entity2)
+        {
+            await Task.CompletedTask;
+
+            return new TestEntity
+            {
+                Text = $"{entity1.Text}_{entity2.Text}",
+                Number = entity1.Number + entity2.Number,
+            };
+        }
+
+        public async Task TriggerCallback(string callback)
+        {
+            await Clients.Caller.SendAsync(callback);
+        }
+
+        public async Task TriggerEntityCallback(string callback)
+        {
+            await Clients.Caller.SendAsync(callback, new TestEntity
+            {
+                Text = "callback",
+                Number = 1,
+            });
+        }
+
+        public async Task<bool> TriggerEntityResponse(string callback)
+        {
+            var ret = await Clients.Caller.InvokeAsync<TestEntity>(callback, new TestEntity
+            {
+                Text = "requested response",
+                Number = 1,
+            }, CancellationToken.None);
+
+            if(ret.Number == 1)
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        public override Task OnDisconnectedAsync(Exception? exception)
+        {
+            Debug.WriteLine($"Client is disconnected: {Context.ConnectionId}");
+
+            _cancellationProbes.TryRemove(Context.ConnectionId, out _);
+            _transportAborts.TryRemove(Context.ConnectionId, out _);
+            TestControls.RecordDisconnectError(Context.ConnectionId, exception);
+
+            return base.OnDisconnectedAsync(exception);
+        }
+
+        public override Task OnConnectedAsync()
+        {
+            Debug.WriteLine($"Client is connecting: {Context.ConnectionId}");
+
+            return base.OnConnectedAsync();
+        }
+
+        CancellationProbeState GetCancellationProbe()
+        {
+            return _cancellationProbes.GetOrAdd(
+                Context.ConnectionId,
+                static _ => new CancellationProbeState());
+        }
+    }
+
+    public sealed class CancellationProbeState
+    {
+        int _active;
+        int _started;
+        int _canceled;
+
+        public void Start()
+        {
+            Interlocked.Increment(ref _started);
+            Interlocked.Increment(ref _active);
+        }
+
+        public void Finish(bool canceled)
+        {
+            if (canceled)
+            {
+                Interlocked.Increment(ref _canceled);
+            }
+            Interlocked.Decrement(ref _active);
+        }
+
+        public CancellationProbeSnapshot Snapshot()
+        {
+            return new CancellationProbeSnapshot
+            {
+                Active = Volatile.Read(ref _active),
+                Started = Volatile.Read(ref _started),
+                Canceled = Volatile.Read(ref _canceled)
+            };
+        }
+    }
+
+    public sealed class CancellationProbeSnapshot
+    {
+        public int Active { get; set; }
+        public int Started { get; set; }
+        public int Canceled { get; set; }
+    }
+
+    /// <summary>Requires the test authentication scheme; reports the authenticated identity.</summary>
+    [Authorize]
+    public class AuthHub : Hub
+    {
+        public string AuthenticatedIdentity() =>
+            $"{Context.User?.Identity?.AuthenticationType}:{Context.User?.Identity?.Name}";
+
+        /// <summary>How the WebSocket request was authenticated: header, access_token or token-binding.</summary>
+        public string AuthenticationSource() =>
+            Context.User?.FindFirst(TestAuthenticationHandler.SourceClaim)?.Value ?? "none";
+    }
+
+    public sealed class TransportDetails
+    {
+        public string ConnectionId { get; set; } = string.Empty;
+        public string TransportId { get; set; } = string.Empty;
+        public string TransferFormat { get; set; } = string.Empty;
+
+        /// <summary>Gets or sets the transport the connection uses (<c>WebSockets</c>, <c>ServerSentEvents</c>, <c>LongPolling</c>).</summary>
+        public string Transport { get; set; } = string.Empty;
+    }
+
+    /// <summary>A DTO whose wire names are snake_case on both protocols, matching Serde renames.</summary>
+    [MessagePackObject]
+    public sealed class ComplexEntity
+    {
+        [Key("entity_id")]
+        [JsonPropertyName("entity_id")]
+        public int EntityId { get; set; }
+
+        [Key("display_name")]
+        [JsonPropertyName("display_name")]
+        public string DisplayName { get; set; } = string.Empty;
+
+        [Key("tags")]
+        [JsonPropertyName("tags")]
+        public List<string> Tags { get; set; } = [];
+
+        [Key("nested")]
+        [JsonPropertyName("nested")]
+        public TestEntity? Nested { get; set; }
+
+        [Key("optional_note")]
+        [JsonPropertyName("optional_note")]
+        public string? OptionalNote { get; set; }
+    }
+
+    /// <summary>Wire names match the Rust scenarios' Serde names on both protocols.</summary>
+    [MessagePackObject]
+    public class TestEntity
+    {
+        [Key("number")]
+        public int Number { get; set; }
+
+        [Key("text")]
+        public string Text { get; set; } = string.Empty;
+    }
+}

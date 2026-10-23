@@ -36,7 +36,7 @@ use crate::communication::WasmReconnectionContext;
 ///
 /// # Example
 /// ```no_run
-/// use rayx_signalr::{DisconnectionHandler, ReconnectionHandler};
+/// use dxn_signalr::{DisconnectionHandler, ReconnectionHandler};
 ///
 /// struct MyHandler;
 ///
@@ -187,9 +187,9 @@ impl ReconnectionHandler {
 /// and its tasks run on the connection's Tokio runtime.
 ///
 /// ```no_run
-/// # async fn example() -> Result<(), rayx_signalr::Error> {
+/// # async fn example() -> Result<(), dxn_signalr::Error> {
 /// use futures::StreamExt;
-/// use rayx_signalr::{CallbackHandler, InvocationContext, SignalRClient};
+/// use dxn_signalr::{CallbackHandler, InvocationContext, SignalRClient};
 /// use serde::{Deserialize, Serialize};
 ///
 /// #[derive(Deserialize, Serialize)]
@@ -249,13 +249,13 @@ pub struct SignalRClient {
 /// # Examples
 ///
 /// ```no_run
-/// # fn example(client: &rayx_signalr::SignalRClient) {
+/// # fn example(client: &dxn_signalr::SignalRClient) {
 /// // Restart after the server closed the connection, as `Closed += ... StartAsync()` in .NET.
 /// let weak = client.downgrade();
 /// let _restart = client.on_closed(move |error| {
 ///     // `None`, or a cancellation during a reconnect: stopped by the application.
 ///     let Some(error) = error else { return };
-///     if error.kind() == rayx_signalr::ErrorKind::Canceled {
+///     if error.kind() == dxn_signalr::ErrorKind::Canceled {
 ///         return;
 ///     }
 ///     if let Some(client) = weak.upgrade() {
@@ -338,8 +338,8 @@ impl SignalRClient {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), rayx_signalr::Error> {
-    /// use rayx_signalr::SignalRClient;
+    /// # async fn example() -> Result<(), dxn_signalr::Error> {
+    /// use dxn_signalr::SignalRClient;
     ///
     /// let mut client = SignalRClient::new("localhost", "chat", |configuration| {
     ///     configuration.with_port(5000);
@@ -497,8 +497,8 @@ impl SignalRClient {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), rayx_signalr::Error> {
-    /// let client = rayx_signalr::SignalRClient::connect("localhost", "test").await?;
+    /// # async fn example() -> Result<(), dxn_signalr::Error> {
+    /// let client = dxn_signalr::SignalRClient::connect("localhost", "test").await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -554,8 +554,8 @@ impl SignalRClient {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(mut client: rayx_signalr::SignalRClient) {
-    /// use rayx_signalr::CallbackHandler;
+    /// # fn example(mut client: dxn_signalr::SignalRClient) {
+    /// use dxn_signalr::CallbackHandler;
     /// use serde::{Deserialize, Serialize};
     ///
     /// #[derive(Deserialize, Serialize)]
@@ -591,7 +591,7 @@ impl SignalRClient {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(mut client: rayx_signalr::SignalRClient) {
+    /// # fn example(mut client: dxn_signalr::SignalRClient) {
     /// let handler = client.register_async("Refresh".to_string(), |mut context| async move {
     ///     let latest = context.client.invoke::<String>("Latest".to_string()).await;
     ///     println!("latest: {latest:?}");
@@ -622,7 +622,7 @@ impl SignalRClient {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(mut client: rayx_signalr::SignalRClient) {
+    /// # fn example(mut client: dxn_signalr::SignalRClient) {
     /// let handler = client.register_typed("Price", |_context, (symbol, price): (String, f64)| {
     ///     println!("{symbol} = {price}");
     /// });
@@ -706,8 +706,8 @@ impl SignalRClient {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), rayx_signalr::Error> {
-    /// use rayx_signalr::SignalRClient;
+    /// # async fn example() -> Result<(), dxn_signalr::Error> {
+    /// use dxn_signalr::SignalRClient;
     /// use serde::{Deserialize, Serialize};
     ///
     /// #[derive(Deserialize, Serialize)]
@@ -767,8 +767,8 @@ impl SignalRClient {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), rayx_signalr::Error> {
-    /// use rayx_signalr::SignalRClient;
+    /// # async fn example() -> Result<(), dxn_signalr::Error> {
+    /// use dxn_signalr::SignalRClient;
     /// use serde::{Deserialize, Serialize};
     ///
     /// #[derive(Deserialize, Serialize)]
@@ -918,8 +918,8 @@ impl SignalRClient {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), rayx_signalr::Error> {
-    /// let mut client = rayx_signalr::SignalRClient::connect("localhost", "test").await?;
+    /// # async fn example() -> Result<(), dxn_signalr::Error> {
+    /// let mut client = dxn_signalr::SignalRClient::connect("localhost", "test").await?;
     /// match client.send("TriggerEntityCallback".to_string()).await {
     ///     Ok(()) => println!("Method called successfully"),
     ///     Err(e) => eprintln!("Failed to call method: {e}"),
@@ -958,8 +958,8 @@ impl SignalRClient {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), rayx_signalr::Error> {
-    /// let mut client = rayx_signalr::SignalRClient::connect("localhost", "test").await?;
+    /// # async fn example() -> Result<(), dxn_signalr::Error> {
+    /// let mut client = dxn_signalr::SignalRClient::connect("localhost", "test").await?;
     /// let result = client
     ///     .send_with_args("TriggerEntityCallback".to_string(), |c| {
     ///         c.argument("callback1".to_string());
@@ -1023,7 +1023,7 @@ impl SignalRClient {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), rayx_signalr::Error> {
+    /// # async fn example() -> Result<(), dxn_signalr::Error> {
     /// use futures::StreamExt;
     /// use serde::{Deserialize, Serialize};
     ///
@@ -1033,7 +1033,7 @@ impl SignalRClient {
     ///     number: i32,
     /// }
     ///
-    /// let mut client = rayx_signalr::SignalRClient::connect("localhost", "test").await?;
+    /// let mut client = dxn_signalr::SignalRClient::connect("localhost", "test").await?;
     /// let mut stream = client.enumerate::<Entity>("HundredEntities".to_string()).await;
     /// while let Some(entity) = stream.next().await {
     ///     println!("Received entity: {}, {}", entity.text, entity.number);
@@ -1072,7 +1072,7 @@ impl SignalRClient {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), rayx_signalr::Error> {
+    /// # async fn example() -> Result<(), dxn_signalr::Error> {
     /// use futures::StreamExt;
     /// use serde::{Deserialize, Serialize};
     ///
@@ -1082,7 +1082,7 @@ impl SignalRClient {
     ///     number: i32,
     /// }
     ///
-    /// let mut client = rayx_signalr::SignalRClient::connect("localhost", "test").await?;
+    /// let mut client = dxn_signalr::SignalRClient::connect("localhost", "test").await?;
     /// let mut stream = client
     ///     .enumerate_with_args::<Entity, _>("HundredEntities".to_string(), |c| {
     ///         c.argument("some_argument".to_string());
@@ -1308,7 +1308,7 @@ impl SignalRClient {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(client: &rayx_signalr::SignalRClient) {
+    /// # fn example(client: &dxn_signalr::SignalRClient) {
     /// let _closed = client.on_closed(|error| match error {
     ///     Some(error) => eprintln!("connection lost: {error}"),
     ///     None => println!("stopped"),

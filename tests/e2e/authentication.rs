@@ -7,7 +7,7 @@ use crate::support::{self, Protocol};
 type Credentials<'a> = (Option<(&'a str, &'a str)>, Option<&'a str>);
 
 fn configure(
-    configuration: &mut rayx_signalr::ConnectionConfiguration,
+    configuration: &mut dxn_signalr::ConnectionConfiguration,
     (basic, bearer): Credentials<'_>,
 ) {
     if let Some((user, password)) = basic {
@@ -36,7 +36,7 @@ async fn identity(protocol: Protocol, credentials: Credentials<'_>) -> (String, 
     (identity, source)
 }
 
-async fn rejected(protocol: Protocol, credentials: Credentials<'_>) -> rayx_signalr::Error {
+async fn rejected(protocol: Protocol, credentials: Credentials<'_>) -> dxn_signalr::Error {
     support::try_connect("test-auth", protocol, |configuration| {
         configure(configuration, credentials)
     })
@@ -64,7 +64,7 @@ async fn scenario(protocol: Protocol) {
     ] {
         assert_eq!(
             (error.kind(), error.status()),
-            (rayx_signalr::ErrorKind::Authentication, Some(401)),
+            (dxn_signalr::ErrorKind::Authentication, Some(401)),
             "expected an authorization error: {error}"
         );
         let text = format!("{error} {error:?}");

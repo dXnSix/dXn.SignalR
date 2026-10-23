@@ -4,7 +4,7 @@
 
 use std::time::Duration;
 
-use rayx_signalr::SignalRClient;
+use dxn_signalr::SignalRClient;
 
 use crate::support::{self, Protocol};
 

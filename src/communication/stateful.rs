@@ -19,7 +19,7 @@ use crate::{error::Error, protocol::negotiate::MessageType};
 /// decisions, Acks, Sequence messages and resend ranges at `debug`, each tagged with the physical
 /// connection's generation (`StatefulMessageBuffer::transport_generation`). They never contain
 /// payloads.
-pub(crate) const TRACE_TARGET: &str = "rayx_signalr::stateful";
+pub(crate) const TRACE_TARGET: &str = "dxn_signalr::stateful";
 
 pub(crate) use crate::protocol::codec::SerializedFrame;
 

@@ -30,14 +30,14 @@ val rustlsPlatformVerifierVersion = providers.of(RustlsVersion::class.java) {
 }
 
 // The harness library the runner builds with `cargo ndk` (`AndroidAppCellRunner`).
-val jniLibsDirectory = providers.gradleProperty("rayx.jniLibs").orElse("build/rayx-jniLibs")
+val jniLibsDirectory = providers.gradleProperty("dxn.jniLibs").orElse("build/dxn-jniLibs")
 
 android {
-    namespace = "dev.rayx.signalr.e2e"
+    namespace = "dev.dxn.signalr.e2e"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "dev.rayx.signalr.e2e"
+        applicationId = "dev.dxn.signalr.e2e"
         minSdk = 24
         targetSdk = 35
         versionCode = 1

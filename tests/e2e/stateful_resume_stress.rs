@@ -1,7 +1,7 @@
 //! Stateful resume stress: five fresh stateful connections take 100 server-side transport aborts
 //! each (500 in all), each immediately followed by an invocation and a short server stream, with
-//! the stateful sequence trace on (`rayx_signalr::stateful=debug`, in the cell output) and any
-//! undecodable message traced (`rayx_signalr::communication::common=trace`). Every
+//! the stateful sequence trace on (`dxn_signalr::stateful=debug`, in the cell output) and any
+//! undecodable message traced (`dxn_signalr::communication::common=trace`). Every
 //! abort is resumed transparently: the invocation and the stream complete with the right values,
 //! the logical connection and its id stay, and no reconnect runs. A stall (the once-seen
 //! 2026-10-06 one) would end the cell with the trace naming the lost sequence range.
@@ -15,8 +15,8 @@ use std::{
     time::Duration,
 };
 
+use dxn_signalr::{CallbackHandler, ConnectionStatus, StatefulReconnectConfig};
 use futures::StreamExt;
-use rayx_signalr::{CallbackHandler, ConnectionStatus, StatefulReconnectConfig};
 
 use crate::support::{self, Protocol};
 

@@ -8,7 +8,7 @@ use std::{
     time::Duration,
 };
 
-use rayx_signalr::{CallbackHandler, InvocationContext, SignalRClient};
+use dxn_signalr::{CallbackHandler, InvocationContext, SignalRClient};
 
 use crate::support::{self, Protocol, TestEntity};
 

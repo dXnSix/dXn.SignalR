@@ -41,7 +41,7 @@ pub(crate) async fn scenario(protocol: Protocol) {
         .expect("connecting to an unknown hub must fail");
     assert_eq!(
         (error.kind(), error.status()),
-        (rayx_signalr::ErrorKind::Negotiate, Some(404)),
+        (dxn_signalr::ErrorKind::Negotiate, Some(404)),
         "{error}"
     );
 }

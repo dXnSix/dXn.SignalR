@@ -2,10 +2,10 @@
 //! credential-free listener (the Android emulator's global HTTP proxy, or the Windows or macOS
 //! user proxy on CI runners that opt in to system changes) and restores it afterwards. The client
 //! reads it from the system (`with_os_proxy`, and by default, as the .NET client) for the host
-//! `rayx-os-proxy.test`, which only the test proxy resolves (to the service): every connection
+//! `dxn-os-proxy.test`, which only the test proxy resolves (to the service): every connection
 //! tunnels through it, while `without_proxy` cannot reach the host.
 
-use rayx_signalr::{ConnectionConfiguration, ErrorKind, SignalRClient};
+use dxn_signalr::{ConnectionConfiguration, ErrorKind, SignalRClient};
 
 use crate::{
     proxy::{clear_proxy_variables, stats},
@@ -13,12 +13,12 @@ use crate::{
 };
 
 /// The host only the test proxy resolves, to the test service.
-const ALIAS: &str = "rayx-os-proxy.test";
+const ALIAS: &str = "dxn-os-proxy.test";
 
 async fn connect(
     protocol: Protocol,
     configure: impl Fn(&mut ConnectionConfiguration),
-) -> Result<SignalRClient, rayx_signalr::Error> {
+) -> Result<SignalRClient, dxn_signalr::Error> {
     let service = support::service();
     SignalRClient::connect_with(ALIAS, "test", |configuration| {
         configuration.unsecure();

@@ -29,10 +29,10 @@ features. A server certificate the verifier does not trust fails `connect` with 
 
 ```toml
 # Bundled roots and aws-lc-rs instead of the defaults:
-rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR", tag = "v1.0.0", default-features = false, features = ["tls-webpki-roots", "tls-aws-lc-rs"] }
+dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.0", default-features = false, features = ["tls-webpki-roots", "tls-aws-lc-rs"] }
 
 # Plaintext only (for example, an embedded client on a trusted network):
-rayx-signalr = { git = "https://github.com/rayx-ui/RayX.SignalR", tag = "v1.0.0", default-features = false }
+dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.0", default-features = false }
 ```
 
 `aws-lc-rs` compiles C and assembly code, so it needs a working C toolchain for every target you
@@ -51,7 +51,7 @@ The verifier is chosen per connection:
 | extra PEM roots, `use_webpki_roots()` | the bundled roots plus the extra roots |
 
 ```rust
-let client = rayx_signalr::SignalRClient::connect_with("api.example.com", "hub", |c| {
+let client = dxn_signalr::SignalRClient::connect_with("api.example.com", "hub", |c| {
     c.use_webpki_roots(); // needs the tls-webpki-roots feature
 })
 .await?;
@@ -69,7 +69,7 @@ Trust additional roots (an internal CA, or a development CA) for one connection 
 
 ```rust
 let ca = std::fs::read("certs/internal-ca.pem")?;
-let client = rayx_signalr::SignalRClient::connect_with("internal.example.com", "hub", move |c| {
+let client = dxn_signalr::SignalRClient::connect_with("internal.example.com", "hub", move |c| {
     c.with_additional_root_certificates_pem(ca.clone());
 })
 .await?;
@@ -90,7 +90,7 @@ Present a client certificate to servers that ask for one (mutual TLS), as the .N
 ```rust
 let chain = std::fs::read("certs/client.pem")?; // the certificate, then any intermediates
 let key = std::fs::read("certs/client.key")?; // its private key
-let client = rayx_signalr::SignalRClient::connect_with("internal.example.com", "hub", move |c| {
+let client = dxn_signalr::SignalRClient::connect_with("internal.example.com", "hub", move |c| {
     c.with_client_certificate(chain.clone(), key.clone());
 })
 .await?;
@@ -113,11 +113,11 @@ first use, as the .NET client exposes the TLS options of `SocketsHttpHandler` an
 through `HttpMessageHandlerFactory` and `WebSocketConfiguration`. The config is the one the client
 built from the features and options above. The hook runs once per connection (at `connect`, or on
 a first redirect to a secure endpoint), and its result serves negotiate, every transport and every
-reconnect of that connection. `rayx_signalr::tls::rustls` re-exports the rustls version the client
+reconnect of that connection. `dxn_signalr::tls::rustls` re-exports the rustls version the client
 uses:
 
 ```rust
-let client = rayx_signalr::SignalRClient::new("internal.example.com", "hub", |c| {
+let client = dxn_signalr::SignalRClient::new("internal.example.com", "hub", |c| {
     c.with_tls_config_hook(|config| {
         // For example, servers addressed by a name they do not expect in SNI.
         config.enable_sni = false;

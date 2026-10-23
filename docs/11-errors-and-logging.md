@@ -2,7 +2,7 @@
 
 ## The error model
 
-Every fallible operation returns `Result<_, rayx_signalr::Error>`: `new`, `start`, `connect`,
+Every fallible operation returns `Result<_, dxn_signalr::Error>`: `new`, `start`, `connect`,
 `connect_with`, `invoke`, `invoke_with_args`, `send`, `send_with_args`, `pause`, `resume`,
 `InvocationContext::argument` and `complete`, `ReconnectionHandler::reconnect` and
 `reconnect_with_policy`, `StatefulReconnectConfig::new`, and on Android
@@ -49,7 +49,7 @@ and people; branch on kinds and fields, never on message text.
 ```rust
 use std::time::Duration;
 
-use rayx_signalr::{CloseReason, Error, ErrorKind, SignalRClient, TimeoutOperation};
+use dxn_signalr::{CloseReason, Error, ErrorKind, SignalRClient, TimeoutOperation};
 
 async fn connect(host: &str) -> Result<SignalRClient, Error> {
     let result = SignalRClient::connect_with(host, "chat", |c| {
@@ -143,7 +143,7 @@ work are logged as warnings):
 
 ## Migrating from `String` errors
 
-Version 0.2 replaced the `String` errors of 0.1 with `rayx_signalr::Error`.
+Version 0.2 replaced the `String` errors of 0.1 with `dxn_signalr::Error`.
 
 - Code that only propagates or prints errors keeps compiling: `Error` implements `Display`, and
   `From<Error> for String` lets `?` convert it inside functions that return `Result<_, String>`.
@@ -182,13 +182,13 @@ Version 0.2 replaced the `String` errors of 0.1 with `rayx_signalr::Error`.
 
 ## Logging
 
-The crate logs through the [`log`](https://docs.rs/log) facade under the `rayx_signalr` target.
+The crate logs through the [`log`](https://docs.rs/log) facade under the `dxn_signalr` target.
 Install any logger to see it.
 
 Native, with `env_logger`:
 
 ```rust
-env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("rayx_signalr=info"))
+env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("dxn_signalr=info"))
     .init();
 ```
 
@@ -207,9 +207,9 @@ Levels:
 - `info`: connection milestones (negotiation, connect, reconnect, close).
 - `debug`: message-level tracing by message type, invocation id and callback target.
 - `trace`: the decoder texts of payloads that did not decode, which can quote the payload, and
-  every hub message that did not decode, whole (target `rayx_signalr::communication::common`).
+  every hub message that did not decode, whole (target `dxn_signalr::communication::common`).
 
-Stateful reconnect logs its sequencing at `debug` under the `rayx_signalr::stateful` target, on
+Stateful reconnect logs its sequencing at `debug` under the `dxn_signalr::stateful` target, on
 both targets and without payloads: every tracked outgoing sequence id, every received trackable id
 with its `accepted` or `duplicate` decision, each Ack sent and received, each Sequence message,
 the resend range of every resume with its outcome (`resend-finished` or `resend-failed`), every
@@ -218,7 +218,7 @@ record starts with `generation=<n>`, the physical connection it belongs to. Enab
 diagnose a resume:
 
 ```text
-RUST_LOG=rayx_signalr::stateful=debug
+RUST_LOG=dxn_signalr::stateful=debug
 ```
 
 Message payloads, arguments and results never appear in records above `trace`, on both targets.

@@ -1,5 +1,5 @@
 //! JNI entry points of the test-only Android app (`tests/android-app`, class
-//! `dev.rayx.signalr.e2e.Harness`): `initialize` sets up the platform verifier from the app's
+//! `dev.dxn.signalr.e2e.Harness`): `initialize` sets up the platform verifier from the app's
 //! `Context` exactly as the documentation tells consumers, and `runScenario` runs one shared
 //! `tests/e2e` scenario inside the app process. Test-only; built by the Aspire runner.
 
@@ -10,21 +10,21 @@ use jni::{
     objects::{JClass, JObject, JString},
     EnvUnowned,
 };
-use rayx_signalr_e2e_scenarios::Protocol;
+use dxn_signalr_e2e_scenarios::Protocol;
 
 /// The scenario bound; the runner kills the instrumentation at the cell bound.
 const SCENARIO_TIMEOUT: Duration = Duration::from_secs(50);
 
 /// `Harness.initialize(Context): String`: `ok`, or why the platform verifier could not start.
 #[no_mangle]
-pub extern "system" fn Java_dev_rayx_signalr_e2e_Harness_initialize<'local>(
+pub extern "system" fn Java_dev_dxn_signalr_e2e_Harness_initialize<'local>(
     mut unowned: EnvUnowned<'local>,
     _class: JClass<'local>,
     context: JObject<'local>,
 ) -> JString<'local> {
     unowned
         .with_env(|env| -> Result<_, jni::errors::Error> {
-            let outcome = match rayx_signalr::tls::android::init_with_env(env, context) {
+            let outcome = match dxn_signalr::tls::android::init_with_env(env, context) {
                 Ok(()) => "ok".to_string(),
                 Err(error) => error.to_string(),
             };
@@ -36,7 +36,7 @@ pub extern "system" fn Java_dev_rayx_signalr_e2e_Harness_initialize<'local>(
 /// `Harness.runScenario(String, String, String): String`: runs scenario `name` with `protocol`
 /// after setting the scenario variables (`KEY=VALUE` lines); returns `ok` or the failure.
 #[no_mangle]
-pub extern "system" fn Java_dev_rayx_signalr_e2e_Harness_runScenario<'local>(
+pub extern "system" fn Java_dev_dxn_signalr_e2e_Harness_runScenario<'local>(
     mut unowned: EnvUnowned<'local>,
     _class: JClass<'local>,
     name: JString<'local>,
@@ -64,10 +64,10 @@ fn run(name: &str, protocol: &str, environment: &str) -> String {
         }
     }
     // As `RUST_LOG` selects for the other Rust cells (the runner's filter for the scenario).
-    let filter = std::env::var("RUST_LOG").unwrap_or_else(|_| "rayx_signalr=info".to_string());
+    let filter = std::env::var("RUST_LOG").unwrap_or_else(|_| "dxn_signalr=info".to_string());
     android_logger::init_once(
         android_logger::Config::default()
-            .with_tag("rayx-signalr")
+            .with_tag("dxn-signalr")
             .with_max_level(log::LevelFilter::Trace)
             .with_filter(android_logger::FilterBuilder::new().parse(&filter).build()),
     );
@@ -86,7 +86,7 @@ fn run(name: &str, protocol: &str, environment: &str) -> String {
         runtime.block_on(async {
             tokio::time::timeout(
                 SCENARIO_TIMEOUT,
-                rayx_signalr_e2e_scenarios::run(&scenario, protocol),
+                dxn_signalr_e2e_scenarios::run(&scenario, protocol),
             )
             .await
             .map_err(|_| format!("{scenario} exceeded {SCENARIO_TIMEOUT:?}"))?

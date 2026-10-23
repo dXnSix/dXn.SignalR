@@ -7,8 +7,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+use dxn_signalr::CallbackHandler;
 use futures::channel::oneshot;
-use rayx_signalr::CallbackHandler;
 
 use crate::support::{self, Protocol};
 

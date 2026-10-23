@@ -11,7 +11,7 @@ configuration) and does no I/O. `start().await` negotiates, connects and complet
 as `StartAsync`:
 
 ```rust
-let mut client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+let mut client = dxn_signalr::SignalRClient::new("localhost", "chat", |c| {
     c.with_port(5000);
 })?;
 
@@ -99,7 +99,7 @@ let weak = client.downgrade();
 let _restart = client.on_closed(move |error| {
     // `None`, or a cancellation during a reconnect: stopped by the application.
     let Some(error) = error else { return };
-    if error.kind() == rayx_signalr::ErrorKind::Canceled {
+    if error.kind() == dxn_signalr::ErrorKind::Canceled {
         return;
     }
     if let Some(client) = weak.upgrade() {
@@ -147,7 +147,7 @@ Set them when building the client:
 ```rust
 use std::time::Duration;
 
-let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+let client = dxn_signalr::SignalRClient::new("localhost", "chat", |c| {
     c.with_keep_alive_interval(Duration::from_secs(10));
     c.with_server_timeout(Duration::from_secs(40));
     c.with_handshake_timeout(Duration::from_secs(5));
@@ -216,7 +216,7 @@ moves to the background and back:
 ```rust
 // Going to the background: end the transport, stop keep-alive and automatic reconnects.
 client.pause().await?;
-assert_eq!(client.status(), rayx_signalr::ConnectionStatus::Paused);
+assert_eq!(client.status(), dxn_signalr::ConnectionStatus::Paused);
 
 // Back in the foreground: reconnect now, then follow the reconnection policy.
 client.resume().await?;
@@ -264,9 +264,9 @@ pause the client, and resume it when the app comes back:
 ```rust
 /// Call from the platform's lifecycle notifications.
 async fn on_foreground_changed(
-    client: &rayx_signalr::SignalRClient,
+    client: &dxn_signalr::SignalRClient,
     foreground: bool,
-) -> Result<(), rayx_signalr::Error> {
+) -> Result<(), dxn_signalr::Error> {
     if foreground {
         client.resume().await
     } else {

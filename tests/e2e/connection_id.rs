@@ -10,7 +10,7 @@ use std::{
     time::Duration,
 };
 
-use rayx_signalr::{CallbackHandler, ConnectionStatus, SignalRClient, StatefulReconnectConfig};
+use dxn_signalr::{CallbackHandler, ConnectionStatus, SignalRClient, StatefulReconnectConfig};
 
 use crate::support::{self, Protocol};
 
@@ -92,7 +92,7 @@ async fn scenario(protocol: Protocol) {
     // Without negotiation there is no connection id.
     let direct = support::unstarted("test-direct", protocol, |configuration| {
         configuration.skip_negotiation();
-        configuration.with_transports(rayx_signalr::Transports::WEB_SOCKETS);
+        configuration.with_transports(dxn_signalr::Transports::WEB_SOCKETS);
     });
     direct.start().await.unwrap();
     assert_eq!(direct.status(), ConnectionStatus::Connected);

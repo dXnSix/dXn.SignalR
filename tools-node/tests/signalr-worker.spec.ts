@@ -10,8 +10,8 @@ for (const { protocol, title } of protocols) {
     const query = new URLSearchParams({ service: serviceUrl(), scenario: "worker-transport", protocol });
     await page.goto(`/worker.html?${query}`);
 
-    await expect(page.locator("body")).toHaveAttribute("data-rayx-signalr-worker", "done", { timeout: 45_000 });
-    expect(await page.locator("body").getAttribute("data-rayx-signalr-worker-outcome")).toBe("ok");
+    await expect(page.locator("body")).toHaveAttribute("data-dxn-signalr-worker", "done", { timeout: 45_000 });
+    expect(await page.locator("body").getAttribute("data-dxn-signalr-worker-outcome")).toBe("ok");
     expect(pageErrors).toEqual([]);
   });
 }

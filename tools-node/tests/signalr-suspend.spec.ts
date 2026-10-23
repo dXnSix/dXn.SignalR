@@ -8,7 +8,7 @@ import { openFixture, protocols } from "./fixture";
 // page visible, and Chromium's `Page.setWebLifecycleState` frozen has no effect on a visible
 // page.) Playwright offers CDP only for Chromium, so the Firefox and WebKit projects ignore this
 // spec (the catalog's exclusions).
-const readiness = /RAYX_SIGNALR_SUSPEND_READY seconds=(\d+)$/;
+const readiness = /DXN_SIGNALR_SUSPEND_READY seconds=(\d+)$/;
 
 for (const { protocol, title } of protocols) {
   test(`suspend resume ${title}`, async ({ page }) => {
@@ -39,7 +39,7 @@ for (const { protocol, title } of protocols) {
 
     const outcome = await page.evaluate(
       ([selectedProtocol]) =>
-        window.rayxSignalRFixture
+        window.dxnSignalRFixture
           .runFunctionalScenario("suspend-resume", selectedProtocol)
           .catch((error: unknown) => `failed: ${String(error)}`),
       [protocol] as const,

@@ -139,7 +139,7 @@ mod transport_hooks_request {
 
     fn headers() -> Vec<(String, String)> {
         vec![
-            ("User-Agent".to_string(), "RayX SignalR/1.0".to_string()),
+            ("User-Agent".to_string(), "dXn SignalR/1.0".to_string()),
             ("Authorization".to_string(), "Bearer secret".to_string()),
         ]
     }

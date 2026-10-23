@@ -1,9 +1,9 @@
-//! Performance workloads for the Aspire `Performance` category (`dotnet/RayX.SignalR.E2E.Tests`).
+//! Performance workloads for the Aspire `Performance` category (`dotnet/dXn.SignalR.E2E.Tests`).
 //!
 //! One workload per invocation, with the same command line and the same work as the official .NET
-//! client's reference (`dotnet/RayX.SignalR.PerfReference`):
+//! client's reference (`dotnet/dXn.SignalR.PerfReference`):
 //! `perf <invoke-latency|stream-throughput|send-throughput|fan-in> --protocol <json|messagepack>
-//! --scale <quick|full>`. The service URL comes from `RAYX_SIGNALR_E2E_SERVICE_URL` and the result
+//! --scale <quick|full>`. The service URL comes from `DXN_SIGNALR_E2E_SERVICE_URL` and the result
 //! is one JSON line on standard output. The runner builds this binary in release
 //! (`cargo test --test perf --release --features messagepack --no-run`); `test = false` keeps it out
 //! of `cargo test`. No logger is installed, so an inherited `RUST_LOG` never skews the numbers.
@@ -19,8 +19,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+use dxn_signalr::{ConnectionConfiguration, SignalRClient};
 use futures::StreamExt;
-use rayx_signalr::{ConnectionConfiguration, SignalRClient};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -30,7 +30,7 @@ const PAYLOAD_CHARACTERS: usize = 32;
 /// The bound for one workload run; the runner bounds the process as well.
 const WORKLOAD_TIMEOUT: Duration = Duration::from_secs(600);
 
-const SERVICE_URL_VARIABLE: &str = "RAYX_SIGNALR_E2E_SERVICE_URL";
+const SERVICE_URL_VARIABLE: &str = "DXN_SIGNALR_E2E_SERVICE_URL";
 
 const WORKLOADS: [&str; 4] = [
     "invoke-latency",

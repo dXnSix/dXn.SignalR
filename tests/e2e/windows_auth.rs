@@ -6,7 +6,7 @@
 //! rejects, negotiate is refused with 401. Runs on Windows hosts (the catalog selects it only
 //! there).
 
-use rayx_signalr::{ErrorKind, SignalRClient, Transports};
+use dxn_signalr::{ErrorKind, SignalRClient, Transports};
 
 use crate::support::{self, Protocol};
 
@@ -62,7 +62,7 @@ async fn scenario(protocol: Protocol) {
         SignalRClient::connect_with(&support::service().host, "test-windows", |configuration| {
             support::service().apply(configuration);
             support::apply_protocol(configuration, protocol);
-            configuration.with_credentials("rayx-signalr-no-such-user", "not the password", ".");
+            configuration.with_credentials("dxn-signalr-no-such-user", "not the password", ".");
         })
         .await
         .err()

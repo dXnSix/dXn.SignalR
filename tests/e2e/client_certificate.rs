@@ -6,7 +6,7 @@
 //! negotiate request is refused with 403.
 
 use base64::{engine::general_purpose, Engine};
-use rayx_signalr::{ErrorKind, SignalRClient, Transports};
+use dxn_signalr::{ErrorKind, SignalRClient, Transports};
 
 use crate::support::{self, Protocol};
 
@@ -17,10 +17,10 @@ fn decoded(name: &str) -> Vec<u8> {
 }
 
 async fn scenario(protocol: Protocol) {
-    let endpoint = support::parse_endpoint(&support::required_variable("RAYX_SIGNALR_E2E_TLS_URL"));
-    let ca = decoded("RAYX_SIGNALR_E2E_TLS_CA_PEM_BASE64");
-    let chain = decoded("RAYX_SIGNALR_E2E_CLIENT_CERT_PEM_BASE64");
-    let key = decoded("RAYX_SIGNALR_E2E_CLIENT_KEY_PEM_BASE64");
+    let endpoint = support::parse_endpoint(&support::required_variable("DXN_SIGNALR_E2E_TLS_URL"));
+    let ca = decoded("DXN_SIGNALR_E2E_TLS_CA_PEM_BASE64");
+    let chain = decoded("DXN_SIGNALR_E2E_CLIENT_CERT_PEM_BASE64");
+    let key = decoded("DXN_SIGNALR_E2E_CLIENT_KEY_PEM_BASE64");
 
     let mut transports = vec![Transports::WEB_SOCKETS, Transports::LONG_POLLING];
     if protocol == Protocol::Json {
@@ -51,7 +51,7 @@ async fn scenario(protocol: Protocol) {
                 .invoke::<String>("ClientCertificateSubject".to_string())
                 .await
                 .unwrap();
-            assert_eq!(subject, "CN=RayX.SignalR E2E Client");
+            assert_eq!(subject, "CN=dXn.SignalR E2E Client");
         }
         client.disconnect();
     }

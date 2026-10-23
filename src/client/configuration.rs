@@ -8,7 +8,7 @@ use crate::StatefulReconnectConfig;
 
 /// Returned by native `connect` when neither a runtime handle nor an ambient runtime exists.
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) const NO_RUNTIME: &str = "rayx-signalr needs a Tokio runtime for native connections: \
+pub(crate) const NO_RUNTIME: &str = "dxn-signalr needs a Tokio runtime for native connections: \
 call connect from within a Tokio runtime, or pass one with \
 ConnectionConfiguration::with_runtime_handle(tokio::runtime::Handle)";
 
@@ -69,10 +69,10 @@ pub(crate) type AccessTokenFactory =
 /// statements instead of chaining them:
 ///
 /// ```no_run
-/// # async fn example() -> Result<(), rayx_signalr::Error> {
+/// # async fn example() -> Result<(), dxn_signalr::Error> {
 /// use std::time::Duration;
 ///
-/// let client = rayx_signalr::SignalRClient::connect_with("hub.example.com", "chat", |c| {
+/// let client = dxn_signalr::SignalRClient::connect_with("hub.example.com", "chat", |c| {
 ///     c.authenticate_bearer("<access token>".to_string());
 ///     c.with_server_timeout(Duration::from_secs(60));
 /// })
@@ -528,8 +528,8 @@ impl ConnectionConfiguration {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), rayx_signalr::Error> {
-    /// let client = rayx_signalr::SignalRClient::connect_with("localhost", "test", |c| {
+    /// # async fn example() -> Result<(), dxn_signalr::Error> {
+    /// let client = dxn_signalr::SignalRClient::connect_with("localhost", "test", |c| {
     ///     c.with_port(5220);
     /// })
     /// .await?;
@@ -555,8 +555,8 @@ impl ConnectionConfiguration {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), rayx_signalr::Error> {
-    /// let client = rayx_signalr::SignalRClient::connect_with("localhost", "test", |c| {
+    /// # async fn example() -> Result<(), dxn_signalr::Error> {
+    /// let client = dxn_signalr::SignalRClient::connect_with("localhost", "test", |c| {
     ///     c.with_hub("myHub".to_string());
     /// })
     /// .await?;
@@ -578,8 +578,8 @@ impl ConnectionConfiguration {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), rayx_signalr::Error> {
-    /// let client = rayx_signalr::SignalRClient::connect_with("localhost", "test", |c| {
+    /// # async fn example() -> Result<(), dxn_signalr::Error> {
+    /// let client = dxn_signalr::SignalRClient::connect_with("localhost", "test", |c| {
     ///     c.secure();
     /// })
     /// .await?;
@@ -601,8 +601,8 @@ impl ConnectionConfiguration {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), rayx_signalr::Error> {
-    /// let client = rayx_signalr::SignalRClient::connect_with("localhost", "test", |c| {
+    /// # async fn example() -> Result<(), dxn_signalr::Error> {
+    /// let client = dxn_signalr::SignalRClient::connect_with("localhost", "test", |c| {
     ///     c.unsecure();
     /// })
     /// .await?;
@@ -629,8 +629,8 @@ impl ConnectionConfiguration {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), rayx_signalr::Error> {
-    /// let client = rayx_signalr::SignalRClient::connect_with("localhost", "test", |c| {
+    /// # async fn example() -> Result<(), dxn_signalr::Error> {
+    /// let client = dxn_signalr::SignalRClient::connect_with("localhost", "test", |c| {
     ///     c.authenticate_basic("username".to_string(), Some("password".to_string()));
     /// })
     /// .await?;
@@ -660,8 +660,8 @@ impl ConnectionConfiguration {
     /// # Examples
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), rayx_signalr::Error> {
-    /// let client = rayx_signalr::SignalRClient::connect_with("localhost", "test", |c| {
+    /// # async fn example() -> Result<(), dxn_signalr::Error> {
+    /// let client = dxn_signalr::SignalRClient::connect_with("localhost", "test", |c| {
     ///     c.authenticate_bearer("your_bearer_token".to_string());
     /// })
     /// .await?;
@@ -688,8 +688,8 @@ impl ConnectionConfiguration {
     /// [`ErrorKind::Configuration`](crate::ErrorKind::Configuration).
     ///
     /// ```no_run
-    /// # async fn example() -> Result<(), rayx_signalr::Error> {
-    /// let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+    /// # async fn example() -> Result<(), dxn_signalr::Error> {
+    /// let client = dxn_signalr::SignalRClient::new("localhost", "chat", |c| {
     ///     c.with_access_token_factory(|| async { Ok::<_, String>("a fresh token".to_string()) });
     /// })?;
     /// client.start().await?;
@@ -734,11 +734,11 @@ impl ConnectionConfiguration {
     /// every leg, and a retried request keeps its changes.
     ///
     /// ```no_run
-    /// # fn example() -> Result<(), rayx_signalr::Error> {
-    /// let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+    /// # fn example() -> Result<(), dxn_signalr::Error> {
+    /// let client = dxn_signalr::SignalRClient::new("localhost", "chat", |c| {
     ///     c.with_request_hook(|request| {
     ///         // A header the application computes per request.
-    ///         let _ = request.set_header("X-Request-Source", "rayx");
+    ///         let _ = request.set_header("X-Request-Source", "dxn");
     ///     });
     /// })?;
     /// # Ok(())
@@ -772,7 +772,7 @@ impl ConnectionConfiguration {
     /// expose the TLS options of `SocketsHttpHandler` and `ClientWebSocket`. The hook runs once
     /// per connection's config (built at `connect`, or on a first redirect to a secure endpoint)
     /// and its result is shared by negotiate, every transport and every reconnect. The config
-    /// uses [`rayx_signalr::tls::rustls`](crate::tls::rustls).
+    /// uses [`dxn_signalr::tls::rustls`](crate::tls::rustls).
     ///
     /// The hook can weaken security: replacing the certificate verifier (`dangerous()`) or the
     /// protocol versions is the application's explicit choice. The ALPN offer of negotiate,
@@ -783,8 +783,8 @@ impl ConnectionConfiguration {
     /// must include `http/1.1`.
     ///
     /// ```no_run
-    /// # fn example() -> Result<(), rayx_signalr::Error> {
-    /// let client = rayx_signalr::SignalRClient::new("localhost", "chat", |c| {
+    /// # fn example() -> Result<(), dxn_signalr::Error> {
+    /// let client = dxn_signalr::SignalRClient::new("localhost", "chat", |c| {
     ///     c.with_tls_config_hook(|config| {
     ///         config.enable_sni = false;
     ///     });
@@ -792,7 +792,7 @@ impl ConnectionConfiguration {
     /// # Ok(())
     /// # }
     /// ```
-    #[cfg(all(not(target_arch = "wasm32"), rayx_tls))]
+    #[cfg(all(not(target_arch = "wasm32"), dxn_tls))]
     #[cfg_attr(
         docsrs,
         doc(cfg(all(
@@ -893,13 +893,13 @@ impl ConnectionConfiguration {
     /// * `&ConnectionConfiguration` - Returns a reference to the updated connection configuration.
     /// # Examples
     /// ```no_run
-    /// # use rayx_signalr::{DisconnectionHandler, ReconnectionHandler};
+    /// # use dxn_signalr::{DisconnectionHandler, ReconnectionHandler};
     /// # struct MyDisconnectionHandler;
     /// # impl DisconnectionHandler for MyDisconnectionHandler {
     /// #     fn on_disconnected(&self, _reconnection: ReconnectionHandler) {}
     /// # }
-    /// # async fn example() -> Result<(), rayx_signalr::Error> {
-    /// let client = rayx_signalr::SignalRClient::connect_with("localhost", "test", |c| {
+    /// # async fn example() -> Result<(), dxn_signalr::Error> {
+    /// let client = dxn_signalr::SignalRClient::connect_with("localhost", "test", |c| {
     ///     c.with_disconnection_handler(MyDisconnectionHandler);
     /// })
     /// .await?;
@@ -1043,7 +1043,7 @@ impl ConnectionConfiguration {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn example(configuration: &mut rayx_signalr::ConnectionConfiguration) {
+    /// # fn example(configuration: &mut dxn_signalr::ConnectionConfiguration) {
     /// configuration.with_invocation_headers(|_target| {
     ///     vec![(
     ///         "traceparent".to_string(),
@@ -1256,7 +1256,7 @@ impl ConnectionConfiguration {
     /// `with_proxy_auto_config`; a script that cannot be loaded or fails, and a connection no
     /// route reaches, fail with [`ErrorKind::Proxy`](crate::ErrorKind::Proxy). Native only, with
     /// the `proxy-pac` feature.
-    #[cfg(rayx_pac)]
+    #[cfg(dxn_pac)]
     #[cfg_attr(
         docsrs,
         doc(cfg(all(
@@ -1375,7 +1375,7 @@ impl ConnectionConfiguration {
     /// Refuses strict HTTP/3 in a build that cannot run QUIC (feature `http3` without a TLS
     /// verifier and provider feature).
     pub(crate) fn validate_http_version(&self) -> Result<(), crate::Error> {
-        #[cfg(all(feature = "http3", not(rayx_http3), not(target_arch = "wasm32")))]
+        #[cfg(all(feature = "http3", not(dxn_http3), not(target_arch = "wasm32")))]
         if self._http_version == crate::HttpVersion::Http3 {
             return Err(crate::Error::configuration(
                 "with_http_version",

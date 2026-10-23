@@ -496,7 +496,7 @@ mod integrated_auth_sspi {
         // malformed one would be SEC_E_INVALID_TOKEN.
         let mut client = NtlmContext::new(
             Explicit {
-                user: "rayx-signalr-no-such-user".to_string(),
+                user: "dxn-signalr-no-such-user".to_string(),
                 password: "not the password".to_string(),
                 domain: ".".to_string(),
             },
@@ -513,7 +513,7 @@ mod integrated_auth_sspi {
         // SSPI with explicit credentials produces both tokens (`handshake` requires them), and
         // the acceptor denies the unknown account rather than a malformed exchange.
         let explicit = Explicit {
-            user: "rayx-signalr-no-such-user".to_string(),
+            user: "dxn-signalr-no-such-user".to_string(),
             password: "not the password".to_string(),
             domain: ".".to_string(),
         };

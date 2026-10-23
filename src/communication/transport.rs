@@ -59,11 +59,11 @@ impl TransportKind {
 /// client's `HttpConnectionOptions.Transports`: every transport by default. Combine them with `|`.
 ///
 /// ```
-/// use rayx_signalr::Transports;
+/// use dxn_signalr::Transports;
 ///
 /// let fallbacks = Transports::WEB_SOCKETS | Transports::LONG_POLLING;
-/// assert!(fallbacks.contains(rayx_signalr::TransportKind::LongPolling));
-/// assert!(!fallbacks.contains(rayx_signalr::TransportKind::ServerSentEvents));
+/// assert!(fallbacks.contains(dxn_signalr::TransportKind::LongPolling));
+/// assert!(!fallbacks.contains(dxn_signalr::TransportKind::ServerSentEvents));
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Transports(u8);
