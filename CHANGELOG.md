@@ -1,9 +1,18 @@
 # Changelog
 
-All notable changes to `rayx-signalr` are documented in this file. The format follows
+All notable changes to `dxn-signalr` are documented in this file. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). It is generated from
 Conventional Commits by release-plz.
+
+## [1.1.0] - 2026-10-23
+
+### Documentation
+- *(release)* say the 1.x merge check is manual because the version contract never runs on release pull requests
+
+### Features
+- *(repository)* rename the package to dxn-signalr
+  - Migration: depend on `dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.0" }` instead of `rayx-signalr`, replace `rayx_signalr::` paths with `dxn_signalr::`, and match `dXn SignalR/` wherever a server checks the client's User-Agent.
 
 ## [1.0.0] - 2026-10-19
 
