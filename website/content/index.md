@@ -10,7 +10,7 @@ lede: >-
   lifecycle and options carry over.
 install: cargo add dxn-signalr --git https://github.com/dXnSix/dXn.SignalR --tag v1.1.0
 facts:
-  - { label: Rust, value: "1.92+ (edition 2021)" }
+  - { label: Rust, value: "1.97+ (edition 2021)" }
   - { label: Targets, value: "Tokio native + browser WASM" }
   - { label: Protocols, value: "JSON, MessagePack" }
   - { label: Transports, value: "WebSockets, SSE, Long Polling" }

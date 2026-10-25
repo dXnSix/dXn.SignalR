@@ -32,7 +32,7 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.RELEASE_PLZ_TOKEN }}
       - name: Install pinned Rust
-        run: rustup toolchain install 1.92.0 --profile minimal
+        run: rustup toolchain install 1.97.0 --profile minimal
       - uses: release-plz/action@v0.5
         with:
           command: release
@@ -58,7 +58,7 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.RELEASE_PLZ_TOKEN }}
       - name: Install pinned Rust
-        run: rustup toolchain install 1.92.0 --profile minimal
+        run: rustup toolchain install 1.97.0 --profile minimal
       - uses: release-plz/action@v0.5
         with:
           command: release-pr

@@ -20,7 +20,7 @@ Plain `cargo test` never needs a server: the `e2e` test target is declared with 
 
 ## Rust checks
 
-The toolchain is pinned to Rust 1.92.0 (`rust-toolchain.toml`), which is also the minimum supported version. Before committing a library change:
+The toolchain is pinned to Rust 1.97.0 (`rust-toolchain.toml`), which is also the minimum supported version. Before committing a library change:
 
 ```bash
 cargo fmt --all --check
@@ -52,13 +52,13 @@ DXN_SIGNALR_E2E_TARGETS=chromium,firefox,webkit dotnet test dotnet/dXn.SignalR.E
 | `DXN_SIGNALR_E2E_TRANSPORTS` | `websockets`, `long-polling`, `server-sent-events`, or `all` | `websockets` |
 | `DXN_SIGNALR_SOAK_SECONDS` | how long `soak-chaos` runs | `120` |
 
-Prerequisites are the .NET SDK pinned in `global.json`, the Aspire CLI, Rust 1.92.0, and per target: the `wasm32-unknown-unknown` target plus Node 24 with Playwright browsers for browser cells, the Android SDK with an NDK and an x86_64 emulator for Android, and Xcode with a simulator runtime for iOS. The repository's `docs/14-testing.md` has the exact commands and every scenario's rationale.
+Prerequisites are the .NET SDK pinned in `global.json`, the Aspire CLI, Rust 1.97.0, and per target: the `wasm32-unknown-unknown` target plus Node 24 with Playwright browsers for browser cells, the Android SDK with an NDK and an x86_64 emulator for Android, and Xcode with a simulator runtime for iOS. The repository's `docs/14-testing.md` has the exact commands and every scenario's rationale.
 
 The service under test, `dotnet/dXn.SignalR.TestService`, is a useful reference for what a hub looks like for each client feature.
 
 ## CI
 
-- **Quality** (`quality.yml`) runs rustfmt, clippy, native checks on Linux, Windows and macOS with Rust 1.92.0 and stable, WASM checks, unit and contract tests with and without MessagePack, Android and iOS compile checks, a threaded-WASM check, and the .NET static contracts. A push to `master` runs only rustfmt, clippy and the unit tests.
+- **Quality** (`quality.yml`) runs rustfmt, clippy, native checks on Linux, Windows and macOS with Rust 1.97.0 and stable, WASM checks, unit and contract tests with and without MessagePack, Android and iOS compile checks, a threaded-WASM check, and the .NET static contracts. A push to `master` runs only rustfmt, clippy and the unit tests.
 - **End-to-end** (`e2e.yml`) runs on pull requests and on demand: native on three operating systems, three browsers, Android, the Android test app, the iOS simulator, OS proxy settings, the `aws-lc-rs` provider, and a manual soak run.
 - **Performance** (`perf.yml`) runs on demand.
 

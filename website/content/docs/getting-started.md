@@ -43,7 +43,7 @@ A secure native endpoint (`https`/`wss`) needs one verifier feature and one prov
 
 ### Toolchain
 
-Edition 2021, minimum Rust **1.92**. Browser builds need the `wasm32-unknown-unknown` target (`rustup target add wasm32-unknown-unknown`) and a wasm-bindgen toolchain such as `wasm-pack` or `wasm-bindgen-cli`. WASI and other `wasm32` targets fail to compile on purpose.
+Edition 2021, minimum Rust **1.97**. Browser builds need the `wasm32-unknown-unknown` target (`rustup target add wasm32-unknown-unknown`) and a wasm-bindgen toolchain such as `wasm-pack` or `wasm-bindgen-cli`. WASI and other `wasm32` targets fail to compile on purpose.
 
 ## A first native client
 

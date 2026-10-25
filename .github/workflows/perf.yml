@@ -34,7 +34,7 @@ jobs:
       - name: Install Aspire CLI
         run: dotnet tool install --global Aspire.Cli --version 13.5.3
       - name: Install pinned Rust
-        run: rustup toolchain install 1.92.0 --profile minimal
+        run: rustup toolchain install 1.97.0 --profile minimal
       - uses: actions/cache@v6
         with:
           path: |

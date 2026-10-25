@@ -26,7 +26,7 @@ public sealed class WasmGatingTests(AspireEnvironment environment)
     string output = result.CombinedOutput;
     Assert.False(
       output.Contains("target may not be installed", StringComparison.Ordinal),
-      "Install the WASI target first: rustup target add wasm32-wasip1 --toolchain 1.92.0");
+      "Install the WASI target first: rustup target add wasm32-wasip1 --toolchain 1.97.0");
     Assert.NotEqual(0, result.ExitCode);
     Assert.Contains(_browserOnlyMessage, output, StringComparison.Ordinal);
 

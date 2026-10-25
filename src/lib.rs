@@ -88,7 +88,7 @@
 //! `ConnectionConfiguration::with_runtime_handle`), so its futures can be awaited from any
 //! executor. In the browser the transports are event-driven and run on the main thread, in Web
 //! Workers, and in multithreaded (atomics) builds. WASI and other `wasm32` targets do not compile.
-//! The minimum supported Rust version is 1.92; stateful reconnect needs ASP.NET Core 8 or later.
+//! The minimum supported Rust version is 1.97; stateful reconnect needs ASP.NET Core 8 or later.
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]

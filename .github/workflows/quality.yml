@@ -38,9 +38,9 @@ jobs:
         with:
           persist-credentials: false
       - name: Install pinned rustfmt
-        run: rustup toolchain install 1.92.0 --profile minimal --component rustfmt
+        run: rustup toolchain install 1.97.0 --profile minimal --component rustfmt
       - name: Check formatting
-        run: cargo +1.92.0 fmt --all --check
+        run: cargo +1.97.0 fmt --all --check
 
   clippy:
     name: quality / clippy
@@ -51,7 +51,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install pinned Clippy
-        run: rustup toolchain install 1.92.0 --profile minimal --component clippy
+        run: rustup toolchain install 1.97.0 --profile minimal --component clippy
       - uses: actions/cache@v6
         with:
           path: |
@@ -60,7 +60,7 @@ jobs:
             target
           key: clippy-${{ runner.os }}-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
       - name: Deny compiler and Clippy warnings
-        run: cargo +1.92.0 clippy --all-targets --test e2e --all-features -- -D warnings
+        run: cargo +1.97.0 clippy --all-targets --test e2e --all-features -- -D warnings
 
   native:
     name: quality / native (${{ matrix.os }}, Rust ${{ matrix.toolchain }})
@@ -71,7 +71,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        toolchain: [1.92.0, stable]
+        toolchain: [1.97.0, stable]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -106,7 +106,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install pinned WASM toolchain
-        run: rustup toolchain install 1.92.0 --profile minimal --target wasm32-unknown-unknown
+        run: rustup toolchain install 1.97.0 --profile minimal --target wasm32-unknown-unknown
       - uses: actions/cache@v6
         with:
           path: |
@@ -115,7 +115,7 @@ jobs:
             target
           key: wasm-${{ matrix.mode }}-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
       - name: Check WASM feature mode
-        run: cargo +1.92.0 check --target wasm32-unknown-unknown ${{ matrix.feature_args }}
+        run: cargo +1.97.0 check --target wasm32-unknown-unknown ${{ matrix.feature_args }}
 
   unit-contract:
     name: quality / unit-contract (${{ matrix.protocol }})
@@ -135,7 +135,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install pinned Rust
-        run: rustup toolchain install 1.92.0 --profile minimal
+        run: rustup toolchain install 1.97.0 --profile minimal
       - uses: actions/cache@v6
         with:
           path: |
@@ -144,7 +144,7 @@ jobs:
             target
           key: tests-${{ matrix.protocol }}-${{ hashFiles('Cargo.toml') }}
       - name: Run service-independent unit and contract tests
-        run: cargo +1.92.0 test ${{ matrix.feature_args }}
+        run: cargo +1.97.0 test ${{ matrix.feature_args }}
 
   android:
     name: quality / android (cargo ndk)
@@ -156,7 +156,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install pinned Rust with the Android targets
-        run: rustup toolchain install 1.92.0 --profile minimal --target aarch64-linux-android --target x86_64-linux-android
+        run: rustup toolchain install 1.97.0 --profile minimal --target aarch64-linux-android --target x86_64-linux-android
       - uses: actions/cache@v6
         with:
           path: |
@@ -168,8 +168,8 @@ jobs:
         run: cargo install cargo-ndk --version 4.1.2 --locked
       - name: Check the library and the end-to-end binary for Android
         run: |
-          cargo +1.92.0 ndk -t arm64-v8a -t x86_64 -P 24 check --lib
-          cargo +1.92.0 ndk -t arm64-v8a -t x86_64 -P 24 check --lib --test e2e --all-features
+          cargo +1.97.0 ndk -t arm64-v8a -t x86_64 -P 24 check --lib
+          cargo +1.97.0 ndk -t arm64-v8a -t x86_64 -P 24 check --lib --test e2e --all-features
 
   ios:
     name: quality / ios (${{ matrix.target }})
@@ -185,7 +185,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install pinned Rust with the iOS target
-        run: rustup toolchain install 1.92.0 --profile minimal --target ${{ matrix.target }}
+        run: rustup toolchain install 1.97.0 --profile minimal --target ${{ matrix.target }}
       - uses: actions/cache@v6
         with:
           path: |
@@ -195,8 +195,8 @@ jobs:
           key: ios-${{ matrix.target }}-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}
       - name: Check the library and the end-to-end binary for iOS
         run: |
-          cargo +1.92.0 check --lib --target ${{ matrix.target }}
-          cargo +1.92.0 check --lib --test e2e --all-features --target ${{ matrix.target }}
+          cargo +1.97.0 check --lib --target ${{ matrix.target }}
+          cargo +1.97.0 check --lib --test e2e --all-features --target ${{ matrix.target }}
 
   threaded-wasm:
     name: quality / threaded-wasm
@@ -229,7 +229,7 @@ jobs:
         with:
           global-json-file: global.json
       - name: Install pinned Rust with every checked target
-        run: rustup toolchain install 1.92.0 --profile minimal --target wasm32-unknown-unknown --target wasm32-wasip1 --target aarch64-linux-android --target x86_64-linux-android --target aarch64-apple-ios
+        run: rustup toolchain install 1.97.0 --profile minimal --target wasm32-unknown-unknown --target wasm32-wasip1 --target aarch64-linux-android --target x86_64-linux-android --target aarch64-apple-ios
       - name: Install the pinned nightly for the threaded build case
         run: rustup toolchain install nightly-2026-06-23 --profile minimal --component rust-src --target wasm32-unknown-unknown
       - uses: actions/cache@v6
@@ -262,9 +262,9 @@ jobs:
         with:
           persist-credentials: false
       - name: Install pinned Rust
-        run: rustup toolchain install 1.92.0 --profile minimal
+        run: rustup toolchain install 1.97.0 --profile minimal
       - name: Build public documentation with warnings denied
-        run: cargo +1.92.0 doc --all-features --no-deps
+        run: cargo +1.97.0 doc --all-features --no-deps
 
   dependency-security:
     name: quality / dependency-security
@@ -276,7 +276,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install pinned Rust
-        run: rustup toolchain install 1.92.0 --profile minimal
+        run: rustup toolchain install 1.97.0 --profile minimal
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
@@ -303,7 +303,7 @@ jobs:
       - name: Install Aspire CLI
         run: dotnet tool install --global Aspire.Cli --version 13.5.3
       - name: Install pinned Rust with the browser target
-        run: rustup toolchain install 1.92.0 --profile minimal --target wasm32-unknown-unknown
+        run: rustup toolchain install 1.97.0 --profile minimal --target wasm32-unknown-unknown
       - uses: actions/cache@v6
         with:
           path: |

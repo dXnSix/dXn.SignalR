@@ -27,7 +27,7 @@ cargo test --features messagepack
 RUSTDOCFLAGS="-D warnings" cargo doc --all-features --no-deps
 ```
 
-The toolchain is pinned to Rust 1.92.0 with `clippy`, `rustfmt` and the
+The toolchain is pinned to Rust 1.97.0 with `clippy`, `rustfmt` and the
 `wasm32-unknown-unknown` target (`rust-toolchain.toml`).
 
 ## Testing with Aspire
@@ -78,7 +78,7 @@ and is the single entry point, locally and in GitHub Actions. There are no test 
 
 - .NET SDK 10.0.402 (pinned by `global.json`) and the Aspire CLI
   (`dotnet tool install --global Aspire.Cli --version 13.5.3`);
-- Rust 1.92.0, with `wasm32-unknown-unknown` for browser cells;
+- Rust 1.97.0, with `wasm32-unknown-unknown` for browser cells;
 - browser cells: Node 24 with pnpm and the repository-local Playwright browsers
   (`pnpm --dir tools-node install --frozen-lockfile`, then
   `pnpm --dir tools-node exec playwright install chromium firefox webkit`); the `threaded-wasm`

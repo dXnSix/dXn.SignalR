@@ -1700,28 +1700,6 @@ impl Drop for CommunicationClient {
     }
 }
 
-/// Applies `step` to the owner count atomically; `false` when `step` declined the current count.
-/// (`AtomicUsize::fetch_update` is deprecated on newer toolchains and `try_update` is missing on
-/// the pinned one.)
-fn update_owners(
-    owners: &std::sync::atomic::AtomicUsize,
-    step: impl Fn(usize) -> Option<usize>,
-) -> bool {
-    let mut current = owners.load(std::sync::atomic::Ordering::Acquire);
-    while let Some(next) = step(current) {
-        match owners.compare_exchange_weak(
-            current,
-            next,
-            std::sync::atomic::Ordering::AcqRel,
-            std::sync::atomic::Ordering::Acquire,
-        ) {
-            Ok(_) => return true,
-            Err(actual) => current = actual,
-        }
-    }
-    false
-}
-
 impl std::ops::Deref for CommunicationClient {
     type Target = ClientInner;
 
@@ -1740,9 +1718,14 @@ impl WeakCommunicationClient {
     /// and the last release are ordered by the owner count, so exactly one of them wins a race.
     pub(crate) fn upgrade(&self) -> Option<CommunicationClient> {
         let inner = self.0.upgrade()?;
-        if !update_owners(&inner._owners, |owners| (owners > 0).then_some(owners + 1)) {
-            return None;
-        }
+        inner
+            ._owners
+            .try_update(
+                std::sync::atomic::Ordering::AcqRel,
+                std::sync::atomic::Ordering::Acquire,
+                |owners| (owners > 0).then_some(owners + 1),
+            )
+            .ok()?;
         let client = CommunicationClient { inner, owns: true };
         // A handle cloned while the released client closes does not reopen it either.
         (!client._released.load(std::sync::atomic::Ordering::Acquire)).then_some(client)

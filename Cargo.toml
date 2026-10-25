@@ -2,7 +2,7 @@
 name = "dxn-signalr"
 version = "1.1.0"
 edition = "2021"
-rust-version = "1.92"
+rust-version = "1.97"
 authors = ["dXnSix", "Daniel Leiszen <daniel.leiszen@gmail.com> (original signalr-client author)"]
 description = "dXn SignalR client with JSON and MessagePack support on WASM and native Tokio targets."
 license = "MIT"

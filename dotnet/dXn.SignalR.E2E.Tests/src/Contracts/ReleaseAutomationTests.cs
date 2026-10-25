@@ -169,7 +169,7 @@ public sealed partial class ReleaseAutomationTests(AspireEnvironment environment
                 @"(?m)^      group: release-plz-[a-z]+-\$\{\{ github\.ref \}\}$",
                 @"(?m)^      cancel-in-progress: false$",
                 @"(?m)^      - uses: actions/checkout@v7\n        with:\n          fetch-depth: 0\n          token: \$\{\{ secrets\.RELEASE_PLZ_TOKEN \}\}$",
-                @"(?m)^        run: rustup toolchain install 1\.92\.0 --profile minimal$",
+                @"(?m)^        run: rustup toolchain install 1\.97\.0 --profile minimal$",
                 $@"(?m)^      - uses: release-plz/action@v0\.5\n        with:\n          command: {command}\n        env:\n          GITHUB_TOKEN: \$\{{\{{ secrets\.RELEASE_PLZ_TOKEN \}}\}}$"
               })
       {

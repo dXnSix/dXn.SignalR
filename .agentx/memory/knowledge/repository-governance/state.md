@@ -20,7 +20,7 @@ Use this state when governance context is relevant; update it when the current g
 
 ## Current Technical Shape
 
-dXn.SignalR is an independent dXn library (package `dxn-signalr`, crate `dxn_signalr`) that started from `signalr-client` and keeps its original author's attribution; publication remains disabled. AgentX repository configuration and source-derived memory routing are initialized. Production quality and interop workflows enforce the Rust 1.92 baseline, cross-platform/feature checks, dependency scans, and the Aspire end-to-end catalog on native, browser (Chromium, Firefox, WebKit), Android-emulator and iOS-simulator targets with read-only permissions.
+dXn.SignalR is an independent dXn library (package `dxn-signalr`, crate `dxn_signalr`) that started from `signalr-client` and keeps its original author's attribution; publication remains disabled. AgentX repository configuration and source-derived memory routing are initialized. Production quality and interop workflows enforce the Rust 1.97 baseline, cross-platform/feature checks, dependency scans, and the Aspire end-to-end catalog on native, browser (Chromium, Firefox, WebKit), Android-emulator and iOS-simulator targets with read-only permissions.
 
 Root contributor guidance (`AGENTS.md`, mirrored in `CLAUDE.md`) carries the layout, validation and AgentX rules; library usage, platform setup and validation routing live in the repository's `dxn-signalr` skill, and long-form documentation in `docs/`.
 

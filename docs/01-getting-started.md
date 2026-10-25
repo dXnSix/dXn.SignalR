@@ -68,7 +68,7 @@ dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.0", f
 
 ### Toolchain
 
-The crate targets Rust edition 2021 with an MSRV of **1.92**. Browser builds need the
+The crate targets Rust edition 2021 with an MSRV of **1.97**. Browser builds need the
 `wasm32-unknown-unknown` target (`rustup target add wasm32-unknown-unknown`) and a
 `wasm-bindgen` toolchain such as `wasm-bindgen-cli` or `wasm-pack`. Other `wasm32` targets, such as
 WASI, fail to compile with an explanatory error.

@@ -51,7 +51,7 @@ jobs:
       - name: Install Aspire CLI
         run: dotnet tool install --global Aspire.Cli --version 13.5.3
       - name: Install pinned Rust
-        run: rustup toolchain install 1.92.0 --profile minimal
+        run: rustup toolchain install 1.97.0 --profile minimal
       - name: Install libmsquic for the HTTP/3 cells
         if: runner.os == 'Linux'
         # A stalled package mirror fails the step instead of holding the runner to the job timeout.
@@ -105,7 +105,7 @@ jobs:
       - name: Install Aspire CLI
         run: dotnet tool install --global Aspire.Cli --version 13.5.3
       - name: Install pinned Rust with the browser target
-        run: rustup toolchain install 1.92.0 --profile minimal --target wasm32-unknown-unknown
+        run: rustup toolchain install 1.97.0 --profile minimal --target wasm32-unknown-unknown
       - name: Install the pinned nightly for the threaded (atomics) fixture
         run: rustup toolchain install nightly-2026-06-23 --profile minimal --component rust-src --target wasm32-unknown-unknown
       - uses: actions/cache@v6
@@ -157,7 +157,7 @@ jobs:
       - name: Install Aspire CLI
         run: dotnet tool install --global Aspire.Cli --version 13.5.3
       - name: Install pinned Rust with the emulator target
-        run: rustup toolchain install 1.92.0 --profile minimal --target x86_64-linux-android
+        run: rustup toolchain install 1.97.0 --profile minimal --target x86_64-linux-android
       - name: Install libmsquic for the HTTP/3 cells
         # A stalled package mirror fails the step instead of holding the runner to the job timeout.
         timeout-minutes: 10
@@ -229,7 +229,7 @@ jobs:
       - name: Install Aspire CLI
         run: dotnet tool install --global Aspire.Cli --version 13.5.3
       - name: Install pinned Rust with the emulator target
-        run: rustup toolchain install 1.92.0 --profile minimal --target x86_64-linux-android
+        run: rustup toolchain install 1.97.0 --profile minimal --target x86_64-linux-android
       - uses: actions/cache@v6
         with:
           path: |
@@ -285,7 +285,7 @@ jobs:
       - name: Install Aspire CLI
         run: dotnet tool install --global Aspire.Cli --version 13.5.3
       - name: Install pinned Rust with the simulator target
-        run: rustup toolchain install 1.92.0 --profile minimal --target aarch64-apple-ios-sim
+        run: rustup toolchain install 1.97.0 --profile minimal --target aarch64-apple-ios-sim
       - uses: actions/cache@v6
         with:
           path: |
@@ -329,7 +329,7 @@ jobs:
       - name: Install Aspire CLI
         run: dotnet tool install --global Aspire.Cli --version 13.5.3
       - name: Install pinned Rust
-        run: rustup toolchain install 1.92.0 --profile minimal
+        run: rustup toolchain install 1.97.0 --profile minimal
       - uses: actions/cache@v6
         with:
           path: |
@@ -371,7 +371,7 @@ jobs:
       - name: Install Aspire CLI
         run: dotnet tool install --global Aspire.Cli --version 13.5.3
       - name: Install pinned Rust
-        run: rustup toolchain install 1.92.0 --profile minimal
+        run: rustup toolchain install 1.97.0 --profile minimal
       - uses: actions/cache@v6
         with:
           path: |
@@ -409,7 +409,7 @@ jobs:
       - name: Install Aspire CLI
         run: dotnet tool install --global Aspire.Cli --version 13.5.3
       - name: Install pinned Rust with the emulator target
-        run: rustup toolchain install 1.92.0 --profile minimal --target x86_64-linux-android
+        run: rustup toolchain install 1.97.0 --profile minimal --target x86_64-linux-android
       - uses: actions/cache@v6
         with:
           path: |
@@ -464,7 +464,7 @@ jobs:
       - name: Install Aspire CLI
         run: dotnet tool install --global Aspire.Cli --version 13.5.3
       - name: Install pinned Rust with the simulator target
-        run: rustup toolchain install 1.92.0 --profile minimal --target aarch64-apple-ios-sim
+        run: rustup toolchain install 1.97.0 --profile minimal --target aarch64-apple-ios-sim
       - uses: actions/cache@v6
         with:
           path: |
@@ -503,7 +503,7 @@ jobs:
       - name: Install Aspire CLI
         run: dotnet tool install --global Aspire.Cli --version 13.5.3
       - name: Install pinned Rust
-        run: rustup toolchain install 1.92.0 --profile minimal
+        run: rustup toolchain install 1.97.0 --profile minimal
       - uses: actions/cache@v6
         with:
           path: |

@@ -15,7 +15,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] } # native onl
 ```
 
 Browser crates add `wasm-bindgen` and `wasm-bindgen-futures` and drive the client from
-`spawn_local`. MSRV 1.92, edition 2021.
+`spawn_local`. MSRV 1.97, edition 2021.
 
 | Feature | Default | Effect |
 |---|---|---|

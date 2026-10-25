@@ -45,7 +45,7 @@ use it from any UI, a game loop, a service, or a test.
 The transports are WebSockets, Server-Sent Events and Long Polling, as in the official clients. See
 [Platforms](docs/09-platforms.md) and [Limitations](docs/12-limitations.md).
 
-- **Rust:** edition 2021, MSRV **1.92**.
+- **Rust:** edition 2021, MSRV **1.97**.
 - **Server:** ASP.NET Core SignalR; stateful reconnect needs ASP.NET Core 8 or later.
 
 ## Installation

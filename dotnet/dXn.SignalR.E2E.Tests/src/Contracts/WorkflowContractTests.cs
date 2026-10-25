@@ -141,13 +141,13 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
     Dictionary<string, string> jobs = JobBlocks(quality);
     Dictionary<string, string[]> required = new(StringComparer.Ordinal)
     {
-      ["rustfmt"] = [@"runs-on: ubuntu-latest", @"cargo \+1\.92\.0 fmt --all --check"],
+      ["rustfmt"] = [@"runs-on: ubuntu-latest", @"cargo \+1\.97\.0 fmt --all --check"],
       ["clippy"] = [@"runs-on: ubuntu-latest", @"clippy --all-targets --test e2e --all-features -- -D warnings"],
       ["native"] =
       [
         @"runs-on: \$\{\{ matrix\.os \}\}",
         @"os: \[ubuntu-latest, windows-latest, macos-latest\]",
-        @"toolchain: \[1\.92\.0, stable\]",
+        @"toolchain: \[1\.97\.0, stable\]",
         @"check --all-targets --test e2e --all-features"
       ],
       ["wasm"] =
@@ -155,26 +155,26 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
         @"runs-on: ubuntu-latest",
         "mode: default",
         "mode: all-features",
-        @"cargo \+1\.92\.0 check --target wasm32-unknown-unknown \$\{\{ matrix\.feature_args \}\}"
+        @"cargo \+1\.97\.0 check --target wasm32-unknown-unknown \$\{\{ matrix\.feature_args \}\}"
       ],
       ["unit-contract"] =
       [
         @"runs-on: ubuntu-latest",
         "--no-default-features",
         "--all-features",
-        @"cargo \+1\.92\.0 test \$\{\{ matrix\.feature_args \}\}"
+        @"cargo \+1\.97\.0 test \$\{\{ matrix\.feature_args \}\}"
       ],
       ["android"] =
       [
         @"runs-on: ubuntu-latest",
         @"cargo install cargo-ndk --version 4\.1\.2 --locked",
-        @"cargo \+1\.92\.0 ndk -t arm64-v8a -t x86_64 -P 24 check --lib"
+        @"cargo \+1\.97\.0 ndk -t arm64-v8a -t x86_64 -P 24 check --lib"
       ],
       ["ios"] =
       [
         @"runs-on: macos-latest",
         @"target: \[aarch64-apple-ios, aarch64-apple-ios-sim\]",
-        @"cargo \+1\.92\.0 check --lib --test e2e --all-features --target \$\{\{ matrix\.target \}\}"
+        @"cargo \+1\.97\.0 check --lib --test e2e --all-features --target \$\{\{ matrix\.target \}\}"
       ],
       ["threaded-wasm"] =
       [
@@ -189,7 +189,7 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
         @"nightly-2026-06-23",
         @"--filter Category=Platform"
       ],
-      ["rustdoc"] = [@"runs-on: ubuntu-latest", @"cargo \+1\.92\.0 doc --all-features --no-deps"],
+      ["rustdoc"] = [@"runs-on: ubuntu-latest", @"cargo \+1\.97\.0 doc --all-features --no-deps"],
       ["dependency-security"] =
       [
         @"runs-on: ubuntu-latest",
@@ -220,12 +220,12 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
     foreach(string pattern in new[]
             {
               "quality / rustfmt",
-              @"cargo \+1\.92\.0 fmt --all --check",
+              @"cargo \+1\.97\.0 fmt --all --check",
               "quality / clippy",
               @"clippy --all-targets --test e2e --all-features -- -D warnings",
               @"check --all-targets --test e2e --all-features",
               @"os: \[ubuntu-latest, windows-latest, macos-latest\]",
-              @"toolchain: \[1\.92\.0, stable\]",
+              @"toolchain: \[1\.97\.0, stable\]",
               "wasm32-unknown-unknown",
               "mode: default",
               "mode: all-features",
@@ -241,10 +241,10 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
               @"dotnet tool install --global Aspire\.Cli --version 13\.5\.\d+",
               @"quality / android \(cargo ndk\)",
               @"cargo install cargo-ndk --version 4\.1\.2 --locked",
-              @"cargo \+1\.92\.0 ndk -t arm64-v8a -t x86_64 -P 24 check --lib",
+              @"cargo \+1\.97\.0 ndk -t arm64-v8a -t x86_64 -P 24 check --lib",
               @"quality / ios \(\$\{\{ matrix\.target \}\}\)",
               @"target: \[aarch64-apple-ios, aarch64-apple-ios-sim\]",
-              @"cargo \+1\.92\.0 check --lib --test e2e --all-features --target \$\{\{ matrix\.target \}\}",
+              @"cargo \+1\.97\.0 check --lib --test e2e --all-features --target \$\{\{ matrix\.target \}\}",
               "quality / threaded-wasm",
               @"-C target-feature=\+atomics,\+bulk-memory,\+mutable-globals",
               @"cargo \+nightly-2026-06-23 check --lib --target wasm32-unknown-unknown --all-features -Z build-std=std,panic_abort",
@@ -271,7 +271,7 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
               @"engine: \[chromium, firefox, webkit\]",
               "e2e / android",
               @"DXN_SIGNALR_E2E_TARGETS: android",
-              @"rustup toolchain install 1\.92\.0 --profile minimal --target x86_64-linux-android",
+              @"rustup toolchain install 1\.97\.0 --profile minimal --target x86_64-linux-android",
               @"cargo ndk -t x86_64 -P 24 test --test e2e --features messagepack,proxy-pac,http3,tls-webpki-roots --no-run",
               @"KERNEL==""kvm"", GROUP=""kvm"", MODE=""0666""",
               @"uses: reactivecircus/android-emulator-runner@v2",
@@ -280,7 +280,7 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
               @"script: dotnet test dotnet/dXn\.SignalR\.E2E\.Tests --filter Category=E2E",
               "e2e / ios",
               @"DXN_SIGNALR_E2E_TARGETS: ios",
-              @"rustup toolchain install 1\.92\.0 --profile minimal --target aarch64-apple-ios-sim",
+              @"rustup toolchain install 1\.97\.0 --profile minimal --target aarch64-apple-ios-sim",
               @"dotnet tool install --global Aspire\.Cli --version 13\.5\.\d+",
               @"global-json-file: global\.json",
               @"dotnet test dotnet/dXn\.SignalR\.E2E\.Tests --filter Category=E2E",
@@ -428,7 +428,7 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
               "name: e2e / android-app",
               "runs-on: ubuntu-latest",
               "DXN_SIGNALR_E2E_TARGETS: android-app,android-app-release",
-              @"rustup toolchain install 1\.92\.0 --profile minimal --target x86_64-linux-android",
+              @"rustup toolchain install 1\.97\.0 --profile minimal --target x86_64-linux-android",
               @"cargo install cargo-ndk --version 4\.1\.2 --locked",
               @"script: JAVA_HOME=\$JAVA_HOME_17_X64 dotnet test",
               @"KERNEL==""kvm""",

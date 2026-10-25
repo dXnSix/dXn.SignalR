@@ -84,7 +84,7 @@ public sealed class MobileTlsTests(AspireEnvironment environment)
                              AndroidEnvironment());
     Assert.True(
       result.Succeeded,
-      $"cargo ndk check {features} exited {result.ExitCode}. Prerequisites: cargo install cargo-ndk; rustup target add aarch64-linux-android x86_64-linux-android --toolchain 1.92.0; an Android NDK under ANDROID_NDK_HOME or $ANDROID_HOME/ndk.\n{Redaction.SafeTail(result.StandardError)}");
+      $"cargo ndk check {features} exited {result.ExitCode}. Prerequisites: cargo install cargo-ndk; rustup target add aarch64-linux-android x86_64-linux-android --toolchain 1.97.0; an Android NDK under ANDROID_NDK_HOME or $ANDROID_HOME/ndk.\n{Redaction.SafeTail(result.StandardError)}");
   }
 
   [Fact]
