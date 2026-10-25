@@ -244,3 +244,22 @@ a.card:hover .card__more { color: var(--foreground); }
 
 /* Closed, the project menu must not contribute to the page's scrollable width. */
 .site-nav__projects:not([open]) .site-nav__projects-menu { display: none; }
+
+/* Diagrams (Mermaid, rendered in the browser) ------------------------------ */
+
+.mermaid-diagram {
+  margin-block: 1.5rem;
+  padding: 1.25rem 1rem;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--card);
+}
+.mermaid-diagram .mermaid { display: flex; justify-content: center; }
+.mermaid-diagram .mermaid:not([data-processed]) {
+  display: block;
+  color: var(--muted-foreground);
+  font: 0.8rem/1.6 var(--font-mono);
+  white-space: pre;
+}
+.mermaid-diagram .mermaid svg { max-width: 100%; height: auto; }

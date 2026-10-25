@@ -39,6 +39,8 @@ order: 40            # ascending across the library; steps of 10
   `danger`; paragraph text only).
 - Code fences use `rust`, `toml`, `json`, `bash`, `csharp`, `typescript`, `javascript`, `html`,
   `yaml`, `diff` or `text`. Add `{3,5-7}` after the language to highlight lines.
+- Diagrams: a `mermaid` fence renders as SVG in the browser and follows the light/dark theme.
+  Prefer `flowchart TB` for diagrams with many nodes; the reading column is narrow.
 
 ## Deployment
 

@@ -66,5 +66,56 @@ const base = `${import.meta.env.BASE_URL.replace(/\/+$/, '')}/`;
   </head>
   <body>
     <slot />
+    <script>
+      // Diagrams are rendered in the browser, and only on pages that have one:
+      // Mermaid is a large dependency. They re-render when the color theme changes.
+      const nodes = [...document.querySelectorAll<HTMLElement>('.mermaid')];
+      if (nodes.length > 0) {
+        for (const node of nodes) node.dataset.source = node.textContent ?? '';
+
+        const token = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+        async function render() {
+          const { default: mermaid } = await import('mermaid');
+          const dark = document.documentElement.classList.contains('dark');
+          mermaid.initialize({
+            startOnLoad: false,
+            securityLevel: 'strict',
+            theme: 'base',
+            fontFamily: token('--font-sans'),
+            flowchart: { curve: 'basis', padding: 12, wrappingWidth: 420 },
+            themeVariables: {
+              darkMode: dark,
+              background: token('--background'),
+              fontSize: '14px',
+              primaryColor: token('--secondary'),
+              primaryTextColor: token('--foreground'),
+              primaryBorderColor: token('--muted-foreground'),
+              secondaryColor: token('--secondary'),
+              tertiaryColor: token('--background'),
+              lineColor: token('--muted-foreground'),
+              textColor: token('--foreground'),
+              mainBkg: token('--secondary'),
+              nodeBorder: token('--muted-foreground'),
+              clusterBkg: token('--background'),
+              clusterBorder: token('--border'),
+              edgeLabelBackground: token('--background'),
+              titleColor: token('--foreground'),
+            },
+          });
+          for (const node of nodes) {
+            node.removeAttribute('data-processed');
+            node.textContent = node.dataset.source ?? '';
+          }
+          await mermaid.run({ nodes });
+        }
+
+        render();
+        new MutationObserver(() => render()).observe(document.documentElement, {
+          attributes: true,
+          attributeFilter: ['class'],
+        });
+      }
+    </script>
   </body>
 </html>
