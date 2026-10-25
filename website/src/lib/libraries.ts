@@ -1,5 +1,5 @@
 export interface Library {
-  id: 'dtcg' | 'reactive' | 'signalr';
+  id: 'dtcg' | 'reactive' | 'signalr' | 'vectoranimation';
   /** Display name, also the brand in the project switcher. */
   name: string;
   /** GitHub repository name; also the GitHub Pages path. */
@@ -48,6 +48,14 @@ export const libraries: Library[] = [
     summary: 'A SignalR client for Rust, native and in the browser',
     crate: 'dxn-signalr',
     branch: 'master',
+  }),
+  make({
+    id: 'vectoranimation',
+    name: 'dXn.VectorAnimation',
+    repoName: 'dXn.VectorAnimation',
+    summary: 'Animated vector graphics: SVG and Lottie in one scene model, played natively in NSH apps',
+    crate: 'dxn_vector_animation',
+    branch: 'main',
   }),
 ];
 

@@ -7,6 +7,7 @@ import { rehypeHeadingIds } from '@astrojs/markdown-remark';
 import { remarkCallouts } from './src/lib/remark-callouts.js';
 import { remarkDocLinks } from './src/lib/remark-doc-links.js';
 import { remarkMermaid } from './src/lib/remark-mermaid.js';
+import { remarkExamples } from './src/lib/remark-examples.js';
 import { rehypeHeadingAnchors } from './src/lib/rehype-heading-anchors.js';
 import { rehypeTableScroll } from './src/lib/rehype-table-scroll.js';
 import { shikiConfig, defaultHighlightLang } from './src/lib/markdown.js';
@@ -29,7 +30,7 @@ export default defineConfig({
   markdown: {
     // Astro 7 defaults to Sätteri; the remark/rehype pipeline is opt-in.
     processor: unified({
-      remarkPlugins: [remarkMermaid, remarkCallouts, [remarkDocLinks, { base: BASE }]],
+      remarkPlugins: [remarkMermaid, [remarkExamples, { base: BASE }], remarkCallouts, [remarkDocLinks, { base: BASE }]],
       rehypePlugins: [rehypeHeadingIds, rehypeHeadingAnchors, rehypeTableScroll],
     }),
     shikiConfig,

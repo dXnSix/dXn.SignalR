@@ -20,7 +20,10 @@ const walk = (dir) =>
     return statSync(path).isDirectory() ? walk(path) : [path];
   });
 
-const pages = walk(dist).filter((p) => p.endsWith('.html'));
+// The site's own pages: an examples app published into `examples/` (the
+// library's live examples) links its files relatively, as built.
+const examples = join(dist, 'examples');
+const pages = walk(dist).filter((p) => p.endsWith('.html') && !p.startsWith(`${examples}/`));
 const ids = new Map();
 const problems = [];
 
@@ -43,7 +46,9 @@ for (const page of pages) {
   const label = page.slice(dist.length + 1);
   for (const [, , url] of html.matchAll(/\s(href|src)="([^"]+)"/g)) {
     if (/^(?:[a-z][a-z\d+.-]*:|\/\/|#|mailto:)/i.test(url) && !url.startsWith('#')) continue;
-    const [pathPart, hash] = url.split('#');
+    const [pathAndQuery, hash] = url.split('#');
+    // A query (an example's `?demo=`) names what a page shows, not another file.
+    const pathPart = pathAndQuery.split('?')[0];
     let target = page;
     if (pathPart) {
       if (!pathPart.startsWith('/')) { problems.push(`${label}: relative URL ${url}`); continue; }

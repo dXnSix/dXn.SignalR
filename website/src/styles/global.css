@@ -635,6 +635,23 @@ html.dark .astro-code span {
   a:has(> code):hover,
   a:has(> code):focus-visible { color: var(--doc-link-hover); }
 
+  /* Live examples (```example fences, `remark-examples`): the library's
+     examples app in a frame as wide as the text column. */
+  .doc-example { margin-block: 1.25rem; max-width: 46rem; }
+  .doc-example iframe {
+    display: block;
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    background: var(--card);
+  }
+  .doc-example figcaption {
+    margin-top: 0.5rem;
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
   /* VitePress-style containers (`:::tip`), turned into asides by
      `remark-callouts`. One shape, tinted by kind. */
   .callout {
