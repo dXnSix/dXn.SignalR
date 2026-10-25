@@ -1,6 +1,6 @@
 name: Docs
 
-# Builds the documentation site in website/ and publishes it to GitHub Pages
+# Builds the documentation site in website/ and deploys it to GitHub Pages
 # (https://dxnsix.github.io/dXn.SignalR/). Pull requests only build and check links;
 # a push to master also deploys.
 #
@@ -30,10 +30,12 @@ jobs:
         working-directory: website
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
         with:
           package_json_file: website/package.json
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -41,9 +43,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm check:links
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
         if: github.event_name != 'pull_request'
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         if: github.event_name != 'pull_request'
         with:
           path: website/dist
@@ -64,4 +66,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
