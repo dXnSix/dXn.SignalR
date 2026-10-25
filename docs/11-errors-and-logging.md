@@ -35,8 +35,9 @@ that carry them:
 | `InvalidState` | The operation is not valid in the connection's current state, as .NET's `InvalidOperationException`: `start` on a client that is starting, connected, reconnecting or paused; a call on a client that is not started (or whose start failed); `pause` or `resume` on a client that was never started. After a failed start `pause` and `resume` work: the client is `Disconnected`, and `resume` connects it. | |
 
 `ErrorKind` is `#[non_exhaustive]`: new kinds can arrive in minor releases, so a `match` needs a
-wildcard arm. `Error::is_transient()` is `true` for timeouts, network and transport failures, and
-negotiate answers 408, 429 and 5xx: retrying the same operation later can succeed.
+wildcard arm. `Error::is_transient()` is `true` for timeouts, network and transport failures, negotiate
+answers 408, 429 and 5xx, and proxy failures without a status or with 408, 429 or 5xx (not
+refused credentials or a denied target): retrying the same operation later can succeed.
 
 `Display` is stable, human-readable and redacted when the error is built: it never contains bearer
 tokens, `access_token` values, `Authorization` values or credentials in URLs. `server_message()` is

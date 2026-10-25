@@ -140,7 +140,8 @@ scenarios:
   `disconnect-every-handle`, `callback-dispatch`, `client-result-errors`, `connected-callback`,
   `restart-after-stop`, `lifecycle-events`, `connection-id`, `graceful-stop`,
   `reconnect-call-wait`, `request-headers`, `stateful-transparent-resume`,
-  `stateful-resume-fallback`; `msgpack-fidelity` everywhere with MessagePack only;
+  `stateful-resume-fallback`, `negotiate-timeout`, `transport-fallback`,
+  `client-to-server-stream`; `msgpack-fidelity` everywhere with MessagePack only;
 - the Android app (`android-app`) and, on CI runners that opt in with
   `DXN_SIGNALR_E2E_ALLOW_SYSTEM_CHANGES=1` on Windows and macOS, native: `os-proxy`. The runner
   points the system proxy at the test proxy's credential-free listener around each cell (the
