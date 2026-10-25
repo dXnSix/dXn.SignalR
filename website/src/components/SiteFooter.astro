@@ -1,0 +1,21 @@
+---
+import { libraries } from '../lib/libraries';
+import { library } from '../lib/docs';
+const others = libraries.filter((lib) => lib.id !== library.id);
+---
+
+<footer class="site-footer">
+  <div class="site-footer__brand">
+    <strong>{library.name}</strong>
+    <p>
+      Part of the dXn libraries for Rust. Each one is independent of any UI framework and
+      documented on its own site.
+    </p>
+  </div>
+
+  <nav aria-label="Footer navigation">
+    {others.map((lib) => <a href={lib.site} target="_blank" rel="noopener noreferrer">{lib.name}</a>)}
+    <a href={library.repo} target="_blank" rel="noopener noreferrer">GitHub</a>
+    <a href={`${library.repo}/issues`} target="_blank" rel="noopener noreferrer">Report an issue</a>
+  </nav>
+</footer>

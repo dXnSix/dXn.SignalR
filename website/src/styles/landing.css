@@ -1,0 +1,246 @@
+/* ====================================================================
+   Landing page: hero, facts, feature grid, quick tour, next steps.
+   Bands butt against each other; the hairline is the only separator.
+   ==================================================================== */
+
+.landing { overflow-x: clip; }
+
+.landing__inner {
+  width: min(100% - 3rem, var(--layout-max-width));
+  margin-inline: auto;
+}
+
+@media (max-width: 640px) {
+  .landing__inner { width: min(100% - 2rem, var(--layout-max-width)); }
+}
+
+.landing-hero {
+  position: relative;
+  padding: clamp(2.75rem, 6vw, 5rem) 0 clamp(2.5rem, 5vw, 4rem);
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 48px 48px;
+  background-position: center top;
+  mask-image: linear-gradient(to bottom, #000 70%, transparent);
+}
+
+.landing-hero > * { position: relative; }
+
+.landing-hero__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  gap: clamp(2rem, 4vw, 4rem);
+  align-items: center;
+}
+
+@media (max-width: 960px) {
+  .landing-hero__layout { grid-template-columns: minmax(0, 1fr); }
+}
+
+.landing-eyebrow {
+  margin: 0 0 1.25rem;
+  color: var(--muted-foreground);
+  font: 600 0.68rem/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.landing-headline {
+  margin: 0 0 1.25rem;
+  font-size: clamp(2.2rem, 4.3vw, 3.6rem);
+  font-weight: 660;
+  letter-spacing: -0.042em;
+  line-height: 1.04;
+  text-wrap: balance;
+}
+
+.landing-lede {
+  max-width: 34rem;
+  margin: 0 0 1.75rem;
+  color: var(--muted-foreground);
+  font-size: 1.0625rem;
+  line-height: 1.65;
+}
+
+.landing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 1.5rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 2.5rem;
+  padding: 0 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--foreground);
+  font-size: 0.875rem;
+  font-weight: 560;
+  text-decoration: none;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+.btn:hover { background: var(--secondary); border-color: var(--border-hover); }
+.btn--primary { border-color: var(--brand); background: var(--brand); color: var(--brand-contrast); }
+.btn--primary:hover { background: var(--brand-hover); border-color: var(--brand-hover); }
+
+.install {
+  display: flex;
+  align-items: stretch;
+  max-width: 34rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--code-bg);
+  overflow: hidden;
+}
+.install pre {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  color: var(--code-fg);
+  font: 0.8125rem/1.6 var(--font-mono);
+  white-space: pre;
+}
+.install__prompt { color: var(--muted-foreground); user-select: none; }
+.install button {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  border-left: 1px solid var(--border);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+.install button:hover { background: var(--secondary); color: var(--foreground); }
+.install button svg { width: 1rem; height: 1rem; }
+
+.hero-window { min-width: 0; }
+.hero-window .mac-window__body { background: var(--code-bg); }
+.hero-window pre {
+  margin: 0;
+  padding: 1.1rem 1.2rem 1.3rem;
+  overflow-x: auto;
+  background: transparent !important;
+  font: 0.8rem/1.7 var(--font-mono);
+}
+.hero-window code { font: inherit; }
+.hero-window .astro-code { color: var(--code-fg) !important; }
+.hero-window .astro-code span { color: var(--code-fg) !important; background-color: transparent !important; }
+.hero-window .astro-code span[style*="color:#0433ff" i] { color: var(--code-keyword) !important; }
+.hero-window .astro-code span[style*="color:#0000a2" i] { color: var(--code-fn) !important; }
+.hero-window .astro-code span[style*="color:#571ab7" i] { color: var(--code-type) !important; }
+.hero-window .astro-code span[style*="color:#036a07" i] { color: var(--code-string) !important; }
+.hero-window .astro-code span[style*="color:#9a9a9a" i] { color: var(--code-comment) !important; }
+.hero-window .astro-code span[style*="color:#c5060b" i],
+.hero-window .astro-code span[style*="color:#3b96a6" i],
+.hero-window .astro-code span[style*="color:#d21f07" i] { color: var(--code-constant) !important; }
+.hero-window .astro-code span[style*="color:#8090e5" i] { color: var(--code-property) !important; }
+.hero-window .astro-code span[style*="color:#318495" i] { color: var(--code-variable) !important; }
+.hero-window .astro-code span[style*="color:#119605" i] { color: var(--code-number) !important; }
+.hero-window .astro-code span[style*="color:#005cc5" i] { color: var(--code-link) !important; }
+html.dark .hero-window .astro-code span { color: var(--shiki-dark) !important; }
+
+/* Facts ------------------------------------------------------------- */
+
+.landing-band { border-top: 1px solid var(--border); }
+.landing-band__inner { padding: clamp(2.5rem, 5vw, 4rem) 0; }
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  margin: 0;
+}
+.facts div {
+  padding: 1.1rem 1.25rem;
+  border-left: 1px solid var(--border);
+}
+.facts div:first-child { border-left: 0; padding-left: 0; }
+.facts dt {
+  margin: 0 0 0.35rem;
+  color: var(--muted-foreground);
+  font: 600 0.66rem/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.facts dd { margin: 0; font-size: 1.05rem; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .facts div { border-left: 0; padding-left: 0; border-top: 1px solid var(--border); }
+  .facts div:first-child { border-top: 0; }
+}
+
+/* Section headings ---------------------------------------------------- */
+
+.landing-kicker {
+  margin: 0 0 0.75rem;
+  color: var(--muted-foreground);
+  font: 600 0.68rem/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.landing-title {
+  margin: 0 0 2rem;
+  font-size: clamp(1.7rem, 3.2vw, 2.4rem);
+  font-weight: 660;
+  letter-spacing: -0.045em;
+  line-height: 1.1;
+}
+
+/* Feature and next-step cards ------------------------------------------ */
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-surface);
+  background: var(--border);
+  overflow: hidden;
+}
+.card-grid--next { grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+@media (max-width: 960px) { .card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .card-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.4rem 1.4rem 1.5rem;
+  background: var(--background);
+  color: var(--foreground);
+  text-decoration: none;
+}
+a.card { transition: background-color 140ms ease; }
+a.card:hover { background: var(--secondary); }
+.card__title { margin: 0; font-size: 0.975rem; font-weight: 620; letter-spacing: -0.01em; }
+.card__text { margin: 0; color: var(--muted-foreground); font-size: 0.875rem; line-height: 1.6; }
+.card__more {
+  margin-top: auto;
+  padding-top: 0.5rem;
+  color: var(--muted-foreground);
+  font: 560 0.72rem/1 var(--font-mono);
+  letter-spacing: 0.04em;
+}
+a.card:hover .card__more { color: var(--foreground); }
+
+/* Quick tour (rendered Markdown) ----------------------------------------- */
+
+.tour { max-width: 52rem; margin-inline: auto; }
+.tour.doc-content > h2:first-child { margin-top: 0; }
+
+/* Wide tables scroll inside their own box instead of widening the page. */
+.table-scroll {
+  max-width: 100%;
+  margin-block: 1.25rem;
+  overflow-x: auto;
+}
+.table-scroll > table { margin: 0; min-width: 100%; width: max-content; max-width: none; }
+.table-scroll:focus-visible { outline-offset: 0; }
+
+/* Closed, the project menu must not contribute to the page's scrollable width. */
+.site-nav__projects:not([open]) .site-nav__projects-menu { display: none; }

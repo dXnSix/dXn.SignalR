@@ -1,0 +1,147 @@
+---
+import { Code } from 'astro:components';
+import { render } from 'astro:content';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Nav from '../components/Nav.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import { loadDocs, library, docRoute } from '../lib/docs';
+import { shikiConfig } from '../lib/markdown.js';
+
+const { landing, pages } = await loadDocs();
+const { Content } = await render(landing);
+const d = landing.data;
+
+const base = import.meta.env.BASE_URL;
+const here = (rel: string | undefined) => {
+  // `./docs/foo.md` → /<base>/docs/foo
+  if (!rel) return undefined;
+  if (/^[a-z][a-z\d+.-]*:/i.test(rel)) return rel;
+  const route = rel.replace(/^\.\//, '').replace(/\.md(?=#|$)/, '').replace(/(^|\/)index$/, '');
+  return `${base.replace(/\/$/, '')}/${route}`.replace(/\/$/, '') || '/';
+};
+const first = pages[0];
+const start = first ? docRoute(first) : base;
+---
+
+<BaseLayout title={library.name} description={d.description}>
+  <Nav currentPath={Astro.url.pathname} />
+
+  <main class="landing">
+    <section class="landing-hero">
+      <div class="landing__inner landing-hero__layout">
+        <div>
+          {d.eyebrow && <p class="landing-eyebrow">{d.eyebrow}</p>}
+          <h1 class="landing-headline">{d.headline ?? library.name}</h1>
+          {d.lede && <p class="landing-lede">{d.lede}</p>}
+
+          <div class="landing-actions">
+            <a class="btn btn--primary" href={start}>Get started</a>
+            <a class="btn" href={library.repo} target="_blank" rel="noopener noreferrer">View on GitHub</a>
+          </div>
+
+          {d.install && (
+            <div class="install">
+              <pre><code>{d.install.trimEnd()}</code></pre>
+              <button type="button" aria-label="Copy install command" data-copy={d.install.trimEnd()}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {d.heroCode && (
+          <div class="mac-window hero-window">
+            <div class="mac-window__bar">
+              <div class="mac-window__lights"><i></i><i></i><i></i></div>
+              <span class="mac-window__title">{d.heroTitle ?? 'main.rs'}</span>
+            </div>
+            <div class="mac-window__body">
+              <Code
+                code={d.heroCode.trimEnd()}
+                lang={(d.heroLang ?? 'rust') as any}
+                themes={shikiConfig.themes}
+                defaultColor="light"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+
+    {d.facts && d.facts.length > 0 && (
+      <section class="landing-band">
+        <div class="landing__inner landing-band__inner" style="padding-block:1.25rem">
+          <dl class="facts">
+            {d.facts.map((fact) => <div><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}
+          </dl>
+        </div>
+      </section>
+    )}
+
+    {d.features && d.features.length > 0 && (
+      <section class="landing-band">
+        <div class="landing__inner landing-band__inner">
+          <p class="landing-kicker">What you get</p>
+          <h2 class="landing-title">What you get</h2>
+          <div class="card-grid">
+            {d.features.map((feature) => {
+              const href = here(feature.link);
+              const Tag = href ? 'a' : 'div';
+              return (
+                <Tag class="card" href={href}>
+                  <h3 class="card__title">{feature.title}</h3>
+                  <p class="card__text">{feature.text}</p>
+                  {href && <span class="card__more">Read more →</span>}
+                </Tag>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+    )}
+
+    <section class="landing-band">
+      <div class="landing__inner landing-band__inner">
+        <p class="landing-kicker">Quick tour</p>
+        <div class="doc-content tour" data-pagefind-body>
+          <Content />
+        </div>
+      </div>
+    </section>
+
+    {d.next && d.next.length > 0 && (
+      <section class="landing-band">
+        <div class="landing__inner landing-band__inner">
+          <p class="landing-kicker">Where next</p>
+          <div class="card-grid card-grid--next">
+            {d.next.map((item) => {
+              const href = here(item.link);
+              const Tag = href ? 'a' : 'div';
+              return (
+                <Tag class="card" href={href}>
+                  <h3 class="card__title">{item.title}</h3>
+                  <p class="card__text">{item.text}</p>
+                  {href && <span class="card__more">Continue →</span>}
+                </Tag>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+    )}
+  </main>
+
+  <SiteFooter />
+</BaseLayout>
+
+<script>
+  for (const button of document.querySelectorAll<HTMLButtonElement>('.install button')) {
+    button.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(button.dataset.copy ?? '');
+        button.setAttribute('aria-label', 'Copied');
+        setTimeout(() => button.setAttribute('aria-label', 'Copy install command'), 1600);
+      } catch {}
+    });
+  }
+</script>

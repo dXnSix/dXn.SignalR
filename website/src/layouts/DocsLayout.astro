@@ -1,0 +1,88 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import Nav from '../components/Nav.astro';
+import Sidebar from '../components/Sidebar.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import Toc from '../components/Toc.astro';
+import type { Heading } from '../components/Toc.astro';
+import type { SidebarItem } from '../lib/docs';
+
+export interface Props {
+  title?: string;
+  description?: string;
+  sidebar?: SidebarItem[];
+  headings?: Heading[];
+  scope?: string;
+  /** The library's name, shown above the page title. */
+  kicker?: string;
+  prev?: { text: string; link: string };
+  next?: { text: string; link: string };
+}
+
+const { title, description, sidebar = [], headings = [], scope = 'docs', kicker, prev, next } = Astro.props;
+const pathname = Astro.url.pathname;
+const hasSidebar = sidebar.length > 0;
+---
+
+<BaseLayout title={title} description={description}>
+  <Nav currentPath={pathname} />
+
+  <div class="docs-layout">
+    {hasSidebar && <Sidebar items={sidebar} currentPath={pathname} scope={scope} />}
+
+    <main class:list={['docs-main', { 'docs-main--full': !hasSidebar }]}>
+      <article class="doc-content" data-pagefind-body>
+        <slot />
+      </article>
+      {(prev || next) && (
+        <nav class="doc-prev-next" aria-label="Pagination">
+          {prev ? (
+            <a class="doc-pager" href={prev.link} rel="prev"><span class="doc-pager__label">Previous</span><span class="doc-pager__title">{prev.text}</span></a>
+          ) : <span />}
+          {next && (
+            <a class="doc-pager doc-pager--next" href={next.link} rel="next"><span class="doc-pager__label">Next</span><span class="doc-pager__title">{next.text}</span></a>
+          )}
+        </nav>
+      )}
+    </main>
+
+    {hasSidebar && <Toc headings={headings} />}
+  </div>
+
+  <SiteFooter />
+</BaseLayout>
+
+<script>
+  const copyIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>';
+  const checkIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>';
+
+  for (const pre of document.querySelectorAll<HTMLPreElement>('.doc-content pre')) {
+    const code = pre.querySelector('code');
+    if (!code) continue;
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'doc-code-copy';
+    button.setAttribute('aria-label', 'Copy code');
+    button.innerHTML = copyIcon;
+    let resetTimer: ReturnType<typeof setTimeout> | undefined;
+
+    button.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(code.textContent ?? '');
+        button.dataset.copied = '';
+        button.setAttribute('aria-label', 'Copied');
+        button.innerHTML = checkIcon;
+        clearTimeout(resetTimer);
+        resetTimer = setTimeout(() => {
+          delete button.dataset.copied;
+          button.setAttribute('aria-label', 'Copy code');
+          button.innerHTML = copyIcon;
+        }, 1600);
+      } catch {}
+    });
+
+    pre.append(button);
+  }
+</script>
+

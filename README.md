@@ -4,6 +4,8 @@
 [![e2e](https://github.com/dXnSix/dXn.SignalR/actions/workflows/e2e.yml/badge.svg)](https://github.com/dXnSix/dXn.SignalR/actions/workflows/e2e.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+**Documentation:** https://dxnsix.github.io/dXn.SignalR/
+
 **An ASP.NET Core SignalR client for Rust, native and in the browser.** `dxn_signalr` connects
 Tokio applications on Windows, Linux, macOS, Android and iOS, and WebAssembly applications in the
 browser, to SignalR hubs. One API covers request/response calls, fire-and-forget messages, server
