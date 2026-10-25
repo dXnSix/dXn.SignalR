@@ -15,6 +15,13 @@ public sealed partial class RepositoryTests(AspireEnvironment environment)
   /// </summary>
   static readonly string[] _gradleWrapper = ["tests/android-app/gradlew.bat"];
 
+  /// <summary>
+  /// The documentation site's Node build files, which dXn.Docs' exporter generates: the Astro and
+  /// site configuration, and the link checker <c>pnpm check:links</c> runs on the built site (none
+  /// is a test script).
+  /// </summary>
+  static readonly string[] _siteBuildFiles = ["website/astro.config.mjs", "website/site.config.mjs", "website/scripts/check-links.mjs"];
+
   static readonly string[] _removedHooks =
   [
     "TEST_CLIENT",
@@ -34,6 +41,7 @@ public sealed partial class RepositoryTests(AspireEnvironment environment)
     string[] scripts = files
                        .Where(file => !file.StartsWith("tools-node/node_modules/", StringComparison.Ordinal))
                        .Where(file => !_gradleWrapper.Contains(file, StringComparer.Ordinal))
+                       .Where(file => !_siteBuildFiles.Contains(file, StringComparer.Ordinal))
                        .Where(file => _scriptExtensions.Contains(Path.GetExtension(file), StringComparer.OrdinalIgnoreCase))
                        .ToArray();
     Assert.Empty(scripts);

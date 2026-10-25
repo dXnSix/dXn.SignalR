@@ -20,11 +20,20 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
     "reactivecircus/android-emulator-runner@v2"
   ];
 
-  /// <summary>The one workflow that may write: it tags releases and opens release pull requests.</summary>
+  /// <summary>The one workflow that may write to the repository: it tags releases and opens release pull requests.</summary>
   const string _releaseWorkflow = "release-plz.yml";
 
   /// <summary>The action only the release workflow may use.</summary>
   const string _releaseAction = "release-plz/action@v0.5";
+
+  /// <summary>
+  /// The workflow that builds <c>website/</c> and deploys it to GitHub Pages, the one other workflow
+  /// that may write (to Pages only). dXn.Docs' exporter generates it from its workflow template.
+  /// </summary>
+  const string _docsWorkflow = "docs.yml";
+
+  /// <summary>The GitHub Pages actions only the documentation workflow may use, on their Node 24 majors.</summary>
+  static readonly string[] _pagesActions = ["actions/configure-pages@v6", "actions/upload-pages-artifact@v5", "actions/deploy-pages@v5"];
 
   Dictionary<string, string> Workflows()
   {
@@ -36,7 +45,7 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
                                              path => Path.GetFileName(path),
                                              File.ReadAllText,
                                              StringComparer.Ordinal);
-    Assert.Equal(["e2e.yml", "perf.yml", "quality.yml", "release-plz.yml"], workflows.Keys.Order(StringComparer.Ordinal));
+    Assert.Equal(["docs.yml", "e2e.yml", "perf.yml", "quality.yml", "release-plz.yml"], workflows.Keys.Order(StringComparer.Ordinal));
     return workflows;
   }
 
@@ -48,7 +57,8 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
     {
       // Nothing runs on a schedule (the user's decision, 2026-10-09). The performance comparison
       // runs only on demand; End-to-end gates pull requests; Quality gates pull requests and checks
-      // every push to master with its light jobs; Release-plz runs on pushes to master (2026-10-18).
+      // every push to master with its light jobs; Release-plz runs on pushes to master (2026-10-18);
+      // Docs builds website/ changes on pull requests and deploys them on pushes to master.
       AssertNotMatches(name, workflow, @"(?m)^\s+schedule:");
       if(name == "perf.yml")
       {
@@ -64,9 +74,9 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
         AssertMatches(name, workflow, @"(?ms)^on:\s*.*?pull_request:");
       }
 
-      if(name is "quality.yml" or _releaseWorkflow)
+      if(name is "quality.yml" or _releaseWorkflow or _docsWorkflow)
       {
-        // Only master, and the master push of Quality runs only its light jobs.
+        // Only master; the master push of Quality runs only its light jobs, that of Docs deploys.
         AssertMatches(name, workflow, @"(?m)^  push:\r?\n    branches: \[master\]\s*$");
         AssertNotMatches(name, workflow, @"(?m)^\s+branches: \[(?!master\]).*$");
       }
@@ -97,6 +107,21 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
         Assert.All(actions, action => Assert.Contains(action, _allowedActions.Append(_releaseAction)));
         Assert.Equal(checkouts, Regex.Count(workflow, @"(?m)^\s+token: \$\{\{ secrets\.RELEASE_PLZ_TOKEN \}\}\s*$"));
         Assert.Equal(0, PersistCredentialsDisabled().Count(workflow));
+        AssertNotMatches(name, workflow, @"(?m)^concurrency:");
+        AssertNotMatches(name, workflow, @"cancel-in-progress:\s*true");
+      }
+      else if(name == _docsWorkflow)
+      {
+        // The Pages deployment writes with the run's GITHUB_TOKEN: job-level pages and id-token (the
+        // OIDC token deploy-pages requests) grants, no secrets, checkouts without persisted
+        // credentials, and it never cancels a running deployment (GitHub's Pages guidance).
+        Assert.Equal(
+          ["id-token: write", "pages: write"],
+          WriteGrant().Matches(workflow).Select(match => match.Value.Trim()).Order(StringComparer.Ordinal));
+        Assert.All(WriteGrant().Matches(workflow), match => Assert.StartsWith("      ", match.Value, StringComparison.Ordinal));
+        AssertNotMatches(name, workflow, @"\$\{\{\s*secrets\.");
+        Assert.All(actions, action => Assert.Contains(action, _allowedActions.Concat(_pagesActions)));
+        Assert.Equal(checkouts, PersistCredentialsDisabled().Count(workflow));
         AssertNotMatches(name, workflow, @"(?m)^concurrency:");
         AssertNotMatches(name, workflow, @"cancel-in-progress:\s*true");
       }
@@ -537,6 +562,52 @@ public sealed partial class WorkflowContractTests(AspireEnvironment environment)
 
     AssertMatches("perf.yml", perf, @"(?m)^\s+DXN_SIGNALR_PERF_SCALE: full\s*$");
     AssertMatches("perf.yml", perf, @"(?m)^\s+DXN_SIGNALR_PERF_WORKLOADS: all\s*$");
+  }
+
+  [Fact]
+  [Trait("Category", "WorkflowContract")]
+  public void DocsWorkflowBuildsTheSiteAndOnlyItsDeployJobWritesToPages()
+  {
+    Dictionary<string, string> jobs = JobBlocks(Workflows()[_docsWorkflow]);
+    Assert.Equal(["build", "deploy"], jobs.Keys.Order(StringComparer.Ordinal));
+
+    // Every run builds website/ and checks its links; only a non-pull-request run uploads the site.
+    foreach(string pattern in new[]
+            {
+              "runs-on: ubuntu-latest",
+              @"(?m)^        working-directory: website\s*$",
+              "package_json_file: website/package.json",
+              "node-version: 24",
+              "cache-dependency-path: website/pnpm-lock.yaml",
+              "run: pnpm install --frozen-lockfile",
+              "run: pnpm build",
+              "run: pnpm check:links",
+              @"uses: actions/configure-pages@v6\s+if: github\.event_name != 'pull_request'",
+              @"uses: actions/upload-pages-artifact@v5\s+if: github\.event_name != 'pull_request'\s+with:\s+path: website/dist"
+            })
+    {
+      AssertMatches("docs.yml job build", jobs["build"], pattern);
+    }
+
+    Assert.Equal(0, WriteGrant().Count(jobs["build"]));
+
+    // The deploy job holds the Pages grants, runs in the github-pages environment, checks out
+    // nothing, and queues behind a running deployment instead of cancelling it.
+    foreach(string pattern in new[]
+            {
+              @"(?m)^    if: github\.event_name != 'pull_request'\s*$",
+              @"(?m)^    needs: build\s*$",
+              @"(?m)^      pages: write\s*$",
+              @"(?m)^      id-token: write\s*$",
+              @"group: pages\s+cancel-in-progress: false",
+              @"(?m)^      name: github-pages\s*$",
+              "uses: actions/deploy-pages@v5"
+            })
+    {
+      AssertMatches("docs.yml job deploy", jobs["deploy"], pattern);
+    }
+
+    AssertNotMatches("docs.yml job deploy", jobs["deploy"], "actions/checkout@");
   }
 
   /// <summary>Splits a workflow's <c>jobs:</c> section into job blocks by job id.</summary>

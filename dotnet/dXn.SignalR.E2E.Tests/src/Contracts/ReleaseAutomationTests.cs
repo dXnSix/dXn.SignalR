@@ -5,8 +5,9 @@ namespace dXn.SignalR.E2E.Tests.Contracts;
 
 /// <summary>
 /// Proves release-plz releases the crate by git tag only under the 1.x policy, and that the
-/// workflows run on the events the release policy allows: Release-plz and Quality's light jobs on
-/// pushes to master, nothing heavy on a release pull request.
+/// workflows run on the events the release policy allows: Release-plz, Quality's light jobs and the
+/// Docs deployment on pushes to master, nothing heavy on a release pull request (Docs runs only for
+/// <c>website/</c> changes, which a release pull request never has).
 /// </summary>
 [Collection(AspireTestGroup.Name)]
 public sealed partial class ReleaseAutomationTests(AspireEnvironment environment)
@@ -198,6 +199,7 @@ public sealed partial class ReleaseAutomationTests(AspireEnvironment environment
   [InlineData("e2e.yml", "pull_request:\n    branches: [master]\n    paths-ignore:\n      - \".agentx/**\"\n  workflow_dispatch:\n")]
   [InlineData("perf.yml", "workflow_dispatch:\n")]
   [InlineData("release-plz.yml", "push:\n    branches: [master]\n  workflow_dispatch:\n")]
+  [InlineData("docs.yml", "pull_request:\n    paths:\n      - \"website/**\"\n      - \".github/workflows/docs.yml\"\n  push:\n    branches: [master]\n    paths:\n      - \"website/**\"\n      - \".github/workflows/docs.yml\"\n  workflow_dispatch:\n")]
   public void EveryWorkflowRunsOnlyOnTheEventsTheReleasePolicyAllows(string name, string triggers)
   {
     string workflow = Workflow(name);
