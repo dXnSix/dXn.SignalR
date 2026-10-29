@@ -1391,9 +1391,12 @@ html.dark .astro-code span {
   text-decoration: none !important;
 }
 
-.site-nav__logo { flex-shrink: 0; width: 1.35rem; height: 1.4rem; }
-.site-nav__logo path:first-child { fill: var(--foreground); }
-.site-nav__logo path:last-child { fill: var(--data-2, #3B82F6); }
+.site-nav__logo { flex-shrink: 0; width: 1.5rem; height: 1.5rem; }
+/* A dark tile with a white D; inverted in dark mode (public/logo-dark.svg is its favicon). */
+.site-nav__logo .logo-tile { fill: #141414; stroke: #fff; stroke-opacity: 0.14; }
+.site-nav__logo .logo-d { fill: #fff; }
+.dark .site-nav__logo .logo-tile { fill: #fafafa; stroke: #000; stroke-opacity: 0.14; }
+.dark .site-nav__logo .logo-d { fill: #141414; }
 
 .site-nav__links {
   display: flex;

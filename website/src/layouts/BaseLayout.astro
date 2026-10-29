@@ -26,7 +26,8 @@ const base = `${import.meta.env.BASE_URL.replace(/\/+$/, '')}/`;
     <meta name="description" content={description} />
     {robots && <meta name="robots" content={robots} />}
     <title>{pageTitle}</title>
-    <link rel="icon" href={`${base}logo.svg`} />
+    <link rel="icon" href={`${base}favicon.png`} type="image/png" sizes="32x32" />
+    <link rel="icon" href={`${base}logo.svg`} type="image/svg+xml" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content={SITE_TITLE} />
     <meta property="og:title" content={pageTitle} />
@@ -52,12 +53,12 @@ const base = `${import.meta.env.BASE_URL.replace(/\/+$/, '')}/`;
       })();
     </script>
 
-    <!-- Favicon follows the theme -->
+    <!-- Favicon follows the theme: a dark tile in light mode, a light one in dark mode -->
     <script is:inline define:vars={{ base }}>
       (function () {
         function update() {
           var dark = document.documentElement.classList.contains('dark');
-          var link = document.querySelector('link[rel="icon"]');
+          var link = document.querySelector('link[rel="icon"][type="image/svg+xml"]');
           if (link) link.href = base + (dark ? 'logo-dark.svg' : 'logo.svg');
         }
         update();

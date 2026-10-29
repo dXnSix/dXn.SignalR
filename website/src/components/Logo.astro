@@ -3,6 +3,6 @@ export interface Props { class?: string }
 const { class: className = 'site-nav__logo' } = Astro.props;
 ---
 <svg class={className} viewBox="0 0 32 32" aria-hidden="true">
-  <path fill-rule="evenodd" d="M4 4h9c8.3 0 15 5.4 15 12s-6.7 12-15 12H4V4Zm5 5v14h4c5.2 0 10-3 10-7s-4.8-7-10-7H9Z" />
-  <path d="M13 12.5h6v7h-6v-7Z" />
+  <rect class="logo-tile" x="0.5" y="0.5" width="31" height="31" rx="6" />
+  <path class="logo-d" fill-rule="evenodd" d="M9 8h6.500c4.700 0 8.500 3.600 8.500 8s-3.800 8-8.500 8H9V8Zm4.500 4.200v7.600h1.600c2 0 3.600-1.500 3.600-3.800s-1.600-3.800-3.600-3.800h-1.600Z" />
 </svg>
