@@ -86,3 +86,23 @@ const hasSidebar = sidebar.length > 0;
   }
 </script>
 
+<script>
+  import { startExampleFrames } from '../lib/example-frames';
+  startExampleFrames();
+
+  // A live example (`remark-examples`) that reports the height of its content,
+  // `{ type: 'dxn-example-height', height }`, gets a frame that tall: the page
+  // scrolls instead of a scroller inside the frame. Other examples keep their height.
+  window.addEventListener('message', (event) => {
+    if (event.origin !== location.origin) return;
+    const data = event.data;
+    const height = Number(data?.height);
+    if (data?.type !== 'dxn-example-height' || !Number.isFinite(height) || height < 80) return;
+    for (const frame of document.querySelectorAll<HTMLIFrameElement>('.doc-example iframe')) {
+      if (frame.contentWindow !== event.source) continue;
+      // The frame's border is part of its height.
+      const border = frame.offsetHeight - frame.clientHeight;
+      frame.style.height = `${Math.min(Math.ceil(height) + border, 20000)}px`;
+    }
+  });
+</script>

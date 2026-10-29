@@ -4,9 +4,17 @@
 // holds `key: value` lines:
 //
 //   demo: trims                       the example to show (required)
-//   height: 260                       the frame's height in pixels (default 260)
+//   height: 260                       the frame's height in pixels (default 260); an app that
+//                                     reports its content's height (below) overrides it
 //   caption: A trim drawing on.       a line under the frame (optional)
 //   title: Trims                      the frame's accessible name (default: the caption, or the demo)
+//
+// An example may size its frame to its content: the app posts
+// `{ type: 'dxn-example-height', height }` (CSS pixels) to its parent window and the page's
+// script (DocsLayout) sets the frame's height to it, so the page scrolls rather than the frame.
+//
+// The frame has no `src` yet: `data-src` holds it, and `lib/example-frames.ts` starts the frames one
+// after another as they near the viewport, each when the one before shows something.
 //
 // The app itself is built by the library's own workflow into `public/examples/`;
 // the link checker fails the build when it is missing.
@@ -49,7 +57,7 @@ export function remarkExamples({ base = '/' } = {}) {
             type: 'html',
             value:
               `<figure class="doc-example" data-pagefind-ignore>` +
-              `<iframe src="${prefix}examples/index.html?demo=${demo}" title="${escapeHtml(name)}" loading="lazy" style="height: ${height}px"></iframe>` +
+              `<iframe title="${escapeHtml(name)}" data-src="${prefix}examples/index.html?demo=${demo}" data-pending style="height: ${height}px"></iframe>` +
               `${figcaption}</figure>`,
           };
         }

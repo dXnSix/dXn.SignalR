@@ -49,7 +49,17 @@ const start = first ? docRoute(first) : base;
           )}
         </div>
 
-        {d.heroCode && (
+        {d.heroExample && (
+          <div class="hero-example">
+            <iframe
+              data-src={`${base.replace(/\/$/, '')}/examples/index.html?demo=${d.heroExample}`}
+              title={d.heroExampleTitle ?? d.heroExample}
+              class="is-loading"
+            ></iframe>
+          </div>
+        )}
+
+        {!d.heroExample && d.heroCode && (
           <div class="mac-window hero-window">
             <div class="mac-window__bar">
               <div class="mac-window__lights"><i></i><i></i><i></i></div>
@@ -133,6 +143,24 @@ const start = first ? docRoute(first) : base;
 
   <SiteFooter />
 </BaseLayout>
+
+<script>
+  import { startExampleFrames } from '../lib/example-frames';
+  startExampleFrames();
+</script>
+
+<script>
+  // The hero example's page paints its own background until the player has the
+  // file; the frame stays clear until the app says so (`dxn-example-ready`), or
+  // a while after, and then fades in.
+  for (const frame of document.querySelectorAll<HTMLIFrameElement>('.hero-example iframe')) {
+    const show = () => frame.classList.remove('is-loading');
+    setTimeout(show, 20000);
+    window.addEventListener('message', (event) => {
+      if (event.origin === location.origin && event.source === frame.contentWindow && event.data?.type === 'dxn-example-ready') show();
+    });
+  }
+</script>
 
 <script>
   for (const button of document.querySelectorAll<HTMLButtonElement>('.install button')) {

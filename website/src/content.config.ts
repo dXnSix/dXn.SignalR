@@ -27,6 +27,8 @@ const pages = defineCollection({
     heroTitle: z.string().optional(),
     heroLang: z.string().optional(),
     heroCode: z.string().optional(),
+    heroExample: z.string().regex(/^[a-z0-9-]+$/).optional(),
+    heroExampleTitle: z.string().optional(),
     features: z.array(link).optional(),
     next: z.array(link).optional(),
   }),

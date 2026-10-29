@@ -76,8 +76,6 @@ html.dark .comparison-no { color: #f87171; }
   --code-variable: var(--code-keyword);
   --code-link: var(--doc-link);
 
-  --grid-line: color-mix(in srgb, var(--foreground) 7%, transparent);
-
   --scrollbar-track: rgb(10 10 10 / 4%);
   --scrollbar-thumb: rgb(10 10 10 / 8%);
   --scrollbar-thumb-hover: rgb(10 10 10 / 42%);
@@ -125,9 +123,9 @@ html.dark .comparison-no { color: #f87171; }
 
   /* Font stacks */
   --font-sans:
-    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text",
-    "Segoe UI", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB",
-    "Microsoft YaHei", sans-serif;
+    "Inter Variable", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    sans-serif;
   --font-mono:
     ui-monospace, "SF Mono", "JetBrains Mono Variable", Menlo, "Cascadia Mono",
     "Segoe UI Mono", monospace;
@@ -190,7 +188,6 @@ html.dark .comparison-no { color: #f87171; }
   --data-5: #1e40af;
 
   --selection: #c2610a;
-  --grid-line: color-mix(in srgb, var(--foreground) 8%, transparent);
 
   --scrollbar-track: rgb(250 250 250 / 8%);
   --scrollbar-thumb: rgb(250 250 250 / 22%);
@@ -645,6 +642,15 @@ html.dark .astro-code span {
     border-radius: var(--radius-card);
     background: var(--card);
   }
+  /* Until the frame shows something (`lib/example-frames.ts`): a box that breathes, not an empty one. */
+  .doc-example iframe[data-pending] { animation: doc-example-wait 1.2s ease-in-out infinite alternate; }
+  @keyframes doc-example-wait {
+    from { background: var(--card); }
+    to { background: color-mix(in srgb, var(--muted-foreground) 14%, var(--card)); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .doc-example iframe[data-pending] { animation: none; }
+  }
   .doc-example figcaption {
     margin-top: 0.5rem;
     color: var(--muted-foreground);
@@ -767,9 +773,9 @@ html.dark .astro-code span {
   .task-flow-figure .tf-panel { fill: var(--card); stroke: var(--border); stroke-width: 1.5; }
   .task-flow-figure .tf-ui { fill: var(--secondary); stroke: var(--doc-link); stroke-width: 1.6; }
   .task-flow-figure .tf-worker { fill: var(--secondary); stroke: var(--success); stroke-width: 1.6; }
-  .task-flow-figure .tf-heading { fill: var(--foreground); font: 700 18px ui-sans-serif, system-ui; }
-  .task-flow-figure .tf-title { fill: var(--foreground); font: 650 16px ui-sans-serif, system-ui; }
-  .task-flow-figure .tf-detail { fill: var(--muted-foreground); font: 14px ui-sans-serif, system-ui; }
+  .task-flow-figure .tf-heading { fill: var(--foreground); font: 700 18px var(--font-sans); }
+  .task-flow-figure .tf-title { fill: var(--foreground); font: 650 16px var(--font-sans); }
+  .task-flow-figure .tf-detail { fill: var(--muted-foreground); font: 14px var(--font-sans); }
   .task-flow-figure .tf-code { fill: var(--foreground); font: 13px ui-monospace, SFMono-Regular, monospace; }
   .task-flow-figure .tf-arrow { fill: none; stroke: var(--muted-foreground); stroke-width: 2; }
   .task-flow-figure .task-flow-mobile { display: none; }
@@ -787,9 +793,9 @@ html.dark .astro-code span {
     stroke: var(--success);
     stroke-width: 1.5;
   }
-  .focus-action-diagram .fa-step { font: 700 14px ui-sans-serif, system-ui; fill: var(--data-2); }
-  .focus-action-diagram .fa-title { font: 700 18px ui-sans-serif, system-ui; fill: var(--foreground); }
-  .focus-action-diagram .fa-body { font: 400 14px ui-sans-serif, system-ui; fill: var(--muted-foreground); }
+  .focus-action-diagram .fa-step { font: 700 14px var(--font-sans); fill: var(--data-2); }
+  .focus-action-diagram .fa-title { font: 700 18px var(--font-sans); fill: var(--foreground); }
+  .focus-action-diagram .fa-body { font: 400 14px var(--font-sans); fill: var(--muted-foreground); }
   .focus-action-diagram .fa-code { font: 600 14px ui-monospace, SFMono-Regular, monospace; fill: var(--foreground); }
   .focus-action-diagram .fa-arrow { stroke: var(--muted-foreground); stroke-width: 1.8; fill: none; }
   .focus-action-diagram .fa-arrow-head { fill: var(--muted-foreground); }

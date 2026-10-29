@@ -1,5 +1,5 @@
 export interface Library {
-  id: 'dtcg' | 'reactive' | 'signalr' | 'vectoranimation';
+  id: 'dtcg' | 'reactive' | 'signalr' | 'vectoranimation' | 'i18n' | 'intl';
   /** Display name, also the brand in the project switcher. */
   name: string;
   /** GitHub repository name; also the GitHub Pages path. */
@@ -55,6 +55,22 @@ export const libraries: Library[] = [
     repoName: 'dXn.VectorAnimation',
     summary: 'Animated vector graphics: SVG and Lottie in one scene model, played natively in NSH apps',
     crate: 'dxn_vector_animation',
+    branch: 'main',
+  }),
+  make({
+    id: 'i18n',
+    name: 'dXn.I18n',
+    repoName: 'dXn.I18n',
+    summary: 'Translations: Unicode MessageFormat 2 messages, bundles and a translator',
+    crate: 'dxn_i18n',
+    branch: 'main',
+  }),
+  make({
+    id: 'intl',
+    name: 'dXn.Intl',
+    repoName: 'dXn.Intl',
+    summary: 'Locale-aware plurals, numbers, dates and locales on ICU4X',
+    crate: 'dxn_intl',
     branch: 'main',
   }),
 ];
