@@ -16,17 +16,71 @@
 
 .landing-hero {
   position: relative;
+  isolation: isolate;
+  overflow: clip;
   padding: clamp(2.75rem, 6vw, 5rem) 0 clamp(2.5rem, 5vw, 4rem);
-  /* Two soft washes of the accent blue, one from above and one from the right,
-     fading into the page background. They follow the light and dark themes
-     because the accent is mixed with transparency, not with a fixed color. */
-  background:
-    radial-gradient(60rem 28rem at 50% -8rem, color-mix(in srgb, var(--data-2) 20%, transparent), transparent 70%),
-    radial-gradient(38rem 24rem at 100% 40%, color-mix(in srgb, var(--data-1) 18%, transparent), transparent 70%),
-    var(--background);
+  background-color: var(--background);
 }
 
-.landing-hero > * { position: relative; }
+.landing-hero > :not(.hero-aurora) { position: relative; }
+
+/* The hero's aurora: three soft blobs that drift slowly, with the page's own
+   background laid over the side the text is on. It follows freedesignmd's
+   "Agent Terminal Hero" page. The colors are RGB triplets so they can take an alpha. */
+.hero-aurora {
+  --aurora-a: 0 125 250;
+  --aurora-b: 176 164 250;
+  --aurora-c: 255 210 178;
+  --aurora-canvas: 255 255 255;
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: clip;
+  opacity: 0.65;
+  pointer-events: none;
+  mask-image: linear-gradient(rgb(0 0 0) 55%, rgb(0 0 0 / 0));
+}
+.dark .hero-aurora {
+  --aurora-a: 41 151 255;
+  --aurora-canvas: 10 10 10;
+}
+.hero-aurora::before {
+  content: "";
+  position: absolute;
+  inset: 20% -50% -20%;
+  background:
+    radial-gradient(34% 40% at 50% 30%, rgb(var(--aurora-a) / 0.5), transparent 70%),
+    radial-gradient(30% 34% at 72% 58%, rgb(var(--aurora-b) / 0.42), transparent 70%),
+    radial-gradient(28% 30% at 36% 70%, rgb(var(--aurora-c) / 0.6), transparent 72%);
+  animation: hero-aurora 28s cubic-bezier(0.65, 0, 0.35, 1) infinite alternate;
+}
+.hero-aurora::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgb(var(--aurora-canvas)), rgb(var(--aurora-canvas) / 0.75) 38%, rgb(var(--aurora-canvas) / 0) 62%);
+}
+
+@media (min-width: 1024px) {
+  .hero-aurora { opacity: 0.8; }
+  .hero-aurora::before {
+    inset: -25% -15% -15% -5%;
+    background:
+      radial-gradient(34% 42% at 66% 34%, rgb(var(--aurora-a) / 0.55), transparent 70%),
+      radial-gradient(28% 38% at 90% 60%, rgb(var(--aurora-b) / 0.5), transparent 70%),
+      radial-gradient(24% 28% at 58% 82%, rgb(var(--aurora-c) / 0.75), transparent 72%),
+      linear-gradient(122deg, transparent 38%, rgb(var(--aurora-a) / 0.22) 53%, rgb(var(--aurora-b) / 0.18) 62%, transparent 76%);
+  }
+  .hero-aurora::after {
+    background: linear-gradient(90deg, rgb(var(--aurora-canvas)), rgb(var(--aurora-canvas) / 0.7) 28%, rgb(var(--aurora-canvas) / 0) 52%);
+  }
+}
+
+@keyframes hero-aurora {
+  from { transform: translate(0) rotate(0deg) scale(1); }
+  to { transform: translate(-4%, 3%) rotate(-4deg) scale(1.06); }
+}
+@media (prefers-reduced-motion: reduce) { .hero-aurora::before { animation: none; } }
 
 .landing-hero__layout {
   display: grid;
