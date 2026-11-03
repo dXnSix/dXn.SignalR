@@ -1,10 +1,7 @@
 use std::{
     collections::VecDeque,
     pin::Pin,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex, OnceLock,
-    },
+    sync::{Arc, Mutex, OnceLock},
     task::{Context, Poll, Waker},
 };
 
@@ -17,23 +14,29 @@ pub(crate) type StreamDropHandler = Box<dyn FnOnce() + Send + 'static>;
 #[cfg(target_arch = "wasm32")]
 pub(crate) type StreamDropHandler = Box<dyn FnOnce() + 'static>;
 
-struct ManualStreamState<T> {
-    queue: Arc<Mutex<VecDeque<T>>>,
+/// The queue and the consumer's waker share one lock, so a push takes a single lock and the
+/// consumer is woken after it is released, never while the producer holds it.
+struct Channel<T> {
+    queue: VecDeque<T>,
+    waker: Option<Waker>,
+    closed: bool,
+}
+
+struct Shared<T> {
+    channel: Mutex<Channel<T>>,
     /// Set once, by the first failure that ends the stream.
-    error: Arc<OnceLock<Error>>,
-    waker: Arc<Mutex<Option<Waker>>>,
-    closed: Arc<AtomicBool>,
-    drop_handler: Arc<Mutex<Option<StreamDropHandler>>>,
+    error: OnceLock<Error>,
+    drop_handler: Mutex<Option<StreamDropHandler>>,
+}
+
+struct ManualStreamState<T> {
+    shared: Arc<Shared<T>>,
 }
 
 impl<T> Clone for ManualStreamState<T> {
     fn clone(&self) -> Self {
         Self {
-            queue: self.queue.clone(),
-            error: self.error.clone(),
-            waker: self.waker.clone(),
-            closed: self.closed.clone(),
-            drop_handler: self.drop_handler.clone(),
+            shared: self.shared.clone(),
         }
     }
 }
@@ -43,36 +46,54 @@ impl<T> ManualStreamState<T> {
     #[cfg_attr(target_arch = "wasm32", allow(clippy::arc_with_non_send_sync))]
     pub fn new(drop_handler: Option<StreamDropHandler>) -> Self {
         ManualStreamState {
-            queue: Arc::new(Mutex::new(VecDeque::new())),
-            error: Arc::new(OnceLock::new()),
-            waker: Arc::new(Mutex::new(None)),
-            closed: Arc::new(AtomicBool::new(false)),
-            drop_handler: Arc::new(Mutex::new(drop_handler)),
+            shared: Arc::new(Shared {
+                channel: Mutex::new(Channel {
+                    queue: VecDeque::new(),
+                    waker: None,
+                    closed: false,
+                }),
+                error: OnceLock::new(),
+                drop_handler: Mutex::new(drop_handler),
+            }),
         }
     }
 
+    fn channel(&self) -> std::sync::MutexGuard<'_, Channel<T>> {
+        self.shared.channel.lock().unwrap()
+    }
+
     fn push(&self, item: T) {
-        let mut queue = self.queue.lock().unwrap();
-        // Checked under the queue lock, so nothing lands behind an end the consumer has seen.
-        if self.closed.load(Ordering::Acquire) {
-            return;
-        }
-        queue.push_back(item);
-        if let Some(waker) = self.waker.lock().unwrap().take() {
-            // debug!("Waking stream...");
+        let waker = {
+            let mut channel = self.channel();
+            // Checked under the queue lock, so nothing lands behind an end the consumer has seen.
+            if channel.closed {
+                return;
+            }
+            channel.queue.push_back(item);
+            channel.waker.take()
+        };
+        if let Some(waker) = waker {
             waker.wake();
         }
     }
 
+    fn is_closed(&self) -> bool {
+        self.channel().closed
+    }
+
     fn close(&self) {
-        if self.closed.swap(true, Ordering::AcqRel) {
-            return;
-        }
-        self.drop_handler.lock().unwrap().take();
-        // Take the waker under the queue lock: `poll_next` checks `closed` and stores its waker
-        // under the same lock, so the end wakes a pending consumer instead of slipping past it.
-        let _queue = self.queue.lock().unwrap();
-        if let Some(waker) = self.waker.lock().unwrap().take() {
+        // `poll_next` checks `closed` and stores its waker under the same lock, so the end wakes
+        // a pending consumer instead of slipping past it.
+        let waker = {
+            let mut channel = self.channel();
+            if channel.closed {
+                return;
+            }
+            channel.closed = true;
+            channel.waker.take()
+        };
+        self.shared.drop_handler.lock().unwrap().take();
+        if let Some(waker) = waker {
             waker.wake();
         }
     }
@@ -123,13 +144,13 @@ impl<T> ManualStream<T> {
     /// [`ErrorKind::Paused`](crate::ErrorKind::Paused)), or the send error when its invocation
     /// could not be sent. `None` while the stream is open or after a normal completion.
     pub fn error(&self) -> Option<&Error> {
-        self.state.error.get()
+        self.state.shared.error.get()
     }
 }
 
 impl<T> Drop for ManualStream<T> {
     fn drop(&mut self) {
-        let handler = { self.state.drop_handler.lock().unwrap().take() };
+        let handler = { self.state.shared.drop_handler.lock().unwrap().take() };
         if let Some(handler) = handler {
             handler();
         }
@@ -151,8 +172,8 @@ impl<T> ManualStreamCompleter<T> {
 
     /// Ends the stream with an error that [`ManualStream::error`] reports.
     pub fn fail(&self, error: Error) {
-        if !self.state.closed.load(Ordering::Acquire) {
-            let _ = self.state.error.set(error);
+        if !self.state.is_closed() {
+            let _ = self.state.shared.error.set(error);
         }
         self.state.close();
     }
@@ -167,15 +188,15 @@ impl<T> Stream for ManualStream<T> {
         if self.terminated {
             return Poll::Ready(None);
         }
-        let mut queue = self.state.queue.lock().unwrap();
-        if let Some(item) = queue.pop_front() {
+        let mut channel = self.state.channel();
+        if let Some(item) = channel.queue.pop_front() {
             Poll::Ready(Some(item))
-        } else if self.state.closed.load(Ordering::Acquire) {
-            drop(queue);
+        } else if channel.closed {
+            drop(channel);
             self.terminated = true;
             Poll::Ready(None)
         } else {
-            *self.state.waker.lock().unwrap() = Some(cx.waker().clone());
+            channel.waker = Some(cx.waker().clone());
             Poll::Pending
         }
     }
