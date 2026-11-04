@@ -109,7 +109,6 @@ impl Invocation {
         self.r#type
     }
 
-    #[cfg(feature = "messagepack")]
     pub(crate) fn invocation_id(&self) -> Option<&str> {
         self.invocation_id.as_deref()
     }

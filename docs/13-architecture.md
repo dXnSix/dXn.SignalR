@@ -58,6 +58,7 @@ connect_with(domain, hub, options)
        └─ HttpClient::negotiate        negotiate → redirect* → connection data (ws URL, token)
        └─ CommunicationClient::connect WebSocket open → handshake (bounded, validated)
             ├─ writer task   (native) owns the sink: Acks first, coalesced frames, Pings
+            │                         (awaited calls may write directly while it is idle)
             └─ receiver task          decodes records once → action storage → futures, streams
                                       └─ dispatch task  server calls → callbacks (result calls continue on their own task)
 ```
@@ -98,7 +99,12 @@ await it) while the replay buffer is full with stateful reconnect, then tracks t
 and queues it under the replay buffer's lock, so sequence order is queue order. The writer task
 writes each queued frame together with the frames queued behind it as one WebSocket message of at
 most 64 KiB (a frame that would exceed it starts the next message; a larger frame goes alone,
-uncopied), as the official transports send what their pipe holds. A send that was accepted is not
+uncopied), as the official transports send what their pipe holds. On an ordinary (not stateful)
+WebSocket connection, a message a peer waits on (an invocation that has an id, or the completion of
+a server call) is written by its caller instead when nothing is queued ahead of it and the socket
+takes it at once: the sink is polled once with a no-op waker, so the caller never waits on Tokio I/O,
+and the round trip saves the writer task's thread wake. Fire-and-forget sends always go through the
+queue, so bursts keep coalescing. A send that was accepted is not
 failed by a later socket error: stateful reconnect replays it, and an ordinary reconnect fails the
 pending invocations instead; without stateful reconnect, frames still queued when the connection is
 stopped are dropped, as with the .NET client's `StopAsync`.

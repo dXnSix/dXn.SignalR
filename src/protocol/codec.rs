@@ -792,6 +792,11 @@ impl SerializedFrame {
 pub(crate) struct OutboundMessage {
     pub(crate) message_type: MessageType,
     pub(crate) frame: SerializedFrame,
+    /// A peer waits on this message: an invocation whose result or stream the caller awaits, or
+    /// the completion of a server-to-client call. Fire-and-forget messages are `false`. The
+    /// browser's socket sends every message at once, so only native writers read it.
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    pub(crate) awaited: bool,
 }
 
 fn json_frame(message: &impl Serialize) -> Result<SerializedFrame, Error> {
@@ -815,6 +820,7 @@ impl OutboundMessage {
         Ok(Self {
             message_type: invocation.message_type(),
             frame,
+            awaited: invocation.invocation_id().is_some(),
         })
     }
 
@@ -834,6 +840,7 @@ impl OutboundMessage {
         Ok(Self {
             message_type: MessageType::Completion,
             frame,
+            awaited: true,
         })
     }
 
@@ -853,6 +860,7 @@ impl OutboundMessage {
         Ok(Self {
             message_type: MessageType::Completion,
             frame,
+            awaited: true,
         })
     }
 
@@ -877,6 +885,7 @@ impl OutboundMessage {
         Ok(Self {
             message_type: MessageType::StreamItem,
             frame,
+            awaited: false,
         })
     }
 
@@ -900,6 +909,7 @@ impl OutboundMessage {
                 Ok(Self {
                     message_type: MessageType::Completion,
                     frame,
+                    awaited: false,
                 })
             }
         }
@@ -920,6 +930,7 @@ impl OutboundMessage {
         Ok(Self {
             message_type: MessageType::CancelInvocation,
             frame,
+            awaited: false,
         })
     }
 }

@@ -323,6 +323,103 @@ struct ConnectionWriter {
     stateful: Option<(SharedStatefulBuffer, u64)>,
     /// The connection's runtime, which runs the wait for room in the replay buffer.
     runtime: Handle,
+    /// Lets a send that a peer waits on write its frame itself while nothing is queued ahead of
+    /// it (ordinary WebSocket connections only).
+    direct: Option<DirectWrite>,
+}
+
+/// The physical transport's sink, shared by its writer task and the senders' direct writes; the
+/// writer task takes it out when it ends.
+type SinkSlot<S> = Arc<futures::lock::Mutex<Option<S>>>;
+
+/// The frames senders queued and the frames the writer task wrote, so a direct write never
+/// overtakes a queued one: it goes out only while the counts are equal. Senders count a frame
+/// before queueing it; the writer task counts the frames it wrote under the sink lock. Each count
+/// has its own cache line, so a send never writes a line the writer task's thread writes too.
+#[derive(Default)]
+struct FrameCounts {
+    queued: CacheLine,
+    written: CacheLine,
+}
+
+#[derive(Default)]
+#[repr(align(128))]
+struct CacheLine(std::sync::atomic::AtomicUsize);
+
+impl FrameCounts {
+    /// Whether every queued frame was written; stable while the sink is locked.
+    fn drained(&self) -> bool {
+        use std::sync::atomic::Ordering;
+        self.queued.0.load(Ordering::Acquire) == self.written.0.load(Ordering::Acquire)
+    }
+}
+
+type QueuedFrames = Arc<FrameCounts>;
+
+/// A send that writes its frame itself, as the official clients write a message straight into
+/// the transport's pipe: without waking the writer task on another thread. Only messages a peer
+/// waits on take this path (an awaited invocation, a server call's completion): it saves the
+/// round trip a thread wake, while fire-and-forget bursts keep coalescing in the queue.
+#[derive(Clone)]
+struct DirectWrite {
+    sink: SinkSlot<TransportSender>,
+    queued: QueuedFrames,
+    liveness: ConnectionLiveness,
+    /// Runs the flush of a direct write the socket did not take at once.
+    runtime: Handle,
+}
+
+impl DirectWrite {
+    /// Writes `frame` when the sink is free, nothing is queued ahead and the socket takes it at
+    /// once; `false` leaves it to the queue. The sink is polled once with a no-op waker, so the
+    /// caller never waits on Tokio I/O from its own executor; bytes the socket did not take are
+    /// flushed on the connection's runtime.
+    fn try_write(
+        &self,
+        frame: &SerializedFrame,
+        data: &tokio::sync::mpsc::Sender<SerializedFrame>,
+    ) -> bool {
+        use futures::Sink;
+        use std::task::{Context, Poll, Waker};
+        if !self.queued.drained() {
+            return false;
+        }
+        let Some(mut slot) = self.sink.try_lock() else {
+            return false;
+        };
+        // The writer task writes nothing while the sink is locked, so a frame queued ahead is
+        // still counted; a stopped writer closed the queue.
+        if !self.queued.drained() || data.is_closed() {
+            return false;
+        }
+        let Some(sink) = slot.as_mut() else {
+            return false;
+        };
+        let mut context = Context::from_waker(Waker::noop());
+        let mut sink = std::pin::Pin::new(sink);
+        if !matches!(sink.as_mut().poll_ready(&mut context), Poll::Ready(Ok(()))) {
+            return false;
+        }
+        if sink
+            .as_mut()
+            .start_send(websocket_message(frame.clone()))
+            .is_err()
+        {
+            return false;
+        }
+        if !matches!(sink.as_mut().poll_flush(&mut context), Poll::Ready(Ok(()))) {
+            // The sink holds the frame: it goes out with this flush (or the writer task's next
+            // write), and a failed socket is the writer task's to find.
+            let sink = self.sink.clone();
+            self.runtime.spawn(async move {
+                if let Some(sink) = sink.lock().await.as_mut() {
+                    let _ = sink.flush().await;
+                }
+            });
+        }
+        self.liveness.sent();
+        true
+    }
 }
 
 impl std::fmt::Debug for ConnectionWriter {
@@ -368,6 +465,7 @@ impl WriterChannels {
                 (buffer, generation)
             }),
             runtime,
+            direct: None,
         }
     }
 }
@@ -403,6 +501,11 @@ impl ConnectionWriter {
     /// [`send`](Self::send), telling a transport that was lost before the message was accepted
     /// (`Unsent::Stale`) from a failure.
     async fn try_send(&self, message: &OutboundMessage) -> Result<(), Unsent> {
+        if let Some(direct) = self.direct.as_ref().filter(|_| message.awaited) {
+            if direct.try_write(&message.frame, &self.data) {
+                return Ok(());
+            }
+        }
         // A slot in the shared queue, so the queueing below cannot fail for lack of room.
         let permit = self
             .data
@@ -410,6 +513,14 @@ impl ConnectionWriter {
             .await
             .map_err(|_| Unsent::Stale(closed_before_sent()))?;
         let Some((buffer, generation)) = &self.stateful else {
+            if let Some(direct) = &self.direct {
+                // Counted before it is queued, so no direct write overtakes it.
+                direct
+                    .queued
+                    .queued
+                    .0
+                    .fetch_add(1, std::sync::atomic::Ordering::Release);
+            }
             permit.send(message.frame.clone());
             return Ok(());
         };
@@ -1172,14 +1283,26 @@ impl CommunicationConnection {
                 .with_inherent_keep_alive(inherent_keep_alive)
         };
         // The writer only tracks frames for the transport it owns.
-        let writer = channels.writer(stateful.clone(), runtime.clone());
+        let mut writer = channels.writer(stateful.clone(), runtime.clone());
+        let sink: SinkSlot<TransportSender> =
+            Arc::new(futures::lock::Mutex::new(Some(socket.sink)));
+        // Stateful frames keep the replay buffer's sequence order through the queue.
+        let queued = (stateful.is_none() && socket.stream.kind() == TransportKind::WebSockets)
+            .then(QueuedFrames::default);
+        writer.direct = queued.clone().map(|queued| DirectWrite {
+            sink: sink.clone(),
+            queued,
+            liveness: liveness.clone(),
+            runtime: runtime.clone(),
+        });
         let WriterChannels {
             control: (_, control_receiver),
             data: (_, data_receiver),
         } = channels;
         let stop_mode = Arc::new(std::sync::atomic::AtomicU8::new(WRITER_RUNNING));
         let writer_task = runtime.spawn(Self::run_writer(
-            socket.sink,
+            sink,
+            queued,
             control_receiver,
             data_receiver,
             [ping_frame(protocol_kind), close_frame(protocol_kind)],
@@ -1210,8 +1333,12 @@ impl CommunicationConnection {
     /// the ones already queued), sends a keep-alive Ping (never tracked for replay) whenever
     /// nothing went out for the keep-alive interval, and ends once every sender is gone or the
     /// connection is stopped: with a WebSocket Close, or by dropping the socket for `WRITER_DROP`.
+    /// With `queued`, senders also write directly while nothing is queued (see [`DirectWrite`]);
+    /// the writer holds the sink lock for each write.
+    #[allow(clippy::too_many_arguments)]
     async fn run_writer<S: futures::Sink<Message> + Unpin>(
-        mut sink: S,
+        slot: SinkSlot<S>,
+        queued: Option<QueuedFrames>,
         mut control: mpsc::UnboundedReceiver<Message>,
         mut data: tokio::sync::mpsc::Receiver<SerializedFrame>,
         [ping, close]: [SerializedFrame; 2],
@@ -1220,8 +1347,14 @@ impl CommunicationConnection {
         initial_ping: bool,
     ) {
         let stopping = || stop_mode.load(std::sync::atomic::Ordering::Acquire) != WRITER_RUNNING;
+        let queued = queued.as_ref();
         if initial_ping {
-            if sink.send(websocket_message(ping.clone())).await.is_err() {
+            let mut sink = slot.lock().await;
+            let sent = match sink.as_mut() {
+                Some(sink) => sink.send(websocket_message(ping.clone())).await.is_ok(),
+                None => false,
+            };
+            if !sent {
                 data.close();
                 return;
             }
@@ -1234,15 +1367,19 @@ impl CommunicationConnection {
                 break;
             }
             if let Some(frame) = carried.take() {
+                let mut sink = slot.lock().await;
+                let Some(sink) = sink.as_mut() else {
+                    break;
+                };
                 // Control frames (stateful Acks) still go first between coalesced messages, so a
                 // long send burst never holds back the client's acknowledgements.
-                if Self::write_control(&mut sink, &mut control, &liveness)
+                if Self::write_control(sink, &mut control, &liveness)
                     .await
                     .is_err()
                 {
                     break;
                 }
-                match Self::write_batch(&mut sink, &mut data, &liveness, frame).await {
+                match Self::write_batch(sink, &mut data, &liveness, queued, frame).await {
                     Ok(next) => carried = next,
                     Err(()) => break,
                 }
@@ -1264,6 +1401,10 @@ impl CommunicationConnection {
                     Either::Right(_) => WriterEvent::PingDue,
                 }
             };
+            let mut sink = slot.lock().await;
+            let Some(sink) = sink.as_mut() else {
+                break;
+            };
             match event {
                 WriterEvent::Control(Some(message)) => {
                     if sink.send(message).await.is_err() {
@@ -1272,12 +1413,19 @@ impl CommunicationConnection {
                     liveness.sent();
                 }
                 WriterEvent::Data(Some(frame)) => {
-                    match Self::write_batch(&mut sink, &mut data, &liveness, frame).await {
+                    match Self::write_batch(sink, &mut data, &liveness, queued, frame).await {
                         Ok(next) => carried = next,
                         Err(()) => break,
                     }
                 }
                 WriterEvent::PingDue => {
+                    // A direct write since the wait began moved the deadline.
+                    if liveness
+                        .ping_deadline()
+                        .is_some_and(|deadline| deadline > tokio::time::Instant::now())
+                    {
+                        continue;
+                    }
                     if sink.send(websocket_message(ping.clone())).await.is_err() {
                         break;
                     }
@@ -1288,6 +1436,10 @@ impl CommunicationConnection {
         }
         // Senders waiting for queue room fail now instead of when the writer task is dropped.
         data.close();
+        // Direct writes stop once the sink is taken.
+        let Some(mut sink) = slot.lock().await.take() else {
+            return;
+        };
         match stop_mode.load(std::sync::atomic::Ordering::Acquire) {
             WRITER_DROP => drop(sink),
             WRITER_GRACEFUL => {
@@ -1331,10 +1483,19 @@ impl CommunicationConnection {
         sink: &mut S,
         data: &mut tokio::sync::mpsc::Receiver<SerializedFrame>,
         liveness: &ConnectionLiveness,
+        queued: Option<&QueuedFrames>,
         first: SerializedFrame,
     ) -> Result<Option<SerializedFrame>, ()> {
         let (batch, carried) = next_batch(first, || data.try_recv().ok());
+        let written = batch.len();
         Self::write_frames(sink, liveness, batch).await?;
+        if let Some(queued) = queued {
+            // Under the sink lock, so a direct write sees them gone only once they went out.
+            queued
+                .written
+                .0
+                .fetch_add(written, std::sync::atomic::Ordering::Release);
+        }
         Ok(carried)
     }
 
@@ -3458,6 +3619,7 @@ mod outbound_writer {
         OutboundMessage {
             message_type: MessageType::Invocation,
             frame: SerializedFrame::text(format!("{text}\u{1e}")),
+            awaited: false,
         }
     }
 
@@ -3478,6 +3640,7 @@ mod outbound_writer {
                 data,
                 stateful,
                 runtime,
+                direct: None,
             },
             queued,
         )
@@ -3759,7 +3922,8 @@ mod outbound_writer {
         data.try_send(big()).unwrap();
         let stop_mode = Arc::new(std::sync::atomic::AtomicU8::new(super::WRITER_RUNNING));
         let writer = tokio::spawn(super::CommunicationConnection::run_writer(
-            Box::pin(sink),
+            Arc::new(futures::lock::Mutex::new(Some(Box::pin(sink)))),
+            None,
             control_receiver,
             data_receiver,
             [
@@ -3842,7 +4006,8 @@ mod graceful_stop {
         let stop_mode = Arc::new(std::sync::atomic::AtomicU8::new(WRITER_GRACEFUL));
         control.close_channel();
         CommunicationConnection::run_writer(
-            written,
+            Arc::new(futures::lock::Mutex::new(Some(written))),
+            None,
             control_receiver,
             data_receiver,
             [
@@ -3920,7 +4085,8 @@ mod wire_parity {
             .unwrap();
         control.close_channel();
         CommunicationConnection::run_writer(
-            sink,
+            Arc::new(futures::lock::Mutex::new(Some(sink))),
+            None,
             control_receiver,
             data_receiver,
             [
@@ -3966,6 +4132,7 @@ mod wire_parity {
             data,
             stateful: Some((buffer.clone(), 0)),
             runtime: tokio::runtime::Handle::current(),
+            direct: None,
         };
         (UpdatableActionStorage::new(), buffer, writer)
     }
@@ -4069,6 +4236,7 @@ mod wire_parity {
             data,
             stateful: Some((buffer.clone(), 0)),
             runtime: tokio::runtime::Handle::current(),
+            direct: None,
         };
         let mut context = RecordContext {
             storage: &mut storage,
@@ -4271,7 +4439,8 @@ mod long_polling_liveness {
         let (data, data_receiver) = tokio::sync::mpsc::channel(4);
         let (sink, writes) = mpsc::unbounded::<Message>();
         let writer = tokio::spawn(CommunicationConnection::run_writer(
-            sink,
+            Arc::new(futures::lock::Mutex::new(Some(sink))),
+            None,
             control_receiver,
             data_receiver,
             [
