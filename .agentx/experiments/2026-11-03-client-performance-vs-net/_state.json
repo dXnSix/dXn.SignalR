@@ -29,7 +29,7 @@
     "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
   },
   "currentExperimentId": null,
-  "nextExperimentIndex": 8,
+  "nextExperimentIndex": 9,
   "experiments": [
     {
       "id": "18705952-1ea1-4749-b7cd-14f794b0320f",
@@ -108,6 +108,17 @@
       "path": "2026-11-04-07-direct-write-for-awaited-calls-with-per-thread-queue-counters.json",
       "startedAt": "2026-11-04T00:30:01Z",
       "finishedAt": "2026-11-04T00:38:33Z",
+      "state": "done",
+      "status": "failure"
+    },
+    {
+      "id": "6df8736c-54d9-4b78-87ec-fddd09a4a157",
+      "index": 8,
+      "type": "hypothesis",
+      "name": "Direct write state behind one sender-only Arc",
+      "path": "2026-11-04-08-direct-write-state-behind-one-sender-only-arc.json",
+      "startedAt": "2026-11-04T00:38:44Z",
+      "finishedAt": "2026-11-04T00:43:23Z",
       "state": "done",
       "status": "failure"
     }

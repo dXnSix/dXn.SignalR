@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "6df8736c-54d9-4b78-87ec-fddd09a4a157",
+  "loopId": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "index": 8,
+  "type": "hypothesis",
+  "name": "Direct write state behind one sender-only Arc",
+  "slug": "direct-write-state-behind-one-sender-only-arc",
+  "path": "2026-11-04-08-direct-write-state-behind-one-sender-only-arc.json",
+  "createdAt": "2026-11-04T00:38:44Z",
+  "startedAt": "2026-11-04T00:38:44Z",
+  "finishedAt": "2026-11-04T00:43:23Z",
+  "state": "done",
+  "status": "failure",
+  "checkpointCommit": "4dc4a9fc0bdc9cb92010b7a59a2aee2fd45d953a",
+  "resultCommit": "",
+  "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard 4dc4a9fc0bdc9cb92010b7a59a2aee2fd45d953a",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "checkpointCommit": "4dc4a9fc0bdc9cb92010b7a59a2aee2fd45d953a",
+      "resultCommit": "",
+      "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard 4dc4a9fc0bdc9cb92010b7a59a2aee2fd45d953a",
+      "status": "failure"
+    }
+  ],
+  "repositoryCommits": [],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  },
+  "primaryTarget": "wasm/web with headed Playwright and WebGPU enabled",
+  "hypothesisMarkdown": "",
+  "measurementPlanMarkdown": "",
+  "expectedOutcomeMarkdown": "",
+  "diagnostics": {
+    "playwright": [],
+    "rayx": [],
+    "counters": [],
+    "artifacts": []
+  },
+  "measurements": [
+    {
+      "metric": "send messagepack, interleaved A/B (M sends/s; cpu µs)",
+      "before": "control 1.52,1.85,1.79,1.84,1.59,2.04 (median 1.81); ~1.17",
+      "after": "1.88,1.43,1.57,1.77,1.88,1.84 (median 1.81); ~1.11",
+      "delta": "level",
+      "source": "4 alternating send-only runs"
+    },
+    {
+      "metric": "send json, interleaved A/B (M sends/s; cpu µs)",
+      "before": "control median 1.80; 0.775",
+      "after": "median 1.73; 0.845",
+      "delta": "-4%; CPU +0.07 µs (over the +0.03 limit)",
+      "source": "4 alternating send-only runs"
+    }
+  ],
+  "reportMarkdown": "## Direct write state behind one sender-only Arc Finished\n\n**Index:** 8 · **Checkpoint:** 4dc4a9f · **Result Commit:** none · **Attempt Count:** 1\n\n**Passed Status:** false. One `Arc<DirectWrite>` brought MessagePack sends level with an interleaved control, but JSON send CPU stayed 0.07 µs (9%) above control against a declared limit of +0.03 µs. Unit, fmt, clippy and wasm checks passed; the full run was not taken once the A/B missed.\n\n**Scope lock:** the `direct` field's layout on top of experiment 7; reverted to the checkpoint.\n\n**Finding:** the direct write's per-send overhead comes from a pre-existing pattern: `CommunicationClient::writer` clones the whole `ConnectionWriter` for every send (two channel-sender clones, whose counters live in the channels' shared state next to fields the writer task touches, a runtime `Handle` clone, the stateful pair), so any field added to it costs every send. Next hypothesis, independent of the direct write: hand senders an `Arc<ConnectionWriter>` (one refcount on a sender-only line) instead of a clone. Then retry the direct write on top of it.\n",
+  "decisionMarkdown": "### Decision\n\nReverted failure: src/ restored to 4dc4a9f.\n",
+  "notes": ""
+}
