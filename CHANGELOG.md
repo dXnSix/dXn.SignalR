@@ -5,6 +5,43 @@ All notable changes to `dxn-signalr` are documented in this file. The format fol
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). It is generated from
 Conventional Commits by release-plz.
 
+## [1.1.1] - 2026-11-04
+
+### Build and CI
+- *(toolchain)* require Rust 1.97
+- *(docs)* run the Pages workflow on Node 24 actions
+
+### Documentation
+- list proxy failures under is_transient and the missing E2E scenarios
+- *(website)* add the documentation site and GitHub Pages workflow
+- *(website)* render Mermaid diagrams
+- *(website)* list dXn.VectorAnimation in the project switcher
+- *(website)* set the site in Inter and replace the hero's grid with a soft gradient
+- *(website)* use the dXn D mark as the logo and favicon, inverted in dark mode
+- *(website)* use an aurora background in the landing hero
+- *(performance)* report the 2026-11-04 comparison with the .NET client
+
+### Performance
+- *(stream)* keep a server stream's queue and waker under one lock and wake after unlocking
+- *(send)* share one writer handle across sends instead of cloning it per send
+- *(invoke)* write awaited calls directly when the writer task is idle
+- *(calls)* set up no client stream machinery for calls without streams
+- *(send)* read the clock only when a send has to wait for a lost transport
+- *(json)* encode invocation arguments into one buffer and write the record around it
+- *(messagepack)* encode invocation arguments into one buffer
+- *(stream)* let a server stream's consumer take its queued items in one batch
+- *(receive)* read the liveness clock once per wait and once per received frame
+- *(receive)* take an already buffered frame without arming a timed wait
+- *(receive)* record a burst's receipt once, when the receive loop next waits
+- *(stream)* spin briefly on a contended stream queue lock before blocking
+- *(calls)* move the method name into the invocation instead of copying it
+
+### Tests
+- *(contracts)* cover the Docs workflow and the site's build files
+- *(perf)* report each client's CPU time per operation
+- *(bench)* measure the client's round trips over a loopback hub
+- *(bench)* measure server-stream items over the loopback hub
+
 ## [1.1.0] - 2026-10-23
 
 ### Documentation
