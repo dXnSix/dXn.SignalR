@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "id": "92397cff-273e-40c1-b25c-df7ca4b1c3df",
+  "loopId": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "index": 13,
+  "type": "hypothesis",
+  "name": "Direct write for awaited calls, judged on the loopback bench",
+  "slug": "direct-write-for-awaited-calls-judged-on-the-loopback-bench",
+  "path": "2026-11-04-13-direct-write-for-awaited-calls-judged-on-the-loopback-bench.json",
+  "createdAt": "2026-11-04T01:10:04Z",
+  "startedAt": "2026-11-04T01:10:04Z",
+  "finishedAt": "2026-11-04T01:16:44Z",
+  "state": "done",
+  "status": "success",
+  "checkpointCommit": "b0063b5a8b08160b47b7644652b1176ec70e76a6",
+  "resultCommit": "ba25d5f",
+  "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard b0063b5a8b08160b47b7644652b1176ec70e76a6",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "checkpointCommit": "b0063b5a8b08160b47b7644652b1176ec70e76a6",
+      "resultCommit": "ba25d5f",
+      "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard b0063b5a8b08160b47b7644652b1176ec70e76a6",
+      "status": "success"
+    }
+  ],
+  "repositoryCommits": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "commit": "ba25d5f"
+    }
+  ],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  },
+  "primaryTarget": "wasm/web with headed Playwright and WebGPU enabled",
+  "hypothesisMarkdown": "",
+  "measurementPlanMarkdown": "",
+  "expectedOutcomeMarkdown": "",
+  "diagnostics": {
+    "playwright": [],
+    "rayx": [],
+    "counters": [],
+    "artifacts": []
+  },
+  "measurements": [
+    {
+      "metric": "connection/invoke json / messagepack (loopback bench)",
+      "before": "26.63 / 27.34 µs",
+      "after": "21.67 / 22.42 µs",
+      "delta": "-18.8% / -19.5%",
+      "source": "cargo bench --bench connection (baseline cp13)"
+    },
+    {
+      "metric": "connection/send json / messagepack (loopback bench)",
+      "before": "~324 / 335 ns",
+      "after": "332.3 / 349.4 ns",
+      "delta": "+2.5% / +2.4% (within the 3% bar)",
+      "source": "cargo bench --bench connection (baseline cp13)"
+    },
+    {
+      "metric": "invoke p50 json / messagepack (Aspire)",
+      "before": "~86.0 / 85.1 µs",
+      "after": "80.5 / 81.4 µs",
+      "delta": "-6.4% / -4.3%",
+      "source": "Aspire Performance full"
+    },
+    {
+      "metric": "invoke cpu_us_per_op json / messagepack",
+      "before": "41.1 / 40.7",
+      "after": "27.0 / 27.3",
+      "delta": "-34%",
+      "source": "Aspire Performance full"
+    },
+    {
+      "metric": "send, stream, fan-in (Aspire)",
+      "before": "previous runs",
+      "after": "send 1.74M/2.26M; stream 1.66M/1.59M; fan-in 44.6k/44.1k",
+      "delta": "within noise",
+      "source": "Aspire Performance full"
+    }
+  ],
+  "reportMarkdown": "## Direct write for awaited calls, judged on the loopback bench Finished\n\n**Index:** 13 · **Checkpoint:** b0063b5 · **Result Commit:** ba25d5f · **Attempt Count:** 1\n\n**Passed Status:** true. Invocation round trips 19% faster on the loopback bench for both protocols, sends within the 3% bar (+2.5%), Aspire invoke p50 -4% to -6% with 34% less CPU per call, and no regression elsewhere. Unit tests (497 + 546), fmt, clippy, both wasm checks and 32 native end-to-end cells (invoke, send, server-stream, graceful-stop, executor-independence, server-close, ordinary-reconnect, concurrency-and-clones, callback-dispatch, client-result-errors, message-burst, stream-cancellation, client-to-server-stream, keepalive-idle, disconnect-every-handle, restart-after-stop, large-payload) pass. The architecture chapter describes the direct write.\n\n**Scope lock:** the experiment 10 patch, unchanged, plus its architecture paragraph.\n\n**Finding:** experiments 4–11 were decided on an instrument too coarse for the fire-and-forget side effect; the loopback bench shows that side effect is +2.5% per send, while the round-trip gain is 19%.\n",
+  "decisionMarkdown": "### Decision\n\nCommitted success: ba25d5f perf(invoke): write awaited calls directly when the writer task is idle.\n",
+  "notes": ""
+}
