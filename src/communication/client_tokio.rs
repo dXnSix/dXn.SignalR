@@ -1555,15 +1555,26 @@ impl CommunicationConnection {
             let mut text_records = crate::protocol::framing::TextRecords::new(limit);
             #[cfg(feature = "messagepack")]
             let mut binary_records = crate::protocol::framing::BinaryRecords::new(limit);
+            // A burst's frames (taken without waiting) record their receipt once, when the loop
+            // next waits; its records use the reading of the frame that started it.
+            let mut received_at = 0;
+            let mut unrecorded = false;
             let reason = 'receive: loop {
+                let mut buffered = false;
                 let item = match pending.take() {
                     Some(message) => Ok(message),
                     None => {
                         // A frame already buffered (the next of a burst) needs no timed wait.
                         let ready = stream.next().now_or_never();
-                        let (timeout, wake, waiting_since) = if ready.is_some() {
+                        buffered = ready.is_some();
+                        let (timeout, wake, waiting_since) = if buffered {
                             (None, None, 0)
                         } else {
+                            let waiting_since = if std::mem::take(&mut unrecorded) {
+                                liveness.received()
+                            } else {
+                                liveness.now()
+                            };
                             let timeout = liveness.timeout_deadline();
                             // A deferred stateful Ack wakes the loop too (the 1-second cadence),
                             // and so does the liveness tick (the .NET client's 1-second timer),
@@ -1571,7 +1582,6 @@ impl CommunicationConnection {
                             let ack = stateful
                                 .as_ref()
                                 .and_then(|buffer| buffer.locked().acknowledgement_due());
-                            let waiting_since = liveness.now();
                             let tick =
                                 timeout.map(|_| waiting_since + LIVENESS_TICK.as_millis() as u64);
                             let wake = [ack, timeout, tick].into_iter().flatten().min();
@@ -1645,7 +1655,11 @@ impl CommunicationConnection {
                         }
                     }
                 };
-                let received_at = liveness.received();
+                if buffered {
+                    unrecorded = true;
+                } else {
+                    received_at = liveness.received();
+                }
                 match item {
                     Ok(ws_message) => {
                         let mut context = RecordContext {
