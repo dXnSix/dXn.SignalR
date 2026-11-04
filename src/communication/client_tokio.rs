@@ -566,8 +566,9 @@ impl ConnectionWriter {
     /// waited for installed its connection). Once the logical connection ended (an ordinary drop or
     /// a failed resume), the send fails with the lost transport's error and never reaches the new
     /// connection, whose pending work it does not belong to. A lost transport not yet replaced is
-    /// waited for, at most for `STALE_RETRY_LIMIT`. Returns the logical connection the message was
-    /// accepted on.
+    /// waited for, at most for `STALE_RETRY_LIMIT` after the first loss (the clock is read only
+    /// then: a send that goes through at once never reads it). Returns the logical connection the
+    /// message was accepted on.
     async fn send_current<F, Fut, W>(
         mut current: F,
         logical_connection: impl Fn() -> u64,
@@ -579,7 +580,7 @@ impl ConnectionWriter {
         Fut: std::future::Future<Output = Result<W, Error>>,
         W: std::borrow::Borrow<ConnectionWriter>,
     {
-        let started = std::time::Instant::now();
+        let mut lost_since: Option<std::time::Instant> = None;
         let mut stale = None;
         let mut first = None;
         loop {
@@ -597,7 +598,8 @@ impl ConnectionWriter {
                 Ok(()) => return Ok(sending_on),
                 Err(Unsent::Failed(error)) => return Err(error),
                 Err(Unsent::Stale(error)) => {
-                    if started.elapsed() > STALE_RETRY_LIMIT || !same_connection() {
+                    let lost_since = *lost_since.get_or_insert_with(std::time::Instant::now);
+                    if lost_since.elapsed() > STALE_RETRY_LIMIT || !same_connection() {
                         return Err(error);
                     }
                     debug!(
