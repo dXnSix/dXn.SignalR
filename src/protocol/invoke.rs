@@ -7,7 +7,7 @@ use std::{collections::BTreeMap, fmt::Debug};
 ///
 /// Each argument is encoded once, when it is added, in the connection's hub protocol; the
 /// message is then written around the encoded arguments.
-/// The JSON argument buffer's first allocation.
+/// The argument buffer's first allocation.
 const ARGUMENTS_CAPACITY: usize = 128;
 
 #[derive(Debug, Clone)]
@@ -21,9 +21,14 @@ pub struct Invocation {
     stream_ids: Option<Vec<String>>,
     /// The protocol the arguments are encoded in.
     protocol: HubProtocolKind,
-    /// The MessagePack-encoded arguments (named maps, so serde renames reach the server).
+    /// The MessagePack-encoded arguments (named maps, so serde renames reach the server), one
+    /// after another in one buffer, and how many there are.
     #[cfg(feature = "messagepack")]
-    msgpack_arguments: Vec<Vec<u8>>,
+    msgpack_arguments: Vec<u8>,
+    /// A `u32`, which fits beside the one-byte type and protocol fields: `Invocation` is moved by
+    /// value while its arguments are added, so it keeps its size.
+    #[cfg(feature = "messagepack")]
+    msgpack_argument_count: u32,
 }
 
 impl Invocation {
@@ -38,6 +43,8 @@ impl Invocation {
             protocol,
             #[cfg(feature = "messagepack")]
             msgpack_arguments: Vec::new(),
+            #[cfg(feature = "messagepack")]
+            msgpack_argument_count: 0,
         }
     }
 
@@ -69,12 +76,22 @@ impl Invocation {
             }
             #[cfg(feature = "messagepack")]
             HubProtocolKind::MessagePack => {
-                let bytes = rmp_serde::to_vec_named(&data).map_err(|error| {
-                    Error::serialization(format!(
+                let start = self.msgpack_arguments.len();
+                if start == 0 {
+                    self.msgpack_arguments.reserve(ARGUMENTS_CAPACITY);
+                }
+                if let Err(error) =
+                    rmp_serde::encode::write_named(&mut self.msgpack_arguments, &data)
+                {
+                    self.msgpack_arguments.truncate(start);
+                    return Err(Error::serialization(format!(
                         "cannot encode an argument as MessagePack: {error}"
-                    ))
-                })?;
-                self.msgpack_arguments.push(bytes);
+                    )));
+                }
+                self.msgpack_argument_count = self
+                    .msgpack_argument_count
+                    .checked_add(1)
+                    .ok_or_else(|| Error::serialization("too many MessagePack arguments"))?;
             }
         }
         Ok(())
@@ -124,8 +141,9 @@ impl Invocation {
     }
 
     #[cfg(feature = "messagepack")]
-    pub(crate) fn msgpack_arguments(&self) -> &[Vec<u8>] {
-        &self.msgpack_arguments
+    /// How many MessagePack arguments there are, and their encodings one after another.
+    pub(crate) fn msgpack_arguments(&self) -> (u32, &[u8]) {
+        (self.msgpack_argument_count, &self.msgpack_arguments)
     }
 
     #[cfg(feature = "messagepack")]

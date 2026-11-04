@@ -168,7 +168,7 @@ fn write_invocation(
     headers: &Option<BTreeMap<String, String>>,
     invocation_id: Option<&str>,
     target: &str,
-    arguments: &[impl AsRef<[u8]>],
+    (argument_count, arguments): (u32, &[u8]),
     stream_ids: &[String],
 ) -> Result<(), Error> {
     let length = |count: usize| {
@@ -188,11 +188,9 @@ fn write_invocation(
 
     rmp::encode::write_str(buf, target).map_err(encoding)?;
 
-    // Arguments array, each argument copied as encoded
-    rmp::encode::write_array_len(buf, length(arguments.len())?).map_err(encoding)?;
-    for argument in arguments {
-        buf.extend_from_slice(argument.as_ref());
-    }
+    // Arguments array: the arguments' encodings, copied as one run
+    rmp::encode::write_array_len(buf, argument_count).map_err(encoding)?;
+    buf.extend_from_slice(arguments);
 
     // StreamIds (always present, empty array if none)
     rmp::encode::write_array_len(buf, length(stream_ids.len())?).map_err(encoding)?;
@@ -204,13 +202,8 @@ fn write_invocation(
 }
 
 /// The bytes an invocation needs beyond its encoded arguments (a capacity hint).
-fn invocation_capacity(arguments: &[impl AsRef<[u8]>], target: &str) -> usize {
-    arguments
-        .iter()
-        .map(|argument| argument.as_ref().len())
-        .sum::<usize>()
-        + target.len()
-        + 64
+fn invocation_capacity(arguments: &[u8], target: &str) -> usize {
+    arguments.len() + target.len() + 64
 }
 
 /// Encodes and frames an Invocation or StreamInvocation from its encoded arguments, into one
@@ -219,7 +212,7 @@ pub(crate) fn encode_invocation_frame(
     invocation: &crate::protocol::invoke::Invocation,
 ) -> Result<Vec<u8>, Error> {
     let arguments = invocation.msgpack_arguments();
-    let mut buf = frame_buffer(invocation_capacity(arguments, invocation.target()));
+    let mut buf = frame_buffer(invocation_capacity(arguments.1, invocation.target()));
     write_invocation(
         &mut buf,
         invocation.message_type() as u8,
@@ -242,22 +235,22 @@ pub fn encode_invocation(
     arguments: &[rmpv::Value],
     stream_ids: &Option<Vec<String>>,
 ) -> Result<Vec<u8>, Error> {
-    let arguments = arguments
-        .iter()
-        .map(|argument| {
-            let mut bytes = Vec::new();
-            rmpv::encode::write_value(&mut bytes, argument).map(|()| bytes)
-        })
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(encoding)?;
-    let mut buf = Vec::with_capacity(invocation_capacity(&arguments, target));
+    let mut encoded = Vec::new();
+    for argument in arguments {
+        rmpv::encode::write_value(&mut encoded, argument).map_err(encoding)?;
+    }
+    let mut buf = Vec::with_capacity(invocation_capacity(&encoded, target));
     write_invocation(
         &mut buf,
         msg_type,
         headers,
         invocation_id.as_deref(),
         target,
-        &arguments,
+        (
+            u32::try_from(arguments.len())
+                .map_err(|_| Error::serialization("too many MessagePack items"))?,
+            &encoded,
+        ),
         stream_ids.as_deref().unwrap_or_default(),
     )?;
     Ok(buf)
