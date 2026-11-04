@@ -224,29 +224,50 @@ alternating rounds. `ReferenceClientBudget` then checks the R2.C4 budgets on tho
 The `perf / compare` job, started manually, runs both and publishes the report as its `perf-report`
 artifact.
 
-The budget-checked run below is at full scale (`DXN_SIGNALR_PERF_SCALE=full`), on 2026-10-08. It
-ran on Windows 11 (10.0.26300), x64 with 16 logical processors, .NET 10.0.0 and rustc 1.92.0. The
-client, the service and the .NET reference shared the machine. Every budget held.
+The figures below are the client as of 2026-11-04 (commit `d83ed2b`) at full scale
+(`DXN_SIGNALR_PERF_SCALE=full`): the median of all nine rounds per client of three runs that day,
+because single runs of the throughput workloads swing widely. They ran on macOS 26.6.2, an Apple M5
+(arm64) with 10 logical processors, .NET 10.0.13 and rustc 1.97.0. The client, the service and the
+.NET reference shared the machine.
 
 | Workload | Protocol | Rust client | .NET client | Ratio |
 |---|---|---|---|---|
-| Invoke latency, p50 / p99 | JSON | 159.6 / 194.8 µs | 163.4 / 200.1 µs | 0.98× / 0.97× the latency |
-| Invoke latency, p50 / p99 | MessagePack | 158.6 / 192.1 µs | 164.0 / 198.0 µs | 0.97× / 0.97× the latency |
-| Send throughput | JSON | 690,585 sends/s | 700,756 sends/s | 0.99× |
-| Send throughput | MessagePack | 668,365 sends/s | 385,706 sends/s | 1.73× |
-| Server stream | JSON | 1,056,953 items/s | 411,642 items/s | 2.57× |
-| Server stream | MessagePack | 1,212,761 items/s | 789,110 items/s | 1.54× |
-| Fan-in (8 clients) | JSON | 42,698 calls/s | 30,170 calls/s | 1.42× |
-| Fan-in (8 clients) | MessagePack | 42,717 calls/s | 30,694 calls/s | 1.39× |
+| Invoke latency, p50 / p99 | JSON | 78.5 / 132.2 µs | 111.7 / 161.2 µs | 0.70× / 0.82× the latency |
+| Invoke latency, p50 / p99 | MessagePack | 78.8 / 132.3 µs | 111.8 / 158.3 µs | 0.70× / 0.84× the latency |
+| Send throughput | JSON | 1,851,438 sends/s | 1,736,455 sends/s | 1.07× |
+| Send throughput | MessagePack | 2,178,274 sends/s | 2,228,531 sends/s | 0.98× |
+| Server stream | JSON | 1,829,367 items/s | 829,160 items/s | 2.21× |
+| Server stream | MessagePack | 1,795,320 items/s | 1,641,543 items/s | 1.09× |
+| Fan-in (8 clients) | JSON | 44,378 calls/s | 40,450 calls/s | 1.10× |
+| Fan-in (8 clients) | MessagePack | 44,381 calls/s | 40,318 calls/s | 1.10× |
+
+The client's process CPU per operation (`cpu_us_per_op`) is 0.08–0.09× the .NET client's per
+invoke (about 26 against 310 µs), 0.13–0.34× per stream item, about 0.6× per send and 0.39–0.44×
+per fan-in call.
+
+One of the three runs was budget-checked. It held every budget except MessagePack send throughput,
+at 0.90×: the .NET client had its fastest send run of the day there, while the Rust client's rate
+matched its other runs, which measured that row at 1.04× and 1.08×.
 
 How to read the results:
 
-- **Invoke latency** is on par with the .NET client.
-- **Streaming and fan-in** are consistently faster, because of the single-pass wire codec.
-- **Send throughput** is close to the .NET client's and varies most between runs, because each
-  `send` completes once the transport accepts the frame, as `SendAsync` does. The .NET client's
-  own MessagePack send rate ranged from about 390,000 to 710,000 sends/s across runs. An earlier
-  full run on the same machine measured the Rust client at 0.92× for send throughput.
+- **Invoke latency** is about 0.7× the .NET client's at the median and 0.8× at p99.
+- **Fan-in** is faster in every run and **server streams** in all but one. The stream ratio swings
+  most (MessagePack 0.94× to 1.87× per run, JSON 1.46× to 2.45×), because the service sets the
+  pace and the .NET client's rate varies.
+- **Send throughput** is paced by the test service, which shares the machine: the ratio ranged from
+  0.90× to 1.09× across runs, and the CPU per send (about 0.6×) shows the client's own cost.
+
+The same machine measured invoke p50 at 0.77× / 0.79×, server streams at 1.23× / 0.83×, send at
+1.01× / 1.07× and fan-in at 1.07× / 1.15× (JSON / MessagePack) on 2026-11-03, before the direct
+write of awaited calls, single-buffer argument encoding, the batched and briefly spinning stream
+queue and the receive loop's clock and timer savings. `benches/connection.rs` measures those
+changes without the service: an invocation round trip went from 26.6 to 21.3 µs (JSON) and from
+27.1 to 22.0 µs (MessagePack), a send from 319 to 240 ns and from 340 to 259 ns, and a
+server-stream item from 981 to 489 ns and from 878 to 400 ns. The previously recorded run (Windows
+11 x64, 2026-10-08, before these changes) measured invoke latency at 0.97–0.98×, streams at
+1.54–2.57×, fan-in at 1.39–1.42× and send at 0.99× / 1.73×; it is not comparable figure by figure
+with the run above (different hardware, operating system and toolchains).
 
 Budgets therefore compare ratios within one run, never absolute numbers.
 

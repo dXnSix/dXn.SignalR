@@ -38,7 +38,7 @@ These parts are not exercised:
 - **Kerberos.** The `windows-auth` scenario authenticates the current account with NTLM through SSPI. Kerberos needs a domain, which the test host does not have.
 - **NTLMv2 outside Windows.** Unit tests prove it with the MS-NLMP test vectors and scripted exchanges, but no end-to-end cell authenticates with it.
 - **HTTP/3 on Apple targets.** The QUIC client is compile-checked for macOS and iOS only, because Kestrel cannot serve HTTP/3 there.
-- **Performance on one host.** The measured comparison with the .NET client comes from one Windows machine. See [Performance](./performance.md).
+- **Performance on one host.** The measured comparison with the .NET client comes from one machine, an Apple M5 running macOS; the earlier Windows run predates the client's latest performance work. See [Performance](./performance.md).
 - **OS proxy settings on Windows and macOS hosts.** Only the `e2e / os-proxy` CI jobs change them, on ephemeral runners.
 - **iOS background timing.** Spawned simulator processes are not foreground apps.
 - **Two unexplained flakes.** A WebKit Long Polling cell on Linux CI occasionally hung while connecting in dispatched runs in October 2026, and one `callbacks` cell on Windows CI once missed a server-to-client call. No cause is confirmed for either; the library's [testing notes](https://github.com/dXnSix/dXn.SignalR/blob/master/docs/12-limitations.md#not-covered-by-tests) list the details.

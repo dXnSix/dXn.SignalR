@@ -64,7 +64,7 @@ features:
     text: Build, register, start, stop. Closed, Reconnecting and Reconnected hooks, keep-alive and server timeouts, pause and resume for mobile, access-token factories, request hooks and cookie jars.
     link: ./docs/from-dotnet.md
   - title: Measured against the .NET client
-    text: In the repository's same-run comparison, invoke latency is on par and server streams and fan-in run 1.4 to 2.6 times the .NET client's throughput. Native TLS is rustls, with no OpenSSL.
+    text: In the repository's same-run comparison, invoke latency is about 0.7 times the .NET client's, server streams and fan-in run 1.1 to 2.2 times its throughput, and a call costs under a tenth of its CPU. Native TLS is rustls, with no OpenSSL.
     link: ./docs/performance.md
 next:
   - { title: Get started, text: "Add the dependency and connect your first client.", link: ./docs/getting-started.md }
