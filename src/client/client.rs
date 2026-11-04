@@ -822,8 +822,8 @@ impl SignalRClient {
     where
         F: FnOnce(&mut ArgumentConfiguration),
     {
-        let mut invocation = Invocation::create_single(target.clone(), self.protocol());
-        self.add_invocation_headers(&mut invocation, &target);
+        let mut invocation = Invocation::create_single(target, self.protocol());
+        self.add_invocation_headers(&mut invocation);
         let (mut invocation, uploads) = Self::with_arguments(invocation, configuration)?;
         // As the .NET client, the streams take their ids before the invocation does.
         let uploads = Uploads::assign(uploads, || self._actions.create_key());
@@ -880,9 +880,10 @@ impl SignalRClient {
     }
 
     /// Adds the headers of the configured invocation-header hook (`with_invocation_headers`).
-    fn add_invocation_headers(&self, invocation: &mut Invocation, target: &str) {
+    fn add_invocation_headers(&self, invocation: &mut Invocation) {
         if let Some(connection) = &self._connection {
-            invocation.with_headers(connection.invocation_headers(target));
+            let headers = connection.invocation_headers(invocation.target());
+            invocation.with_headers(headers);
         }
     }
 
@@ -991,8 +992,8 @@ impl SignalRClient {
     where
         F: FnOnce(&mut ArgumentConfiguration),
     {
-        let mut invocation = Invocation::create_single(target.clone(), self.protocol());
-        self.add_invocation_headers(&mut invocation, &target);
+        let mut invocation = Invocation::create_single(target, self.protocol());
+        self.add_invocation_headers(&mut invocation);
         let (mut invocation, uploads) = Self::with_arguments(invocation, configuration)?;
         let uploads = Uploads::assign(uploads, || self._actions.create_key());
         invocation.with_streams(uploads.ids());
@@ -1123,8 +1124,8 @@ impl SignalRClient {
     where
         F: FnOnce(&mut ArgumentConfiguration),
     {
-        let mut invocation = Invocation::create_multiple(target.clone(), self.protocol());
-        self.add_invocation_headers(&mut invocation, &target);
+        let mut invocation = Invocation::create_multiple(target, self.protocol());
+        self.add_invocation_headers(&mut invocation);
         // As the .NET client, the streams take their ids before the invocation does.
         let built = Self::with_arguments(invocation, configuration).map(|(invocation, uploads)| {
             (

@@ -135,7 +135,6 @@ impl Invocation {
         self.invocation_id.as_deref()
     }
 
-    #[cfg(feature = "messagepack")]
     pub(crate) fn target(&self) -> &str {
         &self.target
     }
