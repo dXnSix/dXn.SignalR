@@ -29,7 +29,7 @@
     "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
   },
   "currentExperimentId": null,
-  "nextExperimentIndex": 18,
+  "nextExperimentIndex": 19,
   "experiments": [
     {
       "id": "18705952-1ea1-4749-b7cd-14f794b0320f",
@@ -226,6 +226,17 @@
       "state": "done",
       "status": "success",
       "resultCommit": "43defcd"
+    },
+    {
+      "id": "d8493164-0474-478e-8cd2-7323b1083ecb",
+      "index": 18,
+      "type": "hypothesis",
+      "name": "MessagePack arguments in one reserved buffer",
+      "path": "2026-11-04-18-message-pack-arguments-in-one-reserved-buffer.json",
+      "startedAt": "2026-11-04T01:41:12Z",
+      "finishedAt": "2026-11-04T01:48:43Z",
+      "state": "done",
+      "status": "failure"
     }
   ]
 }

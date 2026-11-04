@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "id": "d8493164-0474-478e-8cd2-7323b1083ecb",
+  "loopId": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "index": 18,
+  "type": "hypothesis",
+  "name": "MessagePack arguments in one reserved buffer",
+  "slug": "message-pack-arguments-in-one-reserved-buffer",
+  "path": "2026-11-04-18-message-pack-arguments-in-one-reserved-buffer.json",
+  "createdAt": "2026-11-04T01:41:12Z",
+  "startedAt": "2026-11-04T01:41:12Z",
+  "finishedAt": "2026-11-04T01:48:43Z",
+  "state": "done",
+  "status": "failure",
+  "checkpointCommit": "d0282d87ad1503d57cfbffa688b35d1a0a26b98a",
+  "resultCommit": "",
+  "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard d0282d87ad1503d57cfbffa688b35d1a0a26b98a",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "checkpointCommit": "d0282d87ad1503d57cfbffa688b35d1a0a26b98a",
+      "resultCommit": "",
+      "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard d0282d87ad1503d57cfbffa688b35d1a0a26b98a",
+      "status": "failure"
+    }
+  ],
+  "repositoryCommits": [],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  },
+  "primaryTarget": "wasm/web with headed Playwright and WebGPU enabled",
+  "hypothesisMarkdown": "",
+  "measurementPlanMarkdown": "",
+  "expectedOutcomeMarkdown": "",
+  "diagnostics": {
+    "playwright": [],
+    "rayx": [],
+    "counters": [],
+    "artifacts": []
+  },
+  "measurements": [
+    {
+      "metric": "hot_paths/outbound/messagepack/invocation 32B / 1KiB / 64KiB (interleaved)",
+      "before": "162.3 / 1033.2 / 50456 ns",
+      "after": "111.9 / 564.5 / 29998 ns",
+      "delta": "-31.0% / -45.4% / -40.5%",
+      "source": "bench_ab.sh hot_paths outbound"
+    },
+    {
+      "metric": "hot_paths/outbound/json/invocation 32B / 1KiB / 64KiB (untouched path)",
+      "before": "110.8 / 1058.2 / 62121 ns",
+      "after": "115.2 / 1066.6 / 63165 ns",
+      "delta": "+4.0% (miss, limit ±2%) / +0.8% / +1.7%",
+      "source": "same"
+    },
+    {
+      "metric": "connection/send json / messagepack (interleaved)",
+      "before": "250.4 / 299.1 ns",
+      "after": "241.6 / 260.4 ns",
+      "delta": "-3.5% / -13.0%",
+      "source": "bench_ab.sh connection send"
+    }
+  ],
+  "reportMarkdown": "## MessagePack arguments in one reserved buffer Finished\n\n**Index:** 18 · **Checkpoint:** d0282d8 · **Result Commit:** none · **Attempt Count:** 1\n\n**Passed Status:** false. MessagePack invocation encoding was 31–45% faster and the loopback MessagePack send 13% faster, but the untouched JSON 32 B encoding was 4.0% slower in both interleaved pairs, over the declared ±2%. Protocol (80) and msgpack (18) unit groups, clippy and both wasm checks passed. **Finding:** the only change on the JSON path is `Invocation` growing by a `usize` count, which is moved by value through `ArgumentConfiguration`. Next hypothesis: keep the count as a `u32` that fits the struct's existing padding (next to the one-byte type and protocol fields), so `Invocation` keeps its size.\n\n**Scope lock:** `invoke.rs` and `msgpack.rs`; reverted.\n",
+  "decisionMarkdown": "### Decision\n\nReverted failure: source restored to d0282d8.\n",
+  "notes": ""
+}
