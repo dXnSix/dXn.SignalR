@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "45c20b4e-3fd5-43b8-b256-0da6c65953e9",
+  "loopId": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "index": 10,
+  "type": "hypothesis",
+  "name": "Direct write for awaited calls over the shared writer",
+  "slug": "direct-write-for-awaited-calls-over-the-shared-writer",
+  "path": "2026-11-04-10-direct-write-for-awaited-calls-over-the-shared-writer.json",
+  "createdAt": "2026-11-04T00:52:02Z",
+  "startedAt": "2026-11-04T00:52:02Z",
+  "finishedAt": "2026-11-04T00:58:40Z",
+  "state": "done",
+  "status": "failure",
+  "checkpointCommit": "489ca26a5542cbc9660ae0cb2f4e0d21826e7370",
+  "resultCommit": "",
+  "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard 489ca26a5542cbc9660ae0cb2f4e0d21826e7370",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "checkpointCommit": "489ca26a5542cbc9660ae0cb2f4e0d21826e7370",
+      "resultCommit": "",
+      "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard 489ca26a5542cbc9660ae0cb2f4e0d21826e7370",
+      "status": "failure"
+    }
+  ],
+  "repositoryCommits": [],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  },
+  "primaryTarget": "wasm/web with headed Playwright and WebGPU enabled",
+  "hypothesisMarkdown": "",
+  "measurementPlanMarkdown": "",
+  "expectedOutcomeMarkdown": "",
+  "diagnostics": {
+    "playwright": [],
+    "rayx": [],
+    "counters": [],
+    "artifacts": []
+  },
+  "measurements": [
+    {
+      "metric": "send json, 3 interleaved pairs (9 rounds; sends/s median; cpu µs median)",
+      "before": "1.75M; 0.753",
+      "after": "1.80M; 0.805",
+      "delta": "+3%; CPU +0.052 µs (limit +0.03)",
+      "source": "6 alternating send-only runs"
+    },
+    {
+      "metric": "send messagepack, 3 interleaved pairs",
+      "before": "1.79M; 1.048",
+      "after": "2.01M; 0.817",
+      "delta": "+12%; CPU -22%",
+      "source": "6 alternating send-only runs"
+    }
+  ],
+  "reportMarkdown": "## Direct write for awaited calls over the shared writer Finished\n\n**Index:** 10 · **Checkpoint:** 489ca26 · **Result Commit:** none · **Attempt Count:** 1\n\n**Passed Status:** false. On top of the shared writer handle the direct write no longer costs MessagePack sends (throughput +12%, CPU -22% against interleaved control), and JSON send throughput is +3%, but JSON CPU per send is +0.052 µs over 9 pooled rounds against the declared +0.03 µs limit. Round-to-round noise for that metric is about 0.72–0.92 µs. Unit, fmt, clippy and wasm checks passed; the full run and end-to-end scenarios were not taken once the A/B missed.\n\n**Scope lock:** experiment 7's design over db99d1c; reverted to the checkpoint.\n\n**Finding:** what a fire-and-forget send still pays is one sender-side counter RMW, plus, per writer batch, the sink lock and the writer's counter RMW (about 20 ns a batch, and batches are often one frame). Next hypothesis: the writer task is the only writer of `written`, so it publishes the count with a plain release store instead of an RMW. It is judged on noise-aware criteria (9 pooled interleaved rounds, CPU per send within 5%).\n",
+  "decisionMarkdown": "### Decision\n\nReverted failure: src/ restored to 489ca26.\n",
+  "notes": ""
+}
