@@ -29,7 +29,7 @@
     "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
   },
   "currentExperimentId": null,
-  "nextExperimentIndex": 16,
+  "nextExperimentIndex": 17,
   "experiments": [
     {
       "id": "18705952-1ea1-4749-b7cd-14f794b0320f",
@@ -203,6 +203,17 @@
       "state": "done",
       "status": "success",
       "resultCommit": "da184c3"
+    },
+    {
+      "id": "ab145aa4-2c53-479c-93e1-b99177526b42",
+      "index": 16,
+      "type": "hypothesis",
+      "name": "JSON arguments in one buffer, envelope written around it",
+      "path": "2026-11-04-16-json-arguments-in-one-buffer-envelope-written-around-it.json",
+      "startedAt": "2026-11-04T01:26:31Z",
+      "finishedAt": "2026-11-04T01:32:30Z",
+      "state": "done",
+      "status": "failure"
     }
   ]
 }
