@@ -29,7 +29,7 @@
     "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
   },
   "currentExperimentId": null,
-  "nextExperimentIndex": 4,
+  "nextExperimentIndex": 5,
   "experiments": [
     {
       "id": "18705952-1ea1-4749-b7cd-14f794b0320f",
@@ -66,6 +66,17 @@
       "state": "done",
       "status": "success",
       "resultCommit": "7d6e101"
+    },
+    {
+      "id": "1b4a1322-0a26-4515-bfea-88abb170c0c0",
+      "index": 4,
+      "type": "hypothesis",
+      "name": "Direct socket write for uncontended sends",
+      "path": "2026-11-04-04-direct-socket-write-for-uncontended-sends.json",
+      "startedAt": "2026-11-04T00:10:03Z",
+      "finishedAt": "2026-11-04T00:15:48Z",
+      "state": "done",
+      "status": "failure"
     }
   ]
 }

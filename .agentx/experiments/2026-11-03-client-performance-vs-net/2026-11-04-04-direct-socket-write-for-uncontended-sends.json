@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "id": "1b4a1322-0a26-4515-bfea-88abb170c0c0",
+  "loopId": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "index": 4,
+  "type": "hypothesis",
+  "name": "Direct socket write for uncontended sends",
+  "slug": "direct-socket-write-for-uncontended-sends",
+  "path": "2026-11-04-04-direct-socket-write-for-uncontended-sends.json",
+  "createdAt": "2026-11-04T00:10:03Z",
+  "startedAt": "2026-11-04T00:10:03Z",
+  "finishedAt": "2026-11-04T00:15:48Z",
+  "state": "done",
+  "status": "failure",
+  "checkpointCommit": "9ca3b85acfb866b2335d0ceca1ef7583e74c2194",
+  "resultCommit": "",
+  "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard 9ca3b85acfb866b2335d0ceca1ef7583e74c2194",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "checkpointCommit": "9ca3b85acfb866b2335d0ceca1ef7583e74c2194",
+      "resultCommit": "",
+      "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard 9ca3b85acfb866b2335d0ceca1ef7583e74c2194",
+      "status": "failure"
+    }
+  ],
+  "repositoryCommits": [],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  },
+  "primaryTarget": "wasm/web with headed Playwright and WebGPU enabled",
+  "hypothesisMarkdown": "",
+  "measurementPlanMarkdown": "",
+  "expectedOutcomeMarkdown": "",
+  "diagnostics": {
+    "playwright": [],
+    "rayx": [],
+    "counters": [],
+    "artifacts": []
+  },
+  "measurements": [
+    {
+      "metric": "invoke p50 json / messagepack (µs)",
+      "before": "86.0 / 85.1",
+      "after": "78.8 / 79.4",
+      "delta": "-8.4% / -6.7%",
+      "source": "Aspire Performance full"
+    },
+    {
+      "metric": "invoke cpu_us_per_op json / messagepack",
+      "before": "41.1 / 40.7",
+      "after": "26.5 / 26.6",
+      "delta": "-35%",
+      "source": "Aspire Performance full"
+    },
+    {
+      "metric": "send-throughput json / messagepack (sends/s)",
+      "before": "1,729,580 / 1,906,323",
+      "after": "1,108,934 / 1,354,879",
+      "delta": "-36% / -29% (regression)",
+      "source": "Aspire Performance full"
+    },
+    {
+      "metric": "send cpu_us_per_op json / messagepack",
+      "before": "0.8 / 0.9",
+      "after": "1.6 / 1.4",
+      "delta": "+100% / +56% (regression)",
+      "source": "Aspire Performance full"
+    },
+    {
+      "metric": "fan-in, stream",
+      "before": "experiment 3",
+      "after": "fan-in 44.2k/44.3k; stream 1.65M/1.59M",
+      "delta": "within noise",
+      "source": "Aspire Performance full"
+    }
+  ],
+  "reportMarkdown": "## Direct socket write for uncontended sends Finished\n\n**Index:** 4 · **Checkpoint:** 9ca3b85 · **Result Commit:** none · **Attempt Count:** 1\n\n**Passed Status:** false. Invoke latency fell 7–8% and invoke CPU per call 35%, as predicted, but send throughput fell 29–36% and CPU per send doubled. Unit tests (497 + 546), fmt, clippy and the wasm check passed; end-to-end scenarios were not run once the regression showed.\n\n**Scope lock:** only `src/communication/client_tokio.rs` changed; reverted to the checkpoint.\n\n**Finding:** a direct write for every send defeats the writer's coalescing. A sequential burst of fire-and-forget sends no longer accumulates in the queue: each send is its own `writev` and its own small WebSocket message, which costs the client a syscall per message and makes the service read and parse many small messages. The latency win is real for calls that wait for a result, so the next hypothesis limits the direct write to those (invocations with an invocation id, stream invocations, and client-result completions), leaving fire-and-forget sends on the coalescing queue.\n",
+  "decisionMarkdown": "### Decision\n\nReverted failure: src/communication/client_tokio.rs restored to 9ca3b85. Next: direct write only for calls that await a result.\n",
+  "notes": ""
+}
