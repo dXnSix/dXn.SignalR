@@ -11,7 +11,8 @@
 //! Every workload first runs its operation untimed on the measured connection(s) for the scale's
 //! warm-up (at least its minimum count and duration), exactly as the .NET reference does, so both
 //! clients are measured in steady state: the .NET client's tiered JIT and first-use
-//! initialization settle during the warm-up. Each result records the warm-up size.
+//! initialization settle during the warm-up. Each result records the warm-up size and the
+//! process's CPU time (user and system) per operation of the timed window, `cpu_us_per_op`.
 #![cfg(not(target_arch = "wasm32"))]
 
 use std::{
@@ -253,11 +254,13 @@ impl Workloads {
         }
         let warmup = warmup_started.elapsed();
         let mut latencies = Vec::with_capacity(self.scale.calls);
+        let cpu = CpuWindow::start();
         for _ in 0..self.scale.calls {
             let started = Instant::now();
             Self::echo(&mut client, &self.payload).await?;
             latencies.push(microseconds(started.elapsed()));
         }
+        let cpu_us_per_op = cpu.per_operation(self.scale.calls);
         client.disconnect();
         latencies.sort_by(f64::total_cmp);
         Ok(json!({
@@ -267,6 +270,7 @@ impl Workloads {
             "max_us": latencies.last().copied().unwrap_or_default(),
             "warmup_calls": warmup_calls,
             "warmup_ms": milliseconds(warmup),
+            "cpu_us_per_op": cpu_us_per_op,
         }))
     }
 
@@ -310,11 +314,14 @@ impl Workloads {
                 Self::consume_stream(&mut client, self.scale.warmup_stream_items).await?;
         }
         let warmup = warmup_started.elapsed();
+        let cpu = CpuWindow::start();
         let started = Instant::now();
         Self::consume_stream(&mut client, self.scale.stream_items).await?;
         let elapsed = started.elapsed();
+        let cpu_us_per_op = cpu.per_operation(self.scale.stream_items);
         client.disconnect();
         let mut metrics = throughput("items", self.scale.stream_items, elapsed);
+        metrics["cpu_us_per_op"] = json!(cpu_us_per_op);
         metrics["warmup_items"] = json!(warmup_items);
         metrics["warmup_ms"] = json!(milliseconds(warmup));
         Ok(metrics)
@@ -355,14 +362,17 @@ impl Workloads {
         }
         Self::sink_count(&mut client, warmup_sends).await?;
         let warmup = warmup_started.elapsed();
+        let cpu = CpuWindow::start();
         let started = Instant::now();
         for _ in 0..self.scale.sends {
             self.sink(&mut client).await?;
         }
         Self::sink_count(&mut client, warmup_sends + self.scale.sends).await?;
         let elapsed = started.elapsed();
+        let cpu_us_per_op = cpu.per_operation(self.scale.sends);
         client.disconnect();
         let mut metrics = throughput("sends", self.scale.sends, elapsed);
+        metrics["cpu_us_per_op"] = json!(cpu_us_per_op);
         metrics["warmup_sends"] = json!(warmup_sends);
         metrics["warmup_ms"] = json!(milliseconds(warmup));
         Ok(metrics)
@@ -419,20 +429,86 @@ impl Workloads {
         let warmup_started = Instant::now();
         let (clients, warmup_calls) = self.echo_on_every_client(clients, None).await?;
         let warmup = warmup_started.elapsed();
+        let cpu = CpuWindow::start();
         let started = Instant::now();
         let (clients, calls) = self
             .echo_on_every_client(clients, Some(self.scale.fan_in_calls))
             .await?;
         let elapsed = started.elapsed();
+        let cpu_us_per_op = cpu.per_operation(calls);
         for client in clients {
             client.disconnect();
         }
         let mut metrics = throughput("calls", calls, elapsed);
+        metrics["cpu_us_per_op"] = json!(cpu_us_per_op);
         metrics["clients"] = json!(self.scale.fan_in_clients);
         metrics["warmup_calls"] = json!(warmup_calls);
         metrics["warmup_ms"] = json!(milliseconds(warmup));
         Ok(metrics)
     }
+}
+
+/// The process's CPU time (user and system, every thread) over a timed window.
+struct CpuWindow {
+    started: Duration,
+}
+
+impl CpuWindow {
+    fn start() -> Self {
+        Self {
+            started: process_cpu_time(),
+        }
+    }
+
+    /// The window's CPU time per operation in microseconds, rounded to nanoseconds.
+    fn per_operation(&self, operations: usize) -> f64 {
+        let used = process_cpu_time().saturating_sub(self.started);
+        microseconds(used) / operations.max(1) as f64
+    }
+}
+
+#[cfg(unix)]
+fn process_cpu_time() -> Duration {
+    let mut usage = std::mem::MaybeUninit::<libc::rusage>::zeroed();
+    // SAFETY: `getrusage` only writes the `rusage` it is given; `RUSAGE_SELF` always succeeds.
+    let usage = unsafe {
+        libc::getrusage(libc::RUSAGE_SELF, usage.as_mut_ptr());
+        usage.assume_init()
+    };
+    let time = |value: libc::timeval| {
+        Duration::from_secs(value.tv_sec as u64) + Duration::from_micros(value.tv_usec as u64)
+    };
+    time(usage.ru_utime) + time(usage.ru_stime)
+}
+
+#[cfg(windows)]
+fn process_cpu_time() -> Duration {
+    use windows_sys::Win32::{
+        Foundation::FILETIME,
+        System::Threading::{GetCurrentProcess, GetProcessTimes},
+    };
+    let zero = || FILETIME {
+        dwLowDateTime: 0,
+        dwHighDateTime: 0,
+    };
+    let (mut creation, mut exit, mut kernel, mut user) = (zero(), zero(), zero(), zero());
+    // SAFETY: the current-process pseudo handle is always valid and every out pointer is live.
+    unsafe {
+        GetProcessTimes(
+            GetCurrentProcess(),
+            &mut creation,
+            &mut exit,
+            &mut kernel,
+            &mut user,
+        );
+    }
+    // FILETIME counts 100-nanosecond intervals.
+    let time = |value: FILETIME| {
+        Duration::from_nanos(
+            ((u64::from(value.dwHighDateTime) << 32) | u64::from(value.dwLowDateTime)) * 100,
+        )
+    };
+    time(kernel) + time(user)
 }
 
 /// A duration in microseconds, rounded to nanoseconds.

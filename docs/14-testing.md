@@ -281,7 +281,9 @@ Both clients run every warm-up identically, on the measured connections, for at 
 (0.2 seconds at `quick`), so the official client is measured in steady state: .NET's tiered JIT
 (left at its defaults, including dynamic PGO) and first-use initialization settle before the timed
 window. Each result also records its warm-up size (`warmup_calls`, `warmup_items` or
-`warmup_sends`, and `warmup_ms`).
+`warmup_sends`, and `warmup_ms`) and `cpu_us_per_op`: the client process's CPU time (user and
+system, every thread) during the timed window per operation, which measures the client's own cost
+where the shared service paces throughput.
 
 ```bash
 DXN_SIGNALR_PERF_WORKLOADS=all DXN_SIGNALR_PERF_SCALE=quick dotnet test dotnet/dXn.SignalR.E2E.Tests --filter Category=Performance

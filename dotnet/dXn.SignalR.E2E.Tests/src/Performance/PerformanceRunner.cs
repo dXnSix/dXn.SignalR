@@ -59,10 +59,10 @@ public static class PerformanceRunner
   /// <summary>The metrics every client reports per workload.</summary>
   public static readonly IReadOnlyDictionary<string, string[]> ExpectedMetrics = new Dictionary<string, string[]>
   {
-    ["invoke-latency"] = ["calls", "p50_us", "p99_us", "max_us", "warmup_calls", "warmup_ms"],
-    ["stream-throughput"] = ["items", "elapsed_ms", "items_per_second", "warmup_items", "warmup_ms"],
-    ["send-throughput"] = ["sends", "elapsed_ms", "sends_per_second", "warmup_sends", "warmup_ms"],
-    ["fan-in"] = ["clients", "calls", "elapsed_ms", "calls_per_second", "warmup_calls", "warmup_ms"]
+    ["invoke-latency"] = ["calls", "p50_us", "p99_us", "max_us", "warmup_calls", "warmup_ms", "cpu_us_per_op"],
+    ["stream-throughput"] = ["items", "elapsed_ms", "items_per_second", "warmup_items", "warmup_ms", "cpu_us_per_op"],
+    ["send-throughput"] = ["sends", "elapsed_ms", "sends_per_second", "warmup_sends", "warmup_ms", "cpu_us_per_op"],
+    ["fan-in"] = ["clients", "calls", "elapsed_ms", "calls_per_second", "warmup_calls", "warmup_ms", "cpu_us_per_op"]
   };
 
   /// <summary>Runs every round of <paramref name="row"/> and returns one median result per client.</summary>

@@ -186,12 +186,15 @@ sealed class Workloads(Uri hub, string protocol, Scale scale)
 
     TimeSpan warmup = Stopwatch.GetElapsedTime(warmupStarted);
     double[] latencies = new double[scale.Calls];
+    TimeSpan cpuStarted = ProcessorTime();
     for(int call = 0; call < scale.Calls; call++)
     {
       long started = Stopwatch.GetTimestamp();
       await EchoAsync(connection);
       latencies[call] = Stopwatch.GetElapsedTime(started).TotalMicroseconds;
     }
+
+    double cpuPerOperation = CpuPerOperation(cpuStarted, scale.Calls);
 
     Array.Sort(latencies);
     return new Dictionary<string, object>
@@ -201,7 +204,8 @@ sealed class Workloads(Uri hub, string protocol, Scale scale)
       ["p99_us"] = Percentile(latencies, 0.99),
       ["max_us"] = latencies[^1],
       ["warmup_calls"] = warmupCalls,
-      ["warmup_ms"] = Milliseconds(warmup)
+      ["warmup_ms"] = Milliseconds(warmup),
+      ["cpu_us_per_op"] = cpuPerOperation
     };
   }
 
@@ -239,10 +243,12 @@ sealed class Workloads(Uri hub, string protocol, Scale scale)
     }
 
     TimeSpan warmup = Stopwatch.GetElapsedTime(warmupStarted);
+    TimeSpan cpuStarted = ProcessorTime();
     long started = Stopwatch.GetTimestamp();
     await ConsumeStreamAsync(connection, scale.StreamItems);
     TimeSpan elapsed = Stopwatch.GetElapsedTime(started);
     Dictionary<string, object> metrics = Throughput("items", scale.StreamItems, elapsed);
+    metrics["cpu_us_per_op"] = CpuPerOperation(cpuStarted, scale.StreamItems);
     metrics["warmup_items"] = warmupItems;
     metrics["warmup_ms"] = Milliseconds(warmup);
     return metrics;
@@ -274,6 +280,7 @@ sealed class Workloads(Uri hub, string protocol, Scale scale)
 
     await SinkCountAsync(connection, warmupSends);
     TimeSpan warmup = Stopwatch.GetElapsedTime(warmupStarted);
+    TimeSpan cpuStarted = ProcessorTime();
     long started = Stopwatch.GetTimestamp();
     for(int send = 0; send < scale.Sends; send++)
     {
@@ -283,6 +290,7 @@ sealed class Workloads(Uri hub, string protocol, Scale scale)
     await SinkCountAsync(connection, (long)warmupSends + scale.Sends);
     TimeSpan elapsed = Stopwatch.GetElapsedTime(started);
     Dictionary<string, object> metrics = Throughput("sends", scale.Sends, elapsed);
+    metrics["cpu_us_per_op"] = CpuPerOperation(cpuStarted, scale.Sends);
     metrics["warmup_sends"] = warmupSends;
     metrics["warmup_ms"] = Milliseconds(warmup);
     return metrics;
@@ -321,10 +329,12 @@ sealed class Workloads(Uri hub, string protocol, Scale scale)
       long warmupStarted = Stopwatch.GetTimestamp();
       int warmupCalls = await EchoOnEveryConnectionAsync(connections, calls: null);
       TimeSpan warmup = Stopwatch.GetElapsedTime(warmupStarted);
+      TimeSpan cpuStarted = ProcessorTime();
       long started = Stopwatch.GetTimestamp();
       int calls = await EchoOnEveryConnectionAsync(connections, scale.FanInCalls);
       TimeSpan elapsed = Stopwatch.GetElapsedTime(started);
       Dictionary<string, object> metrics = Throughput("calls", calls, elapsed);
+      metrics["cpu_us_per_op"] = CpuPerOperation(cpuStarted, calls);
       metrics["clients"] = scale.FanInClients;
       metrics["warmup_calls"] = warmupCalls;
       metrics["warmup_ms"] = Milliseconds(warmup);
@@ -356,6 +366,17 @@ sealed class Workloads(Uri hub, string protocol, Scale scale)
   }
 
   static double Milliseconds(TimeSpan duration) => Math.Round(duration.TotalMilliseconds, 3);
+
+  /// <summary>The process's CPU time (user and system, every thread).</summary>
+  static TimeSpan ProcessorTime()
+  {
+    using Process process = Process.GetCurrentProcess();
+    return process.TotalProcessorTime;
+  }
+
+  /// <summary>The CPU time since <paramref name="started"/> per operation, in microseconds.</summary>
+  static double CpuPerOperation(TimeSpan started, int operations) =>
+    Math.Round((ProcessorTime() - started).TotalMicroseconds / Math.Max(operations, 1), 3);
 
   static Dictionary<string, object> Throughput(string unit, int count, TimeSpan elapsed) => new()
   {

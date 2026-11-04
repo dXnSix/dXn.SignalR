@@ -132,6 +132,13 @@ hyper = { version = "1.11", default-features = false, features = ["server", "htt
 # Test certificates generated at test time (the `client_certificates_` group); no key is committed.
 rcgen = { version = "0.14", default-features = false, features = ["crypto", "pem", "ring"] }
 
+# The process CPU time the `perf` workloads report per operation (`cpu_us_per_op`).
+[target.'cfg(unix)'.dev-dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dev-dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading"] }
+
 # Black-box end-to-end scenarios; run only through the Aspire runner (`dotnet test`).
 [[test]]
 name = "e2e"

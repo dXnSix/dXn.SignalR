@@ -41,7 +41,7 @@ The numbers come from one machine and one day, and the raw report is a CI artifa
 | `send-throughput` | 50,000 sends acknowledged by a final invocation | `sends_per_second` |
 | `fan-in` | 8 concurrent clients each invoking 1,000 times | aggregate `calls_per_second` |
 
-Each workload warms up first on the measured connection for at least two seconds, so the .NET client's tiered JIT settles before the timed window.
+Each workload warms up first on the measured connection for at least two seconds, so the .NET client's tiered JIT settles before the timed window. Every workload also reports `cpu_us_per_op`, the client process's CPU time during the timed window per operation: where the shared service sets the pace, this is the client's own cost.
 
 ## Run it yourself
 
