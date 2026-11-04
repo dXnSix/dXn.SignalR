@@ -47,7 +47,7 @@ use super::{
     transport::TransportKind,
     Communication, HttpClient,
 };
-use futures::{channel::mpsc, future::Either, SinkExt, StreamExt};
+use futures::{channel::mpsc, future::Either, FutureExt, SinkExt, StreamExt};
 use http::Uri;
 use log::{debug, error, info};
 use tokio::{runtime::Handle, sync::Mutex, task::JoinHandle};
@@ -1559,25 +1559,33 @@ impl CommunicationConnection {
                 let item = match pending.take() {
                     Some(message) => Ok(message),
                     None => {
-                        let timeout = liveness.timeout_deadline();
-                        // A deferred stateful Ack wakes the loop too (the 1-second cadence), and
-                        // so does the liveness tick (the .NET client's 1-second timer), so a
-                        // wake after a suspension is found late at once.
-                        let ack = stateful
-                            .as_ref()
-                            .and_then(|buffer| buffer.locked().acknowledgement_due());
-                        let waiting_since = liveness.now();
-                        let tick =
-                            timeout.map(|_| waiting_since + LIVENESS_TICK.as_millis() as u64);
-                        let wake = [ack, timeout, tick].into_iter().flatten().min();
-                        let next = match wake {
+                        // A frame already buffered (the next of a burst) needs no timed wait.
+                        let ready = stream.next().now_or_never();
+                        let (timeout, wake, waiting_since) = if ready.is_some() {
+                            (None, None, 0)
+                        } else {
+                            let timeout = liveness.timeout_deadline();
+                            // A deferred stateful Ack wakes the loop too (the 1-second cadence),
+                            // and so does the liveness tick (the .NET client's 1-second timer),
+                            // so a wake after a suspension is found late at once.
+                            let ack = stateful
+                                .as_ref()
+                                .and_then(|buffer| buffer.locked().acknowledgement_due());
+                            let waiting_since = liveness.now();
+                            let tick =
+                                timeout.map(|_| waiting_since + LIVENESS_TICK.as_millis() as u64);
+                            let wake = [ack, timeout, tick].into_iter().flatten().min();
+                            (timeout, wake, waiting_since)
+                        };
+                        let next = match (ready, wake) {
+                            (Some(next), _) => Ok(next),
                             // The wait's start is the deadline's reading too.
-                            Some(wake) => {
+                            (None, Some(wake)) => {
                                 let deadline =
                                     ConnectionLiveness::instant_from(wake, waiting_since);
                                 tokio::time::timeout_at(deadline, stream.next()).await
                             }
-                            None => Ok(stream.next().await),
+                            (None, None) => Ok(stream.next().await),
                         };
                         match next {
                             Ok(Some(item)) => item,
