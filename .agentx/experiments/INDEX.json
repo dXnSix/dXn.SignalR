@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
-  "currentLoopId": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "currentLoopId": null,
   "loops": [
     {
       "id": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
       "name": "Client performance vs .NET",
       "path": "2026-11-03-client-performance-vs-net/",
       "createdAt": "2026-11-03T23:39:11Z",
-      "finishedAt": null,
-      "state": "running",
-      "status": ""
+      "finishedAt": "2026-11-04T08:56:27Z",
+      "state": "done",
+      "status": "stopped"
     }
   ]
 }

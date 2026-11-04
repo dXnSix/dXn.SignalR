@@ -7,10 +7,10 @@
   "target": "",
   "maxIterations": 100,
   "maxExperiments": 100,
-  "state": "running",
-  "status": "",
+  "state": "done",
+  "status": "stopped",
   "createdAt": "2026-11-03T23:39:11Z",
-  "finishedAt": null,
+  "finishedAt": "2026-11-04T08:56:27Z",
   "lastStableCommit": "d83ed2b",
   "repositories": [
     {
