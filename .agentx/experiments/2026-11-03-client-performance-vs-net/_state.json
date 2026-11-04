@@ -29,7 +29,7 @@
     "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
   },
   "currentExperimentId": null,
-  "nextExperimentIndex": 29,
+  "nextExperimentIndex": 30,
   "experiments": [
     {
       "id": "18705952-1ea1-4749-b7cd-14f794b0320f",
@@ -351,6 +351,17 @@
       "path": "2026-11-04-28-spin-on-the-stream-queue-lock-only-off-the-fast-path.json",
       "startedAt": "2026-11-04T03:18:45Z",
       "finishedAt": "2026-11-04T03:33:22Z",
+      "state": "done",
+      "status": "failure"
+    },
+    {
+      "id": "043bed06-ecdb-4d12-a1d0-5b4f73e6e407",
+      "index": 29,
+      "type": "hypothesis",
+      "name": "Cold-path lock spin under calibrated guards",
+      "path": "2026-11-04-29-cold-path-lock-spin-under-calibrated-guards.json",
+      "startedAt": "2026-11-04T03:33:26Z",
+      "finishedAt": "2026-11-04T03:51:49Z",
       "state": "done",
       "status": "failure"
     }

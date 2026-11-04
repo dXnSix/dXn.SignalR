@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "id": "043bed06-ecdb-4d12-a1d0-5b4f73e6e407",
+  "loopId": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "index": 29,
+  "type": "hypothesis",
+  "name": "Cold-path lock spin under calibrated guards",
+  "slug": "cold-path-lock-spin-under-calibrated-guards",
+  "path": "2026-11-04-29-cold-path-lock-spin-under-calibrated-guards.json",
+  "createdAt": "2026-11-04T03:33:26Z",
+  "startedAt": "2026-11-04T03:33:26Z",
+  "finishedAt": "2026-11-04T03:51:49Z",
+  "state": "done",
+  "status": "failure",
+  "checkpointCommit": "c063c888da7ceb5d9be45f92edb020d746fb39e1",
+  "resultCommit": "",
+  "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard c063c888da7ceb5d9be45f92edb020d746fb39e1",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "checkpointCommit": "c063c888da7ceb5d9be45f92edb020d746fb39e1",
+      "resultCommit": "",
+      "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard c063c888da7ceb5d9be45f92edb020d746fb39e1",
+      "status": "failure"
+    }
+  ],
+  "repositoryCommits": [],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  },
+  "primaryTarget": "wasm/web with headed Playwright and WebGPU enabled",
+  "hypothesisMarkdown": "",
+  "measurementPlanMarkdown": "",
+  "expectedOutcomeMarkdown": "",
+  "diagnostics": {
+    "playwright": [],
+    "rayx": [],
+    "counters": [],
+    "artifacts": []
+  },
+  "measurements": [
+    {
+      "metric": "connection/stream json / messagepack (ABBA, 4 pairs)",
+      "before": "552.2 / 441.7 ns",
+      "after": "484.3 / 395.6 ns",
+      "delta": "-12.3% / -10.4%",
+      "source": "bench_ab.sh connection, 4 pairs"
+    },
+    {
+      "metric": "connection/invoke, connection/send",
+      "before": "control",
+      "after": "-0.4% to +0.4%",
+      "delta": "level",
+      "source": "same"
+    },
+    {
+      "metric": "hot_paths/inbound stream-item (6 sizes)",
+      "before": "control",
+      "after": "-1.9% to +0.9%, except messagepack 64KiB +2.6%",
+      "delta": "64 KiB miss (bar 2%); its control rounds spread 4.4%",
+      "source": "bench_ab.sh hot_paths, 4 pairs"
+    }
+  ],
+  "reportMarkdown": "## Cold-path lock spin under calibrated guards Finished\n\n**Index:** 29 · **Checkpoint:** c063c88 · **Result Commit:** none · **Attempt Count:** 1\n\n**Passed Status:** false. Stream items -12.3% / -10.4% and invoke and send level, but the MessagePack 64 KiB stream-item micro-benchmark read +2.6% against a 2% bar, while its own control rounds spread 4.4% and a lock change costs the same few nanoseconds at every item size. **Finding:** guard bars were again set inside the guard's own noise. From experiment 30 on, the loop configuration defines a guard regression as a mean worse than control by more than its bar AND no overlap between change and control rounds.\n\n**Scope lock:** unchanged from experiment 28; reverted (patch kept).\n",
+  "decisionMarkdown": "### Decision\n\nReverted failure: source restored to c063c88.\n",
+  "notes": ""
+}
