@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "id": "42af05dc-ae86-42ea-9447-649eedf92a0b",
+  "loopId": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "index": 21,
+  "type": "hypothesis",
+  "name": "Server stream items on a lock-free channel",
+  "slug": "server-stream-items-on-a-lock-free-channel",
+  "path": "2026-11-04-21-server-stream-items-on-a-lock-free-channel.json",
+  "createdAt": "2026-11-04T02:02:58Z",
+  "startedAt": "2026-11-04T02:02:58Z",
+  "finishedAt": "2026-11-04T02:10:52Z",
+  "state": "done",
+  "status": "failure",
+  "checkpointCommit": "823572b0dd9164c079a463ade291517f25d78172",
+  "resultCommit": "",
+  "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard 823572b0dd9164c079a463ade291517f25d78172",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "checkpointCommit": "823572b0dd9164c079a463ade291517f25d78172",
+      "resultCommit": "",
+      "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard 823572b0dd9164c079a463ade291517f25d78172",
+      "status": "failure"
+    }
+  ],
+  "repositoryCommits": [],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  },
+  "primaryTarget": "wasm/web with headed Playwright and WebGPU enabled",
+  "hypothesisMarkdown": "",
+  "measurementPlanMarkdown": "",
+  "expectedOutcomeMarkdown": "",
+  "diagnostics": {
+    "playwright": [],
+    "rayx": [],
+    "counters": [],
+    "artifacts": []
+  },
+  "measurements": [
+    {
+      "metric": "connection/stream json / messagepack (interleaved, 2 pairs)",
+      "before": "968.6 / 868.5 ns per item",
+      "after": "817.8 / 731.1 ns per item",
+      "delta": "-15.6% / -15.8%",
+      "source": "bench_ab.sh connection stream"
+    },
+    {
+      "metric": "hot_paths/inbound stream-item json 32B / 1KiB / 64KiB",
+      "before": "172.1 / 1724.0 / 96084 ns",
+      "after": "181.9 / 1729.3 / 95790 ns",
+      "delta": "+5.7% / +0.3% / -0.3%",
+      "source": "bench_ab.sh hot_paths stream-item"
+    },
+    {
+      "metric": "hot_paths/inbound stream-item messagepack 32B / 1KiB / 64KiB",
+      "before": "98.1 / 1480.9 / 88789 ns",
+      "after": "104.9 / 1509.4 / 89788 ns",
+      "delta": "+6.9% / +1.9% / +1.1%",
+      "source": "same"
+    }
+  ],
+  "reportMarkdown": "## Server stream items on a lock-free channel Finished\n\n**Index:** 21 · **Checkpoint:** 823572b · **Result Commit:** none · **Attempt Count:** 1\n\n**Passed Status:** false (process). The implementation was written before the hypothesis block and its pass criteria were printed, so no predeclared criteria exist and the run cannot be accepted. Measured: loopback stream items -15.6% / -15.8% (interleaved), but the single-threaded hot_paths stream-item benchmark +5.7% / +6.9% at 32 B, because the futures channel allocates a node per item where the VecDeque reused slots. Stream unit tests (39), clippy and both wasm checks passed. **Finding:** contention between the receive loop and the consumer is the stream path's largest cost; removing the lock wins 16% end to end. Next: a consumer-side batch drain (one lock per batch instead of per item) under predeclared criteria, then the lock-free channel again under criteria stated before measuring.\n\n**Scope lock:** `src/completer/manual_stream.rs`; reverted (patch kept in the scratchpad).\n",
+  "decisionMarkdown": "### Decision\n\nReverted failure: source restored to 823572b.\n",
+  "notes": ""
+}
