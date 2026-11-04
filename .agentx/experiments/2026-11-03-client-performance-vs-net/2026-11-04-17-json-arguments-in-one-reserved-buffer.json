@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "id": "1adf3f1b-88bd-42a4-b865-8c3aec1b905c",
+  "loopId": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "index": 17,
+  "type": "hypothesis",
+  "name": "JSON arguments in one reserved buffer",
+  "slug": "json-arguments-in-one-reserved-buffer",
+  "path": "2026-11-04-17-json-arguments-in-one-reserved-buffer.json",
+  "createdAt": "2026-11-04T01:32:49Z",
+  "startedAt": "2026-11-04T01:32:49Z",
+  "finishedAt": "2026-11-04T01:40:59Z",
+  "state": "done",
+  "status": "success",
+  "checkpointCommit": "9ebca69bdd07cc993ceabc85ad22a24ff1c18864",
+  "resultCommit": "43defcd",
+  "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard 9ebca69bdd07cc993ceabc85ad22a24ff1c18864",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "checkpointCommit": "9ebca69bdd07cc993ceabc85ad22a24ff1c18864",
+      "resultCommit": "43defcd",
+      "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard 9ebca69bdd07cc993ceabc85ad22a24ff1c18864",
+      "status": "success"
+    }
+  ],
+  "repositoryCommits": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "commit": "43defcd"
+    }
+  ],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  },
+  "primaryTarget": "wasm/web with headed Playwright and WebGPU enabled",
+  "hypothesisMarkdown": "",
+  "measurementPlanMarkdown": "",
+  "expectedOutcomeMarkdown": "",
+  "diagnostics": {
+    "playwright": [],
+    "rayx": [],
+    "counters": [],
+    "artifacts": []
+  },
+  "measurements": [
+    {
+      "metric": "hot_paths/outbound/json/invocation 32B / 1KiB / 64KiB (interleaved, 2 pairs)",
+      "before": "168.2 / 1186.9 / 62111 ns",
+      "after": "114.9 / 1056.0 / 62571 ns",
+      "delta": "-31.7% / -11.0% / +0.7%",
+      "source": "bench_ab.sh hot_paths outbound"
+    },
+    {
+      "metric": "hot_paths/outbound/messagepack (untouched)",
+      "before": "163.0 / 1026.5 / 50485 ns",
+      "after": "163.3 / 1043.8 / 50991 ns",
+      "delta": "+0.1% / +1.7% / +1.0%",
+      "source": "same"
+    },
+    {
+      "metric": "connection/send json / messagepack (interleaved, 2 pairs)",
+      "before": "294.1 / 301.6 ns",
+      "after": "246.2 / 296.2 ns",
+      "delta": "-16.3% / -1.8%",
+      "source": "bench_ab.sh connection send"
+    }
+  ],
+  "reportMarkdown": "## JSON arguments in one reserved buffer Finished\n\n**Index:** 17 · **Checkpoint:** 9ebca69 · **Result Commit:** 43defcd · **Attempt Count:** 1\n\n**Passed Status:** true. Interleaved A/B: JSON invocation encoding -32% (32 B) and -11% (1 KiB), 64 KiB +0.7%; loopback JSON send -16%; MessagePack within 2%. Unit tests (497 + 546 earlier, 497 now), documentation tests, fmt, clippy, both wasm checks and 26 native and Chromium end-to-end cells (invoke, send, msgpack-fidelity, request-headers, client-to-server-stream, server-stream, callbacks) pass.\n\n**Scope lock:** `Invocation` stores JSON arguments in one buffer and writes its record (`invoke.rs`); `OutboundMessage::invocation` uses it through `SerializedFrame::json` (`codec.rs`).\n",
+  "decisionMarkdown": "### Decision\n\nCommitted success: 43defcd perf(json): encode invocation arguments into one buffer and write the record around it.\n",
+  "notes": ""
+}

@@ -11,13 +11,13 @@
   "status": "",
   "createdAt": "2026-11-03T23:39:11Z",
   "finishedAt": null,
-  "lastStableCommit": "da184c3",
+  "lastStableCommit": "43defcd",
   "repositories": [
     {
       "name": "main",
       "path": ".",
       "role": "main",
-      "lastStableCommit": "da184c3"
+      "lastStableCommit": "43defcd"
     }
   ],
   "atomicDiscipline": {
@@ -29,7 +29,7 @@
     "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
   },
   "currentExperimentId": null,
-  "nextExperimentIndex": 17,
+  "nextExperimentIndex": 18,
   "experiments": [
     {
       "id": "18705952-1ea1-4749-b7cd-14f794b0320f",
@@ -214,6 +214,18 @@
       "finishedAt": "2026-11-04T01:32:30Z",
       "state": "done",
       "status": "failure"
+    },
+    {
+      "id": "1adf3f1b-88bd-42a4-b865-8c3aec1b905c",
+      "index": 17,
+      "type": "hypothesis",
+      "name": "JSON arguments in one reserved buffer",
+      "path": "2026-11-04-17-json-arguments-in-one-reserved-buffer.json",
+      "startedAt": "2026-11-04T01:32:49Z",
+      "finishedAt": "2026-11-04T01:40:59Z",
+      "state": "done",
+      "status": "success",
+      "resultCommit": "43defcd"
     }
   ]
 }
