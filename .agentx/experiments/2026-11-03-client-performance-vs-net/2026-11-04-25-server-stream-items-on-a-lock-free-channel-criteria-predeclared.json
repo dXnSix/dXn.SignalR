@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "id": "7abef42f-01e9-4b42-b4a2-5752e5df9e9a",
+  "loopId": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "index": 25,
+  "type": "hypothesis",
+  "name": "Server stream items on a lock-free channel, criteria predeclared",
+  "slug": "server-stream-items-on-a-lock-free-channel-criteria-predeclared",
+  "path": "2026-11-04-25-server-stream-items-on-a-lock-free-channel-criteria-predeclared.json",
+  "createdAt": "2026-11-04T02:47:31Z",
+  "startedAt": "2026-11-04T02:47:31Z",
+  "finishedAt": "2026-11-04T02:58:04Z",
+  "state": "done",
+  "status": "failure",
+  "checkpointCommit": "48ab9637713861a3dcbd920d6bf818b2dfecbd64",
+  "resultCommit": "",
+  "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard 48ab9637713861a3dcbd920d6bf818b2dfecbd64",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "checkpointCommit": "48ab9637713861a3dcbd920d6bf818b2dfecbd64",
+      "resultCommit": "",
+      "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard 48ab9637713861a3dcbd920d6bf818b2dfecbd64",
+      "status": "failure"
+    }
+  ],
+  "repositoryCommits": [],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  },
+  "primaryTarget": "wasm/web with headed Playwright and WebGPU enabled",
+  "hypothesisMarkdown": "",
+  "measurementPlanMarkdown": "",
+  "expectedOutcomeMarkdown": "",
+  "diagnostics": {
+    "playwright": [],
+    "rayx": [],
+    "counters": [],
+    "artifacts": []
+  },
+  "measurements": [
+    {
+      "metric": "connection/stream json / messagepack (interleaved, 2 pairs)",
+      "before": "602.8 / 513.9 ns per item",
+      "after": "562.1 / 495.7 ns per item",
+      "delta": "-6.8% / -3.5% (miss, bar -5%)",
+      "source": "bench_ab.sh connection"
+    },
+    {
+      "metric": "hot_paths/inbound stream-item 32B json / messagepack",
+      "before": "173.4 / 95.6 ns",
+      "after": "182.3 / 104.1 ns",
+      "delta": "+5.2% / +8.9% (miss, bar +8%)",
+      "source": "bench_ab.sh hot_paths stream-item"
+    },
+    {
+      "metric": "connection/invoke, send",
+      "before": "control",
+      "after": "-0.1% to +1.9%",
+      "delta": "within 3%",
+      "source": "bench_ab.sh connection"
+    }
+  ],
+  "reportMarkdown": "## Server stream items on a lock-free channel, criteria predeclared Finished\n\n**Index:** 25 · **Checkpoint:** 48ab963 · **Result Commit:** none · **Attempt Count:** 1\n\n**Passed Status:** false. On top of the batch drain, the lock-free channel made loopback stream items 6.8% (JSON) and only 3.5% (MessagePack) faster, under the 5% bar, while the single-threaded MessagePack hand-off was 8.9% slower, over the predeclared 8% allowance. Unit tests, clippy and both wasm checks passed. **Finding:** the batch drain already took most of the contention out; what is left does not pay for a node allocation per item.\n\n**Scope lock:** `src/completer/manual_stream.rs`; reverted to the batch-drain version.\n",
+  "decisionMarkdown": "### Decision\n\nReverted failure: source restored to 48ab963.\n",
+  "notes": ""
+}

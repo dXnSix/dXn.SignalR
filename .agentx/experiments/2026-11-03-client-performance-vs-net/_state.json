@@ -29,7 +29,7 @@
     "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
   },
   "currentExperimentId": null,
-  "nextExperimentIndex": 25,
+  "nextExperimentIndex": 26,
   "experiments": [
     {
       "id": "18705952-1ea1-4749-b7cd-14f794b0320f",
@@ -308,6 +308,17 @@
       "state": "done",
       "status": "success",
       "resultCommit": "2e54352"
+    },
+    {
+      "id": "7abef42f-01e9-4b42-b4a2-5752e5df9e9a",
+      "index": 25,
+      "type": "hypothesis",
+      "name": "Server stream items on a lock-free channel, criteria predeclared",
+      "path": "2026-11-04-25-server-stream-items-on-a-lock-free-channel-criteria-predeclared.json",
+      "startedAt": "2026-11-04T02:47:31Z",
+      "finishedAt": "2026-11-04T02:58:04Z",
+      "state": "done",
+      "status": "failure"
     }
   ]
 }
