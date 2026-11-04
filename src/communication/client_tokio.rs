@@ -457,7 +457,7 @@ impl ConnectionWriter {
     /// connection, whose pending work it does not belong to. A lost transport not yet replaced is
     /// waited for, at most for `STALE_RETRY_LIMIT`. Returns the logical connection the message was
     /// accepted on.
-    async fn send_current<F, Fut>(
+    async fn send_current<F, Fut, W>(
         mut current: F,
         logical_connection: impl Fn() -> u64,
         message: OutboundMessage,
@@ -465,7 +465,8 @@ impl ConnectionWriter {
     ) -> Result<u64, Error>
     where
         F: FnMut() -> Fut,
-        Fut: std::future::Future<Output = Result<ConnectionWriter, Error>>,
+        Fut: std::future::Future<Output = Result<W, Error>>,
+        W: std::borrow::Borrow<ConnectionWriter>,
     {
         let started = std::time::Instant::now();
         let mut stale = None;
@@ -481,7 +482,7 @@ impl ConnectionWriter {
                     return Err(error);
                 }
             }
-            match writer.try_send(&message).await {
+            match writer.borrow().try_send(&message).await {
                 Ok(()) => return Ok(sending_on),
                 Err(Unsent::Failed(error)) => return Err(error),
                 Err(Unsent::Stale(error)) => {
@@ -802,9 +803,9 @@ impl ReconnectionContext {
                 return Some(error);
             }
             let channels = WriterChannels::new();
-            *guard = ConnectionState::NotConnected(DisconnectionReason::Resuming(
+            *guard = ConnectionState::NotConnected(DisconnectionReason::Resuming(Arc::new(
                 channels.writer(Some(buffer.clone()), runtime),
-            ));
+            )));
             channels
         };
         info!("The transport was lost; resuming the stateful connection");
@@ -1135,7 +1136,9 @@ impl ReconnectionContext {
 /// One physical WebSocket: a runtime-owned writer task that owns the sink and a runtime-owned
 /// receiver task that dispatches inbound frames.
 pub(crate) struct CommunicationConnection {
-    writer: ConnectionWriter,
+    /// Shared with every send, which takes one reference count instead of cloning the writer's
+    /// channel handles.
+    writer: Arc<ConnectionWriter>,
     /// How the writer ends once its channels close (`WRITER_*`).
     stop_mode: Arc<std::sync::atomic::AtomicU8>,
     runtime: Handle,
@@ -1195,7 +1198,7 @@ impl CommunicationConnection {
             writer.clone(),
         ));
         Self {
-            writer,
+            writer: Arc::new(writer),
             stop_mode,
             runtime,
             _receiver: Some(receiver),
@@ -1618,7 +1621,7 @@ enum DisconnectionReason {
     /// A stateful transport was lost and is being resumed transparently: the client stays
     /// connected and sends go into the replay buffer, through this writer of the resumed
     /// transport.
-    Resuming(ConnectionWriter),
+    Resuming(Arc<ConnectionWriter>),
 }
 
 impl DisconnectionReason {
@@ -1924,7 +1927,7 @@ impl CommunicationClient {
     /// As the official .NET client's connection lock, a call made while a start or reconnect
     /// attempt is in flight waits for it, then runs on the new connection or fails with the
     /// attempt's error; during a reconnect delay it fails at once.
-    async fn writer(&self) -> Result<ConnectionWriter, Error> {
+    async fn writer(&self) -> Result<Arc<ConnectionWriter>, Error> {
         // The state lock is released before the connection lock is awaited.
         let connection = {
             let state = self._state.lock().await;
@@ -2896,7 +2899,7 @@ impl TransportReplies {
         state: Weak<Mutex<ConnectionState>>,
         current: Arc<std::sync::atomic::AtomicU64>,
         logical_connection: u64,
-    ) -> Result<ConnectionWriter, Error> {
+    ) -> Result<Arc<ConnectionWriter>, Error> {
         let state = state.upgrade().ok_or_else(Error::closed_locally)?;
         let connection = {
             let state = state.lock().await;
