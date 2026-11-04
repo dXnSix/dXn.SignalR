@@ -11,13 +11,13 @@
   "status": "",
   "createdAt": "2026-11-03T23:39:11Z",
   "finishedAt": null,
-  "lastStableCommit": "8f8ea18",
+  "lastStableCommit": "53ce346",
   "repositories": [
     {
       "name": "main",
       "path": ".",
       "role": "main",
-      "lastStableCommit": "8f8ea18"
+      "lastStableCommit": "53ce346"
     }
   ],
   "atomicDiscipline": {
@@ -29,7 +29,7 @@
     "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
   },
   "currentExperimentId": null,
-  "nextExperimentIndex": 22,
+  "nextExperimentIndex": 23,
   "experiments": [
     {
       "id": "18705952-1ea1-4749-b7cd-14f794b0320f",
@@ -272,6 +272,18 @@
       "finishedAt": "2026-11-04T02:10:52Z",
       "state": "done",
       "status": "failure"
+    },
+    {
+      "id": "18406ab8-8159-423b-83f9-63037f7fb331",
+      "index": 22,
+      "type": "hypothesis",
+      "name": "Server stream consumer drains its queue in batches",
+      "path": "2026-11-04-22-server-stream-consumer-drains-its-queue-in-batches.json",
+      "startedAt": "2026-11-04T02:10:55Z",
+      "finishedAt": "2026-11-04T02:23:54Z",
+      "state": "done",
+      "status": "success",
+      "resultCommit": "53ce346"
     }
   ]
 }

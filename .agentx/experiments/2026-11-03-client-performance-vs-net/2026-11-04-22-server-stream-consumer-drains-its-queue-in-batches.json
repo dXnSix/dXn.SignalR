@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "id": "18406ab8-8159-423b-83f9-63037f7fb331",
+  "loopId": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "index": 22,
+  "type": "hypothesis",
+  "name": "Server stream consumer drains its queue in batches",
+  "slug": "server-stream-consumer-drains-its-queue-in-batches",
+  "path": "2026-11-04-22-server-stream-consumer-drains-its-queue-in-batches.json",
+  "createdAt": "2026-11-04T02:10:55Z",
+  "startedAt": "2026-11-04T02:10:55Z",
+  "finishedAt": "2026-11-04T02:23:54Z",
+  "state": "done",
+  "status": "success",
+  "checkpointCommit": "e09db2b7c27bd7e7c6bb8c574ee604218ce862f4",
+  "resultCommit": "53ce346",
+  "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard e09db2b7c27bd7e7c6bb8c574ee604218ce862f4",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "checkpointCommit": "e09db2b7c27bd7e7c6bb8c574ee604218ce862f4",
+      "resultCommit": "53ce346",
+      "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard e09db2b7c27bd7e7c6bb8c574ee604218ce862f4",
+      "status": "success"
+    }
+  ],
+  "repositoryCommits": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "commit": "53ce346"
+    }
+  ],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  },
+  "primaryTarget": "wasm/web with headed Playwright and WebGPU enabled",
+  "hypothesisMarkdown": "",
+  "measurementPlanMarkdown": "",
+  "expectedOutcomeMarkdown": "",
+  "diagnostics": {
+    "playwright": [],
+    "rayx": [],
+    "counters": [],
+    "artifacts": []
+  },
+  "measurements": [
+    {
+      "metric": "connection/stream json / messagepack (interleaved, 2 pairs)",
+      "before": "963.7 / 862.8 ns per item",
+      "after": "849.7 / 784.2 ns per item",
+      "delta": "-11.8% / -9.1%",
+      "source": "bench_ab.sh connection"
+    },
+    {
+      "metric": "hot_paths/inbound stream-item (6 sizes)",
+      "before": "control",
+      "after": "-0.9% to +1.4%",
+      "delta": "within 2%",
+      "source": "bench_ab.sh hot_paths stream-item"
+    },
+    {
+      "metric": "connection/send json / messagepack (4 pairs pooled)",
+      "before": "250.1 / 261.2 ns",
+      "after": "254.9 / 265.2 ns",
+      "delta": "+1.9% / +1.5% (untouched path; first pair +2.1/+3.05, re-measured +1.8/0.0)",
+      "source": "bench_ab.sh connection, twice"
+    },
+    {
+      "metric": "connection/invoke",
+      "before": "21323 / 22284 ns",
+      "after": "21338 / 22285 ns",
+      "delta": "0.0%",
+      "source": "bench_ab.sh connection"
+    }
+  ],
+  "reportMarkdown": "## Server stream consumer drains its queue in batches Finished\n\n**Index:** 22 · **Checkpoint:** e09db2b · **Result Commit:** 53ce346 · **Attempt Count:** 1\n\n**Passed Status:** true. Loopback stream items -11.8% / -9.1%; hot_paths stream-item within 2%; invoke unchanged. MessagePack send, which never touches the stream, measured +3.05% in the first interleaved pair (rounds not overlapping) and 0.0% when re-measured, +1.5% pooled over four pairs, inside the 3% bar. Stream unit tests (39), clippy, the wasm check and 6 native end-to-end cells (server-stream, stream-cancellation, short-stream-chaining, unsent-stream) pass. An explicit `Unpin` impl keeps `ManualStream<T>` `Unpin` for every `T`, as before.\n\n**Scope lock:** a consumer-owned batch buffer in `src/completer/manual_stream.rs`.\n",
+  "decisionMarkdown": "### Decision\n\nCommitted success: 53ce346 perf(stream): let a server stream's consumer take its queued items in one batch.\n",
+  "notes": ""
+}
