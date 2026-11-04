@@ -857,6 +857,10 @@ impl SignalRClient {
     /// Starts the pumps of a sent call's client-to-server streams on `logical_connection`, the
     /// one its invocation was accepted on.
     fn start_uploads(&self, uploads: Uploads, logical_connection: u64) -> UploadCancellation {
+        // Most calls have no streams: they need no sink and nothing to cancel.
+        if uploads.is_empty() {
+            return UploadCancellation::default();
+        }
         let Some(connection) = &self._connection else {
             return UploadCancellation::default();
         };

@@ -83,6 +83,11 @@ impl Uploads {
         )
     }
 
+    /// Whether the call has no client-to-server streams.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     /// The stream ids, for the invocation's `streamIds`.
     pub(crate) fn ids(&self) -> Vec<String> {
         self.0.iter().map(|(id, _)| id.clone()).collect()
