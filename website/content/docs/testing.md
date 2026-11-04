@@ -14,7 +14,7 @@ For contributors, and for readers deciding how far to trust a platform claim. Th
 | End-to-end scenarios (native) | `tests/e2e/<scenario>.rs` | the Aspire runner only |
 | End-to-end scenarios (browser) | `tests/wasm-fixture` and Playwright specs in `tools-node/` | the Aspire runner only |
 | Static contracts | `dotnet/dXn.SignalR.E2E.Tests` | `dotnet test` categories |
-| Micro-benchmarks and reference workloads | `benches/hot_paths.rs`, `tests/perf` | see [Performance](./performance.md) |
+| Micro-benchmarks and reference workloads | `benches/hot_paths.rs`, `benches/connection.rs`, `tests/perf` | see [Performance](./performance.md) |
 
 Plain `cargo test` never needs a server: the `e2e` test target is declared with `test = false`.
 

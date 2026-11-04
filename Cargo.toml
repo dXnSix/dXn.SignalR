@@ -153,6 +153,13 @@ path = "tests/perf/main.rs"
 harness = false
 test = false
 
+# Client round trips over a real loopback WebSocket against an in-process minimal hub:
+# `cargo bench --bench connection --features messagepack`.
+[[bench]]
+name = "connection"
+harness = false
+required-features = ["messagepack"]
+
 # Hot-path micro-benchmarks over the internal codec and action storage:
 # `cargo bench --bench hot_paths --features messagepack,bench-internals`.
 [[bench]]

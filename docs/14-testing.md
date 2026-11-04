@@ -9,7 +9,7 @@
 | End-to-end scenarios (native) | `tests/e2e/<scenario>.rs` | the Aspire runner only |
 | End-to-end scenarios (browser) | `tests/wasm-fixture` (Rust) and `tools-node/tests/*.spec.ts` (Playwright) | the Aspire runner only |
 | Static contracts | `dotnet/dXn.SignalR.E2E.Tests/src/Contracts` | `dotnet test` categories |
-| Micro-benchmarks | `benches/hot_paths.rs` | `cargo bench` (see [Performance](#performance)) |
+| Micro-benchmarks | `benches/hot_paths.rs`, `benches/connection.rs` | `cargo bench` (see [Performance](#performance)) |
 | Reference-client workloads | `tests/perf` and `dotnet/dXn.SignalR.PerfReference` | the Aspire `Performance` category only |
 
 Plain `cargo test` never needs a server: the `e2e` test target is declared with `test = false` in
@@ -245,7 +245,7 @@ mismatch. Fault controls and probes belong to the test service, never to the lib
 
 ## Performance
 
-Two harnesses measure the client; neither is part of the end-to-end selection.
+Three harnesses measure the client; none is part of the end-to-end selection.
 
 **Micro-benchmarks.** `benches/hot_paths.rs` runs Criterion over the crate's internal codec and
 action storage through the hidden `bench_support` module. The `bench-internals` feature that
@@ -264,6 +264,18 @@ decoding one received frame plus its dispatch through the action storage (`invoc
 `completion`, `completion-void`, `stream-item`, `ping`), `outbound` building and encoding an
 invocation with framing, and `framing` splitting a frame of eight records (`split-8`), at payload
 sizes of 32 B, 1 KiB and 64 KiB.
+
+**Loopback connection benchmarks.** `benches/connection.rs` drives a connected `SignalRClient`
+(public API only, negotiation skipped) over a real loopback WebSocket against a minimal hub in the
+same process, which answers the handshake, discards fire-and-forget invocations and completes every
+invocation that has an id. `connection/invoke/<protocol>` is one invocation round trip and
+`connection/send/<protocol>` one send, its batch confirmed by a final invocation. Because the hub
+does almost nothing, the figures follow the client's own send path, tasks and wake-ups, with much
+less run-to-run spread than the reference-client workloads, whose service shares the machine.
+
+```bash
+cargo bench --bench connection --features messagepack
+```
 
 **Reference-client workloads.** The `Performance` category runs the same workloads with a release
 build of the Rust client (`tests/perf`, a `test = false` binary) and with the official .NET client
