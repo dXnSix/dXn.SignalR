@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "id": "56eef083-f58e-45c3-bd96-84e8497c1fcd",
+  "loopId": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "index": 6,
+  "type": "hypothesis",
+  "name": "Direct write for awaited calls, flush without a writer wake arm",
+  "slug": "direct-write-for-awaited-calls-flush-without-a-writer-wake-arm",
+  "path": "2026-11-04-06-direct-write-for-awaited-calls-flush-without-a-writer-wake-arm.json",
+  "createdAt": "2026-11-04T00:22:41Z",
+  "startedAt": "2026-11-04T00:22:41Z",
+  "finishedAt": "2026-11-04T00:27:37Z",
+  "state": "done",
+  "status": "failure",
+  "checkpointCommit": "923619e03825e5c89160755339db6c64574cd54c",
+  "resultCommit": "",
+  "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard 923619e03825e5c89160755339db6c64574cd54c",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "checkpointCommit": "923619e03825e5c89160755339db6c64574cd54c",
+      "resultCommit": "",
+      "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard 923619e03825e5c89160755339db6c64574cd54c",
+      "status": "failure"
+    }
+  ],
+  "repositoryCommits": [],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  },
+  "primaryTarget": "wasm/web with headed Playwright and WebGPU enabled",
+  "hypothesisMarkdown": "",
+  "measurementPlanMarkdown": "",
+  "expectedOutcomeMarkdown": "",
+  "diagnostics": {
+    "playwright": [],
+    "rayx": [],
+    "counters": [],
+    "artifacts": []
+  },
+  "measurements": [
+    {
+      "metric": "invoke p50 json / messagepack (µs)",
+      "before": "86.0 / 85.1",
+      "after": "80.8 / 81.0",
+      "delta": "-6.0% / -4.8%",
+      "source": "Aspire Performance full"
+    },
+    {
+      "metric": "invoke cpu_us_per_op json / messagepack",
+      "before": "41.1 / 40.7",
+      "after": "26.8 / 27.3",
+      "delta": "-35% / -33%",
+      "source": "Aspire Performance full"
+    },
+    {
+      "metric": "send json (sends/s; cpu µs/op), 3 runs",
+      "before": "1.66M-1.73M; 0.8",
+      "after": "1.68M, 1.65M, 1.58M; 0.8-0.9",
+      "delta": "about -4%",
+      "source": "1 full + 2 send-only runs"
+    },
+    {
+      "metric": "send messagepack (sends/s; cpu µs/op), 3 runs",
+      "before": "1.91M-2.09M; 0.8-0.9",
+      "after": "1.90M, 1.80M, 1.95M; 1.0-1.2",
+      "delta": "-5% to -10%; CPU +20% (miss)",
+      "source": "1 full + 2 send-only runs"
+    },
+    {
+      "metric": "fan-in, stream",
+      "before": "experiment 3",
+      "after": "fan-in 44.6k/44.4k; stream 1.72M/1.60M",
+      "delta": "within noise",
+      "source": "Aspire Performance full"
+    }
+  ],
+  "reportMarkdown": "## Direct write for awaited calls, flush without a writer wake arm Finished\n\n**Index:** 6 · **Checkpoint:** 923619e · **Result Commit:** none · **Attempt Count:** 1\n\n**Passed Status:** false. Without the `Notify` arm the MessagePack send regression shrank (1.80–1.95M vs 1.57–1.86M in experiment 5), but it still misses the declared floor (≥1.9M sends/s, ≤0.9 µs CPU per send) in two of three runs. The invoke win held (p50 -5% to -6%, CPU per call -34%). Unit tests, fmt, clippy and both wasm checks passed.\n\n**Scope lock:** same files as experiment 5; reverted to the checkpoint.\n\n**Finding:** what remains on the fire-and-forget path is one atomic read-modify-write per send on the shared queued-frames counter, a cache line the writer task's thread also writes after every batch, so it moves between cores on every send. Next hypothesis: split it into a sender-written `queued` counter and a writer-written `written` counter on separate cache lines (a direct write requires them equal), so a send only touches a line its own thread owns.\n",
+  "decisionMarkdown": "### Decision\n\nReverted failure: src/ restored to 923619e (patch kept in the scratchpad).\n",
+  "notes": ""
+}
