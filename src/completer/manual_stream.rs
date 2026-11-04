@@ -107,8 +107,15 @@ impl<T> ManualStreamState<T> {
 /// enumeration.
 pub struct ManualStream<T> {
     state: ManualStreamState<T>,
+    /// Items taken from the shared queue in one batch, served without its lock: the consumer
+    /// locks once per batch, not once per item, so it rarely meets the receive loop's push.
+    batch: VecDeque<T>,
     terminated: bool,
 }
+
+// Items are moved out of the batch, never pinned in place: the stream stays `Unpin` for every
+// item type, as it was before it held items itself.
+impl<T> Unpin for ManualStream<T> {}
 
 impl<T> ManualStream<T> {
     /// Creates a stream and the completer that pushes its items, closes it, or fails it.
@@ -130,6 +137,7 @@ impl<T> ManualStream<T> {
         (
             ManualStream {
                 state: state.clone(),
+                batch: VecDeque::new(),
                 terminated: false,
             },
             ManualStreamCompleter { state },
@@ -188,12 +196,18 @@ impl<T> Stream for ManualStream<T> {
         if self.terminated {
             return Poll::Ready(None);
         }
-        let mut channel = self.state.channel();
-        if let Some(item) = channel.queue.pop_front() {
+        if let Some(item) = self.batch.pop_front() {
+            return Poll::Ready(Some(item));
+        }
+        let this = &mut *self;
+        let mut channel = this.state.channel();
+        // The emptied batch buffer becomes the shared queue: both keep their allocations.
+        std::mem::swap(&mut channel.queue, &mut this.batch);
+        if let Some(item) = this.batch.pop_front() {
             Poll::Ready(Some(item))
         } else if channel.closed {
             drop(channel);
-            self.terminated = true;
+            this.terminated = true;
             Poll::Ready(None)
         } else {
             channel.waker = Some(cx.waker().clone());
