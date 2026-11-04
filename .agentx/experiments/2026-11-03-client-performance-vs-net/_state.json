@@ -29,7 +29,7 @@
     "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
   },
   "currentExperimentId": null,
-  "nextExperimentIndex": 11,
+  "nextExperimentIndex": 12,
   "experiments": [
     {
       "id": "18705952-1ea1-4749-b7cd-14f794b0320f",
@@ -142,6 +142,17 @@
       "path": "2026-11-04-10-direct-write-for-awaited-calls-over-the-shared-writer.json",
       "startedAt": "2026-11-04T00:52:02Z",
       "finishedAt": "2026-11-04T00:58:40Z",
+      "state": "done",
+      "status": "failure"
+    },
+    {
+      "id": "5743afea-9cda-4a3d-ae81-f24824a490d0",
+      "index": 11,
+      "type": "hypothesis",
+      "name": "Direct write with a writer-local written count",
+      "path": "2026-11-04-11-direct-write-with-a-writer-local-written-count.json",
+      "startedAt": "2026-11-04T00:58:49Z",
+      "finishedAt": "2026-11-04T01:05:48Z",
       "state": "done",
       "status": "failure"
     }

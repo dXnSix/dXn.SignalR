@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "5743afea-9cda-4a3d-ae81-f24824a490d0",
+  "loopId": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "index": 11,
+  "type": "hypothesis",
+  "name": "Direct write with a writer-local written count",
+  "slug": "direct-write-with-a-writer-local-written-count",
+  "path": "2026-11-04-11-direct-write-with-a-writer-local-written-count.json",
+  "createdAt": "2026-11-04T00:58:49Z",
+  "startedAt": "2026-11-04T00:58:49Z",
+  "finishedAt": "2026-11-04T01:05:48Z",
+  "state": "done",
+  "status": "failure",
+  "checkpointCommit": "1bc4e8c99b2b3f3ab3f32cb66f28bdd1b38b5993",
+  "resultCommit": "",
+  "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard 1bc4e8c99b2b3f3ab3f32cb66f28bdd1b38b5993",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "checkpointCommit": "1bc4e8c99b2b3f3ab3f32cb66f28bdd1b38b5993",
+      "resultCommit": "",
+      "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard 1bc4e8c99b2b3f3ab3f32cb66f28bdd1b38b5993",
+      "status": "failure"
+    }
+  ],
+  "repositoryCommits": [],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  },
+  "primaryTarget": "wasm/web with headed Playwright and WebGPU enabled",
+  "hypothesisMarkdown": "",
+  "measurementPlanMarkdown": "",
+  "expectedOutcomeMarkdown": "",
+  "diagnostics": {
+    "playwright": [],
+    "rayx": [],
+    "counters": [],
+    "artifacts": []
+  },
+  "measurements": [
+    {
+      "metric": "send json, 3 interleaved pairs (9 rounds; sends/s median; cpu µs median)",
+      "before": "1.76M; 0.793",
+      "after": "1.77M; 0.763",
+      "delta": "level; -4%",
+      "source": "6 alternating send-only runs"
+    },
+    {
+      "metric": "send messagepack, 3 interleaved pairs",
+      "before": "2.14M; 0.823",
+      "after": "1.90M; 0.900",
+      "delta": "-11%; +9% (miss)",
+      "source": "6 alternating send-only runs"
+    }
+  ],
+  "reportMarkdown": "## Direct write with a writer-local written count Finished\n\n**Index:** 11 · **Checkpoint:** 1bc4e8c · **Result Commit:** none · **Attempt Count:** 1\n\n**Passed Status:** false. Over 9 pooled interleaved rounds, JSON sends were level (CPU -4%) but MessagePack sends missed (-11% throughput, CPU +9%). Experiment 10 measured the same code path the other way round (MessagePack +12%, JSON CPU +7%). Unit, fmt, clippy and wasm checks passed.\n\n**Scope lock:** experiment 10's design with a store-published written count; reverted to the checkpoint.\n\n**Finding:** the direct write's effect on fire-and-forget sends is below what the Aspire send workload resolves. That workload is paced by the service sharing the machine, and its per-protocol medians move ±10% between interleaved runs, while the mechanism adds at most about 20 ns per writer batch. Deciding it needs an instrument that measures the client alone. Next: a measurement-enablement experiment adding Criterion benchmarks that drive a real `SignalRClient` over a real WebSocket against an in-process minimal hub (handshake, discard sends, echo invocations), for both protocols.\n",
+  "decisionMarkdown": "### Decision\n\nReverted failure: src/ restored to 1bc4e8c (patch kept in the scratchpad).\n",
+  "notes": ""
+}
