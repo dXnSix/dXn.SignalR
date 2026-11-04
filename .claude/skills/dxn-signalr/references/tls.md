@@ -25,8 +25,8 @@ I/O with an error naming the features. The build script derives the internal `dx
 these features (native targets only); keep `build.rs`.
 
 ```toml
-dxn-signalr = { git = "...", tag = "v1.1.0", default-features = false, features = ["tls-webpki-roots", "tls-aws-lc-rs"] }
-dxn-signalr = { git = "...", tag = "v1.1.0", default-features = false } # plaintext-only native client
+dxn-signalr = { git = "...", tag = "v1.1.1", default-features = false, features = ["tls-webpki-roots", "tls-aws-lc-rs"] }
+dxn-signalr = { git = "...", tag = "v1.1.1", default-features = false } # plaintext-only native client
 ```
 
 ## Verifier selection

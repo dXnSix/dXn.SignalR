@@ -11,7 +11,7 @@ order: 240
 
 ```toml
 [dependencies]
-dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.0" }
+dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.1" }
 ```
 
 `Cargo.lock` records the tagged commit. To upgrade, change the tag to a newer one from the [Releases page](https://github.com/dXnSix/dXn.SignalR/releases); Cargo resolves it on the next build. There is no local-override mechanism for editing the library and a consumer at once: a change that spans both is released in the library first, then the consumer bumps its tag. Tags are immutable (a ruleset blocks updating and deleting `v*` tags), so a bad release is fixed by a new patch release.
@@ -41,7 +41,7 @@ Under the 1.x policy a minor release can break the API. Each breaking change car
 3. Before it is merged, the proposed version is checked to still be 1.x, the pull request is checked to change only `Cargo.toml` and `CHANGELOG.md`, and rustfmt and clippy must be green. Merging is outward-facing, so it needs the owner's go-ahead.
 4. The merge push tags `vX.Y.Z` on the merge commit and creates the GitHub Release with the changelog section as its notes.
 
-Releases so far: `v1.0.0` (2026-10-19, the first release, as `rayx-signalr`) and `v1.1.0` (2026-10-23, the rename to `dxn-signalr`), per the [changelog](https://github.com/dXnSix/dXn.SignalR/blob/master/CHANGELOG.md).
+Releases so far: `v1.0.0` (2026-10-19, the first release, as `rayx-signalr`), `v1.1.0` (2026-10-23, the rename to `dxn-signalr`) and `v1.1.1` (2026-11-04, the client performance work), per the [changelog](https://github.com/dXnSix/dXn.SignalR/blob/master/CHANGELOG.md).
 
 ## Next
 

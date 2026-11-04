@@ -15,7 +15,7 @@ Consumers pin a release tag (see the README's [Installation](../README.md#instal
 
 ```toml
 [dependencies]
-dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.0" }
+dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.1" }
 ```
 
 `Cargo.lock` records the tagged commit. To upgrade, change the tag to a newer one from the

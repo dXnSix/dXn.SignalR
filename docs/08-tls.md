@@ -29,10 +29,10 @@ features. A server certificate the verifier does not trust fails `connect` with 
 
 ```toml
 # Bundled roots and aws-lc-rs instead of the defaults:
-dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.0", default-features = false, features = ["tls-webpki-roots", "tls-aws-lc-rs"] }
+dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.1", default-features = false, features = ["tls-webpki-roots", "tls-aws-lc-rs"] }
 
 # Plaintext only (for example, an embedded client on a trusted network):
-dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.0", default-features = false }
+dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.1", default-features = false }
 ```
 
 `aws-lc-rs` compiles C and assembly code, so it needs a working C toolchain for every target you

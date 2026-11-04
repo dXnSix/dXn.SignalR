@@ -7,7 +7,7 @@ Full chapters: [Getting started](../../../../docs/01-getting-started.md),
 
 ```toml
 [dependencies]
-dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.0", features = ["messagepack"] }
+dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.1", features = ["messagepack"] }
 # pin the latest release tag; releases are git tags only, never a registry
 futures = "0.3"                                         # StreamExt for server streams
 serde = { version = "1", features = ["derive"] }

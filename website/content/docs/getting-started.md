@@ -12,7 +12,7 @@ order: 10
 The crate is not on crates.io. Releases are git tags (`vX.Y.Z`), so depend on a tag:
 
 ```bash
-cargo add dxn-signalr --git https://github.com/dXnSix/dXn.SignalR --tag v1.1.0
+cargo add dxn-signalr --git https://github.com/dXnSix/dXn.SignalR --tag v1.1.1
 ```
 
 The latest tag is on the [Releases page](https://github.com/dXnSix/dXn.SignalR/releases). `Cargo.lock` records the tagged commit; to upgrade, change the tag. See [Releases](./releasing.md) for how versions are cut.
@@ -21,7 +21,7 @@ You will usually add three more crates: `serde` for your message types, `futures
 
 ```toml
 [dependencies]
-dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.0", features = ["messagepack"] }
+dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.1", features = ["messagepack"] }
 futures = "0.3"
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

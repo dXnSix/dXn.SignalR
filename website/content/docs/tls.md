@@ -22,10 +22,10 @@ A build can open secure endpoints when it has at least one verifier feature and 
 
 ```toml
 # Bundled roots and aws-lc-rs instead of the defaults:
-dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.0", default-features = false, features = ["tls-webpki-roots", "tls-aws-lc-rs"] }
+dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.1", default-features = false, features = ["tls-webpki-roots", "tls-aws-lc-rs"] }
 
 # Plaintext only (for example, an embedded client on a trusted network):
-dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.0", default-features = false }
+dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.1", default-features = false }
 ```
 
 `aws-lc-rs` compiles C and assembly, so it needs a working C toolchain for every target you build; `ring` is the simpler default.

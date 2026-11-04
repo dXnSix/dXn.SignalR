@@ -16,7 +16,7 @@ A browser crate is a `cdylib` that depends on `dxn-signalr` and wasm-bindgen.
 crate-type = ["cdylib"]
 
 [dependencies]
-dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.0" }
+dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.1" }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 console_error_panic_hook = "0.1"

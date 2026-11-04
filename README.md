@@ -55,7 +55,7 @@ release tag, the latest one on the [Releases page](https://github.com/dXnSix/dXn
 
 ```toml
 [dependencies]
-dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.0", features = ["messagepack"] }
+dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.1", features = ["messagepack"] }
 ```
 
 `Cargo.lock` records the tagged commit; to upgrade, change the tag. [Releasing](docs/releasing.md)

@@ -15,7 +15,7 @@ Examples in these references may be fragments that assume a `client` in scope.
 
 The package is `dxn-signalr`, imported as `dxn_signalr`; it is released as git tags `vX.Y.Z`, not
 on crates.io or any registry, so consumers pin a release tag
-(`dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.0" }`; see
+(`dxn-signalr = { git = "https://github.com/dXnSix/dXn.SignalR", tag = "v1.1.1" }`; see
 [releasing](../../../docs/releasing.md)). One API covers native Tokio targets and browser
 `wasm32-unknown-unknown`; WASI and other `wasm32` targets do not compile. The transports are
 WebSockets, Server-Sent Events and Long Polling. RayX (`../../RayX/RayX.Old`) wraps the crate in
