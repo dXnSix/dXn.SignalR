@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "id": "43ec29ce-1f99-4799-a2f0-ccf4721e9fc3",
+  "loopId": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "index": 27,
+  "type": "hypothesis",
+  "name": "Spin briefly on the stream queue lock",
+  "slug": "spin-briefly-on-the-stream-queue-lock",
+  "path": "2026-11-04-27-spin-briefly-on-the-stream-queue-lock.json",
+  "createdAt": "2026-11-04T03:08:51Z",
+  "startedAt": "2026-11-04T03:08:51Z",
+  "finishedAt": "2026-11-04T03:18:42Z",
+  "state": "done",
+  "status": "failure",
+  "checkpointCommit": "cdbe570f92c0214e4d39f99a64e6559304663b11",
+  "resultCommit": "",
+  "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard cdbe570f92c0214e4d39f99a64e6559304663b11",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "checkpointCommit": "cdbe570f92c0214e4d39f99a64e6559304663b11",
+      "resultCommit": "",
+      "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard cdbe570f92c0214e4d39f99a64e6559304663b11",
+      "status": "failure"
+    }
+  ],
+  "repositoryCommits": [],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  },
+  "primaryTarget": "wasm/web with headed Playwright and WebGPU enabled",
+  "hypothesisMarkdown": "",
+  "measurementPlanMarkdown": "",
+  "expectedOutcomeMarkdown": "",
+  "diagnostics": {
+    "playwright": [],
+    "rayx": [],
+    "counters": [],
+    "artifacts": []
+  },
+  "measurements": [
+    {
+      "metric": "connection/stream json / messagepack (interleaved)",
+      "before": "567.5 / 448.7 ns",
+      "after": "491.9 / 397.7 ns",
+      "delta": "-13.3% / -11.4%",
+      "source": "bench_ab.sh connection"
+    },
+    {
+      "metric": "hot_paths/inbound/messagepack/stream-item 32B / 1KiB / 64KiB",
+      "before": "95.4 / 1447.8 / 86693 ns",
+      "after": "96.7 / 1528.8 / 90038 ns",
+      "delta": "+1.4% / +5.6% / +3.9% (miss, bar 2%)",
+      "source": "bench_ab.sh hot_paths stream-item"
+    },
+    {
+      "metric": "connection/send messagepack",
+      "before": "263.2 ns",
+      "after": "272.0 ns",
+      "delta": "+3.3% (miss, bar 3%)",
+      "source": "bench_ab.sh connection"
+    }
+  ],
+  "reportMarkdown": "## Spin briefly on the stream queue lock Finished\n\n**Index:** 27 · **Checkpoint:** cdbe570 · **Result Commit:** none · **Attempt Count:** 1\n\n**Passed Status:** false. The bounded spin made loopback stream items 11–13% faster, but the uncontended single-threaded MessagePack hand-off was 5.6% slower at 1 KiB and 3.9% at 64 KiB, and MessagePack send 3.3% slower, over the 2% and 3% bars. Stream unit tests, clippy and the wasm check passed. **Finding:** without contention the spin is never entered; the slowdown follows the inlined loop growing the generic item-dispatch function it is inlined into. Next hypothesis: one `try_lock` inline, and the spin plus blocking lock in a `#[cold]`, `#[inline(never)]` function.\n\n**Scope lock:** `ManualStreamState::channel`; reverted.\n",
+  "decisionMarkdown": "### Decision\n\nReverted failure: source restored to cdbe570.\n",
+  "notes": ""
+}

@@ -29,7 +29,7 @@
     "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
   },
   "currentExperimentId": null,
-  "nextExperimentIndex": 27,
+  "nextExperimentIndex": 28,
   "experiments": [
     {
       "id": "18705952-1ea1-4749-b7cd-14f794b0320f",
@@ -331,6 +331,17 @@
       "state": "done",
       "status": "success",
       "resultCommit": "ad4d02c"
+    },
+    {
+      "id": "43ec29ce-1f99-4799-a2f0-ccf4721e9fc3",
+      "index": 27,
+      "type": "hypothesis",
+      "name": "Spin briefly on the stream queue lock",
+      "path": "2026-11-04-27-spin-briefly-on-the-stream-queue-lock.json",
+      "startedAt": "2026-11-04T03:08:51Z",
+      "finishedAt": "2026-11-04T03:18:42Z",
+      "state": "done",
+      "status": "failure"
     }
   ]
 }
