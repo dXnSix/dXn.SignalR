@@ -14,6 +14,9 @@ pub(crate) type StreamDropHandler = Box<dyn FnOnce() + Send + 'static>;
 #[cfg(target_arch = "wasm32")]
 pub(crate) type StreamDropHandler = Box<dyn FnOnce() + 'static>;
 
+/// How many times a contended queue lock is tried before a caller blocks on it.
+const LOCK_SPINS: usize = 64;
+
 /// The queue and the consumer's waker share one lock, so a push takes a single lock and the
 /// consumer is woken after it is released, never while the producer holds it.
 struct Channel<T> {
@@ -58,7 +61,30 @@ impl<T> ManualStreamState<T> {
         }
     }
 
+    /// The queue's lock: one attempt inline, and the contended case out of line.
     fn channel(&self) -> std::sync::MutexGuard<'_, Channel<T>> {
+        match self.shared.channel.try_lock() {
+            Ok(channel) => channel,
+            Err(std::sync::TryLockError::Poisoned(poisoned)) => poisoned.into_inner(),
+            Err(std::sync::TryLockError::WouldBlock) => self.contended(),
+        }
+    }
+
+    /// Both sides hold the queue's lock for a few instructions (a push, a waker take, a buffer
+    /// swap), so a contended lock is tried a bounded number of times before it blocks: a platform
+    /// mutex that parks at once (macOS) would otherwise send both threads through the kernel for
+    /// every collision.
+    #[cold]
+    #[inline(never)]
+    fn contended(&self) -> std::sync::MutexGuard<'_, Channel<T>> {
+        for _ in 0..LOCK_SPINS {
+            std::hint::spin_loop();
+            match self.shared.channel.try_lock() {
+                Ok(channel) => return channel,
+                Err(std::sync::TryLockError::Poisoned(poisoned)) => return poisoned.into_inner(),
+                Err(std::sync::TryLockError::WouldBlock) => {}
+            }
+        }
         self.shared.channel.lock().unwrap()
     }
 
