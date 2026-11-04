@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "id": "8bc3574d-090f-49d3-bfa9-dc1e5368409c",
+  "loopId": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "index": 24,
+  "type": "hypothesis",
+  "name": "No timed wait for an already buffered frame",
+  "slug": "no-timed-wait-for-an-already-buffered-frame",
+  "path": "2026-11-04-24-no-timed-wait-for-an-already-buffered-frame.json",
+  "createdAt": "2026-11-04T02:37:11Z",
+  "startedAt": "2026-11-04T02:37:11Z",
+  "finishedAt": "2026-11-04T02:46:45Z",
+  "state": "done",
+  "status": "success",
+  "checkpointCommit": "fac598e0f055d0899c2c5dd44bd0080f0556e20a",
+  "resultCommit": "2e54352",
+  "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard fac598e0f055d0899c2c5dd44bd0080f0556e20a",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "checkpointCommit": "fac598e0f055d0899c2c5dd44bd0080f0556e20a",
+      "resultCommit": "2e54352",
+      "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard fac598e0f055d0899c2c5dd44bd0080f0556e20a",
+      "status": "success"
+    }
+  ],
+  "repositoryCommits": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "commit": "2e54352"
+    }
+  ],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  },
+  "primaryTarget": "wasm/web with headed Playwright and WebGPU enabled",
+  "hypothesisMarkdown": "",
+  "measurementPlanMarkdown": "",
+  "expectedOutcomeMarkdown": "",
+  "diagnostics": {
+    "playwright": [],
+    "rayx": [],
+    "counters": [],
+    "artifacts": []
+  },
+  "measurements": [
+    {
+      "metric": "connection/stream json / messagepack (interleaved, 2 pairs)",
+      "before": "754.9 / 651.2 ns per item",
+      "after": "594.9 / 510.9 ns per item",
+      "delta": "-21.2% / -21.5%",
+      "source": "bench_ab.sh connection"
+    },
+    {
+      "metric": "connection/invoke json / messagepack",
+      "before": "21325 / 22254 ns",
+      "after": "21381 / 22286 ns",
+      "delta": "+0.3% / +0.1%",
+      "source": "same"
+    },
+    {
+      "metric": "connection/send json / messagepack",
+      "before": "250.6 / 261.9 ns",
+      "after": "255.7 / 265.0 ns",
+      "delta": "+2.1% / +1.2%",
+      "source": "same"
+    }
+  ],
+  "reportMarkdown": "## No timed wait for an already buffered frame Finished\n\n**Index:** 24 · **Checkpoint:** fac598e · **Result Commit:** 2e54352 · **Attempt Count:** 1\n\n**Passed Status:** true. Loopback stream items -21%, invoke within 0.3%, send within 2.1%. Communication unit groups (329 and 326), clippy, the wasm check and 12 native end-to-end cells (keepalive-idle, server-timeout, suspend-resume, server-stream, stateful-reconnect, message-burst, invoke) pass.\n\n**Scope lock:** an untimed first poll in `run_receiver`'s wait and the `FutureExt` import.\n",
+  "decisionMarkdown": "### Decision\n\nCommitted success: 2e54352 perf(receive): take an already buffered frame without arming a timed wait.\n",
+  "notes": ""
+}

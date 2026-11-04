@@ -11,13 +11,13 @@
   "status": "",
   "createdAt": "2026-11-03T23:39:11Z",
   "finishedAt": null,
-  "lastStableCommit": "6afdff5",
+  "lastStableCommit": "2e54352",
   "repositories": [
     {
       "name": "main",
       "path": ".",
       "role": "main",
-      "lastStableCommit": "6afdff5"
+      "lastStableCommit": "2e54352"
     }
   ],
   "atomicDiscipline": {
@@ -29,7 +29,7 @@
     "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
   },
   "currentExperimentId": null,
-  "nextExperimentIndex": 24,
+  "nextExperimentIndex": 25,
   "experiments": [
     {
       "id": "18705952-1ea1-4749-b7cd-14f794b0320f",
@@ -296,6 +296,18 @@
       "state": "done",
       "status": "success",
       "resultCommit": "6afdff5"
+    },
+    {
+      "id": "8bc3574d-090f-49d3-bfa9-dc1e5368409c",
+      "index": 24,
+      "type": "hypothesis",
+      "name": "No timed wait for an already buffered frame",
+      "path": "2026-11-04-24-no-timed-wait-for-an-already-buffered-frame.json",
+      "startedAt": "2026-11-04T02:37:11Z",
+      "finishedAt": "2026-11-04T02:46:45Z",
+      "state": "done",
+      "status": "success",
+      "resultCommit": "2e54352"
     }
   ]
 }
