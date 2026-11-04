@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "maxIterations": 100,
+  "instructions": "Primary target: native macOS (Apple M5, 10 cores), release builds, the Aspire `Performance` category against the official .NET client in the same run (the harness's own measurement; `DXN_SIGNALR_PERF_SCALE=full`, three alternating rounds, median).\n\nAcceptance gates per experiment:\n1. The touched code's focused unit tests (`cargo test <filter>`, with and without `--features messagepack` where the code is protocol-specific), `cargo fmt --all --check`, and `cargo clippy --all-targets --test e2e --all-features -- -D warnings` pass. Stream/invoke/send behavior changes also run the matching native Aspire end-to-end scenario(s).\n2. A full-scale all-workload Aspire Performance run (about 3 minutes): the targeted Rust metric improves by at least 3% over the current best, its Rust/.NET ratio improves, and no other Rust metric regresses beyond its observed round-to-round noise. A targeted metric whose rounds overlap the previous best is re-measured (targeted workload only) before deciding.\n3. Profiler evidence (macOS `sample` on the perf process during the Aspire run) or Criterion (`hot_paths`, saved baseline `loop0`) shows the claimed mechanism.\n\nNever change the perf harness, the .NET reference or the test service to move the numbers; the library is what is optimized. Public API and behavior stay unchanged.\n",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "lastStableCommit": "7d6e101"
+    }
+  ],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  }
+}

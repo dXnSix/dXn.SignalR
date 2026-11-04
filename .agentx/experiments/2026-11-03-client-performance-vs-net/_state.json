@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "id": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "name": "Client performance vs .NET",
+  "objective": "Maximally improve dxn-signalr runtime performance (invoke latency, send throughput, stream throughput, fan-in) relative to the official .NET client, measured by the Aspire Performance category",
+  "metric": "",
+  "target": "",
+  "maxIterations": 100,
+  "maxExperiments": 100,
+  "state": "running",
+  "status": "",
+  "createdAt": "2026-11-03T23:39:11Z",
+  "finishedAt": null,
+  "lastStableCommit": "7d6e101",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "lastStableCommit": "7d6e101"
+    }
+  ],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  },
+  "currentExperimentId": null,
+  "nextExperimentIndex": 4,
+  "experiments": [
+    {
+      "id": "18705952-1ea1-4749-b7cd-14f794b0320f",
+      "index": 1,
+      "type": "baseline",
+      "name": "Baseline Measurement",
+      "path": "2026-11-03-01-baseline-measurement.json",
+      "startedAt": "2026-11-03T23:39:11Z",
+      "finishedAt": "2026-11-03T23:50:15Z",
+      "state": "done",
+      "status": "success",
+      "resultCommit": "5b1810a16ea42b61bbfe36eac4e37ae519358411"
+    },
+    {
+      "id": "1f82ab49-5e37-4f5b-8f03-98653c003529",
+      "index": 2,
+      "type": "hypothesis",
+      "name": "ManualStream single lock, wake after unlock",
+      "path": "2026-11-03-02-manual-stream-single-lock-wake-after-unlock.json",
+      "startedAt": "2026-11-03T23:50:21Z",
+      "finishedAt": "2026-11-03T23:57:36Z",
+      "state": "done",
+      "status": "success",
+      "resultCommit": "bbd9bb9"
+    },
+    {
+      "id": "875fe96e-f621-49c3-b279-e685f26b436b",
+      "index": 3,
+      "type": "hypothesis",
+      "name": "Measure client CPU per operation",
+      "path": "2026-11-04-03-measure-client-cpu-per-operation.json",
+      "startedAt": "2026-11-04T00:00:22Z",
+      "finishedAt": "2026-11-04T00:05:17Z",
+      "state": "done",
+      "status": "success",
+      "resultCommit": "7d6e101"
+    }
+  ]
+}

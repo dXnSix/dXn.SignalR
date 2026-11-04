@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "id": "875fe96e-f621-49c3-b279-e685f26b436b",
+  "loopId": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "index": 3,
+  "type": "hypothesis",
+  "name": "Measure client CPU per operation",
+  "slug": "measure-client-cpu-per-operation",
+  "path": "2026-11-04-03-measure-client-cpu-per-operation.json",
+  "createdAt": "2026-11-04T00:00:22Z",
+  "startedAt": "2026-11-04T00:00:22Z",
+  "finishedAt": "2026-11-04T00:05:17Z",
+  "state": "done",
+  "status": "success",
+  "checkpointCommit": "bbd9bb930719b787a2ba9273a1d53dd486a97b92",
+  "resultCommit": "7d6e101",
+  "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard bbd9bb930719b787a2ba9273a1d53dd486a97b92",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "checkpointCommit": "bbd9bb930719b787a2ba9273a1d53dd486a97b92",
+      "resultCommit": "7d6e101",
+      "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard bbd9bb930719b787a2ba9273a1d53dd486a97b92",
+      "status": "success"
+    }
+  ],
+  "repositoryCommits": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "commit": "7d6e101"
+    }
+  ],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  },
+  "primaryTarget": "wasm/web with headed Playwright and WebGPU enabled",
+  "hypothesisMarkdown": "",
+  "measurementPlanMarkdown": "",
+  "expectedOutcomeMarkdown": "",
+  "diagnostics": {
+    "playwright": [],
+    "rayx": [],
+    "counters": [],
+    "artifacts": []
+  },
+  "measurements": [
+    {
+      "metric": "cpu_us_per_op invoke json / messagepack",
+      "before": "not measured",
+      "after": "rust 41.1 / 40.7; .NET 323.2 / 313.7",
+      "delta": "ratio 0.127 / 0.130",
+      "source": "Aspire Performance full, run 20261104-000252"
+    },
+    {
+      "metric": "cpu_us_per_op stream json / messagepack",
+      "before": "not measured",
+      "after": "rust 0.9 / 0.8; .NET 6.2 / 1.5",
+      "delta": "ratio 0.144 / 0.514",
+      "source": "same run"
+    },
+    {
+      "metric": "cpu_us_per_op send json / messagepack",
+      "before": "not measured",
+      "after": "rust 0.8 / 0.9; .NET 1.1 / 1.0",
+      "delta": "ratio 0.738 / 0.916",
+      "source": "same run"
+    },
+    {
+      "metric": "cpu_us_per_op fan-in json / messagepack",
+      "before": "not measured",
+      "after": "rust 29.9 / 28.9; .NET 69.5 / 38.7",
+      "delta": "ratio 0.430 / 0.747",
+      "source": "same run"
+    },
+    {
+      "metric": "existing metrics",
+      "before": "experiment 2",
+      "after": "invoke p50 86.0/85.1 µs, stream 1.57M/1.80M, send 1.73M/1.91M, fan-in 44.5k/44.6k",
+      "delta": "within round noise",
+      "source": "same run"
+    }
+  ],
+  "reportMarkdown": "## Measure client CPU per operation Finished\n\n**Index:** 3 · **Checkpoint:** bbd9bb9 · **Result Commit:** 7d6e101 · **Attempt Count:** 1\n\n**Passed Status:** true. Both clients report a positive `cpu_us_per_op` in every row; the other metrics stay within noise. fmt, clippy, `dotnet build dXn.SignalR.slnx` and the WorkflowContract/Repository/Catalog/Toolchain categories pass. The Platform category's 4 failures are local toolchain gaps (no `wasm32-wasip1`/Android rust targets or cargo-ndk on this machine), not this change. `DependencySecurity` could not run (no cargo-audit); `libc` and `windows-sys` were already in the lock graph. The Windows `GetProcessTimes` branch was not compiled here.\n\n**Scope lock:** measurement only; no library source changed.\n\n**Finding:** the Rust client spends about 41 µs of process CPU per 86 µs invoke round trip, against well under 1 µs of codec work. The rest is thread park/unpark: each invoke wakes a runtime worker for the writer task, the I/O driver's worker for the response, and the caller. Removing the writer-task hop on the send path is the largest client-side lever for invoke latency, fan-in and CPU.\n",
+  "decisionMarkdown": "### Decision\n\nCommitted success: 7d6e101 test(perf): report each client's CPU time per operation.\n",
+  "notes": ""
+}

@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 1,
+  "id": "18705952-1ea1-4749-b7cd-14f794b0320f",
+  "loopId": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "index": 1,
+  "type": "baseline",
+  "name": "Baseline Measurement",
+  "slug": "baseline-measurement",
+  "path": "2026-11-03-01-baseline-measurement.json",
+  "createdAt": "2026-11-03T23:39:11Z",
+  "startedAt": "2026-11-03T23:39:11Z",
+  "finishedAt": "2026-11-03T23:50:15Z",
+  "state": "done",
+  "status": "success",
+  "checkpointCommit": "5b1810a16ea42b61bbfe36eac4e37ae519358411",
+  "resultCommit": "5b1810a16ea42b61bbfe36eac4e37ae519358411",
+  "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard 5b1810a16ea42b61bbfe36eac4e37ae519358411",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "checkpointCommit": "5b1810a16ea42b61bbfe36eac4e37ae519358411",
+      "resultCommit": "5b1810a16ea42b61bbfe36eac4e37ae519358411",
+      "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard 5b1810a16ea42b61bbfe36eac4e37ae519358411",
+      "status": "success"
+    }
+  ],
+  "repositoryCommits": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "commit": "5b1810a16ea42b61bbfe36eac4e37ae519358411"
+    }
+  ],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  },
+  "primaryTarget": "native macOS release, Aspire Performance category vs the official .NET client",
+  "hypothesisMarkdown": "## Baseline Measurement\n\nMeasure and document the starting point for this improvement loop before making optimization changes.",
+  "measurementPlanMarkdown": "",
+  "expectedOutcomeMarkdown": "### Expected Outcome\n\nBaseline metrics are captured and stored so later experiments compare against a known starting point.",
+  "diagnostics": {
+    "playwright": [],
+    "rayx": [],
+    "counters": [],
+    "artifacts": []
+  },
+  "measurements": [
+    {
+      "metric": "invoke-latency json p50/p99 (\u00b5s)",
+      "before": "rust 87.4 / 144.1; .NET 112.9 / 159.2",
+      "after": "",
+      "delta": "ratio 0.774 / 0.905",
+      "source": "Aspire Performance full, run 20261103-234042"
+    },
+    {
+      "metric": "invoke-latency messagepack p50/p99 (\u00b5s)",
+      "before": "rust 87.2 / 141.0; .NET 111.1 / 161.7",
+      "after": "",
+      "delta": "ratio 0.785 / 0.872",
+      "source": "Aspire Performance full"
+    },
+    {
+      "metric": "send-throughput json (sends/s)",
+      "before": "rust 1,726,713; .NET 1,708,794",
+      "after": "",
+      "delta": "ratio 1.010",
+      "source": "Aspire Performance full"
+    },
+    {
+      "metric": "send-throughput messagepack (sends/s)",
+      "before": "rust 2,058,224; .NET 1,919,430",
+      "after": "",
+      "delta": "ratio 1.072",
+      "source": "Aspire Performance full"
+    },
+    {
+      "metric": "stream-throughput json (items/s)",
+      "before": "rust 1,550,789 (rounds 1.43M-1.56M); .NET 1,265,655",
+      "after": "",
+      "delta": "ratio 1.225",
+      "source": "Aspire Performance full"
+    },
+    {
+      "metric": "stream-throughput messagepack (items/s)",
+      "before": "rust 1,466,009 (rounds 1.38M-1.78M); .NET 1,767,850 (rounds 1.07M-2.04M)",
+      "after": "",
+      "delta": "ratio 0.829",
+      "source": "Aspire Performance full"
+    },
+    {
+      "metric": "fan-in json (calls/s)",
+      "before": "rust 43,914; .NET 40,876",
+      "after": "",
+      "delta": "ratio 1.074",
+      "source": "Aspire Performance full"
+    },
+    {
+      "metric": "fan-in messagepack (calls/s)",
+      "before": "rust 43,991; .NET 38,357",
+      "after": "",
+      "delta": "ratio 1.147",
+      "source": "Aspire Performance full"
+    },
+    {
+      "metric": "Criterion inbound messagepack stream-item 32B",
+      "before": "100.2 ns",
+      "after": "",
+      "delta": "",
+      "source": "cargo bench --bench hot_paths (baseline loop0)"
+    },
+    {
+      "metric": "Criterion inbound json stream-item 32B",
+      "before": "178.6 ns",
+      "after": "",
+      "delta": "",
+      "source": "cargo bench --bench hot_paths (baseline loop0)"
+    },
+    {
+      "metric": "Criterion outbound json/messagepack invocation 32B",
+      "before": "165.6 / 162.4 ns",
+      "after": "",
+      "delta": "",
+      "source": "cargo bench --bench hot_paths (baseline loop0)"
+    }
+  ],
+  "reportMarkdown": "## Baseline Measurement Finished\n\nMachine: macOS 26 (Darwin 25.6.0), Apple M5, 10 logical processors, .NET SDK 10.0.402, Aspire 13.6.4. Full scale, all workloads, one Aspire run of 2 m 53 s.\n\n### Where the Rust client stands\n\n| Workload | JSON ratio | MessagePack ratio |\n| --- | ---: | ---: |\n| invoke p50 / p99 (latency, lower better) | 0.774 / 0.905 | 0.785 / 0.872 |\n| send throughput | 1.010 | 1.072 |\n| server stream | 1.225 | **0.829** |\n| fan-in | 1.074 | 1.147 |\n\nThe MessagePack server stream is the one row where the Rust client trails the .NET client on this machine. Send throughput is level (both clients near 1.7\u20132.1 M sends/s, plausibly service-bound). Invoke latency is already about 22% below the .NET client's.\n\n### Profile (macOS `sample`, MessagePack stream warm-up, 1 s)\n\n- Receiver task thread: about 35% of its active samples are inside `ManualStream` push: `__psynch_mutexwait` on the queue lock (81 of 358), the consumer wake (`pthread_cond_signal`, 22) and `__psynch_mutexdrop` (13). The wake runs while the queue lock is held.\n- Consumer (the caller's `block_on` thread): 108 of its ~194 active samples wait on the same queue mutex in `poll_next`, and 39 more in the unlock slow path.\n- Decode itself (rmp PerfItem, UTF-8 check, record framing) is small: about 30 samples; Criterion puts decode plus dispatch at 100 ns per MessagePack item against about 680 ns per item end to end.\n\n### Ranked candidate backlog\n\n1. **ManualStream critical section** (`src/completer/manual_stream.rs`, every server stream, both targets). Two nested mutexes per push (queue, then waker) and the waker's `wake()` run under the queue lock, so the consumer blocks in the kernel on every item. Mechanism: one lock for queue, waker and closed flag, wake after unlock. Expected: large stream-throughput gain, both protocols. Risk: lost-wakeup/close ordering; existing unit tests plus native `server_stream`/`stream_cancellation` scenarios decide.\n2. **ManualStream batch drain**: the consumer takes one lock per item; draining the whole queue into a consumer-local buffer per lock makes the consumer lock once per batch. Separate mechanism, after 1.\n3. **Per-item action lookup** (`storage_tokio.rs` `update`): a `Mutex<HashMap<String, Arc<dyn UpdatableAction>>>` lookup with SipHash and an `Arc` clone per stream item. Mechanism: cheaper hasher or cached last action. Small (a few % of receiver samples).\n4. **Send path** (`client_tokio.rs` `send_tracked`/`writer`): two async mutex locks, a writer clone and a runtime `Handle` clone per send. Send looks service-bound here, so likely unmeasurable end to end; Criterion-only evidence would not pass gate 2.\n5. **Invoke path allocations** (`client.rs` `invoke_internal`): `target.clone()`, an `upload_sink()` `Arc` allocation and `CancelOnDrop` even when there are no uploads. Small.\n6. **Receiver loop time reads** (`liveness.now()`, `timeout_at` per WebSocket message): a few % in `mach_absolute_time`; spread thin.\n\nAlready simple and left unchanged: record framing (MessagePack split is 13\u201316 ns per frame), the single-pass codec, `InvocationAction` completion.\n",
+  "decisionMarkdown": "### Decision\n\nBaseline recorded; no source changed. Start with candidate 1 (ManualStream critical section), the measured top cost of the one row where the Rust client trails.\n",
+  "notes": ""
+}

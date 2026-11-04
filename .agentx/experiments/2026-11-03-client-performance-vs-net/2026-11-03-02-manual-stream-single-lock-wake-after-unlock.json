@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "id": "1f82ab49-5e37-4f5b-8f03-98653c003529",
+  "loopId": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "index": 2,
+  "type": "hypothesis",
+  "name": "ManualStream single lock, wake after unlock",
+  "slug": "manual-stream-single-lock-wake-after-unlock",
+  "path": "2026-11-03-02-manual-stream-single-lock-wake-after-unlock.json",
+  "createdAt": "2026-11-03T23:50:21Z",
+  "startedAt": "2026-11-03T23:50:21Z",
+  "finishedAt": "2026-11-03T23:57:36Z",
+  "state": "done",
+  "status": "success",
+  "checkpointCommit": "5b1810a16ea42b61bbfe36eac4e37ae519358411",
+  "resultCommit": "bbd9bb9",
+  "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard 5b1810a16ea42b61bbfe36eac4e37ae519358411",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "checkpointCommit": "5b1810a16ea42b61bbfe36eac4e37ae519358411",
+      "resultCommit": "bbd9bb9",
+      "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard 5b1810a16ea42b61bbfe36eac4e37ae519358411",
+      "status": "success"
+    }
+  ],
+  "repositoryCommits": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "commit": "bbd9bb9"
+    }
+  ],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  },
+  "primaryTarget": "wasm/web with headed Playwright and WebGPU enabled",
+  "hypothesisMarkdown": "",
+  "measurementPlanMarkdown": "",
+  "expectedOutcomeMarkdown": "",
+  "diagnostics": {
+    "playwright": [],
+    "rayx": [],
+    "counters": [],
+    "artifacts": []
+  },
+  "measurements": [
+    {
+      "metric": "stream-throughput messagepack (Rust items/s, median)",
+      "before": "1,466,009 (3 rounds)",
+      "after": "1,556,000 (9 rounds over 3 runs: 1.29M-1.77M)",
+      "delta": "+6%",
+      "source": "Aspire Performance full + 2 stream-only runs"
+    },
+    {
+      "metric": "stream-throughput json (Rust items/s, median)",
+      "before": "1,550,789",
+      "after": "1,560,000 (9 rounds: 1.43M-1.68M)",
+      "delta": "flat",
+      "source": "Aspire Performance full + 2 stream-only runs"
+    },
+    {
+      "metric": "kernel mutex waits in a 1 s MessagePack stream profile",
+      "before": "245 __psynch_mutexwait, 55 __psynch_mutexdrop",
+      "after": "104 / 14",
+      "delta": "-58% / -75%",
+      "source": "macOS sample on the perf process"
+    },
+    {
+      "metric": "other rows (invoke, send, fan-in)",
+      "before": "see baseline",
+      "after": "invoke p50 86.9/86.1 µs, send 1.66M/2.09M, fan-in 44.4k/44.1k",
+      "delta": "within round noise (code not on their path)",
+      "source": "Aspire Performance full"
+    }
+  ],
+  "reportMarkdown": "## ManualStream single lock, wake after unlock Finished\n\n**Index:** 2 · **Checkpoint:** 5b1810a · **Result Commit:** bbd9bb9 · **Attempt Count:** 1\n\n**Passed Status:** true. The profile shows the claimed mechanism (kernel mutex waits -58%), the MessagePack stream median rose 6% over 9 rounds, and nothing regressed. Unit tests (manual_stream, enumerable, stream filter), fmt, clippy, the wasm check and 8 native stream end-to-end cells pass.\n\n**Scope lock:** only `src/completer/manual_stream.rs` changed; no out-of-scope changes.\n\n**Finding:** the receiver thread is busy only about half the time in the stream workload, so server stream throughput on this machine is largely paced by the service sharing the machine. Both clients' stream rows swing by ±20% round to round (.NET MessagePack 0.95M–2.13M). End-to-end throughput gains from client-side CPU savings are therefore damped; per-operation client CPU cost would be a more sensitive measure.\n",
+  "decisionMarkdown": "### Decision\n\nCommitted success: bbd9bb9 perf(stream): keep a server stream's queue and waker under one lock and wake after unlocking.\n",
+  "notes": ""
+}
