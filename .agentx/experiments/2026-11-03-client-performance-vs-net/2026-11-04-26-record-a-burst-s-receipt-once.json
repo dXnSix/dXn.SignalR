@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "id": "f19121e4-e280-43ad-9122-aec9ee7f89c9",
+  "loopId": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "index": 26,
+  "type": "hypothesis",
+  "name": "Record a burst's receipt once",
+  "slug": "record-a-burst-s-receipt-once",
+  "path": "2026-11-04-26-record-a-burst-s-receipt-once.json",
+  "createdAt": "2026-11-04T02:59:15Z",
+  "startedAt": "2026-11-04T02:59:15Z",
+  "finishedAt": "2026-11-04T03:08:46Z",
+  "state": "done",
+  "status": "success",
+  "checkpointCommit": "d925d6306fa7473ed1dacb2a9fa37e488e06060b",
+  "resultCommit": "ad4d02c",
+  "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard d925d6306fa7473ed1dacb2a9fa37e488e06060b",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "checkpointCommit": "d925d6306fa7473ed1dacb2a9fa37e488e06060b",
+      "resultCommit": "ad4d02c",
+      "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard d925d6306fa7473ed1dacb2a9fa37e488e06060b",
+      "status": "success"
+    }
+  ],
+  "repositoryCommits": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "commit": "ad4d02c"
+    }
+  ],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  },
+  "primaryTarget": "wasm/web with headed Playwright and WebGPU enabled",
+  "hypothesisMarkdown": "",
+  "measurementPlanMarkdown": "",
+  "expectedOutcomeMarkdown": "",
+  "diagnostics": {
+    "playwright": [],
+    "rayx": [],
+    "counters": [],
+    "artifacts": []
+  },
+  "measurements": [
+    {
+      "metric": "connection/stream json / messagepack (interleaved, 2 pairs)",
+      "before": "612.8 / 518.6 ns per item",
+      "after": "561.1 / 442.2 ns per item",
+      "delta": "-8.4% / -14.7%",
+      "source": "bench_ab.sh connection"
+    },
+    {
+      "metric": "connection/invoke json / messagepack",
+      "before": "21446 / 22187 ns",
+      "after": "21410 / 22064 ns",
+      "delta": "-0.2% / -0.6%",
+      "source": "same"
+    },
+    {
+      "metric": "connection/send json / messagepack",
+      "before": "251.8 / 262.7 ns",
+      "after": "252.4 / 268.6 ns",
+      "delta": "+0.2% / +2.2%",
+      "source": "same"
+    }
+  ],
+  "reportMarkdown": "## Record a burst's receipt once Finished\n\n**Index:** 26 · **Checkpoint:** d925d63 · **Result Commit:** ad4d02c · **Attempt Count:** 1\n\n**Passed Status:** true. Loopback stream items -8.4% / -14.7%; invoke and send within the bars. Communication unit groups (329 and 326), clippy, the wasm check and 12 native end-to-end cells (keepalive-idle, server-timeout, suspend-resume, server-stream, stateful-reconnect, stateful-resume-stress, message-burst) pass.\n\n**Scope lock:** one receipt per burst in `run_receiver`.\n",
+  "decisionMarkdown": "### Decision\n\nCommitted success: ad4d02c perf(receive): record a burst's receipt once, when the receive loop next waits.\n",
+  "notes": ""
+}
