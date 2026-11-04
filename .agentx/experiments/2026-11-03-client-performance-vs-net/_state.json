@@ -11,13 +11,13 @@
   "status": "",
   "createdAt": "2026-11-03T23:39:11Z",
   "finishedAt": null,
-  "lastStableCommit": "d6d3067",
+  "lastStableCommit": "8f8ea18",
   "repositories": [
     {
       "name": "main",
       "path": ".",
       "role": "main",
-      "lastStableCommit": "d6d3067"
+      "lastStableCommit": "8f8ea18"
     }
   ],
   "atomicDiscipline": {
@@ -29,7 +29,7 @@
     "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
   },
   "currentExperimentId": null,
-  "nextExperimentIndex": 20,
+  "nextExperimentIndex": 21,
   "experiments": [
     {
       "id": "18705952-1ea1-4749-b7cd-14f794b0320f",
@@ -249,6 +249,18 @@
       "state": "done",
       "status": "success",
       "resultCommit": "d6d3067"
+    },
+    {
+      "id": "96c6a2d3-c30e-4669-afaa-b278738867b2",
+      "index": 20,
+      "type": "hypothesis",
+      "name": "Measure server streams over the loopback hub",
+      "path": "2026-11-04-20-measure-server-streams-over-the-loopback-hub.json",
+      "startedAt": "2026-11-04T01:59:37Z",
+      "finishedAt": "2026-11-04T02:01:56Z",
+      "state": "done",
+      "status": "success",
+      "resultCommit": "8f8ea18"
     }
   ]
 }
