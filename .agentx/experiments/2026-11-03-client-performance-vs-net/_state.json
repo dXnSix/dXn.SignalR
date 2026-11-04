@@ -11,13 +11,13 @@
   "status": "",
   "createdAt": "2026-11-03T23:39:11Z",
   "finishedAt": null,
-  "lastStableCommit": "53ce346",
+  "lastStableCommit": "6afdff5",
   "repositories": [
     {
       "name": "main",
       "path": ".",
       "role": "main",
-      "lastStableCommit": "53ce346"
+      "lastStableCommit": "6afdff5"
     }
   ],
   "atomicDiscipline": {
@@ -29,7 +29,7 @@
     "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
   },
   "currentExperimentId": null,
-  "nextExperimentIndex": 23,
+  "nextExperimentIndex": 24,
   "experiments": [
     {
       "id": "18705952-1ea1-4749-b7cd-14f794b0320f",
@@ -284,6 +284,18 @@
       "state": "done",
       "status": "success",
       "resultCommit": "53ce346"
+    },
+    {
+      "id": "2ab6b714-358f-4b49-877e-c8ddadd74e0c",
+      "index": 23,
+      "type": "hypothesis",
+      "name": "One liveness reading per receive phase",
+      "path": "2026-11-04-23-one-liveness-reading-per-receive-phase.json",
+      "startedAt": "2026-11-04T02:24:18Z",
+      "finishedAt": "2026-11-04T02:36:45Z",
+      "state": "done",
+      "status": "success",
+      "resultCommit": "6afdff5"
     }
   ]
 }

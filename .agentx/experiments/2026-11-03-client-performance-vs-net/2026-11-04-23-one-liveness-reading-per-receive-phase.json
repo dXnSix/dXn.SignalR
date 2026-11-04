@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "id": "2ab6b714-358f-4b49-877e-c8ddadd74e0c",
+  "loopId": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "index": 23,
+  "type": "hypothesis",
+  "name": "One liveness reading per receive phase",
+  "slug": "one-liveness-reading-per-receive-phase",
+  "path": "2026-11-04-23-one-liveness-reading-per-receive-phase.json",
+  "createdAt": "2026-11-04T02:24:18Z",
+  "startedAt": "2026-11-04T02:24:18Z",
+  "finishedAt": "2026-11-04T02:36:45Z",
+  "state": "done",
+  "status": "success",
+  "checkpointCommit": "b389e37d45ad3d6b4016cc6fd6fa063460b7cb93",
+  "resultCommit": "6afdff5",
+  "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard b389e37d45ad3d6b4016cc6fd6fa063460b7cb93",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "checkpointCommit": "b389e37d45ad3d6b4016cc6fd6fa063460b7cb93",
+      "resultCommit": "6afdff5",
+      "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard b389e37d45ad3d6b4016cc6fd6fa063460b7cb93",
+      "status": "success"
+    }
+  ],
+  "repositoryCommits": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "commit": "6afdff5"
+    }
+  ],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  },
+  "primaryTarget": "wasm/web with headed Playwright and WebGPU enabled",
+  "hypothesisMarkdown": "",
+  "measurementPlanMarkdown": "",
+  "expectedOutcomeMarkdown": "",
+  "diagnostics": {
+    "playwright": [],
+    "rayx": [],
+    "counters": [],
+    "artifacts": []
+  },
+  "measurements": [
+    {
+      "metric": "connection/stream json / messagepack (interleaved, 2 pairs)",
+      "before": "878.6 / 801.0 ns per item",
+      "after": "746.3 / 649.0 ns per item",
+      "delta": "-15.1% / -19.0%",
+      "source": "bench_ab.sh connection"
+    },
+    {
+      "metric": "connection/invoke json / messagepack",
+      "before": "21279 / 22248 ns",
+      "after": "21356 / 22408 ns",
+      "delta": "+0.4% / +0.7%",
+      "source": "same"
+    },
+    {
+      "metric": "connection/send json / messagepack",
+      "before": "246.6 / 260.6 ns (re-measured 250.9 / 259.0)",
+      "after": "257.0 / 264.6 ns (re-measured 250.8 / 255.7)",
+      "delta": "+4.2% / +1.5% first, -0.1% / -1.3% over three more pairs",
+      "source": "bench_ab.sh connection send"
+    }
+  ],
+  "reportMarkdown": "## One liveness reading per receive phase Finished\n\n**Index:** 23 · **Checkpoint:** b389e37 · **Result Commit:** 6afdff5 · **Attempt Count:** 1\n\n**Passed Status:** true. Loopback stream items -15.1% / -19.0%; invoke within 1%; send +4.2% / +1.5% in the first pair, whose control rounds alone spread 4.5%, and -0.1% / -1.3% over three re-measured pairs. The communication unit group (329), clippy, the wasm check and 10 native end-to-end cells (keepalive-idle, server-timeout, suspend-resume, server-stream, stateful-reconnect) pass.\n\n**Scope lock:** `ConnectionLiveness::received` returns its reading and `instant_from` reuses the wait's reading in `run_receiver`.\n",
+  "decisionMarkdown": "### Decision\n\nCommitted success: 6afdff5 perf(receive): read the liveness clock once per wait and once per received frame.\n",
+  "notes": ""
+}
