@@ -29,7 +29,7 @@
     "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
   },
   "currentExperimentId": null,
-  "nextExperimentIndex": 31,
+  "nextExperimentIndex": 32,
   "experiments": [
     {
       "id": "18705952-1ea1-4749-b7cd-14f794b0320f",
@@ -376,6 +376,17 @@
       "state": "done",
       "status": "success",
       "resultCommit": "f312927"
+    },
+    {
+      "id": "e8dd4d8a-634d-43ac-8f98-7357706b7c8a",
+      "index": 31,
+      "type": "hypothesis",
+      "name": "Fast hasher for the pending-action map",
+      "path": "2026-11-04-31-fast-hasher-for-the-pending-action-map.json",
+      "startedAt": "2026-11-04T04:10:57Z",
+      "finishedAt": "2026-11-04T04:26:33Z",
+      "state": "done",
+      "status": "failure"
     }
   ]
 }

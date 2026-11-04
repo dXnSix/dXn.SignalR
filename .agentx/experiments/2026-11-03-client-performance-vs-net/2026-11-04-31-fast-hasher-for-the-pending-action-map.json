@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "id": "e8dd4d8a-634d-43ac-8f98-7357706b7c8a",
+  "loopId": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "index": 31,
+  "type": "hypothesis",
+  "name": "Fast hasher for the pending-action map",
+  "slug": "fast-hasher-for-the-pending-action-map",
+  "path": "2026-11-04-31-fast-hasher-for-the-pending-action-map.json",
+  "createdAt": "2026-11-04T04:10:57Z",
+  "startedAt": "2026-11-04T04:10:57Z",
+  "finishedAt": "2026-11-04T04:26:33Z",
+  "state": "done",
+  "status": "failure",
+  "checkpointCommit": "d7d1465628957032ce6544dcdffaee9c163e5e35",
+  "resultCommit": "",
+  "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard d7d1465628957032ce6544dcdffaee9c163e5e35",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "checkpointCommit": "d7d1465628957032ce6544dcdffaee9c163e5e35",
+      "resultCommit": "",
+      "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard d7d1465628957032ce6544dcdffaee9c163e5e35",
+      "status": "failure"
+    }
+  ],
+  "repositoryCommits": [],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  },
+  "primaryTarget": "wasm/web with headed Playwright and WebGPU enabled",
+  "hypothesisMarkdown": "",
+  "measurementPlanMarkdown": "",
+  "expectedOutcomeMarkdown": "",
+  "diagnostics": {
+    "playwright": [],
+    "rayx": [],
+    "counters": [],
+    "artifacts": []
+  },
+  "measurements": [
+    {
+      "metric": "hot_paths/inbound stream-item 32B json / messagepack (ABBA, 2 pairs)",
+      "before": "172.4 / 96.0 ns",
+      "after": "164.8 / 91.4 ns",
+      "delta": "-4.4% / -4.8%",
+      "source": "bench_ab.sh hot_paths inbound"
+    },
+    {
+      "metric": "hot_paths/inbound completion 32B json / messagepack",
+      "before": "290.1 / 201.7 ns",
+      "after": "287.2 / 198.2 ns",
+      "delta": "-1.0% / -1.7% (miss, target -3%)",
+      "source": "same"
+    },
+    {
+      "metric": "hot_paths/inbound/json/invocation/32B (guard; callback path, not the action map)",
+      "before": "401.8 ns",
+      "after": "418.5 ns",
+      "delta": "+4.2%, rounds not overlapping (guard miss)",
+      "source": "same"
+    }
+  ],
+  "reportMarkdown": "## Fast hasher for the pending-action map Finished\n\n**Index:** 31 · **Checkpoint:** d7d1465 · **Result Commit:** none · **Attempt Count:** 1\n\n**Passed Status:** false. The Fx-style hasher made stream-item dispatch 4.4–4.8% faster, but completion dispatch only 1.0–1.7% (target 3%), and the JSON server-invocation guard, whose callback path does not use this map, read +4.2% with non-overlapping rounds. Execution (60) and library (497) unit tests passed. **Finding:** hashing a short id is a small share of a completion (result decode and the awaiter's wake dominate); the end-to-end effect would be a percent or two. Not pursued further.\n\n**Scope lock:** the action maps' hasher (`storage.rs`, `storage_tokio.rs`, `storage_wasm.rs`); reverted.\n",
+  "decisionMarkdown": "### Decision\n\nReverted failure: source restored to d7d1465.\n",
+  "notes": ""
+}
