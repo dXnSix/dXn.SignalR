@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "id": "e8044f64-aaa4-480e-9376-33d8c2d82a74",
+  "loopId": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "index": 7,
+  "type": "hypothesis",
+  "name": "Direct write for awaited calls with per-thread queue counters",
+  "slug": "direct-write-for-awaited-calls-with-per-thread-queue-counters",
+  "path": "2026-11-04-07-direct-write-for-awaited-calls-with-per-thread-queue-counters.json",
+  "createdAt": "2026-11-04T00:30:01Z",
+  "startedAt": "2026-11-04T00:30:01Z",
+  "finishedAt": "2026-11-04T00:38:33Z",
+  "state": "done",
+  "status": "failure",
+  "checkpointCommit": "f3974708a7ff9fdcb2a508e4181da6a3afdf66c6",
+  "resultCommit": "",
+  "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard f3974708a7ff9fdcb2a508e4181da6a3afdf66c6",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "checkpointCommit": "f3974708a7ff9fdcb2a508e4181da6a3afdf66c6",
+      "resultCommit": "",
+      "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard f3974708a7ff9fdcb2a508e4181da6a3afdf66c6",
+      "status": "failure"
+    }
+  ],
+  "repositoryCommits": [],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  },
+  "primaryTarget": "wasm/web with headed Playwright and WebGPU enabled",
+  "hypothesisMarkdown": "",
+  "measurementPlanMarkdown": "",
+  "expectedOutcomeMarkdown": "",
+  "diagnostics": {
+    "playwright": [],
+    "rayx": [],
+    "counters": [],
+    "artifacts": []
+  },
+  "measurements": [
+    {
+      "metric": "invoke p50 json / messagepack (µs)",
+      "before": "86.0 / 85.1",
+      "after": "77.8 / 80.5",
+      "delta": "-9.5% / -5.4%",
+      "source": "Aspire Performance full"
+    },
+    {
+      "metric": "invoke cpu_us_per_op json / messagepack",
+      "before": "41.1 / 40.7",
+      "after": "26.2 / 27.4",
+      "delta": "-36% / -33%",
+      "source": "Aspire Performance full"
+    },
+    {
+      "metric": "send messagepack, interleaved A/B (M sends/s; cpu µs)",
+      "before": "control 2.23,1.99,1.93,1.84,1.95,1.70; 0.81-1.14",
+      "after": "1.73,1.71,1.67,1.57,1.82,1.73; 0.99-1.25",
+      "delta": "about -9%; CPU +8% (regression)",
+      "source": "4 alternating send-only runs"
+    },
+    {
+      "metric": "send json, interleaved A/B (M sends/s; cpu µs)",
+      "before": "control 1.74-1.87; 0.77-0.86",
+      "after": "1.70-1.84; 0.83-0.92",
+      "delta": "throughput level; CPU +0.06 µs",
+      "source": "4 alternating send-only runs"
+    },
+    {
+      "metric": "fan-in, stream",
+      "before": "experiment 3",
+      "after": "fan-in 44.6k/43.6k; stream 1.49M/1.71M",
+      "delta": "within noise",
+      "source": "Aspire Performance full"
+    }
+  ],
+  "reportMarkdown": "## Direct write for awaited calls with per-thread queue counters Finished\n\n**Index:** 7 · **Checkpoint:** f397470 · **Result Commit:** none · **Attempt Count:** 1\n\n**Passed Status:** false. Splitting the counter onto two cache lines did not remove the send cost: interleaved control/experiment runs show MessagePack sends about 9% slower and CPU per send about 8% higher; JSON CPU per send +0.06 µs. The invoke win held (p50 -5% to -10%, CPU per call -34%). All unit, fmt, clippy and wasm checks passed.\n\n**Scope lock:** counter layout on top of experiment 6; reverted to the checkpoint.\n\n**Finding:** the cost is not the counters. Every send clones the `ConnectionWriter` (`CommunicationClient::writer` returns a clone), and the new `direct` field adds four `Arc` clones and drops per send: the sink slot, the counts, the liveness timeline and the runtime handle. The sink slot's `Arc` refcount shares its cache line with the futures mutex state that the writer thread locks after every batch, so that line moves between cores on every send. Next hypothesis: hold the direct-write state behind one `Arc<DirectWrite>`, which only senders clone and the writer task never touches.\n",
+  "decisionMarkdown": "### Decision\n\nReverted failure: src/ restored to f397470 (patch kept in the scratchpad).\n",
+  "notes": ""
+}
