@@ -11,13 +11,13 @@
   "status": "",
   "createdAt": "2026-11-03T23:39:11Z",
   "finishedAt": null,
-  "lastStableCommit": "9b62bf4",
+  "lastStableCommit": "da184c3",
   "repositories": [
     {
       "name": "main",
       "path": ".",
       "role": "main",
-      "lastStableCommit": "9b62bf4"
+      "lastStableCommit": "da184c3"
     }
   ],
   "atomicDiscipline": {
@@ -29,7 +29,7 @@
     "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
   },
   "currentExperimentId": null,
-  "nextExperimentIndex": 15,
+  "nextExperimentIndex": 16,
   "experiments": [
     {
       "id": "18705952-1ea1-4749-b7cd-14f794b0320f",
@@ -191,6 +191,18 @@
       "state": "done",
       "status": "success",
       "resultCommit": "9b62bf4"
+    },
+    {
+      "id": "bbf6adcb-b12c-4672-b77b-f1624a1852e0",
+      "index": 15,
+      "type": "hypothesis",
+      "name": "Read the clock only when a send retries",
+      "path": "2026-11-04-15-read-the-clock-only-when-a-send-retries.json",
+      "startedAt": "2026-11-04T01:21:48Z",
+      "finishedAt": "2026-11-04T01:25:17Z",
+      "state": "done",
+      "status": "success",
+      "resultCommit": "da184c3"
     }
   ]
 }

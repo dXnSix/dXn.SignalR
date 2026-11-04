@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "id": "bbf6adcb-b12c-4672-b77b-f1624a1852e0",
+  "loopId": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "index": 15,
+  "type": "hypothesis",
+  "name": "Read the clock only when a send retries",
+  "slug": "read-the-clock-only-when-a-send-retries",
+  "path": "2026-11-04-15-read-the-clock-only-when-a-send-retries.json",
+  "createdAt": "2026-11-04T01:21:48Z",
+  "startedAt": "2026-11-04T01:21:48Z",
+  "finishedAt": "2026-11-04T01:25:17Z",
+  "state": "done",
+  "status": "success",
+  "checkpointCommit": "1fdf912fa354e6396189a31d0133da0f1ca59b30",
+  "resultCommit": "da184c3",
+  "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard 1fdf912fa354e6396189a31d0133da0f1ca59b30",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "checkpointCommit": "1fdf912fa354e6396189a31d0133da0f1ca59b30",
+      "resultCommit": "da184c3",
+      "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard 1fdf912fa354e6396189a31d0133da0f1ca59b30",
+      "status": "success"
+    }
+  ],
+  "repositoryCommits": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "commit": "da184c3"
+    }
+  ],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  },
+  "primaryTarget": "wasm/web with headed Playwright and WebGPU enabled",
+  "hypothesisMarkdown": "",
+  "measurementPlanMarkdown": "",
+  "expectedOutcomeMarkdown": "",
+  "diagnostics": {
+    "playwright": [],
+    "rayx": [],
+    "counters": [],
+    "artifacts": []
+  },
+  "measurements": [
+    {
+      "metric": "connection/send json / messagepack, run 1",
+      "before": "308.9 / 322.1 ns",
+      "after": "304.3 / 319.0 ns",
+      "delta": "-3.0% / -1.7% (p=0.05)",
+      "source": "cargo bench --bench connection (baseline cp15)"
+    },
+    {
+      "metric": "connection/send json / messagepack, run 2",
+      "before": "308.9 / 322.1 ns",
+      "after": "295.4 / 316.6 ns",
+      "delta": "-3.5% / -3.2%",
+      "source": "same baseline, re-measured"
+    },
+    {
+      "metric": "connection/invoke json / messagepack",
+      "before": "21.69 / 23.01 µs",
+      "after": "21.77 / 22.39 µs",
+      "delta": "-0.6% / -1.8%",
+      "source": "run 1"
+    }
+  ],
+  "reportMarkdown": "## Read the clock only when a send retries Finished\n\n**Index:** 15 · **Checkpoint:** 1fdf912 · **Result Commit:** da184c3 · **Attempt Count:** 1\n\n**Passed Status:** true. The first bench run showed -3.0% / -1.7%; a re-measurement against the same baseline showed -3.5% / -3.2%, both significant. Invoke not slower. client_tokio unit group (47), fmt, clippy and 6 native end-to-end cells (stateful-transparent-resume, stateful-resume-stress, send) pass. The profile's 11% clock share overstated the gain because the caller is not the only limit on the send rate.\n\n**Scope lock:** the lazy retry start in `ConnectionWriter::send_current` and its doc sentence.\n",
+  "decisionMarkdown": "### Decision\n\nCommitted success: da184c3 perf(send): read the clock only when a send has to wait for a lost transport.\n",
+  "notes": ""
+}
