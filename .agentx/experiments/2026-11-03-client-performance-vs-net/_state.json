@@ -11,13 +11,13 @@
   "status": "",
   "createdAt": "2026-11-03T23:39:11Z",
   "finishedAt": null,
-  "lastStableCommit": "db99d1c",
+  "lastStableCommit": "c80f4d2",
   "repositories": [
     {
       "name": "main",
       "path": ".",
       "role": "main",
-      "lastStableCommit": "db99d1c"
+      "lastStableCommit": "c80f4d2"
     }
   ],
   "atomicDiscipline": {
@@ -29,7 +29,7 @@
     "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
   },
   "currentExperimentId": null,
-  "nextExperimentIndex": 12,
+  "nextExperimentIndex": 13,
   "experiments": [
     {
       "id": "18705952-1ea1-4749-b7cd-14f794b0320f",
@@ -155,6 +155,18 @@
       "finishedAt": "2026-11-04T01:05:48Z",
       "state": "done",
       "status": "failure"
+    },
+    {
+      "id": "5bf7db4c-d636-4fdd-a350-1b3169e6aaef",
+      "index": 12,
+      "type": "hypothesis",
+      "name": "Measure the client over a loopback hub",
+      "path": "2026-11-04-12-measure-the-client-over-a-loopback-hub.json",
+      "startedAt": "2026-11-04T01:06:50Z",
+      "finishedAt": "2026-11-04T01:09:57Z",
+      "state": "done",
+      "status": "success",
+      "resultCommit": "c80f4d2"
     }
   ]
 }
