@@ -761,6 +761,11 @@ impl SerializedFrame {
         Self::Text(Bytes::from(text.into()))
     }
 
+    /// A text frame from bytes that `serde_json` wrote around ASCII literals, so UTF-8.
+    pub(crate) fn json(record: Vec<u8>) -> Self {
+        Self::Text(Bytes::from(record))
+    }
+
     #[cfg(feature = "messagepack")]
     pub(crate) fn binary(bytes: impl Into<Vec<u8>>) -> Self {
         Self::Binary(Bytes::from(bytes.into()))
@@ -811,7 +816,11 @@ impl OutboundMessage {
     /// An Invocation or StreamInvocation; its arguments are already encoded in its protocol.
     pub(crate) fn invocation(invocation: &Invocation) -> Result<Self, Error> {
         let frame = match invocation.protocol() {
-            HubProtocolKind::Json => json_frame(invocation)?,
+            HubProtocolKind::Json => {
+                SerializedFrame::json(invocation.json_record().map_err(|error| {
+                    Error::serialization(format!("cannot encode the message as JSON: {error}"))
+                })?)
+            }
             #[cfg(feature = "messagepack")]
             HubProtocolKind::MessagePack => {
                 SerializedFrame::binary(super::msgpack::encode_invocation_frame(invocation)?)

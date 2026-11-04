@@ -1,31 +1,27 @@
 use super::{hub_protocol::HubProtocolKind, negotiate::MessageType};
 use crate::error::Error;
 use serde::{Deserialize, Serialize};
-use serde_json::value::RawValue;
 use std::{collections::BTreeMap, fmt::Debug};
 
 /// Indicates a request to invoke a particular method (the Target) with provided Arguments on the remote endpoint.
 ///
 /// Each argument is encoded once, when it is added, in the connection's hub protocol; the
 /// message is then written around the encoded arguments.
-#[derive(Debug, Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
+/// The JSON argument buffer's first allocation.
+const ARGUMENTS_CAPACITY: usize = 128;
+
+#[derive(Debug, Clone)]
 pub struct Invocation {
     r#type: MessageType,
-    #[serde(skip_serializing_if = "Option::is_none")]
     headers: Option<BTreeMap<String, String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     invocation_id: Option<String>,
     target: String,
-    /// The JSON-encoded arguments.
-    arguments: Vec<Box<RawValue>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// The JSON-encoded arguments, comma-separated, written straight into one buffer.
+    arguments: Vec<u8>,
     stream_ids: Option<Vec<String>>,
     /// The protocol the arguments are encoded in.
-    #[serde(skip)]
     protocol: HubProtocolKind,
     /// The MessagePack-encoded arguments (named maps, so serde renames reach the server).
-    #[serde(skip)]
     #[cfg(feature = "messagepack")]
     msgpack_arguments: Vec<Vec<u8>>,
 }
@@ -57,10 +53,19 @@ impl Invocation {
     pub fn with_argument<T: Serialize>(&mut self, data: T) -> Result<(), Error> {
         match self.protocol {
             HubProtocolKind::Json => {
-                let json = serde_json::value::to_raw_value(&data).map_err(|error| {
-                    Error::serialization(format!("cannot encode an argument as JSON: {error}"))
-                })?;
-                self.arguments.push(json);
+                let start = self.arguments.len();
+                if start > 0 {
+                    self.arguments.push(b',');
+                } else {
+                    // As `serde_json::to_string` starts: small arguments never reallocate.
+                    self.arguments.reserve(ARGUMENTS_CAPACITY);
+                }
+                if let Err(error) = serde_json::to_writer(&mut self.arguments, &data) {
+                    self.arguments.truncate(start);
+                    return Err(Error::serialization(format!(
+                        "cannot encode an argument as JSON: {error}"
+                    )));
+                }
             }
             #[cfg(feature = "messagepack")]
             HubProtocolKind::MessagePack => {
@@ -126,6 +131,39 @@ impl Invocation {
     #[cfg(feature = "messagepack")]
     pub(crate) fn stream_ids(&self) -> &[String] {
         self.stream_ids.as_deref().unwrap_or_default()
+    }
+
+    /// The JSON record (with its separator): the members in the order the derived encoding used
+    /// (`type`, `headers`, `invocationId`, `target`, `arguments`, `streamIds`), written around the
+    /// already encoded arguments into one buffer of the right size.
+    pub(crate) fn json_record(&self) -> Result<Vec<u8>, serde_json::Error> {
+        let mut record = Vec::with_capacity(
+            self.arguments.len()
+                + self.target.len()
+                + self.invocation_id.as_ref().map_or(0, String::len)
+                + 64,
+        );
+        record.extend_from_slice(b"{\"type\":");
+        serde_json::to_writer(&mut record, &self.r#type)?;
+        if let Some(headers) = &self.headers {
+            record.extend_from_slice(b",\"headers\":");
+            serde_json::to_writer(&mut record, headers)?;
+        }
+        if let Some(invocation_id) = &self.invocation_id {
+            record.extend_from_slice(b",\"invocationId\":");
+            serde_json::to_writer(&mut record, invocation_id)?;
+        }
+        record.extend_from_slice(b",\"target\":");
+        serde_json::to_writer(&mut record, &self.target)?;
+        record.extend_from_slice(b",\"arguments\":[");
+        record.extend_from_slice(&self.arguments);
+        record.push(b']');
+        if let Some(stream_ids) = &self.stream_ids {
+            record.extend_from_slice(b",\"streamIds\":");
+            serde_json::to_writer(&mut record, stream_ids)?;
+        }
+        record.extend_from_slice(b"}\x1e");
+        Ok(record)
     }
 }
 
