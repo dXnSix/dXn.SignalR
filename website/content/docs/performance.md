@@ -61,7 +61,7 @@ cargo bench --bench hot_paths --features messagepack,bench-internals
 
 The `bench-internals` feature is unstable and exists only for these benchmarks; applications never enable it.
 
-To measure the client alone, `benches/connection.rs` runs invocation round trips and sends through a real `SignalRClient` over a loopback WebSocket, against a minimal hub in the same process:
+To measure the client alone, `benches/connection.rs` runs invocation round trips, sends and server-stream items through a real `SignalRClient` over a loopback WebSocket, against a minimal hub in the same process:
 
 ```bash
 cargo bench --bench connection --features messagepack

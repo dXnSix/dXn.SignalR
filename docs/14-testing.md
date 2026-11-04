@@ -267,9 +267,11 @@ sizes of 32 B, 1 KiB and 64 KiB.
 
 **Loopback connection benchmarks.** `benches/connection.rs` drives a connected `SignalRClient`
 (public API only, negotiation skipped) over a real loopback WebSocket against a minimal hub in the
-same process, which answers the handshake, discards fire-and-forget invocations and completes every
-invocation that has an id. `connection/invoke/<protocol>` is one invocation round trip and
-`connection/send/<protocol>` one send, its batch confirmed by a final invocation. Because the hub
+same process, which answers the handshake, discards fire-and-forget invocations, completes every
+invocation that has an id and answers every stream invocation with 1,000 items, one WebSocket
+message each. `connection/invoke/<protocol>` is one invocation round trip,
+`connection/send/<protocol>` one send, its batch confirmed by a final invocation, and
+`connection/stream/<protocol>` one item of a server stream. Because the hub
 does almost nothing, the figures follow the client's own send path, tasks and wake-ups, with much
 less run-to-run spread than the reference-client workloads, whose service shares the machine.
 
