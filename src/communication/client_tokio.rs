@@ -191,7 +191,12 @@ impl ConnectionLiveness {
 
     /// The Tokio instant of `at` on the liveness clock.
     fn instant(&self, at: u64) -> tokio::time::Instant {
-        tokio::time::Instant::now() + Duration::from_millis(at.saturating_sub(self.now()))
+        Self::instant_from(at, self.now())
+    }
+
+    /// The Tokio instant of `at` on the liveness clock, which reads `now`.
+    fn instant_from(at: u64, now: u64) -> tokio::time::Instant {
+        tokio::time::Instant::now() + Duration::from_millis(at.saturating_sub(now))
     }
 
     fn sent(&self) {
@@ -200,10 +205,12 @@ impl ConnectionLiveness {
         timeline.tracker.on_sent(now);
     }
 
-    fn received(&self) {
+    /// Records a received frame; returns the reading it was recorded at.
+    fn received(&self) -> u64 {
         let mut timeline = self.timeline();
         let now = timeline.clock.now();
         timeline.tracker.on_received(now);
+        now
     }
 
     /// When the writer must send a Ping unless another frame goes out first (never over a
@@ -1564,8 +1571,11 @@ impl CommunicationConnection {
                             timeout.map(|_| waiting_since + LIVENESS_TICK.as_millis() as u64);
                         let wake = [ack, timeout, tick].into_iter().flatten().min();
                         let next = match wake {
+                            // The wait's start is the deadline's reading too.
                             Some(wake) => {
-                                tokio::time::timeout_at(liveness.instant(wake), stream.next()).await
+                                let deadline =
+                                    ConnectionLiveness::instant_from(wake, waiting_since);
+                                tokio::time::timeout_at(deadline, stream.next()).await
                             }
                             None => Ok(stream.next().await),
                         };
@@ -1627,7 +1637,7 @@ impl CommunicationConnection {
                         }
                     }
                 };
-                liveness.received();
+                let received_at = liveness.received();
                 match item {
                     Ok(ws_message) => {
                         let mut context = RecordContext {
@@ -1635,7 +1645,7 @@ impl CommunicationConnection {
                             stateful: stateful.as_ref(),
                             protocol_kind,
                             writer: &writer,
-                            now: liveness.now(),
+                            now: received_at,
                         };
                         let ended = match protocol_kind {
                             HubProtocolKind::Json => match ws_message.as_text() {
