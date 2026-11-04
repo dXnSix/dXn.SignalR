@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "id": "9c886485-d39e-4554-8b3c-9133d0764be5",
+  "loopId": "fe65da2e-e084-4dfa-b498-d3c99a68269e",
+  "index": 32,
+  "type": "hypothesis",
+  "name": "No method-name copy per call",
+  "slug": "no-method-name-copy-per-call",
+  "path": "2026-11-04-32-no-method-name-copy-per-call.json",
+  "createdAt": "2026-11-04T04:27:24Z",
+  "startedAt": "2026-11-04T04:27:24Z",
+  "finishedAt": "2026-11-04T04:37:48Z",
+  "state": "done",
+  "status": "success",
+  "checkpointCommit": "456ea50bd98ec5bf413438c9a51ebb5aaab56870",
+  "resultCommit": "d83ed2b",
+  "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard 456ea50bd98ec5bf413438c9a51ebb5aaab56870",
+  "repositories": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "checkpointCommit": "456ea50bd98ec5bf413438c9a51ebb5aaab56870",
+      "resultCommit": "d83ed2b",
+      "rollbackCommand": "git -C \"/Users/dinko/work-private/projects/dXn/dXn.SignalR\" reset --hard 456ea50bd98ec5bf413438c9a51ebb5aaab56870",
+      "status": "success"
+    }
+  ],
+  "repositoryCommits": [
+    {
+      "name": "main",
+      "path": ".",
+      "role": "main",
+      "commit": "d83ed2b"
+    }
+  ],
+  "atomicDiscipline": {
+    "oneHypothesisOnly": true,
+    "singleImplementationAttempt": true,
+    "noUnplannedFixesInsideExperiment": true,
+    "failedAttemptRequiresImmediateRevert": true,
+    "successfulAttemptRequiresCommitBeforeNextExperiment": true,
+    "rule": "Run exactly the printed hypothesis. If the attempted change fails, degrades, or suggests a different fix, revert to the checkpoint and finish this experiment as failure. Start a new experiment for the next idea."
+  },
+  "primaryTarget": "wasm/web with headed Playwright and WebGPU enabled",
+  "hypothesisMarkdown": "",
+  "measurementPlanMarkdown": "",
+  "expectedOutcomeMarkdown": "",
+  "diagnostics": {
+    "playwright": [],
+    "rayx": [],
+    "counters": [],
+    "artifacts": []
+  },
+  "measurements": [
+    {
+      "metric": "connection/send json / messagepack (ABBA, 2 pairs)",
+      "before": "249.9 / 263.8 ns",
+      "after": "240.0 / 259.0 ns",
+      "delta": "-3.9% / -1.8%",
+      "source": "bench_ab.sh connection"
+    },
+    {
+      "metric": "guards: connection/invoke, connection/stream (5%), hot_paths/outbound (2%)",
+      "before": "control",
+      "after": "-1.5% to +2.3%",
+      "delta": "pass",
+      "source": "bench_ab.sh connection and hot_paths outbound"
+    }
+  ],
+  "reportMarkdown": "## No method-name copy per call Finished\n\n**Index:** 32 · **Checkpoint:** 456ea50 · **Result Commit:** d83ed2b · **Attempt Count:** 1\n\n**Passed Status:** true. JSON send -3.9%, MessagePack send -1.8%, every guard inside its bar. Client unit groups (145 and 149), clippy, both wasm checks and native end-to-end cells (invoke, send, request-headers, server-stream) pass.\n\n**Scope lock:** `client.rs` call paths and `add_invocation_headers`, plus the ungated `Invocation::target`.\n",
+  "decisionMarkdown": "### Decision\n\nCommitted success: d83ed2b perf(calls): move the method name into the invocation instead of copying it.\n",
+  "notes": ""
+}
