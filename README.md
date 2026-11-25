@@ -222,6 +222,39 @@ and compiled examples. The [guide](docs/README.md) covers the whole API in chapt
 [limitations](docs/12-limitations.md), [architecture](docs/13-architecture.md), and
 [testing and CI](docs/14-testing.md).
 
+## Development prerequisites (Windows)
+
+### Agent skills symlink (`.claude/skills` → `../.agents/skills`)
+
+Agent skills use `.claude/skills` symlinked to `../.agents/skills` so Claude Code can load skills
+from `.agents/skills`. On Windows, Git defaults to `core.symlinks=false` and checks out symlinks
+as plain text files unless configured once:
+
+1. Turn on **Developer Mode** (**Settings → System → For developers**) so non-elevated users can
+   create symbolic links.
+2. Enable Git symlinks globally (or pass `-c core.symlinks=true` to `git clone`):
+
+```bash
+git config --global core.symlinks true
+```
+
+3. If the repository was already cloned before enabling symlinks, recreate the link from the
+   repository root:
+
+```bash
+git config core.symlinks true
+git rm --cached .claude/skills
+git checkout HEAD -- .claude/skills
+```
+
+**Fallback without Developer Mode:** delete the plain text `.claude/skills` file and create a local
+directory junction from `cmd` (Git does not track junctions; do not commit the resulting status
+change):
+
+```cmd
+mklink /J .claude\skills .agents\skills
+```
+
 ## Acknowledgements
 
 This library started from [`signalr-client`](https://github.com/danielleiszen/rust_signalr_client)
